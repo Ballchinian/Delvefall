@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <title>Cardalike - find similar magic cards</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    </head>
+    <body>
+
+        <header>
+            <div class="header-inner">
+                <a class="site-name" href="/">Cardalike</a>
+                <form action="/" method="get" class="search-form" autocomplete="off">
+                    <input type="text" name="q" placeholder="Search for a card by name..." value="{{ query or '' }}" autofocus>
+                    <button type="submit">Search</button>
+                    <div id="suggestions"></div>
+                </form>
+            </div>
+        </header>
+
+        <main>
+            {% if not_found %}
+                <p class="message">Couldn't find a card called "{{ query }}", maybe check the spelling?</p>
+            {% elif card %}
+                <div class="searched-card">
+                    <img src="{{ card.image }}" alt="{{ card.name }}">
+                    <div class="searched-info">
+                        <h1>{{ card.name }} <span class="mana">{{ card.mana_cost }}</span></h1>
+                        <p class="type-line">{{ card.type_line }}</p>
+                        <p class="oracle">{{ card.text }}</p>
+                    </div>
+                </div>
+
+                <h2>Cards that do something similar</h2>
+                <div class="card-grid">
+                    {% for r in results %}
+                    <div class="result">
+                        <a href="{{ r.scryfall_uri }}" target="_blank">
+                            <img src="{{ r.image }}" alt="{{ r.name }}" loading="lazy">
+                        </a>
+                        <div class="result-name">{{ r.name }} <span class="percent">{{ r.percent }}%</span></div>
+                        <div class="match-line" title="matches your card's line: {{ r.our_line }}">"{{ r.their_line }}"</div>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                {% if has_more %}
+                <div class="load-more-wrap">
+                    <button id="load-more" data-card="{{ card.name }}">Load 20 more</button>
+                </div>
+                {% endif %}
+
+                <script>
+                /*
+                    the load more button. asks the server for the next 20 results as
+                    json and glues them onto the bottom of the grid. offset is just
+                    how many cards we are already showing. the card name lives in a
+                    data attribute on the button so this script stays plain js
+                */
+                var offset = 20;
+                var btn = document.getElementById("load-more");
+                if (btn) {
+                    var cardName = btn.dataset.card;
+                    btn.onclick = function() {
+                        btn.textContent = "Loading...";
+                        fetch("/more?q=" + encodeURIComponent(cardName) + "&offset=" + offset)
+                            .then(function(r) { return r.json(); })
+                            .then(function(data) {
+                                var grid = document.querySelector(".card-grid");
+                                data.results.forEach(function(r) {
+                                    var div = document.createElement("div");
+                                    div.className = "result";
+                                    div.innerHTML = '<a href="' + r.scryfall_uri + '" target="_blank">' +
+                                        '<img src="' + r.image + '" alt="" loading="lazy"></a>' +
+                                        '<div class="result-name">' + r.name + ' <span class="percent">' + r.percent + '%</span></div>' +
+                                        '<div class="match-line">"' + r.their_line + '"</div>';
+                                    grid.appendChild(div);
+                                });
+                                offset = offset + data.results.length;
+                                btn.textContent = "Load 20 more";
+                                //once the server runs out theres no point keeping the button around
+                                if (!data.has_more) {
+                                    btn.remove();
+                                }
+                            });
+                    };
+                }
+                </script>
+            {% else %}
+                <div class="hero">
+                    <h1>Find cards that do the same thing</h1>
+                    <p>Type in any Magic card and this digs through every card ever printed for ones with
+                    similar abilities, even when the wording is completely different.</p>
+                </div>
+            {% endif %}
+        </main>
+
+        <footer>
+            <p>Card data and images from <a href="https://scryfall.com">Scryfall</a>.
+            Unofficial Fan Content, not approved or endorsed by Wizards of the Coast.</p>
+        </footer>
+
+        <script>
+        /*
+            autocomplete for the search bar. waits a moment after each keypress then
+            asks the server for card names matching what's typed so far, so you can
+            find a card even if you only half remember the name
+        */
+        var searchInput = document.querySelector(".search-form input");
+        var suggestBox = document.getElementById("suggestions");
+        var typingTimer;
+
+        searchInput.addEventListener("input", function() {
+            clearTimeout(typingTimer);
+            var q = searchInput.value.trim();
+            if (q.length < 2) {
+                suggestBox.style.display = "none";
+                return;
+            }
+            //small delay so we dont spam the server on every single keypress
+            typingTimer = setTimeout(function() {
+                fetch("/suggest?q=" + encodeURIComponent(q))
+                    .then(function(r) { return r.json(); })
+                    .then(function(data) {
+                        suggestBox.innerHTML = "";
+                        if (data.names.length == 0) {
+                            suggestBox.style.display = "none";
+                            return;
+                        }
+                        data.names.forEach(function(name) {
+                            var div = document.createElement("div");
+                            div.className = "suggestion";
+                            div.textContent = name;
+                            div.onclick = function() {
+                                searchInput.value = name;
+                                suggestBox.style.display = "none";
+                                document.querySelector(".search-form").submit();
+                            };
+                            suggestBox.appendChild(div);
+                        });
+                        suggestBox.style.display = "block";
+                    });
+            }, 150);
+        });
+
+        //clicking anywhere outside the search bar closes the dropdown
+        document.addEventListener("click", function(e) {
+            if (!e.target.closest(".search-form")) {
+                suggestBox.style.display = "none";
+            }
+        });
+        </script>
+
+    </body>
+</html>

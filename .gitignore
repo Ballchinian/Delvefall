@@ -1,0 +1,16 @@
+#the big generated files, build_index.py recreates all of these
+#(github wouldnt even accept cards.json or embeddings.npy, they're over 100mb)
+cards.json
+index.json
+embeddings.npy
+
+#python junk
+__pycache__/
+*.pyc
+
+#editor stuff
+.vscode/
+
+#in case a virtualenv ever lives in here
+venv/
+.venv/
