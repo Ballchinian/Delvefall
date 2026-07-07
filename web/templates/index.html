@@ -2,7 +2,7 @@
 <html>
     <head>
         <meta charset="utf-8">
-        <title>Cardalike - find similar magic cards</title>
+        <title>MTG Scraper</title>
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <link rel="icon" type="image/png" href="{{ url_for('static', filename='MTGScraperLogo.png') }}">
         <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
@@ -11,8 +11,8 @@
 
         <header>
             <div class="header-inner">
-                <img class="logo" src="{{ url_for('static', filename='MTGScraperLogo.png') }}" alt="Cardalike logo" width="50px" height="50px">
-                <a class="site-name" href="/">Cardalike</a>
+                <img class="logo" src="{{ url_for('static', filename='MTGScraperLogo.png') }}" alt="MTG Scraper logo" width="50px" height="50px">
+                <a class="site-name" href="/">MTG Scraper</a>
                 <form action="/" method="get" class="search-form" autocomplete="off">
                     <input type="text" name="q" placeholder="Search for a card by name..." value="{{ query or '' }}" autofocus>
                     <button type="submit">Search</button>
