@@ -111,10 +111,6 @@ The site runs on Railway and the updates run on GitHub Actions. One time setup:
 
 After that the workflow wakes up daily at 9am UTC and keeps the card data fresh on its own.
 
-## The old version
-
-The original file based version (`app.py`, `build_index.py`, root `templates/` and `static/`) still sits at the repo root so nothing breaks while the new stack gets deployed. Once the Railway site is up and verified, those can all be deleted along with the root `requirements.txt`.
-
 ## Tech stack
 
 - **Backend:** Python / Flask

@@ -151,36 +151,46 @@ def main():
         embs = model.encode(texts, batch_size=128, show_progress_bar=True, normalize_embeddings=True)
 
         #all the writes ride in one transaction, so a crash halfway through
-        #leaves the database exactly how it was
+        #leaves the database exactly how it was. executemany batches the rows
+        #into pipelined round trips, one insert at a time would take half an
+        #hour from github's servers on the initial seed
         with conn.cursor() as cur:
+            print("writing " + str(len(work)) + " cards to the database...")
+            card_rows = []
             for c, h in work:
-                cur.execute("""
-                    INSERT INTO cards (oracle_id, name, mana_cost, type_line, oracle_text, image, scryfall_uri, text_hash, updated_at)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, now())
-                    ON CONFLICT (oracle_id) DO UPDATE SET
-                        name = EXCLUDED.name,
-                        mana_cost = EXCLUDED.mana_cost,
-                        type_line = EXCLUDED.type_line,
-                        oracle_text = EXCLUDED.oracle_text,
-                        image = EXCLUDED.image,
-                        scryfall_uri = EXCLUDED.scryfall_uri,
-                        text_hash = EXCLUDED.text_hash,
-                        updated_at = now()
-                """, (c["oracle_id"], c["name"], c.get("mana_cost", ""), c.get("type_line", ""),
-                      get_text(c), get_image(c), c.get("scryfall_uri", ""), h))
+                card_rows.append((c["oracle_id"], c["name"], c.get("mana_cost", ""), c.get("type_line", ""),
+                                  get_text(c), get_image(c), c.get("scryfall_uri", ""), h))
+            cur.executemany("""
+                INSERT INTO cards (oracle_id, name, mana_cost, type_line, oracle_text, image, scryfall_uri, text_hash, updated_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, now())
+                ON CONFLICT (oracle_id) DO UPDATE SET
+                    name = EXCLUDED.name,
+                    mana_cost = EXCLUDED.mana_cost,
+                    type_line = EXCLUDED.type_line,
+                    oracle_text = EXCLUDED.oracle_text,
+                    image = EXCLUDED.image,
+                    scryfall_uri = EXCLUDED.scryfall_uri,
+                    text_hash = EXCLUDED.text_hash,
+                    updated_at = now()
+            """, card_rows)
 
             #changed cards get their old lines thrown out and rebuilt fresh
-            for c, h in changed_cards:
-                cur.execute("DELETE FROM lines WHERE oracle_id = %s", (c["oracle_id"],))
+            if changed_cards:
+                old_ids = []
+                for c, h in changed_cards:
+                    old_ids.append((c["oracle_id"],))
+                cur.executemany("DELETE FROM lines WHERE oracle_id = %s", old_ids)
 
             rows = []
             for j, text in enumerate(texts):
                 c = work[owners[j]][0]
                 rows.append((c["oracle_id"], text, embs[j]))
+            print("writing " + str(len(rows)) + " lines...")
             cur.executemany("INSERT INTO lines (oracle_id, line_text, embedding) VALUES (%s, %s, %s)", rows)
 
             #recount how common every line is. its one group by over ~61k rows,
             #way easier than trying to patch the counts incrementally
+            print("recounting how common every line is...")
             cur.execute("TRUNCATE line_stats")
             cur.execute("INSERT INTO line_stats SELECT line_text, count(*) FROM lines GROUP BY line_text")
 

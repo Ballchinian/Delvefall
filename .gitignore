@@ -1,9 +1,3 @@
-#the big generated files, build_index.py recreates all of these
-#(github wouldnt even accept cards.json or embeddings.npy, they're over 100mb)
-cards.json
-index.json
-embeddings.npy
-
 #the ingest script downloads this fresh every run and deletes it after,
 #but just in case a run dies halfway
 oracle-cards.json
