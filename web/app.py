@@ -103,15 +103,17 @@ def read_number(s):
 
 
 def read_min():
-    #minimum match percent. 80 by default because under a price sort the
-    #match percent is the only quality gate left, and cheap half matches
-    #sorting to the top makes the site look broken. everything below the
-    #line still exists, it just pages in after the "show weaker matches"
-    #button instead of being thrown away
+    #minimum match percent. 85 by default: on the fine tuned model the
+    #"same shell, different payload" matches (landfall gain life vs landfall
+    #proliferate) land in the low 80s, and under a price sort the match
+    #percent is the only quality gate left, so cheap half matches sorting to
+    #the top makes the site look broken. everything below the line still
+    #exists, it just pages in after the "show weaker matches" button instead
+    #of being thrown away
     try:
-        m = int(request.args.get("min", 80))
+        m = int(request.args.get("min", 85))
     except ValueError:
-        m = 80
+        m = 85
     return max(0, min(m, 100))
 
 
