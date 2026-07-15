@@ -12,6 +12,7 @@ import json
 from flask import Flask, render_template, request, redirect, abort
 
 from db import pool
+from prefix_words import PREFIX_WORDS
 
 app = Flask(__name__)
 
@@ -75,6 +76,13 @@ UNIQUE_DEFAULT = 30
 #cant match the lines shown on the page back to their rows in the database
 def clean_line(line, card_name):
     line = re.sub(r"\(.*?\)", "", line)
+    #flavour prefixes go, exactly like the ingest side: die-roll rows, saga
+    #chapters, and scryfall's catalog of ability/flavor words before a dash
+    line = re.sub(r"^\d+(?:—\d+)?\s*\|\s*", "", line)
+    line = re.sub(r"^[IVX]+(?:, [IVX]+)*\s+—\s+", "", line)
+    m = re.match(r"^([^—•|]{1,40}?)\s+—\s+(?=\S)", line)
+    if m and m.group(1) in PREFIX_WORDS:
+        line = line[m.end():]
     line = line.replace(card_name, "this card")
     if "," in card_name:
         line = line.replace(card_name.split(",")[0], "this card")

@@ -4,6 +4,8 @@
 
 import re
 
+from common.prefix_words import PREFIX_WORDS
+
 #scryfall's docs say to send a real user agent with api requests
 HEADERS = {"User-Agent": "Delvefall/1.0 (personal project)", "Accept": "application/json"}
 
@@ -45,6 +47,16 @@ def get_back_image(card):
 def clean_line(line, card_name):
     #reminder text (the stuff in parens) is just for humans, the model doesnt need it
     line = re.sub(r"\(.*?\)", "", line)
+    #flavour prefixes must not beat meaning (testing_list CA): die-roll table
+    #rows ("1—9 |"), saga chapter markers ("I, II —") and ability/flavor
+    #words ("Landfall —", "Siege Monster —") say when or in what style, not
+    #what happens, so they go. the word list is scryfall's own catalogs, so
+    #keywords that genuinely use the dash (Boast, Companion) stay whole
+    line = re.sub(r"^\d+(?:—\d+)?\s*\|\s*", "", line)
+    line = re.sub(r"^[IVX]+(?:, [IVX]+)*\s+—\s+", "", line)
+    m = re.match(r"^([^—•|]{1,40}?)\s+—\s+(?=\S)", line)
+    if m and m.group(1) in PREFIX_WORDS:
+        line = line[m.end():]
     #cards refer to themselves by name, which would make the model think names
     #matter. swap it for something generic. legendary cards also get shortened
     #to their first name in the middle of the text ("Jacob, the Great" -> "Jacob")
