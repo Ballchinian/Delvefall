@@ -32,6 +32,16 @@ def to_display(raw):
     return 100
 
 
+def from_display(pct):
+    #the map walked backwards, so gates written in displayed units ("show
+    #concept matches of 80+") can become raw cutoffs inside sql
+    pct = max(0, min(100, pct))
+    for (x0, y0), (x1, y1) in zip(CALIBRATION, CALIBRATION[1:]):
+        if pct <= y1:
+            return x0 + (x1 - x0) * (pct - y0) / (y1 - y0)
+    return 1.0
+
+
 def raw_sim(conn, oracle_a, oracle_b):
     #cosine between two cards' idf-weighted tag vectors, for the eval scripts
     norms = dict(conn.execute(

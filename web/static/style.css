@@ -272,6 +272,27 @@ h2 {
     margin-top: 2px;
 }
 
+/* the mechanics <-> concepts slider in the filter bar */
+.blend-slider input[type="range"] {
+    width: 100px;
+    accent-color: #7857a5;
+}
+
+/* a pure concept match's badge: same purple family as the percent, but
+   hollow-feeling so the two kinds of number read differently at a glance */
+.percent.concept {
+    color: #a05cbf;
+    cursor: help;
+}
+
+/* the shared community tags under a result, why the concepts side ranked it */
+.concept-tags {
+    color: #a05cbf;
+    font-size: 12px;
+    margin-top: 2px;
+    cursor: help;
+}
+
 /* the "+2 more matching lines" hint, the pairs live in its tooltip */
 .more-lines {
     color: #7857a5;

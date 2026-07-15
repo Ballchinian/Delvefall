@@ -96,6 +96,57 @@ def line_weight(count):
     return 1.0 / (1.0 + math.log10(count / 5.0))
 
 
+#copied from common/concept.py because railway only deploys the web folder,
+#same story as clean_line. axis 2: how conceptually close two cards are,
+#scored from the community tags the ingest bakes into card_tags/tags. the
+#raw cosine lives in a compressed band, this map turns it into the percent
+#the site shows, and the gate is written in displayed units on purpose
+CALIBRATION = [(0.0, 0), (0.10, 35), (0.22, 55), (0.35, 70), (0.55, 82), (0.68, 90), (1.0, 100)]
+MIN_CONCEPT = 80
+
+
+def concept_display(raw):
+    raw = max(0.0, min(1.0, raw))
+    for (x0, y0), (x1, y1) in zip(CALIBRATION, CALIBRATION[1:]):
+        if raw <= x1:
+            return round(y0 + (y1 - y0) * (raw - x0) / (x1 - x0))
+    return 100
+
+
+def concept_raw_gate(pct):
+    #the map walked backwards, so the displayed gate becomes a raw sql cutoff
+    pct = max(0, min(100, pct))
+    for (x0, y0), (x1, y1) in zip(CALIBRATION, CALIBRATION[1:]):
+        if pct <= y1:
+            return x0 + (x1 - x0) * (pct - y0) / (y1 - y0)
+    return 1.0
+
+
+#the mechanics <-> concepts slider maps its detents to these axis-2 weights
+#(a 5% step existed once and changed nothing visible, so it went). results
+#are ordered by (1-w) * mech percent + w * concept percent, and once the
+#slider moves the badge shows that same blend, so the list always reads in
+#descending order of the number on it. 0 is the default and leaves the
+#search exactly as it always was
+BLEND_WEIGHTS = (0.0, 0.25, 0.5, 0.75, 1.0)
+
+
+def concept_between(conn, oracle_a, oracle_b):
+    #the calibrated concept percent between two specific cards, for the
+    #feedback path. 0 when either card carries no tags at all
+    norms = conn.execute("SELECT norm FROM card_tag_norms WHERE oracle_id IN (%s, %s)",
+                         (oracle_a, oracle_b)).fetchall()
+    if len(norms) < 2:
+        return 0
+    shared = conn.execute("""
+        SELECT coalesce(sum(t.idf * t.idf), 0) AS s
+        FROM card_tags ca
+        JOIN card_tags cb ON cb.tag = ca.tag AND cb.oracle_id = %s
+        JOIN tags t ON t.tag = ca.tag
+        WHERE ca.oracle_id = %s""", (oracle_b, oracle_a)).fetchone()["s"]
+    return concept_display(shared / (norms[0]["norm"] * norms[1]["norm"]))
+
+
 def find_card(query):
     q = query.strip()
     with pool.connection() as conn:
@@ -186,6 +237,15 @@ def read_sort():
     return s
 
 
+def read_blend():
+    #the slider's detent, 0 (pure mechanics) through 6 (pure concepts)
+    try:
+        b = int(request.args.get("blend", 0))
+    except ValueError:
+        b = 0
+    return max(0, min(b, len(BLEND_WEIGHTS) - 1))
+
+
 def read_picked():
     #the lines param holds indexes into the searched card's rules text, like
     #"0,2" for the first and third line, set by clicking lines on the page
@@ -258,7 +318,7 @@ def filter_sql(filters):
     return where, params
 
 
-def find_similar(oracle_id, picked, filters, min_pct, sort, offset=0, how_many=20, weak=False):
+def find_similar(oracle_id, picked, filters, min_pct, sort, offset=0, how_many=20, weak=False, blend=0.0):
     #every candidate card keeps all its matching line pairs now instead of
     #just the best one, so results can show "+2 more matching lines".
     #
@@ -320,6 +380,86 @@ def find_similar(oracle_id, picked, filters, min_pct, sort, offset=0, how_many=2
                 strong.append(entry)
             else:
                 weak_tier.append(entry)
+
+        #the concepts side of the slider. two rules keep it honest: a card
+        #shows if it passes EITHER axis's own gate (a concept match can join
+        #the strong tier, never sneak past its own bar), and the blend only
+        #decides ORDER - every displayed number stays what its own axis says
+        concept_raw = {}
+        if blend > 0:
+            #every card sharing a tag with the anchor that clears the
+            #concept gate, through the same filters as everything else
+            rows = conn.execute("""
+                WITH anchor AS (
+                    SELECT ct.tag, t.idf FROM card_tags ct
+                    JOIN tags t ON t.tag = ct.tag
+                    WHERE ct.oracle_id = %s
+                )
+                SELECT ct.oracle_id, c.price_usd,
+                       sum(a.idf * a.idf) / (na.norm * nc.norm) AS raw
+                FROM card_tags ct
+                JOIN anchor a ON a.tag = ct.tag
+                JOIN cards c ON c.oracle_id = ct.oracle_id
+                JOIN card_tag_norms nc ON nc.oracle_id = ct.oracle_id
+                JOIN card_tag_norms na ON na.oracle_id = %s
+                WHERE ct.oracle_id <> %s""" + where + """
+                GROUP BY ct.oracle_id, c.price_usd, na.norm, nc.norm
+                HAVING sum(a.idf * a.idf) / (na.norm * nc.norm) >= %s
+                ORDER BY raw DESC
+                LIMIT 300
+            """, [oracle_id, oracle_id, oracle_id] + fparams + [concept_raw_gate(MIN_CONCEPT)]).fetchall()
+            gated = {}
+            for r in rows:
+                gated[r["oracle_id"]] = r["raw"]
+                prices.setdefault(r["oracle_id"], r["price_usd"])
+
+            #the mechanical results need their concept scores too (below the
+            #gate is fine here, they already earned their spot), so the blend
+            #can weigh every card on both axes
+            ids = [oid for oid, pairs in strong if oid not in gated]
+            if ids:
+                for r in conn.execute("""
+                    WITH anchor AS (
+                        SELECT ct.tag, t.idf FROM card_tags ct
+                        JOIN tags t ON t.tag = ct.tag
+                        WHERE ct.oracle_id = %s
+                    )
+                    SELECT ct.oracle_id,
+                           sum(a.idf * a.idf) / (na.norm * nc.norm) AS raw
+                    FROM card_tags ct
+                    JOIN anchor a ON a.tag = ct.tag
+                    JOIN card_tag_norms nc ON nc.oracle_id = ct.oracle_id
+                    JOIN card_tag_norms na ON na.oracle_id = %s
+                    WHERE ct.oracle_id = ANY(%s)
+                    GROUP BY ct.oracle_id, na.norm, nc.norm
+                """, (oracle_id, oracle_id, ids)).fetchall():
+                    concept_raw[r["oracle_id"]] = r["raw"]
+            concept_raw.update(gated)
+
+            #concept-gated cards join the strong tier: out of the weak tier
+            #if they were there, from nowhere if the lines never matched at
+            #all (those carry no pairs and show their concept score instead)
+            have = {oid for oid, pairs in strong}
+            still_weak = []
+            for oid, pairs in weak_tier:
+                if oid in gated and oid not in have:
+                    strong.append((oid, pairs))
+                    have.add(oid)
+                else:
+                    still_weak.append((oid, pairs))
+            weak_tier = still_weak
+            for oid in gated:
+                if oid not in have:
+                    strong.append((oid, []))
+
+            def blended(entry):
+                oid, pairs = entry
+                mech = pairs[0][1] * 100 if pairs else 0.0
+                return (1 - blend) * mech + blend * concept_display(concept_raw.get(oid, 0.0))
+            strong.sort(key=blended, reverse=True)
+            #the weak tier gets the same lens, so its numbers read in order too
+            weak_tier.sort(key=blended, reverse=True)
+
         weak_count = len(weak_tier)
         if weak:
             wanted = weak_tier
@@ -354,22 +494,54 @@ def find_similar(oracle_id, picked, filters, min_pct, sort, offset=0, how_many=2
             for row in conn.execute("SELECT " + CARD_FIELDS + " FROM cards WHERE oracle_id = ANY(%s)", (ids,)):
                 info[row["oracle_id"]] = row
 
+        #the tags each page card shares with the anchor, rarest first - the
+        #chips that explain why the concepts side ranked a card where it did
+        chips = {}
+        if blend > 0 and ids:
+            for r in conn.execute("""
+                SELECT ct.oracle_id, ct.tag FROM card_tags ct
+                JOIN card_tags a ON a.tag = ct.tag AND a.oracle_id = %s
+                JOIN tags t ON t.tag = ct.tag
+                WHERE ct.oracle_id = ANY(%s)
+                ORDER BY t.idf DESC
+            """, (oracle_id, ids)).fetchall():
+                chips.setdefault(r["oracle_id"], []).append(r["tag"])
+
     results = []
     for oid, pairs in page:
         c = info[oid]
-        score, sim, our_line, their_line = pairs[0]
-        #the extra pairs behind the "+n more matching lines" hint. pairs that
-        #reuse a line already shown get skipped, so the count means genuinely
-        #different abilities matched, not the same ability matching twice
-        used_ours = [our_line]
-        used_theirs = [their_line]
+        concept_pct = concept_display(concept_raw[oid]) if oid in concept_raw else 0
         more = []
-        for p in pairs[1:]:
-            if p[2] in used_ours or p[3] in used_theirs:
-                continue
-            used_ours.append(p[2])
-            used_theirs.append(p[3])
-            more.append('"' + p[3] + '" (' + str(int(round(p[1] * 100))) + '%) matches your "' + p[2] + '"')
+        if pairs:
+            score, sim, our_line, their_line = pairs[0]
+            mech_pct = int(round(sim * 100))
+            concept_only = False
+            #the extra pairs behind the "+n more matching lines" hint. pairs that
+            #reuse a line already shown get skipped, so the count means genuinely
+            #different abilities matched, not the same ability matching twice
+            used_ours = [our_line]
+            used_theirs = [their_line]
+            for p in pairs[1:]:
+                if p[2] in used_ours or p[3] in used_theirs:
+                    continue
+                used_ours.append(p[2])
+                used_theirs.append(p[3])
+                more.append('"' + p[3] + '" (' + str(int(round(p[1] * 100))) + '%) matches your "' + p[2] + '"')
+        else:
+            #a pure concept match: no line of rules text got it here
+            our_line = ""
+            their_line = ""
+            mech_pct = 0
+            concept_only = True
+        #the badge answers "how good a match, given where the slider is":
+        #the pure mechanical percent at rest, and once the slider moves, the
+        #same blend the ordering uses - so the list always reads in
+        #descending order of the number shown. the two ingredients ride in
+        #the tooltip
+        if blend > 0:
+            percent = int(round((1 - blend) * mech_pct + blend * concept_pct))
+        else:
+            percent = mech_pct
         price = ""
         if c["price_usd"] is not None:
             price = "$" + str(c["price_usd"])
@@ -383,7 +555,12 @@ def find_similar(oracle_id, picked, filters, min_pct, sort, offset=0, how_many=2
             "sideways": sideways(c["layout"], c["type_line"]),
             "flip": c["layout"] == "flip",
             "scryfall_uri": c["scryfall_uri"],
-            "percent": int(round(sim * 100)),
+            "percent": percent,
+            "blended": blend > 0,
+            "mech_pct": mech_pct,
+            "concept_only": concept_only,
+            "concept_pct": concept_pct,
+            "concept_tags": ", ".join(chips.get(oid, [])[:3]),
             "our_line": our_line,
             "their_line": their_line,
             "price": price,
@@ -422,12 +599,14 @@ def search():
     filters = read_filters()
     min_pct = read_min()
     sort = read_sort()
+    blend = read_blend()
     card_lines, picked = build_lines(card, read_picked())
 
-    results, has_more, weak_count = find_similar(card["oracle_id"], picked, filters, min_pct, sort)
+    results, has_more, weak_count = find_similar(card["oracle_id"], picked, filters, min_pct, sort,
+                                                 blend=BLEND_WEIGHTS[blend])
     return render_template("search.html", query=query, card=card, card_lines=card_lines,
                            picked_count=len(picked), results=results, has_more=has_more,
-                           weak_count=weak_count, min_pct=min_pct, types=CARD_TYPES)
+                           weak_count=weak_count, min_pct=min_pct, blend=blend, types=CARD_TYPES)
 
 
 def read_unique():
@@ -539,7 +718,8 @@ def more():
         return {"results": [], "has_more": False, "weak_count": 0}
     card_lines, picked = build_lines(card, read_picked())
     weak = request.args.get("weak") == "1"
-    results, has_more, weak_count = find_similar(card["oracle_id"], picked, read_filters(), read_min(), read_sort(), offset, weak=weak)
+    results, has_more, weak_count = find_similar(card["oracle_id"], picked, read_filters(), read_min(), read_sort(), offset,
+                                                 weak=weak, blend=BLEND_WEIGHTS[read_blend()])
     return {"results": results, "has_more": has_more, "weak_count": weak_count}
 
 
@@ -651,6 +831,10 @@ def feedback():
         snap = dict(filters)
         snap["min"] = min_pct
         snap["sort"] = read_sort()
+        #the slider position changes what the numbers the user saw MEANT
+        #(blended past detent 0), so it rides in the snapshot too
+        blend = read_blend()
+        snap["blend"] = blend
 
         if kind == "missing":
             expected_name = str(body.get("expected", "")).strip()[:200]
@@ -671,6 +855,15 @@ def feedback():
             if expected_pct >= min_pct:
                 return {"ok": True, "stored": False,
                         "msg": expected["name"] + " is in the results at " + str(expected_pct) + "%, it may just be further down the list."}
+            if blend > 0:
+                #with the slider away from mechanics the card may already be
+                #on the page as a concept match, which is not a model gap
+                cpct = concept_between(conn, card["oracle_id"], expected["oracle_id"])
+                snap["concept_pct"] = cpct
+                if cpct >= MIN_CONCEPT:
+                    return {"ok": True, "stored": False,
+                            "msg": expected["name"] + " already shows as a concept match at " + str(cpct) +
+                                   "% with your slider, it may just be further down the list."}
             #a real gap: nothing hides the card, the model just scores it under the cutoff
             conn.execute("""INSERT INTO feedback (kind, anchor_id, anchor_name, expected_id, expected_name,
                                                   expected_pct, reason, picked_lines, filters, embed_model, ip)
@@ -693,6 +886,10 @@ def feedback():
             return {"ok": False, "stored": False, "msg": "Say a few words about why it's a bad match first."}
 
         got_pct = best_sim(conn, card["oracle_id"], got["oracle_id"], picked)
+        if blend > 0:
+            #the badge the user flagged was blended, so keep the concept half
+            #on file - the review needs it to route the report to an axis
+            snap["concept_pct"] = concept_between(conn, card["oracle_id"], got["oracle_id"])
         conn.execute("""INSERT INTO feedback (kind, anchor_id, anchor_name, got_id, got_name,
                                               got_pct, reason, picked_lines, filters, embed_model, ip)
                         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
@@ -729,14 +926,33 @@ def report_markdown(r, line_texts, n):
     else:
         anchor_lines = line_texts.get(r["anchor_id"], [])
     day = r["created_at"].strftime("%Y-%m-%d")
+
+    #a report filed with the slider away from mechanics was judging blended
+    #numbers, and probably belongs in axis2.md rather than pairs.md. the
+    #stored pcts stay mechanical either way, this note carries the rest
+    mode = ""
+    try:
+        snap = json.loads(r["filters"] or "{}")
+    except ValueError:
+        snap = {}
+    if snap.get("blend"):
+        try:
+            at = str(int(BLEND_WEIGHTS[int(snap["blend"])] * 100)) + "% concepts"
+        except (ValueError, IndexError):
+            at = "detent " + str(snap["blend"])
+        mode = "; slider at " + at + " (user saw blended numbers"
+        if "concept_pct" in snap:
+            mode += ", concept score " + str(snap["concept_pct"]) + "%"
+        mode += ") - consider axis2.md"
+
     out = str(n) + ".\n"
     out += "    **Anchor:** " + r["anchor_name"] + " — " + q(anchor_lines) + "\n"
     if r["kind"] == "misplaced":
         out += "    **NOT:** " + (r["got_name"] or "?") + " — " + q(line_texts.get(r["got_id"], [])) + "\n"
-        out += "    *user report " + day + "; the flagged card showed at " + str(r["got_pct"]) + "%; reason: " + r["reason"] + "*\n"
+        out += "    *user report " + day + "; the flagged card showed at " + str(r["got_pct"]) + "% mech" + mode + "; reason: " + r["reason"] + "*\n"
     else:
         out += "    **Match:** " + (r["expected_name"] or "?") + " — " + q(line_texts.get(r["expected_id"], [])) + "\n"
-        note = "user report " + day + "; scored " + str(r["expected_pct"]) + "% against the cutoff"
+        note = "user report " + day + "; scored " + str(r["expected_pct"]) + "% mech against the cutoff" + mode
         if r["reason"]:
             note += "; reason: " + r["reason"]
         out += "    *" + note + "*\n"
