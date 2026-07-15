@@ -712,13 +712,13 @@ def admin_allowed():
 
 
 def report_markdown(r, line_texts, n):
-    #one accepted report in the shape the eval files use, ready to paste
-    #(the separators mirror those files exactly). missing reports become
-    #pairs.md entries: the anchor and the good card. misplaced reports
-    #become triplets.md negatives: the anchor, the bad card and the user's
-    #reason, with the Match line left to fill in by hand since users aren't
-    #asked to name one. the anchor quotes only the picked lines when the
-    #report came from a line-picked search
+    #one accepted report in the shape pairs.md uses, ready to paste (the
+    #separators mirror that file exactly). missing reports become should-match
+    #entries (the anchor and the good card), misplaced reports become
+    #should-NOT entries (the anchor, the bad card and the user's reason).
+    #promotion into triplets.md happens by hand at review time. the anchor
+    #quotes only the picked lines when the report came from a line-picked
+    #search
     def q(lines):
         if not lines:
             return "`(card no longer in the database)`"
@@ -732,7 +732,6 @@ def report_markdown(r, line_texts, n):
     out = str(n) + ".\n"
     out += "    **Anchor:** " + r["anchor_name"] + " — " + q(anchor_lines) + "\n"
     if r["kind"] == "misplaced":
-        out += "    **Match:** (fill in)\n"
         out += "    **NOT:** " + (r["got_name"] or "?") + " — " + q(line_texts.get(r["got_id"], [])) + "\n"
         out += "    *user report " + day + "; the flagged card showed at " + str(r["got_pct"]) + "%; reason: " + r["reason"] + "*\n"
     else:

@@ -106,6 +106,29 @@ CREATE TABLE IF NOT EXISTS meta (
     value text
 );
 
+--axis 2 (conceptual similarity) groundwork: community tags from scryfall
+--tagger, via the official oracle_tags bulk file. one row per card-tag link.
+--ingest/tags.py rebuilds both tables from scratch whenever the bulk file
+--changes, same philosophy as line_stats
+CREATE TABLE IF NOT EXISTS card_tags (
+    oracle_id uuid NOT NULL REFERENCES cards(oracle_id) ON DELETE CASCADE,
+    tag       text NOT NULL,
+    PRIMARY KEY (oracle_id, tag)
+);
+
+CREATE INDEX IF NOT EXISTS card_tags_tag ON card_tags (tag);
+
+--one row per tag that survived the trivia blocklist: its parents (tagger
+--tags form a hierarchy, kept for rollup scoring later), how many of OUR
+--cards carry it (the idf denominator, so broad tags like triggered-ability
+--barely count), and the tagger description for tooltips
+CREATE TABLE IF NOT EXISTS tags (
+    tag         text PRIMARY KEY,
+    parents     text[] NOT NULL DEFAULT '{}',
+    card_count  int NOT NULL DEFAULT 0,
+    description text NOT NULL DEFAULT ''
+);
+
 --user reports from the search page, the raw material for the next round of
 --the eval files. kind 'missing' means "this good card should have been in
 --the results" and carries expected_id (a future pairs.md entry), kind

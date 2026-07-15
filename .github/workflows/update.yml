@@ -39,3 +39,10 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           HF_TOKEN: ${{ secrets.HF_TOKEN }}  #the tuned embedding model lives in a private hugging face repo
           PYTHONUNBUFFERED: "1"  #otherwise the log messages pile up and appear all at once at the end
+
+      #the community tags for the concept axis, same gate-and-skip pattern as
+      #the card update
+      - run: python -m ingest.tags
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          PYTHONUNBUFFERED: "1"
