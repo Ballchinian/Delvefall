@@ -57,7 +57,9 @@ def main():
     #empty card_tags table means a first run (or a died-halfway one), do the
     #work anyway
     row = conn.execute("SELECT value FROM meta WHERE key = 'tagger_updated_at'").fetchone()
-    if row and row[0] == updated_at and conn.execute("SELECT 1 FROM card_tags LIMIT 1").fetchone():
+    if (row and row[0] == updated_at
+            and conn.execute("SELECT 1 FROM card_tags LIMIT 1").fetchone()
+            and conn.execute("SELECT 1 FROM card_tag_norms LIMIT 1").fetchone()):
         print("already processed the tag file from " + updated_at + ", nothing to do")
         conn.close()
         return
@@ -104,13 +106,23 @@ def main():
 
     #full rebuild in one transaction, so a crash leaves the old data standing
     with conn.cursor() as cur:
-        cur.execute("TRUNCATE card_tags, tags")
+        cur.execute("TRUNCATE card_tags, tags, card_tag_norms")
         with cur.copy("COPY card_tags (oracle_id, tag) FROM STDIN") as copy:
             for oid, slug in links:
                 copy.write_row((oid, slug))
         with cur.copy("COPY tags (tag, parents, card_count, description) FROM STDIN") as copy:
             for r in tag_rows:
                 copy.write_row(r)
+        #the derived weights the concept scorer reads: idf per tag, then each
+        #card's vector length from those. baked here so every query agrees on
+        #them and none has to recompute 31k norms
+        cur.execute("UPDATE tags SET idf = ln((SELECT count(*) FROM cards)::float / greatest(card_count, 1))")
+        cur.execute("""
+            INSERT INTO card_tag_norms
+            SELECT ct.oracle_id, sqrt(sum(t.idf * t.idf))
+            FROM card_tags ct JOIN tags t ON t.tag = ct.tag
+            GROUP BY ct.oracle_id
+        """)
         cur.execute("""
             INSERT INTO meta (key, value) VALUES ('tagger_updated_at', %s)
             ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value

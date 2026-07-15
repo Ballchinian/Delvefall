@@ -120,13 +120,23 @@ CREATE INDEX IF NOT EXISTS card_tags_tag ON card_tags (tag);
 
 --one row per tag that survived the trivia blocklist: its parents (tagger
 --tags form a hierarchy, kept for rollup scoring later), how many of OUR
---cards carry it (the idf denominator, so broad tags like triggered-ability
---barely count), and the tagger description for tooltips
+--cards carry it, the idf weight derived from that count (so broad tags like
+--triggered-ability barely count), and the tagger description for tooltips
 CREATE TABLE IF NOT EXISTS tags (
     tag         text PRIMARY KEY,
     parents     text[] NOT NULL DEFAULT '{}',
     card_count  int NOT NULL DEFAULT 0,
+    idf         real NOT NULL DEFAULT 0,
     description text NOT NULL DEFAULT ''
+);
+
+ALTER TABLE tags ADD COLUMN IF NOT EXISTS idf real NOT NULL DEFAULT 0;
+
+--derived at ingest, like line_stats: each card's idf-weighted tag vector
+--length, so the concept query never recomputes 31k norms per search
+CREATE TABLE IF NOT EXISTS card_tag_norms (
+    oracle_id uuid PRIMARY KEY REFERENCES cards(oracle_id) ON DELETE CASCADE,
+    norm      real NOT NULL
 );
 
 --user reports from the search page, the raw material for the next round of
