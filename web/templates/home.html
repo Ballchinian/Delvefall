@@ -2,6 +2,27 @@
 
 {% block bodyclass %}home{% endblock %}
 
+{# structured data: tells google the site's name and that /search?q= is the
+   site search. json-ld only makes claims the page itself backs up #}
+{% block head_extra %}
+<script type="application/ld+json">
+{
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "name": "Delvefall",
+    "url": {{ request.url_root | tojson }},
+    "potentialAction": {
+        "@type": "SearchAction",
+        "target": {
+            "@type": "EntryPoint",
+            "urlTemplate": {{ (request.url_root ~ "search?q={search_term_string}") | tojson }}
+        },
+        "query-input": "required name=search_term_string"
+    }
+}
+</script>
+{% endblock %}
+
 {# no header strip here, the hero below IS the search. the logo up top would
    just be the same thing twice #}
 {% block header %}{% endblock %}

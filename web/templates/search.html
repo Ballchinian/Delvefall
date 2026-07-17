@@ -2,6 +2,27 @@
 
 {% block title %}{% if card %}{{ card.name }} - Delvefall{% else %}Delvefall{% endif %}{% endblock %}
 
+{% block metadesc %}{% if card %}Magic cards similar to {{ card.name }}: every card whose rules text does the same thing, ranked by how close the meaning is, with prices and filters.{% else %}{{ super() }}{% endif %}{% endblock %}
+
+{% block head_extra %}
+    {% if card %}
+    {# one canonical per card: these results are reachable under any
+       spelling, filter and sort combination in the url, and google should
+       fold them all into this one address. og tags are the unfurl card a
+       pasted link grows in discord and friends, twitter:card summary keeps
+       the portrait art a thumbnail instead of a letterboxed banner #}
+    {% set canonical = request.url_root ~ 'search?q=' ~ (card.name | urlencode) %}
+    <link rel="canonical" href="{{ canonical }}">
+    <meta property="og:site_name" content="Delvefall">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="{{ card.name }}: cards that do the same thing">
+    <meta property="og:description" content="{{ self.metadesc() }}">
+    <meta property="og:image" content="{{ card.image }}">
+    <meta property="og:url" content="{{ canonical }}">
+    <meta name="twitter:card" content="summary">
+    {% endif %}
+{% endblock %}
+
 {% block content %}
     {% if not_found %}
         <p class="message">Couldn't find a card called "{{ query }}", maybe check the spelling?</p>

@@ -4,11 +4,15 @@
         <meta charset="utf-8">
         <title>{% block title %}Delvefall{% endblock %}</title>
         <meta name="viewport" content="width=device-width, initial-scale=1">
+        {# the search-engine snippet. pages override the block with their own
+           sentence, search.html says which card its results are about #}
+        <meta name="description" content="{% block metadesc %}Delvefall finds every Magic: The Gathering card that does the same thing as the card you search, even when the wording is completely different.{% endblock %}">
         {# every meaningful page is mostly card pictures from this one host,
            preconnecting shaves the dns+tls handshake off the first one #}
         <link rel="preconnect" href="https://cards.scryfall.io">
         <link rel="icon" type="image/png" href="{{ static_url('DelvefallLogo.png') }}">
         <link rel="stylesheet" href="{{ static_url('style.css') }}">
+        {% block head_extra %}{% endblock %}
     </head>
     <body class="{% block bodyclass %}{% endblock %}">
 

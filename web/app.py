@@ -12,11 +12,18 @@ import hashlib
 
 from flask import Flask, render_template, request, redirect, abort, make_response, url_for
 from flask_compress import Compress
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 from db import pool
 from prefix_words import PREFIX_WORDS
 
 app = Flask(__name__)
+
+#railway terminates tls one proxy in front of this app, so without this
+#flask believes every request was plain http on an internal hostname. the
+#canonical and og:url tags embed request.url_root, and those must say https
+#on the real domain or google treats every page as its http twin
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
 #gzip for every text response (html, json, css, js). the search page and the
 #/more payloads are prose-heavy and shrink several times over
