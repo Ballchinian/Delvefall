@@ -46,15 +46,40 @@ function enhanceCardFrames(root) {
         if (back) {
             var front = img.src;
             var showingBack = false;
-            var turn = document.createElement("button");
-            turn.textContent = "⇄ transform";
-            turn.onclick = function() {
-                showingBack = !showingBack;
+            var backImg = null;
+            //the button only appears on hover, so fetching the back on
+            //mouseenter means it has usually arrived before any click
+            var preload = function() {
+                if (!backImg) {
+                    backImg = new Image();
+                    backImg.src = back;
+                }
+            };
+            frame.addEventListener("mouseenter", preload, { once: true });
+
+            var showFace = function() {
                 img.src = showingBack ? back : front;
                 frame.classList.remove("flipped");
                 frame.classList.toggle("sideways", !showingBack && sideways);
                 if (rot) {
                     rot.style.display = showingBack ? "none" : "";
+                }
+            };
+            var turn = document.createElement("button");
+            turn.textContent = "⇄ transform";
+            turn.onclick = function() {
+                showingBack = !showingBack;
+                preload();
+                if (showingBack && !backImg.complete) {
+                    //hold the front until the back is ready, swapping to a
+                    //still-loading image is the blank delay that felt bad
+                    backImg.onload = function() {
+                        if (showingBack) {
+                            showFace();
+                        }
+                    };
+                } else {
+                    showFace();
                 }
             };
             overlay.appendChild(turn);
