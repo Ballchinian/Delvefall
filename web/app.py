@@ -944,7 +944,10 @@ def unique_cards():
     filters = read_filters()
     body = request.get_json(silent=True) or {}
     seen = []
-    for s in body.get("seen", []):
+    #the browser caps its list at 2000, the [-4000:] is the server not
+    #taking its word for it: newest entries win, a hand-rolled megalist
+    #can't make the query chew through millions of uuids
+    for s in body.get("seen", [])[-4000:]:
         #only real uuids get through to the query, anything else in
         #localStorage was not put there by us
         try:

@@ -63,6 +63,15 @@ var seen = [];
 try {
     seen = JSON.parse(localStorage.getItem("unique_seen") || "[]");
 } catch (e) {}
+//the trail keeps its newest 2000 cards. the whole list rides in the POST
+//body of every deal so the dealer can skip what you've seen, and unbounded
+//it would grow into a chunky request for no real gain. past the cap the
+//oldest cards become dealable again, which nobody who has drawn 2000 cards
+//will notice
+var SEEN_CAP = 2000;
+if (seen.length > SEEN_CAP) {
+    seen = seen.slice(seen.length - SEEN_CAP);
+}
 var pos = seen.length - 1;  //which card in the trail is on screen
 var cache = {};             //oracle_id -> card json, so the arrows dont refetch
 
@@ -212,6 +221,9 @@ function dealOne() {
                 var c = data.cards[0];
                 cache[c.oracle_id] = c;
                 seen.push(c.oracle_id);
+                if (seen.length > SEEN_CAP) {
+                    seen = seen.slice(seen.length - SEEN_CAP);
+                }
                 localStorage.setItem("unique_seen", JSON.stringify(seen));
                 pos = seen.length - 1;
                 updateArrows();
