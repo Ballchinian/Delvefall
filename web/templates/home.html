@@ -21,6 +21,20 @@
     }
 }
 </script>
+{# the organization card: the logo google may show next to results, and
+   sameAs points at the discord the header links to. the logo url must be
+   absolute, and riding through static_url keeps it the cache-busted url
+   the page itself uses #}
+<script type="application/ld+json">
+{
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    "name": "Delvefall",
+    "url": {{ request.url_root | tojson }},
+    "logo": {{ (request.url_root.rstrip('/') ~ static_url('DelvefallLogo.png')) | tojson }},
+    "sameAs": ["https://discord.gg/kfjYbRYKbg"]
+}
+</script>
 {% endblock %}
 
 {# no header strip here, the hero below IS the search. the logo up top would
