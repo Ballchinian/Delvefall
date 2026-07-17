@@ -166,7 +166,7 @@ main {
 }
 
 .line-hint {
-    color: #8a8792;
+    color: #6f6b7a;
     font-size: 12.5px;
     margin: 10px 0 0 0;
 }
@@ -278,7 +278,7 @@ h2 {
    stays the number the eye lands on, and it has a tooltip so the bare
    number isn't a mystery */
 .result-rank {
-    color: #8a8792;
+    color: #6f6b7a;
     margin-left: 8px;
     cursor: help;
 }
@@ -455,13 +455,13 @@ h2 {
 /* a pure concept match's badge: same purple family as the percent, but
    hollow-feeling so the two kinds of number read differently at a glance */
 .percent.concept {
-    color: #a05cbf;
+    color: #9552b3;
     cursor: help;
 }
 
 /* the shared community tags under a result, why the concepts side ranked it */
 .concept-tags {
-    color: #a05cbf;
+    color: #9552b3;
     font-size: 12px;
     margin-top: 2px;
     cursor: help;
@@ -511,7 +511,7 @@ h2 {
 .weak-divider {
     grid-column: 1 / -1;
     text-align: center;
-    color: #8a8792;
+    color: #6f6b7a;
     font-size: 13px;
     border-bottom: 1px solid #d8d5de;
     padding-bottom: 6px;
@@ -527,7 +527,7 @@ h2 {
 
 footer {
     text-align: center;
-    color: #8a8792;
+    color: #6f6b7a;
     font-size: 12px;
     padding: 24px;
 }
@@ -640,7 +640,9 @@ body.home main {
 .float-chip {
     position: absolute;
     pointer-events: auto;
-    color: #8fa5ba;
+    /* light enough to pass contrast even over the gradient's palest end,
+       the old #8fa5ba at 0.75 sat around 3:1 */
+    color: #aabdd0;
     font-size: 14.5px;
     text-decoration: none;
     white-space: nowrap;
@@ -648,7 +650,7 @@ body.home main {
     max-width: 230px;
     overflow: hidden;
     text-overflow: ellipsis;
-    opacity: 0.75;
+    opacity: 0.9;
 }
 
 .float-chip:hover {
@@ -657,9 +659,9 @@ body.home main {
     text-decoration: underline;
 }
 
-body.home footer { color: #7f93a8; }
+body.home footer { color: #9aacbe; }
 
-body.home footer a { color: #a8b9ca; }
+body.home footer a { color: #b9c8d6; }
 
 /* ---- the /unique page ---- */
 
@@ -670,7 +672,7 @@ body.home footer a { color: #a8b9ca; }
 .unique-intro p { color: #43404a; }
 
 .unique-status {
-    color: #8a8792;
+    color: #6f6b7a;
     font-size: 13.5px;
     margin: 18px 0 0 0;
     text-align: center;
@@ -944,7 +946,7 @@ body.home footer a { color: #a8b9ca; }
 #report-cancel:hover, .fb-quiet:hover { border-color: #a89fb5; color: #16161d; }
 
 .report-why {
-    color: #8a8792;
+    color: #6f6b7a;
     font-size: 12.5px;
     margin: 10px 0 0 0;
 }
@@ -971,7 +973,7 @@ body.home footer a { color: #a8b9ca; }
 .fb-head {
     display: flex;
     justify-content: space-between;
-    color: #8a8792;
+    color: #6f6b7a;
     font-size: 12.5px;
 }
 
@@ -995,7 +997,7 @@ body.home footer a { color: #a8b9ca; }
 }
 
 .fb-role {
-    color: #8a8792;
+    color: #6f6b7a;
     font-size: 11.5px;
     text-transform: uppercase;
     letter-spacing: 0.5px;
