@@ -8,13 +8,36 @@ import os
 import math
 import uuid
 import json
+import hashlib
 
-from flask import Flask, render_template, request, redirect, abort, make_response
+from flask import Flask, render_template, request, redirect, abort, make_response, url_for
+from flask_compress import Compress
 
 from db import pool
 from prefix_words import PREFIX_WORDS
 
 app = Flask(__name__)
+
+#gzip for every text response (html, json, css, js). the search page and the
+#/more payloads are prose-heavy and shrink several times over
+Compress(app)
+
+#static files may cache for a year because static_url below stamps a content
+#hash onto every url the templates emit: changing a file changes its url, so
+#a stale cache can never serve an old stylesheet against a new page
+app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 60 * 60 * 24 * 365
+
+_static_hash = {}
+
+
+@app.template_global()
+def static_url(filename):
+    v = _static_hash.get(filename)
+    if v is None:
+        with open(os.path.join(app.static_folder, filename), "rb") as f:
+            v = hashlib.md5(f.read()).hexdigest()[:8]
+        _static_hash[filename] = v
+    return url_for("static", filename=filename) + "?v=" + v
 
 #user reports from the results page (see the /feedback route). the table
 #really lives in common/schema.sql, but that file ships with the ingest and

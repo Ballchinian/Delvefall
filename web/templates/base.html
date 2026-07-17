@@ -7,8 +7,8 @@
         {# every meaningful page is mostly card pictures from this one host,
            preconnecting shaves the dns+tls handshake off the first one #}
         <link rel="preconnect" href="https://cards.scryfall.io">
-        <link rel="icon" type="image/png" href="{{ url_for('static', filename='DelvefallLogo.png') }}">
-        <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+        <link rel="icon" type="image/png" href="{{ static_url('DelvefallLogo.png') }}">
+        <link rel="stylesheet" href="{{ static_url('style.css') }}">
     </head>
     <body class="{% block bodyclass %}{% endblock %}">
 
@@ -17,7 +17,7 @@
         {% block header %}
         <header>
             <div class="header-inner">
-                <img class="logo" src="{{ url_for('static', filename='DelvefallLogo.png') }}" alt="Delvefall logo" width="50px" height="50px">
+                <img class="logo" src="{{ static_url('DelvefallLogo.png') }}" alt="Delvefall logo" width="50px" height="50px">
                 <a class="site-name" href="/">Delvefall</a>
                 {# no autofocus here on purpose: on a results page it would
                    steal focus from the page (space and the arrow keys would
@@ -169,7 +169,7 @@
            it wires every .card-frame on the page after load, and pages that
            add cards later (load more, the unique dealer) call
            enhanceCardFrames themselves #}
-        <script src="{{ url_for('static', filename='cards.js') }}"></script>
+        <script src="{{ static_url('cards.js') }}"></script>
 
         {% block scripts %}{% endblock %}
 
