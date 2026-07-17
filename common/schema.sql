@@ -61,6 +61,11 @@ ALTER TABLE cards ADD COLUMN IF NOT EXISTS concept_uniqueness real;
 --reads as maximally obscure
 ALTER TABLE cards ADD COLUMN IF NOT EXISTS edhrec_rank int;
 
+--when the card first existed: the earliest released_at across every
+--printing, tracked by the same default_cards scan that hunts prices.
+--powers the newest sort. NULL sinks to the bottom of that sort
+ALTER TABLE cards ADD COLUMN IF NOT EXISTS released_at date;
+
 --how the card physically works, straight from scryfall: 'split' and battle
 --type lines mean the picture is printed sideways and the site offers a
 --rotate button, 'flip' means the bottom half reads upside down, and

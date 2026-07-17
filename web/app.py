@@ -527,7 +527,7 @@ def read_min(blend=0):
 
 def read_sort():
     s = request.args.get("sort", "")
-    if s not in ("cheap", "pricey", "played", "obscure"):
+    if s not in ("cheap", "pricey", "played", "obscure", "new"):
         s = "best"
     return s
 
@@ -657,6 +657,7 @@ def find_similar(oracle_id, picked, filters, min_pct, sort, offset=0, how_many=2
     pairs_by_card = {}  #other card's oracle_id -> list of (weighted score, real similarity, our line, their line)
     prices = {}         #other card's oracle_id -> price in the chosen currency, for the price sorts
     ranks = {}          #other card's oracle_id -> edhrec rank, for the played sorts
+    dates = {}          #other card's oracle_id -> first printing's date, for the newest sort
     where, fparams = filter_sql(filters)
     #the column the price sorts read, matching the currency the page prints
     pcol = "c.price_usd" if currency == "usd" else "c.price_eur"
@@ -697,7 +698,7 @@ def find_similar(oracle_id, picked, filters, min_pct, sort, offset=0, how_many=2
         #same rows in the same order, and only the ingest changes the graph
         with pool.connection() as c:
             return c.execute("""
-                SELECT l.oracle_id, l.line_text, l.face, 1 - (l.embedding <=> %s) AS sim, """ + pcol + """ AS price, c.edhrec_rank
+                SELECT l.oracle_id, l.line_text, l.face, 1 - (l.embedding <=> %s) AS sim, """ + pcol + """ AS price, c.edhrec_rank, c.released_at
                 FROM lines l JOIN cards c ON c.oracle_id = l.oracle_id
                 WHERE l.oracle_id <> %s AND NOT l.whole""" + where + """
                 ORDER BY l.embedding <=> %s
@@ -724,6 +725,7 @@ def find_similar(oracle_id, picked, filters, min_pct, sort, offset=0, how_many=2
             pairs_by_card[m["oracle_id"]].append((m["sim"] * w, m["sim"], ql["line_text"], m["line_text"], m["face"]))
             prices[m["oracle_id"]] = m["price"]
             ranks[m["oracle_id"]] = m["edhrec_rank"]
+            dates[m["oracle_id"]] = m["released_at"]
 
     with pool.connection() as conn:
         #sort each card's pairs so pairs[0] is its best one, then rank the
@@ -749,7 +751,7 @@ def find_similar(oracle_id, picked, filters, min_pct, sort, offset=0, how_many=2
                     JOIN tags t ON t.tag = ct.tag
                     WHERE ct.oracle_id = %s
                 )
-                SELECT ct.oracle_id, """ + pcol + """ AS price, c.edhrec_rank,
+                SELECT ct.oracle_id, """ + pcol + """ AS price, c.edhrec_rank, c.released_at,
                        sum(a.idf * a.idf) / (na.norm * nc.norm) AS raw
                 FROM card_tags ct
                 JOIN anchor a ON a.tag = ct.tag
@@ -757,7 +759,7 @@ def find_similar(oracle_id, picked, filters, min_pct, sort, offset=0, how_many=2
                 JOIN card_tag_norms nc ON nc.oracle_id = ct.oracle_id
                 JOIN card_tag_norms na ON na.oracle_id = %s
                 WHERE ct.oracle_id <> %s""" + where + """
-                GROUP BY ct.oracle_id, """ + pcol + """, c.edhrec_rank, na.norm, nc.norm
+                GROUP BY ct.oracle_id, """ + pcol + """, c.edhrec_rank, c.released_at, na.norm, nc.norm
                 HAVING sum(a.idf * a.idf) / (na.norm * nc.norm) >= %s
                 ORDER BY raw DESC
                 LIMIT 300
@@ -766,6 +768,7 @@ def find_similar(oracle_id, picked, filters, min_pct, sort, offset=0, how_many=2
                 concept_raw[r["oracle_id"]] = r["raw"]
                 prices.setdefault(r["oracle_id"], r["price"])
                 ranks.setdefault(r["oracle_id"], r["edhrec_rank"])
+                dates.setdefault(r["oracle_id"], r["released_at"])
 
             #every mechanical candidate needs its concept score too, the
             #blend weighs both axes for everyone
@@ -823,8 +826,9 @@ def find_similar(oracle_id, picked, filters, min_pct, sort, offset=0, how_many=2
         #the alternate sorts happen after the filters, the ranking and the
         #tier split, so the percent keeps meaning what it always meant and
         #weak cards can never leapfrog strong ones. cards with no price sink
-        #to the bottom of the price sorts, and ties fall back to the badge
-        #score, which also covers concept-found cards with no line pairs
+        #to the bottom of the price sorts (same for no date on the newest
+        #sort), and ties fall back to the badge score, which also covers
+        #concept-found cards with no line pairs
         if sort in ("cheap", "pricey"):
             priced = []
             unpriced = []
@@ -845,6 +849,18 @@ def find_similar(oracle_id, picked, filters, min_pct, sort, offset=0, how_many=2
             worst = 10 ** 9
             flip = 1 if sort == "played" else -1
             wanted = sorted(wanted, key=lambda x: (flip * (ranks.get(x[0]) or worst), -gate_score(x)))
+        elif sort == "new":
+            #first printing's release date, newest card first. reverse flips
+            #both keys, so date ties land best badge first
+            dated = []
+            undated = []
+            for entry in wanted:
+                if dates[entry[0]] is None:
+                    undated.append(entry)
+                else:
+                    dated.append(entry)
+            dated.sort(key=lambda x: (dates[x[0]], gate_score(x)), reverse=True)
+            wanted = dated + undated
 
         has_more = len(wanted) > offset + how_many
         page = wanted[offset:offset + how_many]
