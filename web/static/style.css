@@ -464,6 +464,20 @@ h2 {
     cursor: help;
 }
 
+/* the tap-to-show stand-in for title tooltips on touch screens (cards.js
+   builds these). pre-line keeps the line breaks in the "+n more" pair list */
+.tap-tip {
+    background: #0d1b2a;
+    color: #e8edf3;
+    font-size: 12px;
+    font-style: normal;
+    font-weight: normal;
+    border-radius: 4px;
+    padding: 6px 8px;
+    margin-top: 4px;
+    white-space: pre-line;
+}
+
 /* the "+2 more matching lines" hint, the pairs live in its tooltip */
 .more-lines {
     color: #7857a5;

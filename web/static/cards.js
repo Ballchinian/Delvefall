@@ -90,6 +90,39 @@ function enhanceCardFrames(root) {
     });
 }
 
+/*
+    title tooltips don't exist on touch screens, and the ones on results
+    carry real information (which of your lines matched, the blend split,
+    the extra matching pairs). so on devices without hover, tapping one of
+    those elements shows its title in a small bubble instead. tapping the
+    same element again, or anywhere else, closes it. mice keep the native
+    tooltips and never enter this path
+*/
+document.addEventListener("click", function(e) {
+    if (window.matchMedia("(hover: hover)").matches) {
+        return;
+    }
+    var open = document.querySelector(".tap-tip");
+    var el = e.target.closest(".match-line, .more-lines, .concept-tags, .result-rank, .percent");
+    if (open) {
+        var same = open.anchorEl == el;
+        open.remove();
+        if (same) {
+            return;
+        }
+    }
+    //links and buttons keep doing their job (the unique page's "what comes
+    //closest?" link lives inside a .more-lines)
+    if (!el || !el.title || e.target.closest("a, button")) {
+        return;
+    }
+    var tip = document.createElement("div");
+    tip.className = "tap-tip";
+    tip.textContent = el.title;
+    tip.anchorEl = el;
+    el.after(tip);
+});
+
 document.addEventListener("DOMContentLoaded", function() {
     enhanceCardFrames(document);
 });
