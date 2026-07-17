@@ -62,8 +62,8 @@ ALTER TABLE cards ADD COLUMN IF NOT EXISTS concept_uniqueness real;
 ALTER TABLE cards ADD COLUMN IF NOT EXISTS edhrec_rank int;
 
 --how the card physically works, straight from scryfall: 'split' and battle
---type lines mean the picture is printed sideways and the site pre-rotates
---it readable, 'flip' means the bottom half reads upside down, and
+--type lines mean the picture is printed sideways and the site offers a
+--rotate button, 'flip' means the bottom half reads upside down, and
 --image_back holds the other face's picture when one exists so the card can
 --be turned over on the page
 ALTER TABLE cards ADD COLUMN IF NOT EXISTS layout text NOT NULL DEFAULT 'normal';

@@ -7,7 +7,7 @@
         <p class="message">Couldn't find a card called "{{ query }}", maybe check the spelling?</p>
     {% elif card %}
         <div class="searched-card">
-            <div class="card-frame{% if card.sideways %} sideways{% endif %}" data-sideways="{{ '1' if card.sideways else '' }}" data-flip="{{ '1' if card.flip else '' }}" data-back="{{ card.image_back }}">
+            <div class="card-frame" data-sideways="{{ '1' if card.sideways else '' }}" data-flip="{{ '1' if card.flip else '' }}" data-back="{{ card.image_back }}">
                 <img src="{{ card.image }}" alt="{{ card.name }}">
             </div>
             <div class="searched-info">
@@ -101,7 +101,7 @@
             <div class="result">
                 {# the ? in the picture's corner is the misplaced-card report,
                    it fades in with the rest of the hover overlay #}
-                <div class="card-frame{% if r.sideways %} sideways{% endif %}" data-sideways="{{ '1' if r.sideways else '' }}" data-flip="{{ '1' if r.flip else '' }}" data-back="{{ r.image_back }}">
+                <div class="card-frame" data-sideways="{{ '1' if r.sideways else '' }}" data-flip="{{ '1' if r.flip else '' }}" data-back="{{ r.image_back }}">
                     <a href="{{ r.scryfall_uri }}" target="_blank" title="opens on scryfall. ctrl-click to search this card here instead">
                         <img src="{{ r.image }}" alt="{{ r.name }}" loading="lazy">
                     </a>
@@ -247,7 +247,7 @@
                         data.results.forEach(function(r) {
                             var div = document.createElement("div");
                             div.className = "result";
-                            var html = '<div class="card-frame' + (r.sideways ? ' sideways' : '') + '"' +
+                            var html = '<div class="card-frame"' +
                                 ' data-sideways="' + (r.sideways ? '1' : '') + '"' +
                                 ' data-flip="' + (r.flip ? '1' : '') + '"' +
                                 ' data-back="' + r.image_back + '">' +

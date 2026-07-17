@@ -74,7 +74,7 @@ function render(c) {
     div.className = "result";
 
     var frame = document.createElement("div");
-    frame.className = "card-frame" + (c.sideways ? " sideways" : "");
+    frame.className = "card-frame";
     frame.dataset.sideways = c.sideways ? "1" : "";
     frame.dataset.flip = c.flip ? "1" : "";
     frame.dataset.back = c.image_back || "";

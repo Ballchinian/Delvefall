@@ -700,10 +700,11 @@ body.home footer a { color: #a8b9ca; }
 
 #unique-back:disabled, #unique-fwd:disabled { opacity: 0.35; cursor: default; }
 
-/* sideways cards (battles, split cards) start pre-rotated so the text is
-   readable. the wrapper flips to landscape proportions and the image gets
-   rotated into it: the width is the card's own aspect ratio (488/680) so
-   after the 90 degree turn it fills the box exactly */
+/* sideways cards (battles, split cards) start vertical like everything
+   else, the rotate button adds this class to lay them readable. the wrapper
+   flips to landscape proportions and the image gets rotated into it: the
+   width is the card's own aspect ratio (488/680) so after the 90 degree
+   turn it fills the box exactly */
 .card-frame.sideways {
     aspect-ratio: 680 / 488;
     overflow: hidden;

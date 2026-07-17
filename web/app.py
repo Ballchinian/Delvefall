@@ -196,9 +196,9 @@ def rank_label(rank):
 
 
 def sideways(layout, type_line):
-    #battles and split cards are printed sideways, so their pictures start
-    #pre-rotated readable. battles dont get their own layout from scryfall
-    #(theyre transform cards), but Battle always leads the type line
+    #battles and split cards are printed sideways, so their frames offer the
+    #rotate button. battles dont get their own layout from scryfall (theyre
+    #transform cards), but Battle always leads the type line
     return layout == "split" or "Battle" in (type_line or "")
 
 
@@ -857,8 +857,8 @@ def unique():
 
 def card_json(c):
     #one dealt (or revisited) card the way the /unique frontend wants it.
-    #layout and image_back are what let the page pre-rotate sideways cards
-    #and offer the turn-over button
+    #layout and image_back are what let the page offer the rotate and
+    #turn-over buttons
     price = ""
     if c["price_usd"] is not None:
         price = "$" + str(c["price_usd"])

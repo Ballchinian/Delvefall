@@ -17,7 +17,7 @@ A web app that finds Magic: The Gathering cards that do similar things to the ca
 - A landing page with the recent cards you searched floating around the search bar, click one to run it again
 - Unique cards: the counterpart to a random card page. It deals one random card nothing else in the game resembles the moment you arrive, with a repeat button, an adjustable uniqueness bar, the same filters as search, and a per-device memory so you never get dealt the same card twice (until you start over)
 - The dealt cards form a trail: back/forward arrows revisit everything you've ever been dealt
-- Every card picture on the site (the searched card, the results grid, the unique page) gets hover buttons where the physical card needs them: sideways cards (battles, split cards) arrive pre-rotated to be readable with rotate to lay them back down, Kamigawa flip cards flip 180, double faced cards transform. Invasion of Zendikar does all of it at once
+- Every card picture on the site (the searched card, the results grid, the unique page) gets hover buttons where the physical card needs them: sideways cards (battles, split cards) stay vertical so the grid reads uniform, with rotate to turn them readable, Kamigawa flip cards flip 180, double faced cards transform. Invasion of Zendikar does all of it at once
 - Updates itself! A bot checks Scryfall every day and new cards just appear
 - Bad results are reportable: every result carries a quiet "shouldn't be here?" flag and the results heading an "expected a card that isn't here?" link. Reports about filters get answered on the spot, real matching gaps become test cases for the next model
 

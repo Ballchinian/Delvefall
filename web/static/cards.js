@@ -4,13 +4,14 @@
 
     any .card-frame div with data attributes gets wired up:
       data-sideways="1"  battles and split cards, printed sideways. they
-                         arrive pre-rotated readable (the server adds the
-                         sideways class) and "rotate" lays them back down
+                         start vertical like every other card so the grid
+                         stays uniform, "rotate" turns them readable
       data-flip="1"      kamigawa flip cards, "flip" turns them 180 so the
                          bottom half reads
       data-back="url"    double faced cards, "transform" shows the other
                          face. backs are always upright, so transforming
-                         drops any rotation and coming back restores it
+                         drops any rotation and both faces stay vertical
+                         until rotated again
 
     the buttons live on a hover overlay over the art, translucent and small
     so they never disturb the layout or really cover the picture. pages that
@@ -60,7 +61,7 @@ function enhanceCardFrames(root) {
             var showFace = function() {
                 img.src = showingBack ? back : front;
                 frame.classList.remove("flipped");
-                frame.classList.toggle("sideways", !showingBack && sideways);
+                frame.classList.remove("sideways");
                 if (rot) {
                     rot.style.display = showingBack ? "none" : "";
                 }
