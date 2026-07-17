@@ -1,4 +1,5 @@
 requests
+ijson
 torch
 numpy
 sentence-transformers

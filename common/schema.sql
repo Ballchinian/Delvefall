@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS cards (
     --the filter columns. the ingest refreshes these on every run even when
     --the rules text didnt change, since prices move every day
     color_identity  text NOT NULL DEFAULT '',
-    price_usd       numeric,
+    price_usd       numeric,  --the cheapest paper printing in any finish, not scryfall's preferred printing
     price_eur       numeric,  --stored for a future currency toggle, the site only shows usd
     cmc             numeric NOT NULL DEFAULT 0,  --mana value. numeric because scryfall says so, in practice whole numbers
     game_changer    boolean NOT NULL DEFAULT false,

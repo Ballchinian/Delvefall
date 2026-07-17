@@ -3,6 +3,11 @@
 #have different text than last time. most days thats a handful of cards, so
 #the run finishes in seconds after the download.
 #
+#prices take a second, bigger download: the oracle file carries one price
+#per card (whatever printing scryfall prefers), so the default_cards file
+#(every printing) gets streamed through to find each card's cheapest paper
+#printing instead.
+#
 #running this against a brand new empty database seeds the whole thing
 #(everything counts as new, ~61k lines to embed, takes a few minutes).
 #github actions runs it every day, or run it yourself from the repo root:
@@ -17,12 +22,14 @@ import hashlib
 
 import requests
 import psycopg
+import ijson
 from pgvector.psycopg import register_vector
 
 from common.cards import HEADERS, keep_card, split_lines, get_text, get_image, get_back_image
 
 BULK_URL = "https://api.scryfall.com/bulk-data"
 DOWNLOAD_FILE = "oracle-cards.json"
+PRICES_FILE = "default-cards.json"
 
 #my fine tuned embeddinggemma (a sentence-transformers model). it sits in a
 #private repo on hugging face, so HF_TOKEN has to be set or the download 401s.
@@ -49,16 +56,17 @@ def get_with_retries(url, tries=3):
             time.sleep(wait)
 
 
-def download_bulk(url):
-    #stream the file straight to disk instead of holding 150mb of raw json in
-    #memory on top of the parsed version
-    print("downloading " + url)
-    print("(its like 150mb so this can take a minute)")
+def download_bulk(item, path):
+    #stream the file straight to disk instead of holding the raw json in
+    #memory on top of the parsed version. item is one entry from the
+    #bulk-data listing, it knows its own size
+    print("downloading " + item["download_uri"])
+    print("(its about " + str(item.get("size", 0) // (1024 * 1024)) + "mb so this can take a while)")
     for attempt in range(3):
         try:
-            with requests.get(url, headers=HEADERS, timeout=300, stream=True) as r:
+            with requests.get(item["download_uri"], headers=HEADERS, timeout=300, stream=True) as r:
                 r.raise_for_status()
-                with open(DOWNLOAD_FILE, "wb") as f:
+                with open(path, "wb") as f:
                     for chunk in r.iter_content(chunk_size=1024 * 1024):
                         f.write(chunk)
             return
@@ -67,6 +75,58 @@ def download_bulk(url):
                 raise
             print("download failed (" + str(e) + "), retrying...")
             time.sleep(10)
+
+
+def finish_price(prices, keys):
+    #the cheapest finish (nonfoil, foil, etched) of one printing. scryfall
+    #sends strings like "0.25" or None for finishes that dont exist
+    best = None
+    for k in keys:
+        p = prices.get(k)
+        if p is not None:
+            p = float(p)
+            if best is None or p < best:
+                best = p
+    return best
+
+
+def cheapest_prices(item):
+    #oracle_id -> [usd, eur], the lowest price across every paper printing.
+    #the default_cards file is a couple of gigabytes, so ijson streams it one
+    #card at a time instead of parsing the whole thing into memory the way
+    #the oracle file is
+    download_bulk(item, PRICES_FILE)
+    print("scanning every printing for the cheapest price...")
+    best = {}
+    printings = 0
+    with open(PRICES_FILE, "rb") as f:
+        for c in ijson.items(f, "item"):
+            printings += 1
+            #versions you cant actually buy as the real paper card dont
+            #count: arena/mtgo printings, oversized promos, and memorabilia
+            #(gold border world championship decks would underprice half the
+            #expensive staples in the game)
+            if c.get("digital") or c.get("oversized") or c.get("set_type") == "memorabilia":
+                continue
+            oid = c.get("oracle_id")
+            if not oid and c.get("card_faces"):
+                oid = c["card_faces"][0].get("oracle_id")  #reversible cards keep it per face
+            if not oid:
+                continue
+            prices = c.get("prices", {})
+            usd = finish_price(prices, ("usd", "usd_foil", "usd_etched"))
+            eur = finish_price(prices, ("eur", "eur_foil", "eur_etched"))
+            low = best.get(oid)
+            if low is None:
+                best[oid] = [usd, eur]
+            else:
+                if usd is not None and (low[0] is None or usd < low[0]):
+                    low[0] = usd
+                if eur is not None and (low[1] is None or eur < low[1]):
+                    low[1] = eur
+    os.remove(PRICES_FILE)
+    print("checked " + str(printings) + " printings of " + str(len(best)) + " cards")
+    return best
 
 
 def card_hash(card):
@@ -183,12 +243,16 @@ def main():
     if model_changed:
         print("embedding model changed, this run rebuilds every vector (the slow full reseed)")
 
-    print("asking scryfall where the bulk file lives...")
+    print("asking scryfall where the bulk files live...")
     bulk = None
+    prices_bulk = None
     for item in get_with_retries(BULK_URL).json()["data"]:
-        #oracle_cards = one entry per unique card instead of every single printing
+        #oracle_cards = one entry per unique card instead of every single
+        #printing. default_cards = every printing, the price scan needs those
         if item["type"] == "oracle_cards":
             bulk = item
+        if item["type"] == "default_cards":
+            prices_bulk = item
     updated_at = bulk["updated_at"]
 
     #the gate: if we already processed this exact bulk file, stop right here.
@@ -206,7 +270,7 @@ def main():
         conn.close()
         return
 
-    download_bulk(bulk["download_uri"])
+    download_bulk(bulk, DOWNLOAD_FILE)
     print("loading cards...")
     with open(DOWNLOAD_FILE, encoding="utf-8") as f:
         all_cards = json.load(f)
@@ -218,6 +282,8 @@ def main():
         if keep_card(c):
             cards.append(c)
     print("kept " + str(len(cards)) + " real cards that have rules text")
+
+    cheapest = cheapest_prices(prices_bulk)
 
     #what do we already have? oracle_id -> hash of the text we embedded last time
     have = {}
@@ -236,12 +302,16 @@ def main():
     card_rows = []  #every kept card, for the upsert below
     for c in cards:
         h = card_hash(c)
-        #prices come from scryfall as strings like "0.25" or None, postgres
-        #is happy with either going into a numeric column
+        #the cheapest printing's price when the scan found one, falling back
+        #to the oracle file's own (scryfall's preferred printing). strings,
+        #floats or None, postgres takes any of them into a numeric column
         prices = c.get("prices", {})
+        low = cheapest.get(c["oracle_id"], [None, None])
+        usd = low[0] if low[0] is not None else prices.get("usd")
+        eur = low[1] if low[1] is not None else prices.get("eur")
         card_rows.append((c["oracle_id"], c["name"], c.get("mana_cost", ""), c.get("type_line", ""),
                           get_text(c), get_image(c), c.get("scryfall_uri", ""), h,
-                          "".join(c.get("color_identity", [])), prices.get("usd"), prices.get("eur"),
+                          "".join(c.get("color_identity", [])), usd, eur,
                           c.get("cmc", 0), c.get("game_changer", False),
                           c.get("legalities", {}).get("commander") == "legal",
                           c.get("layout", "normal"), get_back_image(c), c.get("edhrec_rank")))

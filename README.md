@@ -41,7 +41,7 @@ Five tables. `cards` has one row per unique card, keyed by Scryfall's `oracle_id
 
 Two derived columns power the unique cards page: `lines.nn_sim` is each line's nearest neighbor similarity (how close the closest line on any *other* card gets), and `cards.uniqueness` rolls that up as 1 minus the card's most isolated line's `nn_sim`, so a card with Flying plus one ability nobody else has still counts as unique, because uniqueness is judged per line, not by the card's best match. The ingest recomputes them whenever lines change, from scratch rather than incrementally: a new card can make an old card less unique and a deleted card can make its old neighbors more unique, so patching only changed rows would quietly rot the scores. The all-pairs math runs as one big numpy matrix multiply on the GitHub Actions runner (about a minute) instead of ~31k pgvector scans (hours of busy production database). All-pairs work belongs next to the big CPU, one-query-at-a-time work belongs next to the data.
 
-The EUR price is stored but not shown anywhere yet, it is sitting there for a future currency toggle. Prices come from the printing Scryfall picks for its Oracle Cards file, which is usually sensible but not always the cheapest printing of a card.
+The EUR price is stored but not shown anywhere yet, it is sitting there for a future currency toggle. Prices are the cheapest paper printing in any finish, found by streaming Scryfall's Default Cards file (every printing, a couple of gigabytes) through ijson each day. Digital printings, oversized promos and gold border world championship decks don't count, you can't sleeve those up.
 
 There is deliberately no vector index: at ~61k rows Postgres scans everything in a few milliseconds and the results are exact, identical to the old in-memory version. If the game ever grows 10x there is a commented out HNSW index in `common/schema.sql` ready to go.
 
@@ -52,7 +52,7 @@ The pipeline is built so that doing nothing costs nothing:
 1. Ask Scryfall's bulk data API for the Oracle Cards file's `updated_at` timestamp (one tiny request).
 2. If it matches the one stored in `meta`, stop. Done in two seconds.
 3. Otherwise download the bulk file and hash every card's name + rules text. Cards whose hash matches the database get skipped without embedding anything.
-4. Every card's row gets rewritten regardless, because prices move daily and the game changer list gets edited, and none of that shows up in the text hash.
+4. The Default Cards file gets streamed through for everything's cheapest printing, and every card's row gets rewritten regardless, because prices move daily and the game changer list gets edited, and none of that shows up in the text hash.
 5. Only genuinely new or changed cards (usually a handful, or zero) get their lines embedded and written, all inside one transaction.
 6. The line counts get rebuilt and the new timestamp saved.
 7. If any lines changed, the uniqueness scores get recomputed (see the database section for why that is always a full recompute).
