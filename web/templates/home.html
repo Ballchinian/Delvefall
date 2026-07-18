@@ -48,8 +48,10 @@
            card fan on scryfall's front page #}
         <div id="recent-floats"></div>
 
-        {# the logo is the biggest paint on this page, it shouldn't wait its turn #}
-        <img class="home-logo" src="{{ static_url('DelvefallLogo.png') }}" alt="Delvefall logo" width="90" height="90" fetchpriority="high">
+        {# the logo is the biggest paint on this page, it shouldn't wait its
+           turn. the outline variant, because the plain logo's tray is the
+           same ink as the hero and the silhouette drowned #}
+        <img class="home-logo" src="{{ static_url('DelvefallLogoOutline.png') }}" alt="Delvefall logo" width="90" height="90" fetchpriority="high">
         <h1 class="home-title">Delvefall</h1>
         <p class="home-tag">Search any Magic card, find every card that does the same thing,
         even when the wording is completely different.</p>

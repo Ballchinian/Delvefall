@@ -56,9 +56,9 @@
                 <div class="oracle">
                     {% for line in card_lines %}
                     {% if line.searchable %}
-                    <div class="oracle-line{% if line.selected %} picked{% endif %}" data-idx="{{ line.idx }}">{{ line.text }}</div>
+                    <div class="oracle-line{% if line.selected %} picked{% endif %}" data-idx="{{ line.idx }}">{{ line.text | mana }}</div>
                     {% else %}
-                    <div class="oracle-plain">{{ line.text }}</div>
+                    <div class="oracle-plain">{{ line.text | mana }}</div>
                     {% endif %}
                     {% endfor %}
                 </div>
@@ -150,7 +150,7 @@
                 <div class="result-name">{{ r.name }} <span class="percent{% if r.concept_only %} concept{% endif %}"{% if r.blended %} title="rules text {{ r.mech_pct }}% and concept {{ r.concept_pct }}%, blended for your slider position"{% endif %}>{{ r.percent }}%</span></div>
                 {% if r.price or r.rank %}<div class="result-price">{{ r.price }}{% if r.rank %}<span class="result-rank" title="edhrec rank, 1 is the most played card in commander">{{ r.rank }}</span>{% endif %}</div>{% endif %}
                 {% if r.their_line %}
-                <div class="match-line" title="matches your card's line: {{ r.our_line }}{% if r.matched_back %} (printed on the back face, shown here){% endif %}">"{{ r.their_line }}"</div>
+                <div class="match-line" title="matches your card's line: {{ r.our_line }}{% if r.matched_back %} (printed on the back face, shown here){% endif %}">"{{ r.their_line | mana }}"</div>
                 {% endif %}
                 {% if r.more_count %}
                 <div class="more-lines" title="{{ r.more_text }}">+{{ r.more_count }} more matching {% if r.more_count == 1 %}line{% else %}lines{% endif %}</div>
@@ -175,6 +175,8 @@
 {% block scripts %}
     {% if card %}
     <script>
+        //the token -> url map manaFill in cards.js renders rules text with
+        window.MANA_URLS = {{ mana_urls() | tojson }};
         /*
             the load more button. asks the server for the next 20 results as
             json and glues them onto the bottom of the grid. the page's whole
@@ -286,8 +288,9 @@
                 }
             }
             if (r.their_line) {
-                el("div", "match-line", div, '"' + r.their_line + '"').title =
-                    "matches your card's line: " + r.our_line +
+                var ml = el("div", "match-line", div);
+                manaFill(ml, '"' + r.their_line + '"');
+                ml.title = "matches your card's line: " + r.our_line +
                     (r.matched_back ? " (printed on the back face, shown here)" : "");
             }
             if (r.more_count) {

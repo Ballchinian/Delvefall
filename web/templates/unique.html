@@ -43,6 +43,8 @@
 
 {% block scripts %}
 <script>
+//the token -> url map manaFill in cards.js renders rules text with
+window.MANA_URLS = {{ mana_urls() | tojson }};
 /*
     the dealer. the page deals one card on load, and every "repeat this
     search" (or enter in a filter field) asks the server for one random card
@@ -129,7 +131,7 @@ function render(c) {
 
     var line = document.createElement("div");
     line.className = "match-line";
-    line.textContent = '"' + c.unique_line + '"';
+    manaFill(line, '"' + c.unique_line + '"');
     line.title = "its most one-of-a-kind line, nothing else in the game comes within " + (100 - c.percent) + "% of it";
     div.appendChild(line);
 

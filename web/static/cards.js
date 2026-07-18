@@ -91,6 +91,36 @@ function enhanceCardFrames(root) {
 }
 
 /*
+    the client twin of app.py's mana filter, for rules text that arrives as
+    json (the /more results, the unique dealer). appends text to el with the
+    {T} and {2}{W/U} tokens swapped for the same self-hosted svgs the server
+    renders, built as dom nodes so a line full of quotes can't break out of
+    the markup. the token -> url map rides in as window.MANA_URLS, inlined
+    by the pages that deal in rules text, and a token with no entry stays
+    text, same as the server side
+*/
+function manaFill(el, text) {
+    var re = /\{([^}]+)\}/g;
+    var last = 0;
+    var m;
+    while ((m = re.exec(text)) !== null) {
+        var url = (window.MANA_URLS || {})[m[1].replace(/\//g, "")];
+        if (!url) {
+            continue;
+        }
+        el.appendChild(document.createTextNode(text.slice(last, m.index)));
+        var img = document.createElement("img");
+        img.src = url;
+        img.alt = m[0];
+        img.width = 16;
+        img.height = 16;
+        el.appendChild(img);
+        last = m.index + m[0].length;
+    }
+    el.appendChild(document.createTextNode(text.slice(last)));
+}
+
+/*
     title tooltips don't exist on touch screens, and the ones on results
     carry real information (which of your lines matched, the blend split,
     the extra matching pairs). so on devices without hover, tapping one of

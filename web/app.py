@@ -94,6 +94,23 @@ def mana(cost):
     out.append(escape(cost[last:]))
     return Markup("").join(out)
 
+
+#the same symbols for the javascript side: rules text that arrives as json
+#(the /more results, the unique dealer) is rendered by manaFill in cards.js,
+#and this token -> cache-busted url map is what it renders from. built once,
+#the symbols folder doesn't change while the app runs
+_mana_urls = None
+
+
+@app.template_global()
+def mana_urls():
+    global _mana_urls
+    if _mana_urls is None:
+        _mana_urls = {fn[:-4]: static_url("symbols/" + fn)
+                      for fn in sorted(os.listdir(os.path.join(app.static_folder, "symbols")))
+                      if fn.endswith(".svg")}
+    return _mana_urls
+
 #user reports from the results page (see the /feedback route). the table
 #really lives in common/schema.sql, but that file ships with the ingest and
 #railway only deploys the web folder, so the web app makes sure its own
