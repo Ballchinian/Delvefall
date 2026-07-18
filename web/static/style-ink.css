@@ -237,15 +237,16 @@ main {
 /* the filter bar, a strip under the searched card like scryfall's
    search options */
 /* the widgets carry their own hand-drawn borders, so the bar needs no tray
-   of its own: it sits on the paper, and one rule underneath keeps it
-   reading as a single band, same hairline the results heading rides on */
+   of its own: it sits on the paper, and the rules above and below fence it
+   into a band, same hairline the results heading rides on */
 .filter-bar {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     gap: 12px;
+    border-top: 1px solid var(--line);
     border-bottom: 1px solid var(--line);
-    padding: 10px 0 14px 0;
+    padding: 14px 0;
     margin-top: 20px;
     font-size: 14px;
 }
@@ -483,10 +484,16 @@ h2 {
     outline-offset: 2px;
 }
 
-/* the filter box: scryfall syntax applied to the results. it grows to eat
-   whatever room the bar has left, its the headline control */
+/* the bar lays out as two rows, the same shape on /search and /unique: the
+   filter box alone on top, then the blend slider, the extra-filters fold
+   and (on /search only) the actions underneath. flex order does the
+   arranging so the shared markup and its tab order stay put */
+.blend-slider { order: 1; }
+
+/* the filter box: scryfall syntax applied to the results. the headline
+   control, so the full-width basis gives it the top row to itself */
 .filter-query {
-    flex: 1;
+    flex: 1 1 100%;
     min-width: 260px;
     padding: 6px 10px;
     border: 1px solid var(--line-strong);
@@ -501,16 +508,15 @@ h2 {
     border-color: var(--teal);
 }
 
-/* the fold-out extra filters panel. the summary line starts its own row of
-   the filter bar, the open panel drops below it so each control gets room
-   for its explanation.
-   the basis is what breaks that row: a whole line minus a slot is always too
-   wide to sit beside the filter box, so the panel wraps, and the slot is what
-   min match, sort and apply need (~385px, rounded up for slack). they land
-   beside it and the panel grows into whatever they leave, back to full width
-   on /unique where there are none */
+/* the fold-out extra filters panel. the summary sits on the bottom row
+   between the slider and the actions, the open panel drops below it so
+   each control gets room for its explanation.
+   the basis is the row math: the slider (~230px) and the actions (~385px,
+   /search only) flank it, rounded up for slack, and the panel grows into
+   whatever they leave, wider on /unique where there are no actions */
 .adv-filters {
-    flex: 1 1 calc(100% - 440px);
+    flex: 1 1 calc(100% - 660px);
+    order: 2;
 }
 
 .adv-filters summary {
@@ -520,13 +526,14 @@ h2 {
     width: max-content;
 }
 
-/* sort and apply, parked at the right end of the extra filters row. they
-   stay level with the summary instead of centering when the panel opens */
+/* sort and apply, parked at the right end of the bottom row. they stay
+   level with the summary instead of centering when the panel opens */
 .filter-actions {
     display: inline-flex;
     align-items: center;
     gap: 12px;
     align-self: flex-start;
+    order: 3;
 }
 
 .adv-grid {
