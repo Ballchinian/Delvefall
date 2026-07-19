@@ -69,7 +69,7 @@
                 </div>
                 <p class="line-hint">
                     {% if picked_count %}
-                    searching {{ 'this line' if picked_count == 1 else 'these lines' }} only, on both sides of the slider. click to toggle
+                    searching {{ 'this line' if picked_count == 1 else 'these lines' }} only{% if line_tags_on %}, on both sides of the slider{% endif %}. click to toggle
                     {% else %}
                     every line here is clickable: search one ability on its own, or a few together
                     {% endif %}
@@ -78,7 +78,12 @@
                    this card was given. picking a line sets aside the ones that
                    line isn't about, which is the whole reason a line selection
                    now moves the concepts side too. only rendered past slider
-                   detent 0, where the concept axis actually counts #}
+                   detent 0, where the concept axis actually counts.
+                   that setting-aside is behind LINE_TAGS (see app.py) until the
+                   attribution clears its bar, so line_tags_on is what decides
+                   whether the hint offers it. the aside and kept chip states
+                   cannot occur with it off, which is why their branches need
+                   no guard of their own #}
                 {% if tag_chips %}
                 <div class="tag-picker">
                     {% for chip in tag_chips %}
@@ -93,9 +98,11 @@
                     so click one to put it back
                     {% elif dropped_count %}
                     concepts: the crossed out tags are switched off, the concepts side is ignoring them
-                    {% else %}
+                    {% elif line_tags_on %}
                     concepts: the slider's right hand side searches these community tags. highlight a line above to
                     narrow them to that ability, or click one to switch it off
+                    {% else %}
+                    concepts: the slider's right hand side searches these community tags. click one to switch it off
                     {% endif %}
                 </p>
                 {% endif %}

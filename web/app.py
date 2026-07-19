@@ -315,6 +315,17 @@ BLEND_DEFAULT = 2
 #full-card denominator and quietly deflate every score, which would move the
 #cutoff without moving the calibration. with nothing dropped this returns the
 #baked norm to the digit, so the default path is a true no-op
+#the line -> tag attribution is dark until it earns its place. at 88%
+#precision / 82% recall a picked line still sets aside tags it shouldn't, and
+#a concepts side that quietly ignores the right tag is worse than one that
+#ignores nothing. set LINE_TAGS on a staging service to try it. with it unset
+#every path below falls through to the behaviour that shipped before the
+#attribution landed: picking a line moves the rules-text side only, and the
+#concepts side reads the whole card. the fallbacks it reuses are the ones
+#already written for a database whose line_tags was never built
+LINE_TAGS = bool(os.environ.get("LINE_TAGS", "").strip())
+
+
 def anchor_vector(conn, oracle_id, dropped, picked=(), forced=()):
     #picked lines narrow the starting set to the tags those lines are about
     #(ingest/attribute.py works out which, card-level tags ride along with
@@ -322,7 +333,7 @@ def anchor_vector(conn, oracle_id, dropped, picked=(), forced=()):
     #human typed on the card, which is what it always was. forced tags are
     #added back on top, so a wrong guess by the attribution costs one click
     #rather than the whole line selection
-    if picked:
+    if picked and LINE_TAGS:
         start = """
             SELECT DISTINCT lt.tag FROM line_tags lt
             JOIN lines l ON l.id = lt.line_id
@@ -380,7 +391,7 @@ def anchor_chips(conn, oracle_id, dropped, picked=(), forced=()):
         ORDER BY ct.weight DESC, ct.tag
     """, (oracle_id,)).fetchall()
     on_lines = None
-    if picked:
+    if picked and LINE_TAGS:
         on_lines = {r["tag"] for r in conn.execute("""
             SELECT DISTINCT lt.tag FROM line_tags lt
             JOIN lines l ON l.id = lt.line_id
@@ -1249,7 +1260,8 @@ def search():
                                          min_override=min_override, min_default=min_default,
                                          blend=blend, cur=filters["cur"], types=CARD_TYPES,
                                          tag_chips=chips, dropped_count=sum(1 for c in chips if c["state"] == "off"),
-                                         aside_count=sum(1 for c in chips if c["state"] == "aside")))
+                                         aside_count=sum(1 for c in chips if c["state"] == "aside"),
+                                         line_tags_on=LINE_TAGS))
     #an explicit slider position becomes the remembered one. moving it back
     #to rules text remembers that too, so there is no stuck state
     if request.args.get("blend") is not None:
