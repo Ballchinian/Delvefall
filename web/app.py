@@ -271,19 +271,72 @@ BLEND_WEIGHTS = (0.0, 0.25, 0.5, 0.75, 1.0)
 BLEND_DEFAULT = 2
 
 
-def concept_between(conn, oracle_a, oracle_b):
+#---- the anchor's side of the concept axis ----
+
+#the searched card's tag vector, which is what every axis-2 query scores
+#against. dropping a tag on the page has to drop the inherited rows that only
+#existed because of it, so the kept set is rebuilt the way ingest/tags.py
+#built it in the first place: start from the tags a human actually typed,
+#minus the dropped ones, then climb the tree. the weights come straight from
+#card_tags, already carrying the inherited damping, so nothing here has to
+#know what that damping is.
+#
+#the norm is recomputed over whatever survived, and that is the whole point.
+#reusing the baked card_tag_norms row would put a shrunken numerator over a
+#full-card denominator and quietly deflate every score, which would move the
+#cutoff without moving the calibration. with nothing dropped this returns the
+#baked norm to the digit, so the default path is a true no-op
+def anchor_vector(conn, oracle_id, dropped):
+    rows = conn.execute("""
+        WITH RECURSIVE kept AS (
+            SELECT tag FROM card_tags
+            WHERE oracle_id = %s AND NOT inherited AND NOT (tag = ANY(%s))
+            UNION
+            SELECT p.tag FROM kept
+            JOIN tags t ON t.tag = kept.tag
+            CROSS JOIN LATERAL unnest(t.parents) AS p(tag)
+        )
+        SELECT ct.tag, ct.weight FROM card_tags ct
+        JOIN kept ON kept.tag = ct.tag
+        WHERE ct.oracle_id = %s
+    """, (oracle_id, list(dropped), oracle_id)).fetchall()
+    tags = [r["tag"] for r in rows]
+    weights = [r["weight"] for r in rows]
+    norm = math.sqrt(sum(w * w for w in weights))
+    return tags, weights, norm
+
+
+def anchor_chips(conn, oracle_id, dropped):
+    #the chips under the rules text: the tags a human typed on this card,
+    #rarest first, each one droppable. inherited ancestors stay out of the
+    #list - they are implied by the typed tags rather than said about the
+    #card, and showing "removal" next to "removal-destroy" reads as noise.
+    #dropping the child takes the parent with it anyway, in anchor_vector
+    rows = conn.execute("""
+        SELECT ct.tag, t.description FROM card_tags ct
+        JOIN tags t ON t.tag = ct.tag
+        WHERE ct.oracle_id = %s AND NOT ct.inherited
+        ORDER BY ct.weight DESC, ct.tag
+    """, (oracle_id,)).fetchall()
+    return [{"tag": r["tag"], "description": r["description"], "dropped": r["tag"] in dropped}
+            for r in rows]
+
+
+def concept_between(conn, oracle_a, oracle_b, dropped=()):
     #the calibrated concept percent between two specific cards, for the
-    #feedback path. 0 when either card carries no tags at all
-    norms = conn.execute("SELECT norm FROM card_tag_norms WHERE oracle_id IN (%s, %s)",
-                         (oracle_a, oracle_b)).fetchall()
-    if len(norms) < 2:
+    #feedback path. 0 when either card carries no tags at all. oracle_a is
+    #the anchor, so the page's dropped tags apply to it and the report says
+    #what the user was actually looking at
+    tags, weights, norm = anchor_vector(conn, oracle_a, dropped)
+    other = conn.execute("SELECT norm FROM card_tag_norms WHERE oracle_id = %s", (oracle_b,)).fetchone()
+    if not tags or other is None:
         return 0
     shared = conn.execute("""
-        SELECT coalesce(sum(ca.weight * cb.weight), 0) AS s
-        FROM card_tags ca
-        JOIN card_tags cb ON cb.tag = ca.tag AND cb.oracle_id = %s
-        WHERE ca.oracle_id = %s""", (oracle_b, oracle_a)).fetchone()["s"]
-    return concept_display(shared / (norms[0]["norm"] * norms[1]["norm"]))
+        SELECT coalesce(sum(a.weight * cb.weight), 0) AS s
+        FROM unnest(%s::text[], %s::real[]) AS a(tag, weight)
+        JOIN card_tags cb ON cb.tag = a.tag AND cb.oracle_id = %s
+    """, (tags, weights, oracle_b)).fetchone()["s"]
+    return concept_display(shared / (norm * other["norm"]))
 
 
 def find_card(query):
@@ -624,6 +677,20 @@ def read_picked():
     return picked
 
 
+def read_dropped():
+    #the notags param holds tag slugs the user switched off on the page, like
+    #"donate-token,modal". dropped rather than kept on purpose: the default
+    #(the whole card) needs no param at all, shared urls stay short, and a
+    #card that picks up a new community tag tomorrow gets it included instead
+    #of silently excluded by yesterday's list
+    dropped = set()
+    for part in request.args.get("notags", "").split(","):
+        part = part.strip()
+        if part:
+            dropped.add(part)
+    return dropped
+
+
 def build_lines(card, picked_idx):
     #the searched card's rules text as individual lines for the line picker.
     #searchable means the cleaned line is real text that lives in the lines
@@ -693,7 +760,8 @@ def filter_sql(filters):
     return where, params
 
 
-def find_similar(oracle_id, picked, filters, min_pct, sort, offset=0, how_many=20, weak=False, blend=0.0, currency="usd"):
+def find_similar(oracle_id, picked, filters, min_pct, sort, offset=0, how_many=20, weak=False, blend=0.0,
+                 currency="usd", dropped=()):
     #every candidate card keeps all its matching line pairs now instead of
     #just the best one, so results can show "+2 more matching lines".
     #
@@ -787,52 +855,58 @@ def find_similar(oracle_id, picked, filters, min_pct, sort, offset=0, how_many=2
         #that SAME number, so nothing under the cutoff ever shows above the
         #fold no matter which axis it leaned on
         concept_raw = {}
+        #the anchor's vector arrives as two arrays instead of a subquery over
+        #card_tags, because the user can now switch tags off: the kept set and
+        #its norm are decided in anchor_vector and both queries just read them.
+        #an empty vector (every tag dropped, or an untagged card) means the
+        #concept side has nothing to say, so it sits the round out rather than
+        #dividing by a zero norm
+        atags, aweights, anorm = anchor_vector(conn, oracle_id, dropped) if blend > 0 else ([], [], 0.0)
         if blend > 0:
-            #cards the lines never found, injected as candidates when their
-            #concept score alone is worth considering at the current cutoff,
-            #through the same filters as everything else
-            rows = conn.execute("""
-                WITH anchor AS (
-                    SELECT tag, weight FROM card_tags WHERE oracle_id = %s
-                )
-                SELECT ct.oracle_id, """ + pcol + """ AS price, c.edhrec_rank, c.released_at,
-                       sum(a.weight * ct.weight) / (na.norm * nc.norm) AS raw
-                FROM card_tags ct
-                JOIN anchor a ON a.tag = ct.tag
-                JOIN cards c ON c.oracle_id = ct.oracle_id
-                JOIN card_tag_norms nc ON nc.oracle_id = ct.oracle_id
-                JOIN card_tag_norms na ON na.oracle_id = %s
-                WHERE ct.oracle_id <> %s""" + where + """
-                GROUP BY ct.oracle_id, """ + pcol + """, c.edhrec_rank, c.released_at, na.norm, nc.norm
-                HAVING sum(a.weight * ct.weight) / (na.norm * nc.norm) >= %s
-                ORDER BY raw DESC
-                LIMIT 300
-            """, [oracle_id, oracle_id, oracle_id] + fparams + [concept_raw_gate(min_pct)]).fetchall()
-            for r in rows:
-                concept_raw[r["oracle_id"]] = r["raw"]
-                prices.setdefault(r["oracle_id"], r["price"])
-                ranks.setdefault(r["oracle_id"], r["edhrec_rank"])
-                dates.setdefault(r["oracle_id"], r["released_at"])
-
-            #every mechanical candidate needs its concept score too, the
-            #blend weighs both axes for everyone
             have = {oid for oid, pairs in ranked}
-            ids = [oid for oid in have if oid not in concept_raw]
-            if ids:
-                for r in conn.execute("""
+            if atags:
+                #cards the lines never found, injected as candidates when their
+                #concept score alone is worth considering at the current cutoff,
+                #through the same filters as everything else
+                rows = conn.execute("""
                     WITH anchor AS (
-                        SELECT tag, weight FROM card_tags WHERE oracle_id = %s
+                        SELECT * FROM unnest(%s::text[], %s::real[]) AS a(tag, weight)
                     )
-                    SELECT ct.oracle_id,
-                           sum(a.weight * ct.weight) / (na.norm * nc.norm) AS raw
+                    SELECT ct.oracle_id, """ + pcol + """ AS price, c.edhrec_rank, c.released_at,
+                           sum(a.weight * ct.weight) / (%s * nc.norm) AS raw
                     FROM card_tags ct
                     JOIN anchor a ON a.tag = ct.tag
+                    JOIN cards c ON c.oracle_id = ct.oracle_id
                     JOIN card_tag_norms nc ON nc.oracle_id = ct.oracle_id
-                    JOIN card_tag_norms na ON na.oracle_id = %s
-                    WHERE ct.oracle_id = ANY(%s)
-                    GROUP BY ct.oracle_id, na.norm, nc.norm
-                """, (oracle_id, oracle_id, ids)).fetchall():
+                    WHERE ct.oracle_id <> %s""" + where + """
+                    GROUP BY ct.oracle_id, """ + pcol + """, c.edhrec_rank, c.released_at, nc.norm
+                    HAVING sum(a.weight * ct.weight) / (%s * nc.norm) >= %s
+                    ORDER BY raw DESC
+                    LIMIT 300
+                """, [atags, aweights, anorm, oracle_id] + fparams + [anorm, concept_raw_gate(min_pct)]).fetchall()
+                for r in rows:
                     concept_raw[r["oracle_id"]] = r["raw"]
+                    prices.setdefault(r["oracle_id"], r["price"])
+                    ranks.setdefault(r["oracle_id"], r["edhrec_rank"])
+                    dates.setdefault(r["oracle_id"], r["released_at"])
+
+                #every mechanical candidate needs its concept score too, the
+                #blend weighs both axes for everyone
+                ids = [oid for oid in have if oid not in concept_raw]
+                if ids:
+                    for r in conn.execute("""
+                        WITH anchor AS (
+                            SELECT * FROM unnest(%s::text[], %s::real[]) AS a(tag, weight)
+                        )
+                        SELECT ct.oracle_id,
+                               sum(a.weight * ct.weight) / (%s * nc.norm) AS raw
+                        FROM card_tags ct
+                        JOIN anchor a ON a.tag = ct.tag
+                        JOIN card_tag_norms nc ON nc.oracle_id = ct.oracle_id
+                        WHERE ct.oracle_id = ANY(%s)
+                        GROUP BY ct.oracle_id, nc.norm
+                    """, (atags, aweights, anorm, ids)).fetchall():
+                        concept_raw[r["oracle_id"]] = r["raw"]
 
             #pure concept finds carry no line pairs, their badge is w * concept
             for oid in concept_raw:
@@ -917,15 +991,17 @@ def find_similar(oracle_id, picked, filters, min_pct, sort, offset=0, how_many=2
                 info[row["oracle_id"]] = row
 
         #the tags each page card shares with the anchor, rarest first - the
-        #chips that explain why the concepts side ranked a card where it did
+        #chips that explain why the concepts side ranked a card where it did.
+        #they read off the same kept vector the scoring used, so a tag the
+        #user switched off never turns up as the reason for a match
         chips = {}
-        if blend > 0 and ids:
+        if blend > 0 and atags and ids:
             for r in conn.execute("""
                 SELECT ct.oracle_id, ct.tag FROM card_tags ct
-                JOIN card_tags a ON a.tag = ct.tag AND a.oracle_id = %s
+                JOIN unnest(%s::text[], %s::real[]) AS a(tag, weight) ON a.tag = ct.tag
                 WHERE ct.oracle_id = ANY(%s)
                 ORDER BY a.weight * ct.weight DESC
-            """, (oracle_id, ids)).fetchall():
+            """, (atags, aweights, ids)).fetchall():
                 chips.setdefault(r["oracle_id"], []).append(r["tag"])
 
     results = []
@@ -1061,14 +1137,23 @@ def search():
     min_override = request.args.get("min") is not None and min_pct != min_default
     sort = read_sort()
     card_lines, picked = build_lines(card, read_picked())
+    dropped = read_dropped()
+
+    #the tag chips only mean anything while the concepts side is switched on,
+    #so at detent 0 (pure rules text) they stay off the page rather than
+    #sitting there as a control that changes nothing
+    with pool.connection() as conn:
+        chips = anchor_chips(conn, card["oracle_id"], dropped) if blend > 0 else []
 
     results, has_more, weak_count = find_similar(card["oracle_id"], picked, filters, min_pct, sort,
-                                                 blend=BLEND_WEIGHTS[blend], currency=filters["cur"])
+                                                 blend=BLEND_WEIGHTS[blend], currency=filters["cur"],
+                                                 dropped=dropped)
     resp = make_response(render_template("search.html", query=query, card=card, card_lines=card_lines,
                                          picked_count=len(picked), results=results, has_more=has_more,
                                          weak_count=weak_count, min_pct=min_pct, min_auto=min_auto,
                                          min_override=min_override, min_default=min_default,
-                                         blend=blend, cur=filters["cur"], types=CARD_TYPES))
+                                         blend=blend, cur=filters["cur"], types=CARD_TYPES,
+                                         tag_chips=chips, dropped_count=sum(1 for c in chips if c["dropped"])))
     #an explicit slider position becomes the remembered one. moving it back
     #to rules text remembers that too, so there is no stuck state
     if request.args.get("blend") is not None:
@@ -1209,7 +1294,8 @@ def more():
     blend = read_blend()
     filters = read_filters()
     results, has_more, weak_count = find_similar(card["oracle_id"], picked, filters, read_min(blend), read_sort(), offset,
-                                                 weak=weak, blend=BLEND_WEIGHTS[blend], currency=filters["cur"])
+                                                 weak=weak, blend=BLEND_WEIGHTS[blend], currency=filters["cur"],
+                                                 dropped=read_dropped())
     return {"results": results, "has_more": has_more, "weak_count": weak_count}
 
 
@@ -1324,6 +1410,7 @@ def feedback():
     blend = read_blend()
     min_pct = read_min(blend)
     _, picked = build_lines(card, read_picked())
+    dropped = read_dropped()
 
     with pool.connection() as conn:
         #a gentle lid, there's no login so this is all the abuse control there is
@@ -1342,6 +1429,11 @@ def feedback():
         #the slider position changes what the numbers the user saw MEANT
         #(blended past detent 0), so it rides in the snapshot too
         snap["blend"] = blend
+        #same reasoning for switched-off tags: a concept percent scored
+        #against a reduced tag vector is not the one the full card would
+        #give, and a report is unreadable later without knowing which
+        if dropped:
+            snap["notags"] = sorted(dropped)
         #scale marker: reports from before 2026-07-15 stored raw-cosine
         #percents, everything after stores calibrated display percents
         snap["cal"] = 1
@@ -1374,7 +1466,7 @@ def feedback():
             if blend > 0:
                 #with the slider away from mechanics the card may already be
                 #on the page as a concept match, which is not a model gap
-                cpct = concept_between(conn, card["oracle_id"], expected["oracle_id"])
+                cpct = concept_between(conn, card["oracle_id"], expected["oracle_id"], dropped)
                 snap["concept_pct"] = cpct
                 if cpct >= MIN_CONCEPT:
                     return {"ok": True, "stored": False,
@@ -1404,7 +1496,7 @@ def feedback():
         if blend > 0:
             #the badge the user flagged was blended, so keep the concept half
             #on file - the review needs it to route the report to an axis
-            snap["concept_pct"] = concept_between(conn, card["oracle_id"], got["oracle_id"])
+            snap["concept_pct"] = concept_between(conn, card["oracle_id"], got["oracle_id"], dropped)
         conn.execute("""INSERT INTO feedback (kind, anchor_id, anchor_name, got_id, got_name,
                                               got_pct, reason, picked_lines, filters, embed_model, ip)
                         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",

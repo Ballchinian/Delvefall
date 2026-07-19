@@ -234,6 +234,39 @@ main {
     margin: 10px 0 0 0;
 }
 
+/* the tag picker under the rules text: the concepts side's community tags,
+   each one a switch. teal like every other action on the page, and a
+   switched-off tag is struck through and drained of color rather than
+   removed, so you can always see what you turned off and put it back */
+.tag-picker {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-top: 12px;
+}
+
+.tag-chip {
+    font-family: inherit;
+    font-size: 12px;
+    color: var(--teal);
+    background: var(--panel);
+    border: 1px solid var(--line-strong);
+    border-radius: 2px;
+    padding: 2px 7px;
+    cursor: pointer;
+}
+
+.tag-chip:hover {
+    background: var(--wash);
+    border-color: var(--teal);
+}
+
+.tag-chip.dropped {
+    color: var(--muted);
+    background: transparent;
+    text-decoration: line-through;
+}
+
 /* the filter bar, a strip under the searched card like scryfall's
    search options */
 /* the widgets carry their own hand-drawn borders, so the bar needs no tray

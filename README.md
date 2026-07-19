@@ -8,6 +8,7 @@ A web app that finds Magic: The Gathering cards that do similar things to the ca
 - Similarity results ranked by best matching line of rules text
 - Every result shows the exact line that matched and a similarity percent
 - Line picker: click any of the searched card's rules lines to search just that ability (or combine several), and the URL stays shareable
+- Tag picker: the concepts side of the slider shows the community tags it is searching, and clicking one switches it off, so a card that happens to be tagged for four different things can be searched for the one you care about. Switching a tag off takes the tags it implied with it, and the score is renormalized over what's left, so the percent keeps meaning what it always meant
 - Filters: color identity (fits-within, like deckbuilding), price range, mana value range, card type, commanders only (legendary creatures), hide game changers, and cards that aren't commander legal stay hidden unless you tick "include illegal"
 - Results below 80% match (adjustable in the filter bar) wait behind a "show weaker matches" button at the end of the list, so weak coincidences never crowd out real matches but nothing is unreachable
 - Sort by best match, by price (in dollars or euros, refreshed from Scryfall daily), by how much a card actually gets played (most or least, from EDHREC rank), or by release date, newest or oldest first
