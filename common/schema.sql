@@ -194,6 +194,29 @@ CREATE TABLE IF NOT EXISTS card_tag_norms (
     norm      real NOT NULL
 );
 
+--which tags each LINE is about, so picking one ability on the search page can
+--narrow the concept axis to that ability instead of searching the whole
+--card's tag vector. tagger tags cards, never lines, so this is inferred
+--rather than given: a line's nearest neighbours across the corpus vote with
+--their own cards' tags, and a tag lands on the line whose neighbourhood
+--carries it far more often than the game at large does (lift over base rate).
+--only the tags a human typed get attributed, the inherited ancestors follow
+--from the tree at query time exactly as they do for a whole card.
+--
+--card_level marks a tag no single line explains: invitational-card, or
+--anything describing the card rather than one of its abilities. those stay
+--attached to every line, so picking a line never loses them. filled by
+--ingest/attribute.py, rebuilt whenever lines or tags change
+CREATE TABLE IF NOT EXISTS line_tags (
+    line_id    bigint NOT NULL REFERENCES lines(id) ON DELETE CASCADE,
+    tag        text NOT NULL,
+    lift       real NOT NULL,
+    card_level boolean NOT NULL DEFAULT false,
+    PRIMARY KEY (line_id, tag)
+);
+
+CREATE INDEX IF NOT EXISTS line_tags_line ON line_tags (line_id);
+
 --user reports from the search page, the raw material for the next round of
 --the eval files. kind 'missing' means "this good card should have been in
 --the results" and carries expected_id (a future pairs.md entry), kind

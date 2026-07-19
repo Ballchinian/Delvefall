@@ -315,11 +315,27 @@ BLEND_DEFAULT = 2
 #full-card denominator and quietly deflate every score, which would move the
 #cutoff without moving the calibration. with nothing dropped this returns the
 #baked norm to the digit, so the default path is a true no-op
-def anchor_vector(conn, oracle_id, dropped):
-    rows = conn.execute("""
-        WITH RECURSIVE kept AS (
+def anchor_vector(conn, oracle_id, dropped, picked=()):
+    #picked lines narrow the starting set to the tags those lines are about
+    #(ingest/attribute.py works out which, card-level tags ride along with
+    #every line). without a line selection the starting set is every tag a
+    #human typed on the card, which is what it always was
+    if picked:
+        start = """
+            SELECT DISTINCT lt.tag FROM line_tags lt
+            JOIN lines l ON l.id = lt.line_id
+            WHERE l.oracle_id = %s AND NOT l.whole AND l.line_text = ANY(%s)
+              AND NOT (lt.tag = ANY(%s))
+        """
+        params = (oracle_id, list(picked), list(dropped), oracle_id)
+    else:
+        start = """
             SELECT tag FROM card_tags
             WHERE oracle_id = %s AND NOT inherited AND NOT (tag = ANY(%s))
+        """
+        params = (oracle_id, list(dropped), oracle_id)
+    rows = conn.execute("""
+        WITH RECURSIVE kept AS (""" + start + """
             UNION
             SELECT p.tag FROM kept
             JOIN tags t ON t.tag = kept.tag
@@ -328,27 +344,53 @@ def anchor_vector(conn, oracle_id, dropped):
         SELECT ct.tag, ct.weight FROM card_tags ct
         JOIN kept ON kept.tag = ct.tag
         WHERE ct.oracle_id = %s
-    """, (oracle_id, list(dropped), oracle_id)).fetchall()
+    """, params).fetchall()
+    #a database whose line_tags hasn't been built yet would hand back nothing
+    #for every picked line and silently mute the concept axis, so fall back to
+    #the whole card rather than pretending the card has no concepts
+    if picked and not rows:
+        return anchor_vector(conn, oracle_id, dropped)
     tags = [r["tag"] for r in rows]
     weights = [r["weight"] for r in rows]
     norm = math.sqrt(sum(w * w for w in weights))
     return tags, weights, norm
 
 
-def anchor_chips(conn, oracle_id, dropped):
+def anchor_chips(conn, oracle_id, dropped, picked=()):
     #the chips under the rules text: the tags a human typed on this card,
-    #rarest first, each one droppable. inherited ancestors stay out of the
-    #list - they are implied by the typed tags rather than said about the
-    #card, and showing "removal" next to "removal-destroy" reads as noise.
-    #dropping the child takes the parent with it anyway, in anchor_vector
+    #rarest first. inherited ancestors stay out of the list - they are implied
+    #by the typed tags rather than said about the card, and showing "removal"
+    #next to "removal-destroy" reads as noise. dropping the child takes the
+    #parent with it anyway, in anchor_vector.
+    #
+    #each chip carries WHY it is on or off, because a tag going quiet with no
+    #explanation is the thing that reads as a broken page. "off" is a tag the
+    #user clicked, "aside" is one the picked lines simply aren't about
     rows = conn.execute("""
         SELECT ct.tag, t.description FROM card_tags ct
         JOIN tags t ON t.tag = ct.tag
         WHERE ct.oracle_id = %s AND NOT ct.inherited
         ORDER BY ct.weight DESC, ct.tag
     """, (oracle_id,)).fetchall()
-    return [{"tag": r["tag"], "description": r["description"], "dropped": r["tag"] in dropped}
-            for r in rows]
+    on_lines = None
+    if picked:
+        on_lines = {r["tag"] for r in conn.execute("""
+            SELECT DISTINCT lt.tag FROM line_tags lt
+            JOIN lines l ON l.id = lt.line_id
+            WHERE l.oracle_id = %s AND NOT l.whole AND l.line_text = ANY(%s)
+        """, (oracle_id, list(picked))).fetchall()}
+        if not on_lines:
+            on_lines = None  #nothing attributed yet, so nothing is set aside
+    chips = []
+    for r in rows:
+        if r["tag"] in dropped:
+            state = "off"
+        elif on_lines is not None and r["tag"] not in on_lines:
+            state = "aside"
+        else:
+            state = "on"
+        chips.append({"tag": r["tag"], "description": r["description"], "state": state})
+    return chips
 
 
 def concept_between(conn, oracle_a, oracle_b, dropped=()):
@@ -890,7 +932,7 @@ def find_similar(oracle_id, picked, filters, min_pct, sort, offset=0, how_many=2
         #an empty vector (every tag dropped, or an untagged card) means the
         #concept side has nothing to say, so it sits the round out rather than
         #dividing by a zero norm
-        atags, aweights, anorm = anchor_vector(conn, oracle_id, dropped) if blend > 0 else ([], [], 0.0)
+        atags, aweights, anorm = anchor_vector(conn, oracle_id, dropped, picked) if blend > 0 else ([], [], 0.0)
         if blend > 0:
             have = {oid for oid, pairs in ranked}
             if atags:
@@ -1172,7 +1214,7 @@ def search():
     #so at detent 0 (pure rules text) they stay off the page rather than
     #sitting there as a control that changes nothing
     with pool.connection() as conn:
-        chips = anchor_chips(conn, card["oracle_id"], dropped) if blend > 0 else []
+        chips = anchor_chips(conn, card["oracle_id"], dropped, picked) if blend > 0 else []
 
     results, has_more, weak_count = find_similar(card["oracle_id"], picked, filters, min_pct, sort,
                                                  blend=BLEND_WEIGHTS[blend], currency=filters["cur"],
@@ -1182,7 +1224,8 @@ def search():
                                          weak_count=weak_count, min_pct=min_pct, min_auto=min_auto,
                                          min_override=min_override, min_default=min_default,
                                          blend=blend, cur=filters["cur"], types=CARD_TYPES,
-                                         tag_chips=chips, dropped_count=sum(1 for c in chips if c["dropped"])))
+                                         tag_chips=chips, dropped_count=sum(1 for c in chips if c["state"] == "off"),
+                                         aside_count=sum(1 for c in chips if c["state"] == "aside")))
     #an explicit slider position becomes the remembered one. moving it back
     #to rules text remembers that too, so there is no stuck state
     if request.args.get("blend") is not None:

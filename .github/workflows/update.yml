@@ -46,3 +46,12 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           PYTHONUNBUFFERED: "1"
+
+      #which tags each line is about, so picking a line on the search page
+      #narrows the concept axis to that ability. runs last because it reads
+      #what both steps above wrote, and unconditionally because either one
+      #changing invalidates it. no model, just numpy over the stored vectors
+      - run: python -m ingest.attribute
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          PYTHONUNBUFFERED: "1"

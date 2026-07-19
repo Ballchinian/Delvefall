@@ -261,10 +261,20 @@ main {
     border-color: var(--teal);
 }
 
-.tag-chip.dropped {
+/* switched off by hand: struck through, still clearly a thing you did */
+.tag-chip.off {
     color: var(--muted);
     background: transparent;
     text-decoration: line-through;
+}
+
+/* set aside because the highlighted lines aren't about it. faded rather than
+   struck, since nobody chose this - the line selection implied it */
+.tag-chip.aside {
+    color: var(--muted);
+    background: transparent;
+    border-style: dashed;
+    opacity: 0.55;
 }
 
 /* the filter bar, a strip under the searched card like scryfall's

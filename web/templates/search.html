@@ -69,26 +69,33 @@
                 </div>
                 <p class="line-hint">
                     {% if picked_count %}
-                    only the highlighted lines are searching, clicking toggles them
+                    searching {{ 'this line' if picked_count == 1 else 'these lines' }} only, on both sides of the slider. click to toggle
                     {% else %}
                     every line here is clickable: search one ability on its own, or a few together
                     {% endif %}
                 </p>
                 {# the concepts side's half of the picker: the community tags
-                   this card was given, each one droppable. only rendered past
-                   slider detent 0, where the concept axis actually counts #}
+                   this card was given. picking a line sets aside the ones that
+                   line isn't about, which is the whole reason a line selection
+                   now moves the concepts side too. only rendered past slider
+                   detent 0, where the concept axis actually counts #}
                 {% if tag_chips %}
                 <div class="tag-picker">
                     {% for chip in tag_chips %}
-                    <button type="button" class="tag-chip{% if chip.dropped %} dropped{% endif %}" data-tag="{{ chip.tag }}"
+                    <button type="button" class="tag-chip{% if chip.state != 'on' %} {{ chip.state }}{% endif %}" data-tag="{{ chip.tag }}"
                             title="{{ chip.description or chip.tag }}">{{ chip.tag }}</button>
                     {% endfor %}
                 </div>
                 <p class="line-hint">
-                    {% if dropped_count %}
-                    the crossed out tags are switched off, the concepts side is ignoring them
+                    {% if aside_count %}
+                    concepts: the faded tags aren't what your highlighted {{ 'line' if picked_count == 1 else 'lines' }}
+                    {{ 'is' if picked_count == 1 else 'are' }} about, so the concepts side is ignoring them. unpick the
+                    {{ 'line' if picked_count == 1 else 'lines' }} to search the whole card again
+                    {% elif dropped_count %}
+                    concepts: the crossed out tags are switched off, the concepts side is ignoring them
                     {% else %}
-                    the concepts side searches these community tags: click one to switch it off
+                    concepts: the slider's right hand side searches these community tags. highlight a line above to
+                    narrow them to that ability, or click one to switch it off
                     {% endif %}
                 </p>
                 {% endif %}
