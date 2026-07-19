@@ -277,6 +277,13 @@ main {
     opacity: 0.55;
 }
 
+/* set aside by the line picker, then put back by hand. live like a normal
+   chip, but the dashed border stays to show it's a correction */
+.tag-chip.kept {
+    border-style: dashed;
+    border-color: var(--teal);
+}
+
 /* the filter bar, a strip under the searched card like scryfall's
    search options */
 /* the widgets carry their own hand-drawn borders, so the bar needs no tray

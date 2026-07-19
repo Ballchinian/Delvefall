@@ -83,14 +83,14 @@
                 <div class="tag-picker">
                     {% for chip in tag_chips %}
                     <button type="button" class="tag-chip{% if chip.state != 'on' %} {{ chip.state }}{% endif %}" data-tag="{{ chip.tag }}"
-                            title="{{ chip.description or chip.tag }}">{{ chip.tag }}</button>
+                            data-state="{{ chip.state }}" title="{{ chip.description or chip.tag }}">{{ chip.tag }}</button>
                     {% endfor %}
                 </div>
                 <p class="line-hint">
                     {% if aside_count %}
                     concepts: the faded tags aren't what your highlighted {{ 'line' if picked_count == 1 else 'lines' }}
-                    {{ 'is' if picked_count == 1 else 'are' }} about, so the concepts side is ignoring them. unpick the
-                    {{ 'line' if picked_count == 1 else 'lines' }} to search the whole card again
+                    {{ 'is' if picked_count == 1 else 'are' }} about, so the concepts side is ignoring them. it's a guess,
+                    so click one to put it back
                     {% elif dropped_count %}
                     concepts: the crossed out tags are switched off, the concepts side is ignoring them
                     {% else %}
@@ -109,6 +109,9 @@
             {% endif %}
             {% if request.args.get('notags') %}
             <input type="hidden" name="notags" value="{{ request.args.get('notags') }}">
+            {% endif %}
+            {% if request.args.get('yestags') %}
+            <input type="hidden" name="yestags" value="{{ request.args.get('yestags') }}">
             {% endif %}
             <label class="blend-slider" title="Rules text: cards whose printed text works the same way | Concepts: cards built around the same idea (from community tags)">rules text <input type="range" name="blend" min="0" max="4" step="1" value="{{ blend }}"> concepts</label>
             {% include "_filters.html" %}
@@ -416,29 +419,34 @@
         });
 
         /*
-            the tag picker, the line picker's opposite number: clicking a tag
-            toggles its slug in the notags url param, so the concepts side
-            stops counting it. dropped rather than kept, so the default needs
-            no param and the url only grows when you actually switch something
-            off
+            the tag picker, the line picker's opposite number. a chip is in one
+            of four states and clicking it means the obvious opposite of
+            whichever it's in:
+              on    -> notags, switch it off
+              off   -> out of notags, back on
+              aside -> yestags, the line picker guessed wrong, put it back
+              kept  -> out of yestags, accept the guess after all
+            two params rather than one because they answer different questions:
+            notags is "ignore this", yestags is "the attribution missed this".
+            both stay empty until you actually touch something, so a plain url
+            still means the whole card
         */
         document.querySelectorAll(".tag-chip").forEach(function(el) {
             el.onclick = function() {
                 var params = new URLSearchParams(window.location.search);
-                var off = [];
-                if (params.get("notags")) {
-                    off = params.get("notags").split(",");
-                }
-                var i = off.indexOf(el.dataset.tag);
+                var state = el.dataset.state;
+                var key = (state == "aside" || state == "kept") ? "yestags" : "notags";
+                var list = params.get(key) ? params.get(key).split(",") : [];
+                var i = list.indexOf(el.dataset.tag);
                 if (i == -1) {
-                    off.push(el.dataset.tag);
+                    list.push(el.dataset.tag);
                 } else {
-                    off.splice(i, 1);
+                    list.splice(i, 1);
                 }
-                if (off.length) {
-                    params.set("notags", off.join(","));
+                if (list.length) {
+                    params.set(key, list.join(","));
                 } else {
-                    params.delete("notags");
+                    params.delete(key);
                 }
                 window.location.search = params.toString();
             };

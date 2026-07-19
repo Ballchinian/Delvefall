@@ -315,19 +315,26 @@ BLEND_DEFAULT = 2
 #full-card denominator and quietly deflate every score, which would move the
 #cutoff without moving the calibration. with nothing dropped this returns the
 #baked norm to the digit, so the default path is a true no-op
-def anchor_vector(conn, oracle_id, dropped, picked=()):
+def anchor_vector(conn, oracle_id, dropped, picked=(), forced=()):
     #picked lines narrow the starting set to the tags those lines are about
     #(ingest/attribute.py works out which, card-level tags ride along with
     #every line). without a line selection the starting set is every tag a
-    #human typed on the card, which is what it always was
+    #human typed on the card, which is what it always was. forced tags are
+    #added back on top, so a wrong guess by the attribution costs one click
+    #rather than the whole line selection
     if picked:
         start = """
             SELECT DISTINCT lt.tag FROM line_tags lt
             JOIN lines l ON l.id = lt.line_id
             WHERE l.oracle_id = %s AND NOT l.whole AND l.line_text = ANY(%s)
               AND NOT (lt.tag = ANY(%s))
+            UNION
+            SELECT tag FROM card_tags
+            WHERE oracle_id = %s AND NOT inherited
+              AND tag = ANY(%s) AND NOT (tag = ANY(%s))
         """
-        params = (oracle_id, list(picked), list(dropped), oracle_id)
+        params = (oracle_id, list(picked), list(dropped),
+                  oracle_id, list(forced), list(dropped), oracle_id)
     else:
         start = """
             SELECT tag FROM card_tags
@@ -356,7 +363,7 @@ def anchor_vector(conn, oracle_id, dropped, picked=()):
     return tags, weights, norm
 
 
-def anchor_chips(conn, oracle_id, dropped, picked=()):
+def anchor_chips(conn, oracle_id, dropped, picked=(), forced=()):
     #the chips under the rules text: the tags a human typed on this card,
     #rarest first. inherited ancestors stay out of the list - they are implied
     #by the typed tags rather than said about the card, and showing "removal"
@@ -386,7 +393,10 @@ def anchor_chips(conn, oracle_id, dropped, picked=()):
         if r["tag"] in dropped:
             state = "off"
         elif on_lines is not None and r["tag"] not in on_lines:
-            state = "aside"
+            #put back by hand after the line picker set it aside. it counts
+            #like any other live tag, it just wears its own look so the page
+            #still shows the picker's guess and your correction to it
+            state = "kept" if r["tag"] in forced else "aside"
         else:
             state = "on"
         chips.append({"tag": r["tag"], "description": r["description"], "state": state})
@@ -762,6 +772,19 @@ def read_dropped():
     return dropped
 
 
+def read_forced():
+    #the yestags param is the mirror of notags: tags the line picker set aside
+    #that the user put back by hand. attribution is inference, so it will drop
+    #a tag it shouldn't now and then, and without this the only way back is to
+    #unpick the line and lose the whole narrowing
+    forced = set()
+    for part in request.args.get("yestags", "").split(","):
+        part = part.strip()
+        if part:
+            forced.add(part)
+    return forced
+
+
 def build_lines(card, picked_idx):
     #the searched card's rules text as individual lines for the line picker.
     #searchable means the cleaned line is real text that lives in the lines
@@ -832,7 +855,7 @@ def filter_sql(filters):
 
 
 def find_similar(oracle_id, picked, filters, min_pct, sort, offset=0, how_many=20, weak=False, blend=0.0,
-                 currency="usd", dropped=()):
+                 currency="usd", dropped=(), forced=()):
     #every candidate card keeps all its matching line pairs now instead of
     #just the best one, so results can show "+2 more matching lines".
     #
@@ -932,7 +955,7 @@ def find_similar(oracle_id, picked, filters, min_pct, sort, offset=0, how_many=2
         #an empty vector (every tag dropped, or an untagged card) means the
         #concept side has nothing to say, so it sits the round out rather than
         #dividing by a zero norm
-        atags, aweights, anorm = anchor_vector(conn, oracle_id, dropped, picked) if blend > 0 else ([], [], 0.0)
+        atags, aweights, anorm = anchor_vector(conn, oracle_id, dropped, picked, forced) if blend > 0 else ([], [], 0.0)
         if blend > 0:
             have = {oid for oid, pairs in ranked}
             if atags:
@@ -1209,16 +1232,17 @@ def search():
     sort = read_sort()
     card_lines, picked = build_lines(card, read_picked())
     dropped = read_dropped()
+    forced = read_forced()
 
     #the tag chips only mean anything while the concepts side is switched on,
     #so at detent 0 (pure rules text) they stay off the page rather than
     #sitting there as a control that changes nothing
     with pool.connection() as conn:
-        chips = anchor_chips(conn, card["oracle_id"], dropped, picked) if blend > 0 else []
+        chips = anchor_chips(conn, card["oracle_id"], dropped, picked, forced) if blend > 0 else []
 
     results, has_more, weak_count = find_similar(card["oracle_id"], picked, filters, min_pct, sort,
                                                  blend=BLEND_WEIGHTS[blend], currency=filters["cur"],
-                                                 dropped=dropped)
+                                                 dropped=dropped, forced=forced)
     resp = make_response(render_template("search.html", query=query, card=card, card_lines=card_lines,
                                          picked_count=len(picked), results=results, has_more=has_more,
                                          weak_count=weak_count, min_pct=min_pct, min_auto=min_auto,
@@ -1367,7 +1391,7 @@ def more():
     filters = read_filters()
     results, has_more, weak_count = find_similar(card["oracle_id"], picked, filters, read_min(blend), read_sort(), offset,
                                                  weak=weak, blend=BLEND_WEIGHTS[blend], currency=filters["cur"],
-                                                 dropped=read_dropped())
+                                                 dropped=read_dropped(), forced=read_forced())
     return {"results": results, "has_more": has_more, "weak_count": weak_count}
 
 

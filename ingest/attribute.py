@@ -45,8 +45,15 @@ FLOOR = 1.5
 #once a tag's best line is known, any other line within this fraction of that
 #best also gets it. modal cards are why: each mode line lifts "modal" hard,
 #and crediting only the single strongest would make picking any other mode
-#silently drop the tag
-RATIO = 0.4
+#silently drop the tag.
+#
+#tuned for precision rather than recall: a tag set aside by mistake can be
+#clicked back on (the page's yestags), so a miss costs one click, while a
+#wrong tag quietly drags the whole search sideways. measured against a
+#hand-labelled Shadrix Silverquill, 0.4 gives 88% precision / 82% recall and
+#0.6 gives 93% / 76%. that is ONE card, so re-measure on a second labelled
+#card before trusting the third digit
+RATIO = 0.6
 
 
 def main():
@@ -121,43 +128,96 @@ def main():
             print("  " + str(start) + "/" + str(len(ids)))
     del emb
 
-    #the vote. only a line's own card's typed tags are ever scored, so this is
-    #~6 lookups per neighbour rather than a pass over all 8k tags
-    print("scoring...")
-    lift_of = {}  #(line index, tag) -> lift
+    #how many lines each card has, for the first pass's damping below
+    lines_on_card = {oid: len(idxs) for oid, idxs in rows_of_card.items()}
+
+    def assign(lift_of):
+        #per card and per tag, which of its lines earned it. the best line
+        #sets the bar and everything within RATIO of it shares the credit.
+        #
+        #the sub-FLOOR case is the subtle one. a tag can miss the floor for
+        #two opposite reasons: nothing in the game connects it to any of these
+        #lines (invitational-card, which really is about the card), or it is
+        #so common that no line can stand out on it (triggered-ability sits
+        #near 1.0x everywhere by definition). only the first is card-level.
+        #treating both that way sprayed the broad tags onto every line and
+        #cost more precision than the card-level idea ever bought, so a tag
+        #with a real best line goes there even when the lift is unimpressive,
+        #and only a tag no neighbourhood mentions at all rides every line
+        out = {}
+        for oid, line_idxs in rows_of_card.items():
+            for tag in typed_tags.get(oid, ()):
+                lifts = [(i, lift_of.get((i, tag), 0.0)) for i in line_idxs]
+                best = max(l for _, l in lifts)
+                if best <= 0:
+                    for i, l in lifts:
+                        out[(i, tag)] = (l, True)
+                    continue
+                #near-best only when the signal is weak, since RATIO of a
+                #small number would wave nearly every line through
+                bar = max(best * RATIO, FLOOR) if best >= FLOOR else best * 0.9
+                for i, l in lifts:
+                    if l >= bar:
+                        out[(i, tag)] = (l, False)
+        return out
+
+    #pass one: neighbours vote with their whole CARD's tags, because
+    #card-level tags are all there is to start from. that is also its flaw - a
+    #neighbour card with five lines donates all five lines' worth of tags to
+    #whichever one line matched - so each neighbour's vote is damped by how
+    #many lines it has. a one-line card knows exactly which line earned its
+    #tags and speaks at full volume
+    print("scoring, pass one (cards vote)...")
+    lift_of = {}
     for i in range(len(ids)):
         mine = typed_tags.get(owners[i])
         if not mine:
             continue
-        nb_cards = {owners[j] for j in neighbours[i]}
-        nb_cards.discard(owners[i])
-        if not nb_cards:
+        votes = {}
+        for j in neighbours[i]:
+            cid = owners[j]
+            if cid != owners[i]:
+                votes[cid] = 1.0 / lines_on_card.get(cid, 1)
+        if not votes:
+            continue
+        total_vote = sum(votes.values())
+        for tag in mine:
+            hit = 0.0
+            for cid, w in votes.items():
+                if tag in all_tags.get(cid, ()):
+                    hit += w
+            lift_of[(i, tag)] = (hit / total_vote) / base_rate.get(tag, 1.0)
+    first = assign(lift_of)
+
+    #pass two: now that every line has a provisional guess, neighbours vote
+    #with their own LINE's tags instead of their card's, which is the thing
+    #pass one could not do. measured against a hand-labelled card this lifts
+    #precision from 60% to 88% at the same neighbourhood, because a line that
+    #merely sits on a card with an unrelated ability stops donating it
+    print("scoring, pass two (lines vote)...")
+    line_tags_now = {}
+    for (i, tag), (_, card_level) in first.items():
+        if not card_level:
+            line_tags_now.setdefault(i, set()).add(tag)
+    lift2 = {}
+    for i in range(len(ids)):
+        mine = typed_tags.get(owners[i])
+        if not mine:
+            continue
+        nb = [j for j in neighbours[i] if owners[j] != owners[i]]
+        if not nb:
             continue
         for tag in mine:
             hits = 0
-            for cid in nb_cards:
-                if tag in all_tags.get(cid, ()):
+            for j in nb:
+                if tag in line_tags_now.get(j, ()):
                     hits += 1
-            lift_of[(i, tag)] = (hits / len(nb_cards)) / base_rate.get(tag, 1.0)
+            lift2[(i, tag)] = (hits / len(nb)) / base_rate.get(tag, 1.0)
 
-    #now decide, per card and per tag, which of its lines earned it. the best
-    #line sets the bar, everything within RATIO of it shares the credit, and a
-    #tag whose best line never clears FLOOR belongs to the card rather than to
-    #any one ability, so every line gets it
     print("assigning...")
     rows = []
-    for oid, line_idxs in rows_of_card.items():
-        for tag in typed_tags.get(oid, ()):
-            lifts = [(i, lift_of.get((i, tag), 0.0)) for i in line_idxs]
-            best = max(l for _, l in lifts)
-            if best < FLOOR:
-                for i, l in lifts:
-                    rows.append((ids[i], tag, l, True))
-                continue
-            bar = max(best * RATIO, FLOOR)
-            for i, l in lifts:
-                if l >= bar:
-                    rows.append((ids[i], tag, l, False))
+    for (i, tag), (l, card_level) in assign(lift2).items():
+        rows.append((ids[i], tag, l, card_level))
 
     print("writing " + str(len(rows)) + " line-tag rows...")
     with conn.cursor() as cur:
