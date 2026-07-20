@@ -28,3 +28,6 @@ finetune/traindata/*
 !finetune/traindata/train_rewordings.jsonl
 finetune/bakeoff_results.csv
 finetune/sanity_report.txt
+
+#local tooling config, not part of the site
+.claude/
