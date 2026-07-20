@@ -950,8 +950,43 @@ def filter_sql(filters):
     return where, params
 
 
+#a result's price against the searched card's. the arrow is the message and
+#the colour is how big the move is: a "much" verdict needs BOTH a doubling
+#(or halving) and a real gap in money, because 25p against 10p is 2.5x and
+#nobody would call it much more expensive
+PRICE_MUCH_RATIO = 2.0
+PRICE_MUCH_GAP = 1.0
+
+#edhrec ranks are ordinal over the whole format, so two cards 40 places apart
+#are equally played in any sense that matters. only a fifth of a rank apart
+#either way earns an arrow
+RANK_BAND = 0.2
+
+
+def price_verdict(price, anchor):
+    if anchor is None or price is None or anchor <= 0:
+        return ""
+    if price == anchor:
+        return ""
+    much = abs(price - anchor) >= PRICE_MUCH_GAP and (
+        price >= anchor * PRICE_MUCH_RATIO or price <= anchor / PRICE_MUCH_RATIO)
+    if price < anchor:
+        return "much-cheaper" if much else "cheaper"
+    return "much-pricier" if much else "pricier"
+
+
+def rank_verdict(rank, anchor):
+    #rank 1 is the most played card in the format, so a SMALLER number means
+    #more played and the arrow points up for it
+    if anchor is None or rank is None:
+        return ""
+    if abs(rank - anchor) < anchor * RANK_BAND:
+        return ""
+    return "more-played" if rank < anchor else "less-played"
+
+
 def find_similar(oracle_id, picked, filters, min_pct, sort, offset=0, how_many=20, weak=False, blend=0.0,
-                 currency="usd", dropped=(), forced=(), anchor_price=None):
+                 currency="usd", dropped=(), forced=(), anchor_price=None, anchor_rank=None):
     #every candidate card keeps all its matching line pairs now instead of
     #just the best one, so results can show "+2 more matching lines".
     #
@@ -1231,16 +1266,12 @@ def find_similar(oracle_id, picked, filters, min_pct, sort, offset=0, how_many=2
         else:
             percent = mech_pct
         price = price_label(c, currency)
-        #the little arrow riding the price: which side of the searched
-        #card's own price this one sits. a comparison is the one thing the
-        #number honestly supports (the price used to be green, which
-        #claimed cheap means good), so the arrow points and the tooltip
-        #names the card it is measured against, and that is all
-        price_vs = ""
-        if anchor_price is not None:
-            rp = price_in(c, currency)
-            if rp is not None and rp != anchor_price:
-                price_vs = "cheaper" if rp < anchor_price else "pricier"
+        #the two little arrows: which side of the searched card this result
+        #sits on for money and for how much the format plays it. a comparison
+        #is the one thing these numbers honestly support on their own, and
+        #both tooltips name the card being compared against
+        price_vs = price_verdict(price_in(c, currency), anchor_price)
+        rank_vs = rank_verdict(c["edhrec_rank"], anchor_rank)
         #a match that lives on the back face shows that side first, so the
         #line printed under the card is on the picture the user is looking
         #at (the ulvenwald lesson). the front face keeps the flip button
@@ -1271,6 +1302,7 @@ def find_similar(oracle_id, picked, filters, min_pct, sort, offset=0, how_many=2
             "price": price,
             "price_vs": price_vs,
             "rank": rank_label(c["edhrec_rank"]),
+            "rank_vs": rank_vs,
             "more_count": len(more),
             "more_text": "\n".join(more),
         })
@@ -1343,7 +1375,8 @@ def search():
     results, has_more, weak_count = find_similar(card["oracle_id"], picked, filters, min_pct, sort,
                                                  blend=BLEND_WEIGHTS[blend], currency=filters["cur"],
                                                  dropped=dropped, forced=forced,
-                                                 anchor_price=price_in(card, filters["cur"]))
+                                                 anchor_price=price_in(card, filters["cur"]),
+                                                 anchor_rank=card["edhrec_rank"])
     resp = make_response(render_template("search.html", query=query, card=card, card_lines=card_lines,
                                          picked_count=len(picked), results=results, has_more=has_more,
                                          weak_count=weak_count, min_pct=min_pct, errors=filters["errors"],
@@ -1493,7 +1526,8 @@ def more():
     results, has_more, weak_count = find_similar(card["oracle_id"], picked, filters, tier_cut(blend), read_sort(), offset,
                                                  weak=weak, blend=BLEND_WEIGHTS[blend], currency=filters["cur"],
                                                  dropped=read_dropped(), forced=read_forced(),
-                                                 anchor_price=price_in(card, filters["cur"]))
+                                                 anchor_price=price_in(card, filters["cur"]),
+                                                 anchor_rank=card["edhrec_rank"])
     return {"results": results, "has_more": has_more, "weak_count": weak_count}
 
 

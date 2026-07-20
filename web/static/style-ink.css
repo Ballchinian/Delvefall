@@ -345,17 +345,19 @@ main {
 }
 
 /* scryfall's real symbol svgs as the color toggles. the checkbox hides and
-   the whole symbol is the chip, faded means off, the double ring means on */
-/* 0.45 is the opacity every ui on the internet uses for "disabled", so an
-   unpicked color read as one you couldn't pick. 0.7 still sits clearly
-   below the picked state without borrowing that meaning, and the ring
-   below is what actually says "on" */
+   the whole symbol is the chip. an unpicked one is drained to grey, a picked
+   one is its own colour with a ring: at 0.7 opacity the symbol still read as
+   mostly itself, so five colourful circles looked like five colours already
+   chosen, which is exactly the "am I filtering or not" confusion. greyscale
+   is the difference you can see across the room, and the ring backs it up
+   so colour is not the only channel */
 .filter-colors label {
     position: relative;
     width: 26px;
     height: 26px;
     border-radius: 50%;
-    opacity: 0.7;
+    filter: grayscale(1);
+    opacity: 0.55;
 }
 
 .filter-colors label img {
@@ -364,9 +366,10 @@ main {
     height: 100%;
 }
 
-.filter-colors label:hover { opacity: 0.9; }
+.filter-colors label:hover { opacity: 0.85; }
 
 .filter-colors label:has(input:checked) {
+    filter: none;
     opacity: 1;
     box-shadow: 0 0 0 2px var(--panel), 0 0 0 4px var(--ink);
 }
@@ -489,11 +492,15 @@ h2 {
     line-height: 1.25;
 }
 
+/* the match percent. no colour of its own: gold said nothing a reader could
+   decode, and a second colour for concept-only matches turned a number
+   people already have to interpret into a legend they had to learn. it is a
+   number, it reads as one, and the tooltip carries the breakdown */
 .percent {
     float: right;
     font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     font-size: 13px;
-    color: var(--gold);
+    color: var(--muted);
 }
 
 /* the price used to be green, which quietly claimed something the number
@@ -507,14 +514,31 @@ h2 {
     margin-top: 6px;
 }
 
-/* the arrow next to the price: which side of the searched card's price
-   this one falls. muted on purpose, direction is the whole message and
-   the tooltip names the card it's measured against. no colour: cheap
-   isn't good or bad, it's just cheaper */
+/* the arrow next to the price: which side of the searched card's price this
+   one falls, and how far. the direction is always there; colour only arrives
+   for a move worth reacting to (a doubling or a halving, and at least a
+   pound or dollar of it), so green and red mean "this is a real difference"
+   rather than decorating every row. a small move stays plain ink.
+   this is the one place colour is spent on a price, and it is spent on a
+   COMPARISON, not on the number itself: green here means cheaper than what
+   you searched, which is a fact, where a green price meant "good value",
+   which was an opinion the number could not support */
 .price-vs {
-    color: var(--muted);
+    color: var(--text);
     font-weight: normal;
     margin-left: 3px;
+    cursor: help;
+}
+
+.price-vs.much-cheaper { color: #1f6b41; }
+
+.price-vs.much-pricier { color: #b3352a; }
+
+/* the same idea on the play-rate side, deliberately without colour: the
+   edhrec rank is a popularity fact and colouring it would imply popular is
+   better, which is exactly the claim the price colour used to make */
+.rank-vs {
+    margin-left: 2px;
     cursor: help;
 }
 
@@ -659,10 +683,16 @@ h2 {
     border-color: var(--teal);
 }
 
-/* the fold-out extra filters panel. the summary opens the middle row at the
-   left with the slider next to it, so it sits no wider than its own word */
+/* the fold-out filters panel. the summary sits at the left of the middle row
+   with the slider next to it, and the panel itself hangs BELOW as a dropdown
+   rather than growing the box: an inline panel made the details element as
+   wide as its widest row the moment it opened, which shoved the slider across
+   the bar and sometimes onto another line. the slider is the control people
+   are least sure of, and having it jump whenever the filters opened was the
+   disorienting part. absolute means the box is the summary's size, always */
 .adv-filters {
-    flex: 0 1 auto;
+    position: relative;
+    flex: 0 0 auto;
     order: 1;
     margin-right: 20px;
 }
@@ -708,15 +738,24 @@ h2 {
     order: 3;
 }
 
-/* one widget per row: the explanation paragraphs, and the two column grid
-   that existed to hold them, moved to the guide. the widgets stand on
-   their own with tooltips carrying anything still worth saying */
-.adv-grid {
-    margin-top: 8px;
+/* the panel proper, a dropdown under the summary. its own tray, since it now
+   floats over the results rather than sitting in the page's flow */
+.adv-panel {
+    position: absolute;
+    top: calc(100% + 10px);
+    left: 0;
+    z-index: 30;
+    width: 540px;
+    max-width: calc(100vw - 32px);
+    padding: 14px 16px;
+    background: var(--panel);
+    border: 1px solid var(--line-strong);
+    border-radius: 3px;
+    box-shadow: 0 6px 18px rgba(33, 31, 26, 0.16);
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-    gap: 10px;
+    gap: 8px;
 }
 
 .adv-row {
@@ -726,19 +765,101 @@ h2 {
     gap: 6px 14px;
 }
 
-/* the subheading over the eligibility toggles. rides a hairline, so the
-   panel reads as two groups rather than one list with three odd entries
-   at the bottom */
+/* the subheadings. each rides a hairline so the panel reads as its three
+   groups (what prices are in, which cards are eligible, what is narrowing)
+   rather than one long list */
 .adv-group {
     align-self: stretch;
-    margin: 6px 0 0;
-    padding-top: 10px;
+    margin: 4px 0 0;
+    padding-top: 9px;
     border-top: 1px solid var(--line);
     font-size: 12px;
     text-transform: uppercase;
     letter-spacing: 0.6px;
     color: var(--muted);
 }
+
+/* the first group heading has the panel's own edge above it already */
+.adv-panel .adv-group:first-child {
+    margin-top: 0;
+    padding-top: 0;
+    border-top: 0;
+}
+
+/* how many filters are narrowing right now, riding the summary so the answer
+   is there with the panel shut. "is anything filtering?" was the question
+   nobody could answer from the old panel */
+.filter-count {
+    background: var(--teal);
+    color: #fff;
+    font-size: 11px;
+    border-radius: 9px;
+    padding: 1px 7px;
+}
+
+/* one added filter. the whole row exists only while the filter applies, so
+   its presence IS the on state, and the x is how you take it back off */
+.adv-slot {
+    align-self: stretch;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 10px;
+}
+
+.adv-slot[hidden] { display: none; }
+
+.slot-name {
+    font-size: 12.5px;
+    color: var(--muted);
+    min-width: 76px;
+}
+
+.slot-off {
+    margin-left: auto;
+    background: none;
+    border: 0;
+    color: var(--muted);
+    font-size: 17px;
+    line-height: 1;
+    padding: 0 4px;
+    cursor: pointer;
+}
+
+.slot-off:hover { color: #c23c2e; }
+
+/* the add row. the buttons read as things you can switch on, so they are
+   outlined rather than filled: filled would look like they already are */
+.adv-add {
+    margin: 2px 0 0;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    font-size: 12.5px;
+    color: var(--muted);
+}
+
+.slot-on {
+    font-family: inherit;
+    font-size: 12.5px;
+    color: var(--teal);
+    background: none;
+    border: 1px dashed var(--line-strong);
+    border-radius: 2px;
+    padding: 2px 9px;
+    cursor: pointer;
+}
+
+.slot-on:hover {
+    border-style: solid;
+    border-color: var(--teal);
+    background: var(--wash);
+}
+
+.slot-on[hidden] { display: none; }
+
+.adv-none { font-style: italic; }
 
 /* the card type chips. pills that toggle like the color symbols do, and
    any picked one matches, so Artifact plus Creature is finally askable */
@@ -856,19 +977,11 @@ h2 {
     margin-bottom: 10px;
 }
 
-/* a pure concept match's badge: teal against the rules-side gold, so the
-   two kinds of number read differently at a glance. colour alone can't be
-   the difference though (the two hues are a common confusion pair), so the
-   concept badge also carries a mark: same information, two channels */
-.percent.concept {
-    color: var(--teal);
-    cursor: help;
-}
-
-.percent.concept::before {
-    content: "\25C7\00a0"; /* an outline diamond, the concept-side mark */
-    font-size: 10px;
-}
+/* a pure concept match still gets its tooltip, it just doesn't get its own
+   colour and diamond any more. the tags printed under the card already say
+   the match came from the concepts side, in words, which is the version
+   nobody has to be taught */
+.percent.concept { cursor: help; }
 
 /* the shared community tags under a result, why the concepts side ranked it */
 /* 12.5 is the floor everything under a card sits on now. 12 was technically
@@ -1534,6 +1647,24 @@ body.home main {
     .header-inner { flex-wrap: wrap; gap: 10px 20px; }
     .search-form { order: 3; flex-basis: 100%; }
     .header-links { margin-left: auto; flex-wrap: wrap; gap: 14px 20px; }
+}
+
+/* the filters panel stops being a dropdown once there is no room to hang one:
+   it goes back into the page's flow, full width, and pushes the results down
+   like the old inline panel did. the slider has already wrapped to its own
+   line by this width, so nothing jumps */
+@media (max-width: 700px) {
+    .adv-filters { position: static; flex-basis: 100%; margin-right: 0; }
+
+    .adv-panel {
+        position: static;
+        width: 100%;
+        max-width: none;
+        margin-top: 10px;
+        box-shadow: none;
+    }
+
+    .slot-name { min-width: 0; flex-basis: 100%; }
 }
 
 @media (max-width: 600px) {
