@@ -1,8 +1,10 @@
 {% extends "base.html" %}
 
-{% block title %}{% if card %}{{ card.name }} - Delvefall{% else %}Delvefall{% endif %}{% endblock %}
+{# the title leads with the phrase people actually type into google, not
+   the bare card name: "cards similar to X" is the search this page answers #}
+{% block title %}{% if card %}Cards similar to {{ card.name }} - Delvefall{% else %}Delvefall{% endif %}{% endblock %}
 
-{% block metadesc %}{% if card %}Magic cards similar to {{ card.name }}: every card whose rules text does the same thing, ranked by how close the meaning is, with prices and filters.{% else %}{{ super() }}{% endif %}{% endblock %}
+{% block metadesc %}{% if card %}Cards like {{ card.name }}: every Magic card whose rules text does the same thing, ranked by how close the meaning is, with prices, alternatives and filters.{% else %}{{ super() }}{% endif %}{% endblock %}
 
 {# a card page unfurls as that card, twitter:card summary keeps the portrait
    art a thumbnail instead of a letterboxed banner. no card, the site default #}
@@ -10,7 +12,7 @@
     {% if card %}
     <meta property="og:site_name" content="Delvefall">
     <meta property="og:type" content="website">
-    <meta property="og:title" content="{{ card.name }}: cards that do the same thing">
+    <meta property="og:title" content="Cards similar to {{ card.name }}">
     <meta property="og:description" content="{{ self.metadesc() }}">
     <meta property="og:image" content="{{ card.image }}">
     <meta property="og:url" content="{{ request.url_root ~ 'search?q=' ~ (card.name | urlencode) }}">
@@ -149,8 +151,15 @@
         <p class="message">{{ e }}</p>
         {% endfor %}
 
-        <h2>Cards that do something similar
+        {# the heading names the card, because "cards similar to Sol Ring" is
+           the phrase this page answers and the one people search for. the
+           line under it says the same thing the two other ways they phrase
+           it, which is honest copy rather than keyword stuffing: alternatives
+           and cards like it ARE what the list below holds #}
+        <h2>Cards similar to {{ card.name }}
             <a href="#" id="report-missing" class="report-open">expected a card that isn't here?</a></h2>
+        <p class="results-blurb">Cards like {{ card.name }}, and the alternatives to it, ranked by how
+        closely they do the same thing.</p>
 
         {# the report bar. hidden until one of the two entry points opens it:
            the "expected a card" link above (a missing report, which asks for

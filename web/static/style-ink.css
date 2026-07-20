@@ -454,6 +454,14 @@ h2 {
     padding-bottom: 8px;
 }
 
+/* the line under the results heading. quiet, it is there to say what the
+   list is in the words people search for, not to be read twice */
+.results-blurb {
+    color: var(--muted);
+    font-size: 13px;
+    margin: 8px 0 16px;
+}
+
 .card-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
