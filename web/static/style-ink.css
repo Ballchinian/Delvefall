@@ -456,8 +456,11 @@ main {
 
 .filter-actions button:hover { background: var(--teal-hover); }
 
+/* 36px was set when this heading followed a dense filter bar and needed the
+   air. it now lands under the results heading's own blurb and a hairline, so
+   the gap read as the page having come apart */
 h2 {
-    margin-top: 36px;
+    margin-top: 22px;
     border-bottom: 1px solid var(--line);
     padding-bottom: 8px;
 }

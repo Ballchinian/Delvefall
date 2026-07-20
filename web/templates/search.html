@@ -253,7 +253,26 @@
             it throws you out of the panel you were still working in, which
             is worse than a control that looks patient
         */
+        /*
+            reordering is not researching. changing the sort is the one
+            reload that should leave the weaker matches you had opened where
+            they are: you are asking for the same cards in a different order.
+            everything else that submits this form (Apply, the slider, the
+            filters, enter in the query box) is a NEW search and starts you
+            back at the strong matches.
+
+            the depth rides sessionStorage rather than the url, and is eaten
+            on the way in. that is what keeps a plain refresh from restoring
+            it too: by then the note has already been read and thrown away
+        */
+        var KEEP_BAND = "delvefall_keep_band";
+
         document.querySelector('.filter-bar select[name="sort"]').onchange = function() {
+            if (band !== null) {
+                try {
+                    sessionStorage.setItem(KEEP_BAND, band);
+                } catch (e) {}
+            }
             this.form.requestSubmit();
         };
 
@@ -466,6 +485,39 @@
                 offset = 0;
             }
             btn.onclick = loadNext;
+
+            /*
+                put back the depth a sort change left behind. the note is
+                read once and deleted immediately, so this fires for the
+                reload the sort caused and for nothing after it: refresh that
+                same page and there is nothing left to read.
+
+                it walks down using the button's own path, so the restored
+                cards come back in the NEW sort order, which is the whole
+                point of having kept them. the step ceiling is a stop against
+                a nonsense value, not a limit anyone reaches
+            */
+            var keep = null;
+            try {
+                keep = sessionStorage.getItem(KEEP_BAND);
+                sessionStorage.removeItem(KEEP_BAND);
+            } catch (e) {}
+            if (keep !== null && keep !== "") {
+                var steps = 0;
+                (function walk() {
+                    if (!btn.isConnected || steps++ > 40) {
+                        return;
+                    }
+                    if (band !== null && band <= Number(keep)) {
+                        return;
+                    }
+                    loadNext().then(function(data) {
+                        if (data) {
+                            walk();
+                        }
+                    });
+                })();
+            }
         }
 
         /*
