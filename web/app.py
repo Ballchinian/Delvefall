@@ -9,6 +9,7 @@ import math
 import time
 import uuid
 import json
+import random
 import hashlib
 import urllib.request
 from urllib.parse import quote
@@ -154,6 +155,28 @@ CARD_TYPES = ["Creature", "Instant", "Sorcery", "Artifact", "Enchantment", "Plan
 #the /unique page deals this many cards per request. one at a time, its the
 #counterpart to scryfall's random card button
 UNIQUE_PAGE = 1
+
+#how the dealer picks. it used to take the 100 most unique unseen cards and
+#draw from those, which is fine while the pool is deep and wrong as soon as it
+#is not: with filters on, or a long trail, the hundredth card can sit miles
+#below the first, so a 25% would be followed by a 3% and the page stopped
+#looking like it was dealing unique cards at all.
+#
+#so the window is relative now. whatever the best available card scores, the
+#draw happens among cards within UNIQUE_BAND of it, which keeps every deal
+#near the top of what is actually left.
+#
+#the two bounds under it pull against each other on purpose. MIN_POOL widens
+#a thin band so the page does not become a fixed running order that every
+#visitor walks in the same sequence. MAX_DROP then caps that widening, because
+#the top of the concepts axis is one card at 100, then 83, then 81, then a
+#crowd at 67: an unbounded "top 25 whatever they score" there deals a 67 and a
+#100 in the same breath, which is the exact jumping about this is meant to
+#stop. so: prefer the band, widen it when it is lonely, never widen it far
+UNIQUE_BAND = 0.05
+UNIQUE_MIN_POOL = 25
+UNIQUE_MAX_DROP = 0.08
+UNIQUE_WINDOW = 80
 
 #copied from common/cards.py because railway only deploys the web folder.
 #these three have to stay identical to what the ingest used, otherwise the
@@ -1499,13 +1522,11 @@ def unique_cards():
             pass
 
     where, fparams = filter_sql(filters)
-    #no uniqueness bar anymore: the dealer takes the 100 most unique unseen
-    #cards that fit the filters and deals one at random. the window slides
-    #down as the trail grows, so there is always a next card until the
-    #filters truly run dry, and nobody has to learn what a uniqueness
-    #number means. the slider decides which KIND of unique: rules-text
-    #isolation, tag-space isolation, or a mix. cards with no searchable
-    #lines stay excluded, untagged cards count as 0 on the concept side
+    #no uniqueness bar: the dealer works from whatever is left rather than
+    #from a number anyone has to learn. the slider decides which KIND of
+    #unique it is ranking on: rules-text isolation, tag-space isolation, or a
+    #mix. cards with no searchable lines stay excluded, untagged cards count
+    #as 0 on the concept side
     w = BLEND_WEIGHTS[read_blend()]
     blended = "((1 - %s) * c.uniqueness + %s * coalesce(c.concept_uniqueness, 0))"
     cond = """
@@ -1515,11 +1536,28 @@ def unique_cards():
     params = [seen] + fparams
     with pool.connection() as conn:
         remaining = conn.execute("SELECT count(*) AS n" + cond, params).fetchone()["n"]
-        rows = conn.execute("SELECT * FROM (SELECT " + CARD_FIELDS + ", uniqueness, unique_line, "
-                            + blended + " AS blended_u" + cond + """
-                            ORDER BY blended_u DESC LIMIT 100) top_window
-                            ORDER BY random() LIMIT %s""",
-                            [w, w] + params + [UNIQUE_PAGE]).fetchall()
+        #the shortlist first, ids and scores only. picking from it here rather
+        #than in sql keeps the band rule (see UNIQUE_BAND) in one readable
+        #place, and costs a second round trip for one card's worth of columns
+        shortlist = conn.execute("SELECT c.oracle_id, " + blended + " AS u" + cond +
+                                 " ORDER BY u DESC LIMIT %s",
+                                 [w, w] + params + [UNIQUE_WINDOW]).fetchall()
+        picked = []
+        if shortlist:
+            best = shortlist[0]["u"]
+            near = [r for r in shortlist if r["u"] >= best - UNIQUE_BAND]
+            if len(near) < UNIQUE_MIN_POOL:
+                #reach further down the list for company, but not past the
+                #point where the extra cards stop being "the most unique
+                #ones left". the best card always clears this itself, so the
+                #pool can never come back empty
+                near = [r for r in shortlist[:UNIQUE_MIN_POOL] if r["u"] >= best - UNIQUE_MAX_DROP]
+            picked = random.sample(near, min(UNIQUE_PAGE, len(near)))
+        rows = []
+        if picked:
+            rows = conn.execute("SELECT " + CARD_FIELDS + ", uniqueness, unique_line, " + blended +
+                                " AS blended_u FROM cards c WHERE c.oracle_id = ANY(%s)",
+                                [w, w, [r["oracle_id"] for r in picked]]).fetchall()
 
     cards = []
     cur = read_currency()

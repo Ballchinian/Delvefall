@@ -439,7 +439,12 @@ main {
     outline-offset: 2px;
 }
 
-.filter-bar button {
+/* Apply, and only Apply. this used to be .filter-bar button, which reached
+   every button inside the filters panel too and painted them all as solid
+   teal rectangles: the remove x wore a green pill it was never meant to
+   have, and the add-a-filter buttons could not round themselves because
+   the more specific selector kept winning */
+.filter-actions button {
     background: var(--teal);
     color: white;
     border: 0;
@@ -449,7 +454,7 @@ main {
     cursor: pointer;
 }
 
-.filter-bar button:hover { background: var(--teal-hover); }
+.filter-actions button:hover { background: var(--teal-hover); }
 
 h2 {
     margin-top: 36px;
@@ -842,10 +847,21 @@ h2 {
 
 .adv-slot[hidden] { display: none; }
 
+/* the remove button and the filter's name travel as one unit, so a narrow
+   screen wraps the pair together. wrapping them separately left the x alone
+   on a line with its filter's name on the next, which read as an x belonging
+   to nothing */
+.slot-head {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 5px;
+    min-width: 84px;
+    flex-shrink: 0;
+}
+
 .slot-name {
     font-size: 12.5px;
     color: var(--muted);
-    min-width: 76px;
 }
 
 /* the remove button leads the row rather than trailing it: at the right hand
@@ -904,7 +920,8 @@ h2 {
 
 .slot-on[hidden] { display: none; }
 
-.adv-none { font-style: italic; }
+/* nothing left to offer, so the row that offers it goes too */
+.adv-add[hidden] { display: none; }
 
 /* the panel's own controls are rounder than the rest of the site's 2px
    corners. everything in here is a small thing you switch on and off, and
@@ -1826,7 +1843,10 @@ body.home main {
         box-shadow: none;
     }
 
-    .slot-name { min-width: 0; flex-basis: 100%; }
+    /* the head takes the line and its widget wraps under, but the x and the
+       name stay together inside it, which is the whole reason they share a
+       wrapper */
+    .slot-head { flex-basis: 100%; min-width: 0; }
 }
 
 @media (max-width: 600px) {

@@ -71,8 +71,7 @@
            bottom disables the inputs of a hidden one so it cannot filter from
            off screen. so anything visible here is something being applied #}
         <div class="adv-slot" data-filter="colors" {% if not on_colors %}hidden{% endif %}>
-            <button type="button" class="slot-off" title="remove this filter" aria-label="remove the colours filter">&times;</button>
-            <span class="slot-name">Colours</span>
+            <span class="slot-head"><button type="button" class="slot-off" title="remove this filter" aria-label="remove the colours filter">&times;</button><span class="slot-name">Colours</span></span>
             <span class="filter-colors">
                 {# scryfall's own symbol svgs, the alt text names the checkbox for screen readers.
                    unpicked ones are drained to grey: a colour symbol sitting at
@@ -94,24 +93,22 @@
             </select>
         </div>
         <div class="adv-slot" data-filter="price" {% if not on_price %}hidden{% endif %}>
-            <button type="button" class="slot-off" title="remove this filter" aria-label="remove the price filter">&times;</button>
+            <span class="slot-head"><button type="button" class="slot-off" title="remove this filter" aria-label="remove the price filter">&times;</button><span class="slot-name">Price</span></span>
             {# a two-handle range slider was the ask here, but card prices run
                from 0.01 to five figures with almost everything under 5, so a
                linear track would spend 99% of its length on cards nobody
                filters for. the real need behind the ask was "what are the
                limits", and concrete placeholders answer that #}
-            <span class="slot-name">Price</span>
             <span class="filter-prices" title="cards with no listed price are hidden by any price filter">
                 <input type="number" name="pmin" min="0" step="0.01" placeholder="0.00" aria-label="minimum price" value="{{ request.args.get('pmin', '') }}">
                 to <input type="number" name="pmax" min="0" step="0.01" placeholder="any" aria-label="maximum price" value="{{ request.args.get('pmax', '') }}">
             </span>
         </div>
         <div class="adv-slot" data-filter="mv" {% if not on_mv %}hidden{% endif %}>
-            <button type="button" class="slot-off" title="remove this filter" aria-label="remove the mana value filter">&times;</button>
+            <span class="slot-head"><button type="button" class="slot-off" title="remove this filter" aria-label="remove the mana value filter">&times;</button><span class="slot-name">Mana value</span></span>
             {# spelled out, not "MV": the abbreviation only reads to players
                fluent in current rules wording. 0 to 20 are the real bounds in
                the card pool, so the placeholders say so #}
-            <span class="slot-name">Mana value</span>
             <span class="filter-prices">
                 <input type="number" name="mvmin" min="0" max="20" step="1" placeholder="0" aria-label="minimum mana value" value="{{ request.args.get('mvmin', '') }}">
                 to <input type="number" name="mvmax" min="0" max="20" step="1" placeholder="20" aria-label="maximum mana value" value="{{ request.args.get('mvmax', '') }}">
@@ -123,8 +120,7 @@
            answers to counts, so an Artifact Creature shows for Artifact, for
            Creature, and for both together #}
         <div class="adv-slot" data-filter="type" {% if not on_type %}hidden{% endif %}>
-            <button type="button" class="slot-off" title="remove this filter" aria-label="remove the type filter">&times;</button>
-            <span class="slot-name">Type</span>
+            <span class="slot-head"><button type="button" class="slot-off" title="remove this filter" aria-label="remove the type filter">&times;</button><span class="slot-name">Type</span></span>
             <span class="filter-types" role="group" aria-label="card types, any picked type matches">
                 {% for t in types %}
                 <label class="type-toggle"><input type="checkbox" name="type" value="{{ t }}" {% if t in request.args.getlist('type') %}checked{% endif %}>{{ t }}</label>
@@ -141,7 +137,6 @@
             <button type="button" class="slot-on" data-add="price" {% if on_price %}hidden{% endif %}>price</button>
             <button type="button" class="slot-on" data-add="mv" {% if on_mv %}hidden{% endif %}>mana value</button>
             <button type="button" class="slot-on" data-add="type" {% if on_type %}hidden{% endif %}>type</button>
-            <span class="adv-none" {% if on_colors or on_price or on_mv or on_type %}hidden{% endif %}>nothing is narrowing the results yet</span>
         </p>
     </div>
 </details>
@@ -169,13 +164,12 @@
         });
     }
 
-    //the "nothing is narrowing yet" note tracks the slots rather than being
-    //toggled by hand at each call site
-    function refreshNote() {
-        var any = Object.keys(slots).some(function(k) { return !slots[k].hidden; });
-        var note = fold.querySelector(".adv-none");
-        if (note) {
-            note.hidden = any;
+    //once all four are on the page there is nothing left to add, so the row
+    //that offers them goes rather than sitting there empty under its label
+    function refreshAdd() {
+        var row = fold.querySelector(".adv-add");
+        if (row) {
+            row.hidden = !row.querySelector(".slot-on:not([hidden])");
         }
     }
 
@@ -185,12 +179,34 @@
             slot.hidden = false;
             setEnabled(slot, true);
             btn.hidden = true;
-            refreshNote();
+            refreshAdd();
             var first = slot.querySelector("input:not([type=checkbox]), input[type=checkbox]");
             if (first) {
                 first.focus();
             }
         };
+    });
+
+    /*
+        getting OUT of the panel. escape closes it, and so does a click
+        anywhere that isn't inside it, because having to hunt for the summary
+        again to put a panel away is the kind of small friction nobody should
+        have to notice. nothing is reset by either: every control keeps its
+        value, the panel is only being folded away
+    */
+    document.addEventListener("keydown", function(e) {
+        if (e.key == "Escape" && fold.open) {
+            fold.open = false;
+            //focus goes back to the thing that opens it, so a keyboard user
+            //is not dropped at the top of the document
+            fold.querySelector("summary").focus();
+        }
+    });
+
+    document.addEventListener("click", function(e) {
+        if (fold.open && !fold.contains(e.target)) {
+            fold.open = false;
+        }
     });
 
     //"nothing picked, so any type matches" only while that is true. an empty
@@ -230,7 +246,7 @@
             if (add) {
                 add.hidden = false;
             }
-            refreshNote();
+            refreshAdd();
         };
     });
 })();
