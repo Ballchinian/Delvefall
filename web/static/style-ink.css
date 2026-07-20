@@ -1502,10 +1502,21 @@ body.home main {
     .float-chip { display: none; }
 }
 
+/* below the width where one row holds everything, the header wraps rather
+   than pushing the whole page sideways (it used to overflow and scroll
+   with the page, discord first off the edge). logo, name and the nav
+   share the top row, the search gets its own full width row under them,
+   and the nav itself wraps too: a fifth tab one day costs a row, never a
+   sideways scroll */
+@media (max-width: 830px) {
+    .header-inner { flex-wrap: wrap; gap: 10px 20px; }
+    .search-form { order: 3; flex-basis: 100%; }
+    .header-links { margin-left: auto; flex-wrap: wrap; gap: 14px 20px; }
+}
+
 @media (max-width: 600px) {
     .searched-card { flex-direction: column; }
     .searched-card .card-frame { width: 100%; }
-    .header-inner { flex-wrap: wrap; }
     .home-title { font-size: 40px; }
 
     /* the price and mana-value pairs are the widest widgets in the panel,
