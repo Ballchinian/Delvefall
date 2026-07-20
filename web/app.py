@@ -951,7 +951,7 @@ def filter_sql(filters):
 
 
 def find_similar(oracle_id, picked, filters, min_pct, sort, offset=0, how_many=20, weak=False, blend=0.0,
-                 currency="usd", dropped=(), forced=()):
+                 currency="usd", dropped=(), forced=(), anchor_price=None):
     #every candidate card keeps all its matching line pairs now instead of
     #just the best one, so results can show "+2 more matching lines".
     #
@@ -1231,6 +1231,16 @@ def find_similar(oracle_id, picked, filters, min_pct, sort, offset=0, how_many=2
         else:
             percent = mech_pct
         price = price_label(c, currency)
+        #the little arrow riding the price: which side of the searched
+        #card's own price this one sits. a comparison is the one thing the
+        #number honestly supports (the price used to be green, which
+        #claimed cheap means good), so the arrow points and the tooltip
+        #names the card it is measured against, and that is all
+        price_vs = ""
+        if anchor_price is not None:
+            rp = price_in(c, currency)
+            if rp is not None and rp != anchor_price:
+                price_vs = "cheaper" if rp < anchor_price else "pricier"
         #a match that lives on the back face shows that side first, so the
         #line printed under the card is on the picture the user is looking
         #at (the ulvenwald lesson). the front face keeps the flip button
@@ -1259,6 +1269,7 @@ def find_similar(oracle_id, picked, filters, min_pct, sort, offset=0, how_many=2
             "our_line": our_line,
             "their_line": their_line,
             "price": price,
+            "price_vs": price_vs,
             "rank": rank_label(c["edhrec_rank"]),
             "more_count": len(more),
             "more_text": "\n".join(more),
@@ -1331,7 +1342,8 @@ def search():
 
     results, has_more, weak_count = find_similar(card["oracle_id"], picked, filters, min_pct, sort,
                                                  blend=BLEND_WEIGHTS[blend], currency=filters["cur"],
-                                                 dropped=dropped, forced=forced)
+                                                 dropped=dropped, forced=forced,
+                                                 anchor_price=price_in(card, filters["cur"]))
     resp = make_response(render_template("search.html", query=query, card=card, card_lines=card_lines,
                                          picked_count=len(picked), results=results, has_more=has_more,
                                          weak_count=weak_count, min_pct=min_pct, errors=filters["errors"],
@@ -1480,7 +1492,8 @@ def more():
     filters = read_filters()
     results, has_more, weak_count = find_similar(card["oracle_id"], picked, filters, tier_cut(blend), read_sort(), offset,
                                                  weak=weak, blend=BLEND_WEIGHTS[blend], currency=filters["cur"],
-                                                 dropped=read_dropped(), forced=read_forced())
+                                                 dropped=read_dropped(), forced=read_forced(),
+                                                 anchor_price=price_in(card, filters["cur"]))
     return {"results": results, "has_more": has_more, "weak_count": weak_count}
 
 

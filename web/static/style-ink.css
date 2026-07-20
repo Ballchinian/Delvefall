@@ -499,6 +499,17 @@ h2 {
     margin-top: 6px;
 }
 
+/* the arrow next to the price: which side of the searched card's price
+   this one falls. muted on purpose, direction is the whole message and
+   the tooltip names the card it's measured against. no colour: cheap
+   isn't good or bad, it's just cheaper */
+.price-vs {
+    color: var(--muted);
+    font-weight: normal;
+    margin-left: 3px;
+    cursor: help;
+}
+
 /* edhrec popularity, riding along the price row. muted grey so the price
    stays the number the eye lands on, and it has a tooltip so the bare
    number isn't a mystery */

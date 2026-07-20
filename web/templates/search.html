@@ -190,7 +190,7 @@
                     <button class="report-flag" data-id="{{ r.oracle_id }}" data-name="{{ r.name }}" title="shouldn't be here? report this as a bad match">?</button>
                 </div>
                 <div class="result-name">{{ r.name }} <span class="percent{% if r.concept_only %} concept{% endif %}"{% if r.blended %} title="rules text {{ r.mech_pct }}% and concept {{ r.concept_pct }}%, blended for your slider position"{% endif %}>{{ r.percent }}%</span></div>
-                {% if r.price or r.rank %}<div class="result-price">{{ r.price }}{% if r.rank %}<span class="result-rank" title="edhrec rank, 1 is the most played card in commander">{{ r.rank }}</span>{% endif %}</div>{% endif %}
+                {% if r.price or r.rank %}<div class="result-price">{{ r.price }}{% if r.price_vs %}<span class="price-vs" title="{{ r.price_vs }} than {{ card.name }}">{{ '↓' if r.price_vs == 'cheaper' else '↑' }}</span>{% endif %}{% if r.rank %}<span class="result-rank" title="edhrec rank, 1 is the most played card in commander">{{ r.rank }}</span>{% endif %}</div>{% endif %}
                 {% if r.their_line %}
                 <div class="match-line" title="matches your card's line: {{ r.our_line }}{% if r.matched_back %} (printed on the back face, shown here){% endif %}">"{{ r.their_line | mana }}"</div>
                 {% endif %}
@@ -302,6 +302,10 @@
             }
             if (r.price || r.rank) {
                 var price = el("div", "result-price", div, r.price);
+                if (r.price_vs) {
+                    el("span", "price-vs", price, r.price_vs == "cheaper" ? "↓" : "↑")
+                        .title = r.price_vs + " than " + cardName;
+                }
                 if (r.rank) {
                     el("span", "result-rank", price, r.rank).title = "edhrec rank, 1 is the most played card in commander";
                 }
