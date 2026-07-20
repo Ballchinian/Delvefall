@@ -1,6 +1,6 @@
 # Delvefall
 
-A web app that finds Magic: The Gathering cards that do similar things to the card you search for. Not cards that share words, and not "cards that go in the same deck", but cards whose abilities mean the same thing even when the wording is completely different, all by comparing sentence embeddings of every line of rules text ever printed.
+A web app that finds Magic: The Gathering cards similar to the card you search for. The point is convenience: you type a card name and that is the whole cost, no query language to learn and no vocabulary to go and look up first. Under it, the matching is real work rather than word overlap: not cards that share words, and not "cards that go in the same deck", but cards whose abilities mean the same thing even when the wording is completely different, by comparing sentence embeddings of every line of rules text ever printed.
 
 ## Features
 

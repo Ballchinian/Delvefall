@@ -6,7 +6,12 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         {# the search-engine snippet. pages override the block with their own
            sentence, search.html says which card its results are about #}
-        <meta name="description" content="{% block metadesc %}Delvefall finds every Magic: The Gathering card that does the same thing as the card you search, even when the wording is completely different.{% endblock %}">
+        {# the sentence leads with the shortcut rather than the machinery: the
+           reason to come here is that it takes one card name and no learning,
+           and the clever part underneath is what makes that possible rather
+           than what is being sold. still says similar, unique and the game's
+           full name, which is what people actually search for #}
+        <meta name="description" content="{% block metadesc %}The quick way to find Magic: The Gathering cards similar to any card you name. Type a card, get everything that does the same thing, plus the cards nothing else resembles. No search syntax to learn and nothing to look up.{% endblock %}">
         {# the unfurl card a pasted link grows in discord and friends. every
            page gets the logo and its own title and sentence, search.html
            overrides the block with the card's art and name #}

@@ -2,13 +2,16 @@
 
 {% block title %}How it works - Delvefall{% endblock %}
 
-{% block metadesc %}How Delvefall works: it compares the printed rules text of every Magic card with plain math, no chatbot guessing, plus the full filter syntax and every control explained.{% endblock %}
+{% block metadesc %}How Delvefall works: type a Magic card name and get the similar cards, no search syntax required. What every number on a result means, the optional filter syntax, and where the site is going.{% endblock %}
 
 {% block content %}
 <div class="guide">
     <h1>How Delvefall works</h1>
-    <p>Type a card name, get the cards that do the same thing. Delvefall isn't a chatbot
-    guessing: it compares the printed rules text of every Magic card with plain math.</p>
+    <p>Delvefall is a shortcut. Type a card name and you get the cards that do the same
+    thing, without learning a query language or knowing what any of it is filed under. It
+    isn't a chatbot guessing either: it compares the printed rules text of every Magic card
+    with plain math, and every number on the page is one you can check.</p>
+    <p>Everything below is optional. The site works if you only ever type card names.</p>
 
     {% if demo %}
     <h2>Reading a result</h2>
