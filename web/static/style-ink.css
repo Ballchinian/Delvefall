@@ -949,33 +949,111 @@ h2 {
 
 .guide-demo .guide-static-overlay button { cursor: default; }
 
-.guide-dot {
-    display: inline-block;
-    width: 18px;
-    height: 18px;
-    margin-left: 6px;
+/* the info marks on the demo card. the circled i is the one glyph everybody
+   already reads as "explain this", which is the whole job here: the old
+   numbered dots were indistinguishable from decoration, so the six
+   explanations had to sit on the page permanently to be found at all.
+   outlined at rest, filled on hover, so it reads as a button either way */
+.guide-info {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 17px;
+    height: 17px;
+    padding: 0;
+    margin-left: 5px;
+    vertical-align: 1px;
+    border: 1px solid var(--teal);
     border-radius: 50%;
+    background: var(--panel);
+    color: var(--teal);
+    font-family: Georgia, serif;
+    font-style: italic;
+    font-size: 12px;
+    line-height: 1;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.guide-info:hover {
     background: var(--teal);
     color: #fff;
+}
+
+.guide-info:focus-visible {
+    outline: 2px solid var(--teal);
+    outline-offset: 2px;
+}
+
+/* the same mark inline in the sentence above the card, so the thing being
+   described is the thing you will look for. not a button, just the shape */
+.guide-info-demo {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 17px;
+    height: 17px;
+    vertical-align: -3px;
+    border: 1px solid var(--teal);
+    border-radius: 50%;
+    color: var(--teal);
+    font-family: Georgia, serif;
+    font-style: italic;
     font-size: 12px;
-    font-weight: bold;
-    line-height: 18px;
-    text-align: center;
 }
 
-.guide-dot-flag {
+/* the two that sit over the art rather than in the text column. they ride
+   the same corners as the controls they explain, just inboard of them so
+   neither covers the other */
+.guide-info-flag {
     position: absolute;
-    bottom: 20px
+    bottom: 4%;
+    right: 17%;
+    z-index: 2;
 }
 
-.guide-legend {
-    margin: 0;
-    padding-left: 20px;
+.guide-info-overlay {
+    position: absolute;
+    bottom: 5%;
+    left: 50%;
+    margin-left: 52px;
+    z-index: 2;
 }
 
-.guide-legend li {
-    margin-bottom: 10px;
+/* the explanation itself. plain centered box, and ::backdrop dims the page
+   so the dialog is clearly the thing in front */
+.guide-modal {
+    max-width: 460px;
+    padding: 20px 24px;
+    border: 1px solid var(--line-strong);
+    border-radius: 4px;
+    background: var(--panel);
+    color: var(--text);
 }
+
+.guide-modal::backdrop { background: rgba(36, 51, 63, 0.45); }
+
+.guide-modal h3 {
+    margin: 0 0 10px;
+    font-size: 18px;
+}
+
+.guide-modal p {
+    margin: 0 0 18px;
+    line-height: 1.55;
+}
+
+.guide-modal button {
+    background: var(--teal);
+    color: #fff;
+    border: 0;
+    border-radius: 2px;
+    padding: 7px 20px;
+    font-size: 14px;
+    cursor: pointer;
+}
+
+.guide-modal button:hover { background: var(--teal-hover); }
 
 /* a pure concept match still gets its tooltip, it just doesn't get its own
    colour and diamond any more. the tags printed under the card already say

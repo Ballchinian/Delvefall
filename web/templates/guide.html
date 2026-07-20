@@ -12,42 +12,54 @@
 
     {% if demo %}
     <h2>Reading a result</h2>
+    {# the legend used to be a numbered list beside the card, which meant six
+       paragraphs on screen at all times and a row too wide for a phone. each
+       part now carries an info mark instead, and the explanation waits in a
+       dialog until it is asked for #}
+    <p>Every <span class="guide-info-demo">i</span> below opens an explanation of that part.</p>
     <div class="guide-demo">
         <div class="result">
             <div class="card-frame">
                 <img src="{{ demo.image }}" alt="{{ demo.name }}" width="488" height="680">
-                <button class="report-flag guide-static">? <span class="guide-dot guide-dot-flag">5</span></button>
+                <button class="report-flag guide-static">?</button>
+                <button class="guide-info guide-info-flag" aria-label="what the flag does"
+                    data-title="The report flag"
+                    data-body="Think a card doesn't belong in your results? Hover its picture, click the flag and say why in your own words. Nobody has to name a better card. Reports become test cases the matcher is graded against before an update ships, so a bad match you flag is one the next version has to answer for.">i</button>
                 <div class="card-overlay guide-static-overlay">
                     <button>&#8644; transform</button>
-                    <span class="guide-dot">6</span>
                 </div>
+                <button class="guide-info guide-info-overlay" aria-label="what the transform control does"
+                    data-title="Two-faced cards"
+                    data-body="Cards with more than one face get a control over the art, which appears when you hover the picture. Double-faced cards like this one get transform for the back, battles and split cards get rotate, and kamigawa flip cards get flip. If a match was found on the back face, that side is shown first, so the line printed under the card is on the picture you are looking at.">i</button>
             </div>
-            <div class="result-name">{{ demo.name }} <span class="percent"> 82% <span class="guide-dot">1 </span></span></div>
-            <div class="result-price">$0.25<span class="result-rank">#412</span> <span class="guide-dot">2</span></div>
-            <div class="match-line"> "Look at the top card of your library."<span class="guide-dot">3</span></div>
-            <div class="concept-tags">library-peek, transform, spells-matter <span class="guide-dot">4</span></div>
+            <div class="result-name">{{ demo.name }} <span class="percent">82%</span>
+                <button class="guide-info" aria-label="what the percent means"
+                    data-title="How close the match is"
+                    data-body="80 or higher means a real match. With the slider away from either end this number is a blend of both scores, rules text and concepts, and the list is always ordered by the number you can see. Hover it on a real result and the tooltip breaks the blend back into its two halves.">i</button></div>
+            <div class="result-price">$0.25<span class="price-vs much-cheaper">&darr;</span><span class="result-rank">#412<span class="rank-vs">&uarr;</span></span>
+                <button class="guide-info" aria-label="what the price and rank mean"
+                    data-title="Price, play rate, and the two arrows"
+                    data-body="The price is the cheapest paper printing in any finish (digital, oversized and gold border versions don't count), from scryfall. The # is edhrec's rank, where #1 is the most played card in commander. Each arrow compares this card to the one you searched: the price arrow points down for cheaper and up for pricier, turning green or red only when the gap is big enough to matter, and the rank arrow points up when the format plays this card more than yours.">i</button></div>
+            <div class="match-line">"Look at the top card of your library."
+                <button class="guide-info" aria-label="what the quoted line is"
+                    data-title="The line that matched"
+                    data-body="The line of this card's rules text that matched yours. Hover it on a real result to see which of your card's lines it paired with. If several abilities matched, a note under it says how many more.">i</button></div>
+            <div class="concept-tags">library-peek, transform, spells-matter
+                <button class="guide-info" aria-label="what the tags are"
+                    data-title="Shared concepts"
+                    data-body="The community tags this card has in common with yours, rarest first. These are what the concepts side of the slider searches, so when a card arrives with no matching line of text, these tags are why it is here.">i</button></div>
         </div>
-        <ol class="guide-legend">
-            <li>How close the match is. 80 or higher means a real match. With the slider
-                moved (for rules text and concepts) this number blends both scores</li>
-            <li>What it costs, from scryfall, in dollars, euros or approximate pounds (a
-                switch in the filters fold picks, dollars to start). It's the cheapest paper
-                printing in any finish (digital, oversized and gold border versions don't
-                count) | How often the card shows up in commander
-                decks, edhrec's rank. #1 is the most played card in the format.</li>
-            <li>The line of rules text that matched. Hover it to see which of your card's
-                lines it matched.</li>
-            <li>The community tags this card shares with yours, rarest first. These power
-                the concepts side of the slider.</li>
-            <li>Think the card doesn't belong? Click the flag and say why. Reports become
-                test cases the matcher is graded against before an update ships.</li>
-            <li>Cards with more than one face get a control over the art, shown when you
-                hover the picture. Double-faced cards like this one get transform for the
-                back, battles and split cards get rotate, kamigawa flip cards get flip.</li>
-        </ol>
     </div>
     <p>Clicking a result's picture opens it on Scryfall. <strong>Ctrl-click</strong> (cmd
     on mac) searches that card here instead, for following a thread without leaving.</p>
+
+    {# one dialog, refilled by whichever mark was clicked. <dialog> brings its
+       own backdrop, focus trap and escape key, so none of that is hand rolled #}
+    <dialog class="guide-modal" id="guide-modal">
+        <h3 id="guide-modal-title"></h3>
+        <p id="guide-modal-body"></p>
+        <form method="dialog"><button>Close</button></form>
+    </dialog>
     {% endif %}
 
     <h2>The slider: rules text vs concepts</h2>
@@ -95,25 +107,22 @@
     or regex here yet, the cards table just doesn't carry those fields. Anything the
     box doesn't recognise is skipped rather than erroring, so a stray word never
     breaks the search.</p>
-    <p>The widgets in the fold do the same jobs without the typing:</p>
-    <ul>
-        <li>The color symbols take three readings, picked next to them:
-            <strong>at most</strong> fits inside the picked colors like deckbuilding
-            (colorless always fits), <strong>exactly</strong> means that identity and no
-            other, <strong>including</strong> wants those colors at least, extras
-            welcome.</li>
-        <li>Price bounds compare in whichever currency is picked beside them, and any
-            price filter hides cards with no listed price. Pounds are approximate:
-            scryfall quotes dollars and euros, the pound figure converts both and takes
-            the middle.</li>
-        <li>Mana value is what older cards call converted mana cost.</li>
-        <li>The type chips match any picked type: an Artifact Creature shows for
-            Artifact, for Creature, and for both together.</li>
-        <li>"Commanders only" keeps legendary creatures, the cards that can lead a
-            commander deck. "Hide game changers" drops the cards on the official game
-            changer list, for lower powered brackets. Cards that aren't legal in
-            commander stay hidden unless "include illegal" is on.</li>
-    </ul>
+    <h2 id="pounds">Where the pound price comes from</h2>
+    <p>Scryfall quotes two currencies, dollars and euros, so pounds are worked out here
+    rather than looked up. That is why the picker says approximate, and it is worth knowing
+    what the number is before you trust it to a budget.</p>
+    <ol>
+        <li>Both of a card's prices are converted to pounds at the day's reference rates
+            (the European Central Bank's, fetched once a day).</li>
+        <li>The two results are averaged. They rarely agree, because the American and
+            European markets price cards differently, and the middle is the least wrong
+            single answer.</li>
+        <li>If a card has only one of the two prices, that one is used on its own. If it
+            has neither, it has no pound price, and any price filter hides it.</li>
+    </ol>
+    <p>So a pound figure is a fair estimate of what a card is worth, not a price anyone is
+    actually asking. For a real number, check a UK seller. Dollars and euros are printed
+    exactly as scryfall reports them.</p>
 
     <h2>Unique cards</h2>
     <p><a href="/unique">The unique page</a> is the opposite of search: it deals you cards
@@ -122,5 +131,61 @@
     the rules text end you get (hopefully interesting) abilities, on the concepts end you get cards
     whose tag profile matches nothing else. The arrows walk back through everything
     you've been dealt, across visits.</p>
+
+    <h2>Where this is going</h2>
+    <p>Delvefall is a small site with a long to-do list. Roughly what is coming, in the
+    order it is likely to arrive:</p>
+    <ul>
+        <li><strong>Searching one ability, sharpened.</strong> Clicking a line of rules
+            text already narrows the search to that ability. The work in progress is making
+            the concepts side follow the same line, so picking "when this enters" stops
+            dragging in everything else the card happens to do.</li>
+        <li><strong>Pages that map the card pool.</strong> The uniqueness data can answer
+            questions nothing else can: which cards read ordinarily but do something odd,
+            which concepts the game has barely explored, which cards are functional twins.
+            Those become browsable pages.</li>
+        <li><strong>A friendlier slider.</strong> The rules text to concepts control is the
+            most misunderstood thing on the site. It needs to look like what it is, two
+            searches being mixed, rather than one setting being turned up.</li>
+        <li><strong>Maybe a deck lens.</strong> Paste a list, see the alternatives to each
+            card and which ones have no real substitute at all. Further off, and only if
+            the browsing above turns out to be the smaller half of what people want.</li>
+    </ul>
+    <p>Found a bad match, or missing a card you expected? The report link on any results
+    page is the fastest way to change what happens next: those reports become the test
+    cases the matcher has to pass.</p>
 </div>
+{% endblock %}
+
+{% block scripts %}
+{% if demo %}
+<script>
+/*
+    the info marks on the demo card. one dialog gets refilled by whichever
+    mark was clicked, rather than six of them sitting in the markup, and
+    <dialog> handles the backdrop, the focus trap and the escape key itself.
+    clicking the dark area outside the box closes it too, which is what
+    everyone expects from a modal and is not free with dialog
+*/
+var modal = document.getElementById("guide-modal");
+var modalTitle = document.getElementById("guide-modal-title");
+var modalBody = document.getElementById("guide-modal-body");
+
+document.querySelectorAll(".guide-info").forEach(function(mark) {
+    mark.onclick = function() {
+        modalTitle.textContent = mark.dataset.title;
+        modalBody.textContent = mark.dataset.body;
+        modal.showModal();
+    };
+});
+
+modal.addEventListener("click", function(e) {
+    //the dialog element itself IS the backdrop area, so a click that landed
+    //on it rather than on the content inside means outside the box
+    if (e.target == modal) {
+        modal.close();
+    }
+});
+</script>
+{% endif %}
 {% endblock %}
