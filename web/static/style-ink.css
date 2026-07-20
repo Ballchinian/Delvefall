@@ -689,36 +689,30 @@ h2 {
     order: 3;
 }
 
+/* one widget per row: the explanation paragraphs, and the two column grid
+   that existed to hold them, moved to the guide. the widgets stand on
+   their own with tooltips carrying anything still worth saying */
 .adv-grid {
     margin-top: 8px;
-    display: grid;
-    grid-template-columns: max-content 1fr;
-    gap: 8px 16px;
-    align-items: center;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
 }
 
 .adv-row {
-    display: contents;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 14px;
 }
 
-.adv-row p {
-    margin: 0;
-    font-size: 12.5px;
-    color: var(--muted);
-}
-
-.adv-row code {
-    background: #eee7d3;
-    padding: 0 4px;
-    border-radius: 2px;
-}
-
-/* the subheading over the eligibility toggles. spans both columns of the
-   grid and rides a hairline, so the panel reads as two groups rather than
-   one list with three odd entries at the bottom */
+/* the subheading over the eligibility toggles. rides a hairline, so the
+   panel reads as two groups rather than one list with three odd entries
+   at the bottom */
 .adv-group {
-    grid-column: 1 / -1;
-    margin: 10px 0 2px;
+    align-self: stretch;
+    margin: 6px 0 0;
     padding-top: 10px;
     border-top: 1px solid var(--line);
     font-size: 12px;
@@ -726,6 +720,45 @@ h2 {
     letter-spacing: 0.6px;
     color: var(--muted);
 }
+
+/* the card type chips. pills that toggle like the color symbols do, and
+   any picked one matches, so Artifact plus Creature is finally askable */
+.type-chip {
+    position: relative;
+    font-size: 12.5px;
+    border: 1px solid var(--line-strong);
+    border-radius: 2px;
+    padding: 3px 10px;
+    background: #fffef9;
+}
+
+.type-chip:hover { border-color: var(--teal); }
+
+.type-chip:has(input:checked) {
+    background: var(--teal);
+    border-color: var(--teal);
+    color: white;
+}
+
+.type-chip:has(input:focus-visible) {
+    outline: 2px solid var(--teal);
+    outline-offset: 2px;
+}
+
+.type-chip input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+/* the pointer to the guide at the bottom of the panel, where the deleted
+   explanations went */
+.adv-help {
+    margin: 2px 0 0;
+    font-size: 12.5px;
+}
+
+.adv-help a { color: var(--teal); }
 
 /* ---- the /guide page: plain sections plus one annotated demo card ---- */
 
@@ -1474,22 +1507,6 @@ body.home main {
     .searched-card .card-frame { width: 100%; }
     .header-inner { flex-wrap: wrap; }
     .home-title { font-size: 40px; }
-
-    /* the two-column "widget | what it does" grid can't hold at phone
-       width: max-content on the widget column means a price pair or a
-       select sets a floor the 1fr prose column then gets squeezed under.
-       one column, widget over its explanation */
-    .adv-grid {
-        grid-template-columns: 1fr;
-        gap: 4px;
-    }
-
-    .adv-row {
-        display: block;
-        margin-bottom: 14px;
-    }
-
-    .adv-row p { margin-top: 4px; }
 
     /* the price and mana-value pairs are the widest widgets in the panel,
        and two 72px boxes plus their labels overflow a 320px screen */

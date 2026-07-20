@@ -110,6 +110,12 @@
 
         <form class="filter-bar" action="/search" method="get">
             <input type="hidden" name="q" value="{{ query }}">
+            {# rides the url whenever the fold is open at submit time, so a
+               widget applying itself (currency, sort) can't slam the fold
+               shut on reload and lose the user's place. the submit handler
+               below disables it when the fold is closed, and disabled
+               inputs stay out of the query string #}
+            <input type="hidden" name="adv" value="1">
             {% if request.args.get('lines') %}
             <input type="hidden" name="lines" value="{{ request.args.get('lines') }}">
             {% endif %}
@@ -136,6 +142,12 @@
                 <button type="submit">Apply</button>
             </span>
         </form>
+        {# a filter that can never match says so instead of handing back an
+           empty grid with no explanation: an inverted range or a number box
+           holding something that isn't a number #}
+        {% for e in errors %}
+        <p class="message">{{ e }}</p>
+        {% endfor %}
 
         <h2>Cards that do something similar
             <a href="#" id="report-missing" class="report-open">expected a card that isn't here?</a></h2>
@@ -234,6 +246,13 @@
             el.onchange = function() {
                 this.form.requestSubmit();
             };
+        });
+        //the fold's open state survives the reload those widgets cause: adv
+        //rides the url while the fold is open, and the server reopens it.
+        //without this, flipping the currency closed the panel and lost your
+        //place mid-filter
+        document.querySelector(".filter-bar").addEventListener("submit", function() {
+            this.elements.adv.disabled = !this.querySelector(".adv-filters").open;
         });
 
         /*

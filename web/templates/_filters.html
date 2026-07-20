@@ -1,21 +1,25 @@
 {# the shared filter controls, included inside a <form> by both /search and
    /unique so the two pages can never drift apart. the filter box up front
    takes scryfall style syntax, the widgets live in a fold-out advanced
-   panel behind it, and every widget names its syntax twin, so the panel
-   doubles as the manual.
-   it opens itself whenever any of its filters is active, hidden active
-   filters would look like a broken site. state restores from request.args,
-   which is simply empty on pages that drive their filters from javascript #}
+   panel behind it. the widgets stand on their own: the paragraphs that
+   used to explain each one's syntax twin moved to /guide, linked at the
+   bottom of the panel, and anything still worth saying rides a tooltip.
+   it opens itself whenever any of its filters is active (hidden active
+   filters would look like a broken site), or when adv in the url says it
+   was open on the last submit, so an applying widget can't slam the fold.
+   state restores from request.args, which is simply empty on pages that
+   drive their filters from javascript #}
 {# the placeholder used to be a full worked example, parentheses and all:
    accurate, and unreadable to anyone who hadn't already met the syntax. it
    now names the job first and shows the smallest useful example, with the
-   full grammar still one hover (or one fold) away #}
+   full grammar one click away on the guide #}
 <input class="filter-query" type="text" name="fq" placeholder='Narrow these results, e.g. o:draw -t:creature usd&lt;=5'
-    title="scryfall syntax, applied to the results: o: rules text, t: type, id: color identity, otag: community tags, usd and mv bounds. minus negates anything, or/and and parentheses work. open Filters below for details"
+    title="scryfall syntax, applied to the results: o: rules text, t: type, id: color identity, otag: community tags, usd/eur/gbp and mv bounds. minus negates anything, or/and and parentheses work. the full syntax is on the guide"
     value="{{ request.args.get('fq', '') }}">
 {% set adv_active = request.args.getlist('colors') or request.args.get('pmin') or request.args.get('pmax')
     or request.args.get('mvmin') or request.args.get('mvmax') or request.args.get('type')
-    or request.args.get('cmdr') or request.args.get('gc') or request.args.get('illegal') %}
+    or request.args.get('cmdr') or request.args.get('gc') or request.args.get('illegal')
+    or request.args.get('adv') %}
 <details class="adv-filters" {% if adv_active %}open{% endif %}>
     {# "Filters", not "extra filters": for anyone not writing the syntax by
        hand these ARE the filters, and "extra" filed them as an afterthought.
@@ -31,75 +35,64 @@
                 <label class="ci-r"><input type="checkbox" name="colors" value="R" {% if 'R' in request.args.getlist('colors') %}checked{% endif %}><img src="{{ static_url('symbols/R.svg') }}" alt="red" width="26" height="26"></label>
                 <label class="ci-g"><input type="checkbox" name="colors" value="G" {% if 'G' in request.args.getlist('colors') %}checked{% endif %}><img src="{{ static_url('symbols/G.svg') }}" alt="green" width="26" height="26"></label>
             </span>
-            <p>color identity, fits-within like deckbuilding: tick W and U and only white,
-            blue, white-blue and colorless cards show. in the filter box: <code>id:wu</code> (or <code>-id:rg</code> to ban colors),
-            or <code>id:c</code> for colorless only</p>
+            {# the three ways a color pick can mean something, like edhrec's.
+               at most is first and default because it's the deckbuilding
+               question: what can this deck run #}
+            <select name="cmode" aria-label="how the picked colors apply"
+                title="at most: fits inside the picked colors, like deckbuilding (colorless always fits). exactly: this identity and no other. including: these colors at least, more welcome">
+                <option value="atmost">at most these colors</option>
+                <option value="exact" {% if request.args.get('cmode') == 'exact' %}selected{% endif %}>exactly these colors</option>
+                <option value="include" {% if request.args.get('cmode') == 'include' %}selected{% endif %}>including these colors</option>
+            </select>
         </div>
         <div class="adv-row">
             {# a two-handle range slider was the ask here, but card prices run
                from 0.01 to five figures with almost everything under 5, so a
                linear track would spend 99% of its length on cards nobody
                filters for. the real need behind the ask was "what are the
-               limits", and concrete placeholders answer that #}
-            <span class="filter-prices">
-                {{ {'usd': '$', 'eur': '€', 'gbp': '£'}[cur] }} <input type="number" name="pmin" min="0" step="0.01" placeholder="0.00" aria-label="minimum price" value="{{ request.args.get('pmin', '') }}">
+               limits", and concrete placeholders answer that.
+               the currency select doubles as the row's label, and it sits
+               here rather than on its own row because it and the bounds are
+               one fact: what the numbers under the cards mean #}
+            <span class="filter-prices" title="cards with no listed price are hidden by any price filter">
+                <select name="cur" aria-label="currency"
+                    title="the currency every price shows, filters and sorts in. pounds are approximate: scryfall quotes dollars and euros, the pound figure converts both and takes the middle">
+                    <option value="usd">$ dollars</option>
+                    <option value="eur" {% if cur == 'eur' %}selected{% endif %}>€ euros</option>
+                    <option value="gbp" {% if cur == 'gbp' %}selected{% endif %}>£ pounds (approx.)</option>
+                </select>
+                <input type="number" name="pmin" min="0" step="0.01" placeholder="0.00" aria-label="minimum price" value="{{ request.args.get('pmin', '') }}">
                 to <input type="number" name="pmax" min="0" step="0.01" placeholder="any" aria-label="maximum price" value="{{ request.args.get('pmax', '') }}">
             </span>
-            <p>price bounds, in the currency picked below. cards with no listed price are
-            hidden by any price filter. in the filter box: <code>usd&lt;=5</code>, <code>eur&gt;=1</code></p>
-        </div>
-        <div class="adv-row">
-            <select name="cur" aria-label="currency"
-                title="pounds are approximate: scryfall quotes dollars and euros, the pound figure converts both and takes the middle">
-                <option value="usd">$ dollars</option>
-                <option value="eur" {% if cur == 'eur' %}selected{% endif %}>€ euros</option>
-                <option value="gbp" {% if cur == 'gbp' %}selected{% endif %}>£ pounds (approx.)</option>
-            </select>
-            <p>the currency every price shows, filters and sorts in. it applies itself and the
-            site remembers it. pounds are approximate, converted from the other two. in the
-            filter box <code>usd</code>, <code>eur</code> and <code>gbp</code> always mean
-            themselves, a bare <code>price&lt;5</code> follows this switch</p>
         </div>
         <div class="adv-row">
             {# spelled out, not "MV": the abbreviation only reads to players
-               fluent in current rules wording, and the explanation next to it
-               is the thing we're trying not to make people depend on. 0 to 20
-               are the real bounds in the card pool, so the placeholders say
-               so instead of a bare min/max #}
+               fluent in current rules wording. 0 to 20 are the real bounds in
+               the card pool, so the placeholders say so #}
             <span class="filter-prices">
                 Mana value <input type="number" name="mvmin" min="0" max="20" step="1" placeholder="0" aria-label="minimum mana value" value="{{ request.args.get('mvmin', '') }}">
                 to <input type="number" name="mvmax" min="0" max="20" step="1" placeholder="20" aria-label="maximum mana value" value="{{ request.args.get('mvmax', '') }}">
             </span>
-            <p>also called converted mana cost. in the filter box:
-            <code>mv&lt;=2</code>, <code>cmc&gt;=4</code>, both spellings work</p>
         </div>
-        <div class="adv-row">
-            <select name="type" aria-label="card type">
-                <option value="">Any type</option>
-                {% for t in types %}
-                <option value="{{ t }}" {% if request.args.get('type') == t %}selected{% endif %}>{{ t }}</option>
-                {% endfor %}
-            </select>
-            <p>the card's type line must contain this. the filter box takes any word, not
-            just the list: <code>t:legendary</code>, <code>t:aura</code>, or <code>-t:creature</code> to exclude one</p>
+        {# every type the card answers to counts: an Artifact Creature shows
+           for Artifact, for Creature, and for both together. chips rather
+           than the old single select so asking for both is possible at all,
+           and rather than stacked checkboxes so the row stays one row #}
+        <div class="adv-row filter-types" role="group" aria-label="card types, any picked type matches">
+            {% for t in types %}
+            <label class="type-chip"><input type="checkbox" name="type" value="{{ t }}" {% if t in request.args.getlist('type') %}checked{% endif %}>{{ t }}</label>
+            {% endfor %}
         </div>
         {# these three aren't more type filters, which is why they don't join
-           the dropdown above: that one asks what a card IS, these ask which
+           the chips above: that row asks what a card IS, these ask which
            pool it's drawn from (deck role, power level, legality). the
            heading says so, so the split stops looking arbitrary #}
         <p class="adv-group">Which cards are eligible</p>
         <div class="adv-row">
-            <label><input type="checkbox" name="cmdr" value="1" {% if request.args.get('cmdr') %}checked{% endif %}>commanders only</label>
-            <p>only legendary creatures, the cards that can lead a commander deck</p>
+            <label title="only legendary creatures, the cards that can lead a commander deck"><input type="checkbox" name="cmdr" value="1" {% if request.args.get('cmdr') %}checked{% endif %}>commanders only</label>
+            <label title="hides cards on the official game changer list, for lower-powered brackets"><input type="checkbox" name="gc" value="1" {% if request.args.get('gc') %}checked{% endif %}>hide game changers</label>
+            <label title="cards that aren't legal in commander (banned and such) stay hidden unless this is on"><input type="checkbox" name="illegal" value="1" {% if request.args.get('illegal') %}checked{% endif %}>include illegal</label>
         </div>
-        <div class="adv-row">
-            <label><input type="checkbox" name="gc" value="1" {% if request.args.get('gc') %}checked{% endif %}>hide game changers</label>
-            <p>hides cards on the official game changer list, for lower-powered brackets</p>
-        </div>
-        <div class="adv-row">
-            <label><input type="checkbox" name="illegal" value="1" {% if request.args.get('illegal') %}checked{% endif %}>include illegal</label>
-            <p>cards that aren't legal in commander (banned and such) stay hidden unless
-            this is on</p>
-        </div>
+        <p class="adv-help"><a href="/guide#filters">what these do, and the filter box's whole syntax, on the guide</a></p>
     </div>
 </details>

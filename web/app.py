@@ -714,7 +714,7 @@ def compile_fq(fq, currency="usd"):
 
 
 def read_filters():
-    f = {}
+    f = {"errors": []}
     #the color checkboxes arrive as repeated params like colors=W&colors=U.
     #only real color letters get through, which matters because they end up
     #inside a regex below
@@ -723,14 +723,27 @@ def read_filters():
         if len(c) == 1 and c in "WUBRG" and c not in letters:
             letters += c
     f["colors"] = letters
-    f["pmin"] = read_number(request.args.get("pmin", ""))
-    f["pmax"] = read_number(request.args.get("pmax", ""))
-    f["mvmin"] = read_number(request.args.get("mvmin", ""))
-    f["mvmax"] = read_number(request.args.get("mvmax", ""))
-    t = request.args.get("type", "")
-    if t not in CARD_TYPES:
-        t = ""
-    f["type"] = t
+    #how the picked colors apply: at most (fits within, the deckbuilding
+    #question, and the only behaviour before the mode existed), exactly
+    #these, or including these
+    mode = request.args.get("cmode", "")
+    f["cmode"] = mode if mode in ("exact", "include") else "atmost"
+    f["pmin"] = read_number("pmin", "minimum price", f["errors"])
+    f["pmax"] = read_number("pmax", "maximum price", f["errors"])
+    f["mvmin"] = read_number("mvmin", "minimum mana value", f["errors"])
+    f["mvmax"] = read_number("mvmax", "maximum mana value", f["errors"])
+    #an inverted range used to hand back an empty page with no explanation,
+    #which read as the site breaking rather than the bounds disagreeing.
+    #the filter still applies exactly as typed, the page just says why
+    #nothing can match
+    if f["pmin"] is not None and f["pmax"] is not None and f["pmin"] > f["pmax"]:
+        f["errors"].append("your minimum price is above your maximum, so no card can fit between them")
+    if f["mvmin"] is not None and f["mvmax"] is not None and f["mvmin"] > f["mvmax"]:
+        f["errors"].append("your minimum mana value is above your maximum, so no card can fit between them")
+    #any of the picked types matches: an Artifact Creature answers to
+    #Artifact, to Creature, and to both together. the whitelist stands in
+    #for escaping, nothing else reaches the ILIKE patterns
+    f["types"] = [t for t in request.args.getlist("type") if t in CARD_TYPES]
     f["cmdr"] = request.args.get("cmdr") == "1"
     f["gc"] = request.args.get("gc") == "1"
     #flipped from the launch version: most visitors are commander players, so
@@ -746,12 +759,17 @@ def read_filters():
     return f
 
 
-def read_number(s):
+def read_number(name, label, errors):
+    #a number box's value, None when empty. junk (a doctored url, pasted
+    #text) used to vanish silently, so a filter that "didn't work" gave no
+    #hint why; now the page says what was ignored
+    s = request.args.get(name, "").strip()
     if not s:
         return None
     try:
         return float(s)
     except ValueError:
+        errors.append('"' + s + '" is not a number, so your ' + label + ' was ignored')
         return None
 
 
@@ -875,11 +893,20 @@ def filter_sql(filters):
     where = ""
     params = []
     if filters["colors"]:
-        #fits-within, like deckbuilding: every letter of the card's identity
-        #must be one of the picked colors, and colorless always fits. safe to
-        #build into a regex because read_filters only lets WUBRG through
-        where += " AND c.color_identity ~ %s"
-        params.append("^[" + filters["colors"] + "]*$")
+        #three readings of a color pick, the mode select decides. safe to
+        #build into a regex/pattern because read_filters only lets WUBRG
+        #through. "at most" is fits-within, like deckbuilding: every letter
+        #of the card's identity must be one of the picked colors, and
+        #colorless always fits. "including" wants every picked color
+        #present, extras welcome. "exactly" is both at once, said as two
+        #conditions so nothing rests on the stored letter order
+        if filters["cmode"] in ("atmost", "exact"):
+            where += " AND c.color_identity ~ %s"
+            params.append("^[" + filters["colors"] + "]*$")
+        if filters["cmode"] in ("include", "exact"):
+            for letter in filters["colors"]:
+                where += " AND c.color_identity LIKE %s"
+                params.append("%" + letter + "%")
     #the bounds compare in whichever currency the toggle shows, so what you
     #filter on is always the number printed under the cards
     pcol = price_col(filters.get("cur", "usd"))
@@ -897,9 +924,11 @@ def filter_sql(filters):
     if filters["mvmax"] is not None:
         where += " AND c.cmc <= %s"
         params.append(filters["mvmax"])
-    if filters["type"]:
-        where += " AND c.type_line ILIKE %s"
-        params.append("%" + filters["type"] + "%")
+    if filters["types"]:
+        #any picked type matches, so an Artifact Creature shows up whether
+        #Artifact, Creature or both are ticked
+        where += " AND c.type_line ILIKE ANY(%s)"
+        params.append(["%" + t + "%" for t in filters["types"]])
     if filters["cmdr"]:
         #commander targets. both words have to be in the FRONT face's type
         #line ("Legendary Creature - Elf Warrior"), matching them separately
@@ -1305,7 +1334,7 @@ def search():
                                                  dropped=dropped, forced=forced)
     resp = make_response(render_template("search.html", query=query, card=card, card_lines=card_lines,
                                          picked_count=len(picked), results=results, has_more=has_more,
-                                         weak_count=weak_count, min_pct=min_pct,
+                                         weak_count=weak_count, min_pct=min_pct, errors=filters["errors"],
                                          blend=blend, cur=filters["cur"], types=CARD_TYPES,
                                          tag_chips=chips, dropped_count=sum(1 for c in chips if c["state"] == "off"),
                                          aside_count=sum(1 for c in chips if c["state"] == "aside"),
@@ -1505,10 +1534,16 @@ def filter_reasons(card, filters):
     #filters let the card through and something else explains its absence
     reasons = []
     if filters["colors"]:
-        for letter in card["color_identity"]:
-            if letter not in filters["colors"]:
-                reasons.append("its color identity (" + card["color_identity"] + ") doesn't fit the colors you picked")
-                break
+        #the same three modes as filter_sql, each with its own words
+        identity = set(card["color_identity"])
+        picked = set(filters["colors"])
+        shown = card["color_identity"] or "colorless"
+        if filters["cmode"] == "exact" and identity != picked:
+            reasons.append("its color identity (" + shown + ") isn't exactly the colors you picked")
+        elif filters["cmode"] == "include" and not picked <= identity:
+            reasons.append("its color identity (" + shown + ") doesn't include every color you picked")
+        elif filters["cmode"] == "atmost" and not identity <= picked:
+            reasons.append("its color identity (" + shown + ") doesn't fit the colors you picked")
     #the same currency the bounds filtered on, so the number quoted back is
     #the one the user was comparing against
     cur = filters.get("cur", "usd")
@@ -1523,8 +1558,10 @@ def filter_reasons(card, filters):
         reasons.append("its mana value (" + str(card["cmc"]) + ") is under your minimum")
     if filters["mvmax"] is not None and float(card["cmc"]) > filters["mvmax"]:
         reasons.append("its mana value (" + str(card["cmc"]) + ") is over your maximum")
-    if filters["type"] and filters["type"].lower() not in (card["type_line"] or "").lower():
-        reasons.append("its type line doesn't include " + filters["type"])
+    if filters["types"]:
+        tl = (card["type_line"] or "").lower()
+        if not any(t.lower() in tl for t in filters["types"]):
+            reasons.append("its type line doesn't include " + " or ".join(filters["types"]))
     if filters["cmdr"]:
         #front face only, mirroring filter_sql: the back face can't lead a deck
         tl = (card["type_line"] or "").split("//")[0].lower()
