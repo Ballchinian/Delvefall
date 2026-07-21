@@ -110,14 +110,45 @@ def main():
         if left:
             print("not building the index, " + str(left) + " rows are still empty")
         else:
+            #SERIAL BUILD ON PURPOSE. a parallel maintenance worker allocates a
+            #shared memory segment, and railway's container cannot grow
+            #/dev/shm to the ~61mb one asks for: the build dies with DiskFull
+            #"could not resize shared memory segment", which reads like the
+            #disk is full when there is plenty of room (847mb database, and it
+            #was the fill that needed the space, not this). zero workers means
+            #no segment, no failure, and a build that is slower but finishes.
+            #
+            #maintenance_work_mem is raised for this session too where the plan
+            #allows it. 64mb cannot hold a 60k by 768 graph, so pgvector spills
+            #to a slower on-disk path and warns about it. neither setting
+            #outlives the connection
             print("building the hnsw index, this takes a few minutes...")
-            conn.execute("""
-                CREATE INDEX IF NOT EXISTS lines_embedding_v2_hnsw ON lines
-                USING hnsw (""" + TARGET + """ vector_cosine_ops)
-                WITH (m = 32, ef_construction = 200) WHERE (NOT whole)
-            """)
-            conn.commit()
-            print("done")
+            try:
+                conn.execute("SET max_parallel_maintenance_workers = 0")
+                conn.execute("SET maintenance_work_mem = '512MB'")
+            except Exception as e:
+                print("  could not raise the build settings, continuing: " + str(e)[:90])
+            try:
+                conn.execute("""
+                    CREATE INDEX IF NOT EXISTS lines_embedding_v2_hnsw ON lines
+                    USING hnsw (""" + TARGET + """ vector_cosine_ops)
+                    WITH (m = 32, ef_construction = 200) WHERE (NOT whole)
+                """)
+                conn.commit()
+                print("done")
+            except Exception as e:
+                #the vectors are the expensive part and they are already
+                #committed, so say so loudly rather than let a failed index
+                #read as a failed run
+                conn.rollback()
+                print("\nINDEX BUILD FAILED: " + str(e)[:160])
+                print("the vectors are fine and committed, this is only the index.")
+                print("evaluation does not need it (tag_eval reads vectors into numpy),")
+                print("so measure first, then retry the index with:")
+                print("  python -m ingest.backfill_embeddings --model " + model_name + " --index")
+                print("which skips straight to it, no model download, since nothing is NULL.")
+                conn.close()
+                sys.exit(1)
     elif not left:
         print("\nrerun with --index to build the hnsw index, the searches need it")
 
