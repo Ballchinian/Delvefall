@@ -256,7 +256,15 @@ def main():
     if tag_ir:
         print("tags before training:", tag_ir(model))
 
-    out_dir = os.path.join(HERE, "mtg-tuned-" + args.model.split("/")[-1])
+    #the base is usually already a tuned model, so name the output for the
+    #OBJECTIVE rather than stacking another mtg-tuned- on the front and
+    #producing mtg-tuned-mtg-tuned-embeddinggemma-300m
+    stem = args.model.split("/")[-1]
+    for old in ("mtg-tuned-", "mtg-tagtuned-"):
+        if stem.startswith(old):
+            stem = stem[len(old):]
+    out_dir = os.path.join(HERE, ("mtg-tagtuned-" if args.objective == "tags"
+                                  else "mtg-tuned-") + stem)
     loss_mnrl = MultipleNegativesRankingLoss(model)
     loss_contrastive = ContrastiveLoss(model)
     for name in train_sets:
@@ -312,15 +320,27 @@ def main():
         print('  ("mtg-tuned", r"' + out_dir + '", ' + (('"' + prefix + '"') if prefix else "None") + "),")
         print("to MODELS in bakeoff.py and rerun it for the real per-triplet exam.")
     else:
-        print("next, in this order:")
-        print("  1. upload to a NEW hugging face repo. the old one is the rollback,")
-        print("     do not overwrite it")
-        print("  2. point EMBED_MODEL at it and run the update workflow against a COPY")
-        print("     of the database, never production: the write destroys the old")
-        print("     vectors in place and they cannot be recomputed without a rerun")
-        print("  3. python -m finetune.tag_eval, which is the real judge. the ship bar")
-        print("     is recall @10 at 95%, and the current model sits at 47.0%")
-        print("  4. python finetune/bakeoff.py as a regression guard, NOT a target")
+        print("next, in this order. do NOT swap EMBED_MODEL, that overwrites the live")
+        print("vectors in place and they cannot be recovered without rerunning the old")
+        print("model over the whole corpus. the second column exists to avoid exactly that.")
+        print("")
+        print("  1. upload to a NEW hugging face repo, from this same colab session")
+        print("     before the runtime dies. the old repo is the rollback, do not")
+        print("     overwrite it:")
+        print("       m = SentenceTransformer(r'" + out_dir + "')")
+        print("       m.push_to_hub('you/mtg-tagtuned-embeddinggemma-300m', private=True)")
+        print("  2. back on a machine with DATABASE_URL, fill the SECOND column:")
+        print("       python -m ingest.backfill_embeddings --model <the new repo> --index")
+        print("     this leaves lines.embedding exactly as the site is serving it")
+        print("  3. the real judge, against the same column:")
+        print("       EMBED_COLUMN=embedding_v2 python -m finetune.tag_eval")
+        print("     ship bar is recall @10 at 95%. the model in production sits at 47.0%,")
+        print("     and that is the CENTROID number, so compare like with like: the")
+        print("     tags_cosine_recall@10 printed above is text retrieval and is not it")
+        print("  4. python finetune/bakeoff.py as a regression guard, NOT a target. a")
+        print("     drop here is the umbrella tags teaching structure over meaning")
+        print("  5. only if all that holds: EMBED_COLUMN=embedding_v2 on the web service")
+        print("     to browse real searches. unset it to revert instantly")
 
 
 if __name__ == "__main__":
