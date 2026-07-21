@@ -357,6 +357,27 @@ LINE_TAGS = bool(os.environ.get("LINE_TAGS", "").strip())
 ATLAS = bool(os.environ.get("ATLAS", "").strip())
 
 
+#which column the searches read their vectors out of. the point is that trying
+#a new embedding model stops being a one way door: the new vectors go into
+#embedding_v2 (see common/schema.sql), this flips the site over to them, and
+#unsetting it flips straight back with the old numbers still sitting there.
+#
+#the value lands INSIDE sql strings, so it is checked against a fixed list
+#rather than trusted. anything else and we would be one typo in a railway
+#variable away from an injection point on every search
+EMBED_COLUMNS = ("embedding", "embedding_v2")
+
+
+def embed_column():
+    col = os.environ.get("EMBED_COLUMN", "").strip() or "embedding"
+    if col not in EMBED_COLUMNS:
+        raise ValueError("EMBED_COLUMN must be one of " + ", ".join(EMBED_COLUMNS))
+    return col
+
+
+EMBED_COL = embed_column()
+
+
 @app.context_processor
 def feature_flags():
     #base.html builds the nav for every page, so the flags have to reach every
@@ -1069,7 +1090,7 @@ def find_similar(oracle_id, picked, filters, min_pct, sort, offset=0, how_many=2
     #go, on a briefly borrowed connection
     with pool.connection() as conn:
         qlines = conn.execute("""
-            SELECT l.line_text, l.embedding, coalesce(s.count, 1) AS count
+            SELECT l.line_text, l.""" + EMBED_COL + """ AS embedding, coalesce(s.count, 1) AS count
             FROM lines l LEFT JOIN line_stats s ON s.line_text = l.line_text
             WHERE l.oracle_id = %s AND NOT l.whole
         """, (oracle_id,)).fetchall()
@@ -1101,10 +1122,10 @@ def find_similar(oracle_id, picked, filters, min_pct, sort, offset=0, how_many=2
         #same rows in the same order, and only the ingest changes the graph
         with pool.connection() as c:
             return c.execute("""
-                SELECT l.oracle_id, l.line_text, l.face, 1 - (l.embedding <=> %s) AS sim, """ + pcol + """ AS price, c.edhrec_rank, c.released_at
+                SELECT l.oracle_id, l.line_text, l.face, 1 - (l.""" + EMBED_COL + """ <=> %s) AS sim, """ + pcol + """ AS price, c.edhrec_rank, c.released_at
                 FROM lines l JOIN cards c ON c.oracle_id = l.oracle_id
                 WHERE l.oracle_id <> %s AND NOT l.whole""" + where + """
-                ORDER BY l.embedding <=> %s
+                ORDER BY l.""" + EMBED_COL + """ <=> %s
                 LIMIT 400
             """, [ql["embedding"], oracle_id] + fparams + [ql["embedding"]]).fetchall()
 
@@ -1731,7 +1752,7 @@ def best_sim(conn, anchor_id, other_id, picked):
     #buries), and the number returned is that pair's real similarity. None
     #means the other card has no searchable lines at all
     sql = """
-        SELECT 1 - (a.embedding <=> b.embedding) AS sim,
+        SELECT 1 - (a.""" + EMBED_COL + """ <=> b.""" + EMBED_COL + """) AS sim,
                coalesce(s.count, 1) AS count
         FROM lines a
         JOIN lines b ON b.oracle_id = %s AND NOT b.whole

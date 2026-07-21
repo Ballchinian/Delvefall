@@ -97,6 +97,18 @@ CREATE TABLE IF NOT EXISTS lines (
     face      smallint NOT NULL DEFAULT 0
 );
 
+--the second bench, for trying a new model without losing the old one. a model
+--swap used to mean overwriting every vector in place, which is a one way door:
+--the old numbers are gone and only a rerun of the old model brings them back.
+--filling this column instead leaves the live one untouched, so the switch is
+--EMBED_COLUMN on the web service and reverting is unsetting it.
+--
+--NULLABLE on purpose, unlike embedding: rows exist long before anything fills
+--this. ingest/backfill_embeddings.py is what fills it, the daily update does
+--not maintain it, so it goes stale during a trial and that is fine for one.
+--drop the column when the trial ends, whichever way it went
+ALTER TABLE lines ADD COLUMN IF NOT EXISTS embedding_v2 vector(768);
+
 ALTER TABLE lines ADD COLUMN IF NOT EXISTS nn_sim real;
 
 --which face printed the line, 0 front / 1 back. when the winning match
@@ -126,6 +138,13 @@ CREATE INDEX IF NOT EXISTS lines_oracle_id ON lines (oracle_id);
 --whole-card rows never enter the graph. scan settings live in web/db.py,
 --uniqueness is unaffected, recompute_uniqueness does its math in numpy
 CREATE INDEX IF NOT EXISTS lines_embedding_hnsw ON lines USING hnsw (embedding vector_cosine_ops) WITH (m = 32, ef_construction = 200) WHERE (NOT whole);
+
+--the same index for the second bench, same parameters because the search
+--behaves identically whichever column it reads. NOT created here: an hnsw
+--index that exists while 60k rows are being filled makes the backfill crawl,
+--and building it afterwards over the finished column is both faster and
+--better connected. ingest/backfill_embeddings.py creates it when it is done,
+--and drops it again if the trial is abandoned
 
 --how many cards share each line, for the idf weighting ("Flying" is on
 --thousands of cards so it barely counts, a wordy triggered ability is nearly

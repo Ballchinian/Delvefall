@@ -54,6 +54,14 @@ same("reminder_is_the_rule", func_dump("web/app.py", "reminder_is_the_rule"),
 same("REMINDER_KEYWORDS", assign_value("web/app.py", "REMINDER_KEYWORDS"),
      assign_value("common/cards.py", "REMINDER_KEYWORDS"))
 
+#which column the vectors are read from. it gets interpolated into sql in both
+#places, so the allowlist that keeps it safe has to say the same thing in both
+same("embed_column", func_dump("web/app.py", "embed_column"),
+     func_dump("ingest/attribute.py", "embed_column"),
+     "between web/app.py and ingest/attribute.py")
+same("EMBED_COLUMNS", assign_value("web/app.py", "EMBED_COLUMNS"),
+     assign_value("ingest/attribute.py", "EMBED_COLUMNS"))
+
 #the generated scryfall word catalogs the cleaner leans on
 if read("web/prefix_words.py") != read("common/prefix_words.py"):
     problems.append("prefix_words.py drifted between web/ and common/")

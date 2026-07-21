@@ -61,6 +61,18 @@ NOISE = 1.15
 #card before trusting the third digit
 RATIO = 0.6
 
+#which column the vectors come out of, so a trial model's attribution can be
+#built and measured without disturbing the live one. kept identical to the copy
+#in web/app.py, and tools/check_sync.py fails the push if the two drift
+EMBED_COLUMNS = ("embedding", "embedding_v2")
+
+
+def embed_column():
+    col = os.environ.get("EMBED_COLUMN", "").strip() or "embedding"
+    if col not in EMBED_COLUMNS:
+        raise ValueError("EMBED_COLUMN must be one of " + ", ".join(EMBED_COLUMNS))
+    return col
+
 
 def main():
     db_url = os.environ.get("DATABASE_URL")
@@ -101,7 +113,12 @@ def main():
     ids = []
     owners = []
     vecs = []
-    for lid, oid, vec in conn.execute("SELECT id, oracle_id, embedding FROM lines WHERE NOT whole ORDER BY id"):
+    col = embed_column()
+    if col != "embedding":
+        print("  reading " + col + " rather than the live column")
+    for lid, oid, vec in conn.execute(
+            "SELECT id, oracle_id, " + col + " FROM lines WHERE NOT whole AND "
+            + col + " IS NOT NULL ORDER BY id"):
         ids.append(lid)
         owners.append(str(oid))
         vecs.append(vec.to_numpy())  #pgvector hands back its own Vector class
