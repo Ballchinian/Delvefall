@@ -12,6 +12,11 @@ __pycache__/
 finetune/*
 !finetune/README.md
 
+#the bundle for the colab box. it is the training data in a trench coat, so it
+#must never ride into a commit just because it sits in the repo root
+delvefall-training.zip
+*-training.zip
+
 #my own notes
 TODO.md
 HANDOFF.md
