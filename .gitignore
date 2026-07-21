@@ -1,5 +1,4 @@
-#the ingest script downloads this fresh every run and deletes it after,
-#but just in case a run dies halfway
+#the ingest script downloads this fresh every run
 oracle-cards.json
 
 __pycache__/
@@ -8,17 +7,12 @@ __pycache__/
 .vscode/
 
 .env
+finetune/
+.claude/
 
 #my own notes
 TODO.md
 HANDOFF.md
 
-#in case a virtualenv ever lives in here
 venv/
 .venv/
-
-
-finetune/
-
-#local tooling config, not part of the site
-.claude/
