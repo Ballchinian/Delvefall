@@ -1089,10 +1089,15 @@ def find_similar(oracle_id, picked, filters, min_pct, sort, offset=0, how_many=2
     #model never runs at search time. grab them with their idf counts in one
     #go, on a briefly borrowed connection
     with pool.connection() as conn:
+        #the IS NOT NULL matters only during a column trial: cards ingested
+        #after the backfill have no v2 vector yet, and a NULL anchor would ride
+        #into the scan below and NULL every similarity. on the live column the
+        #NOT NULL constraint makes it free. a card whose lines are all
+        #unfilled degrades to the no-searchable-lines path, same as vanilla
         qlines = conn.execute("""
             SELECT l.line_text, l.""" + EMBED_COL + """ AS embedding, coalesce(s.count, 1) AS count
             FROM lines l LEFT JOIN line_stats s ON s.line_text = l.line_text
-            WHERE l.oracle_id = %s AND NOT l.whole
+            WHERE l.oracle_id = %s AND NOT l.whole AND l.""" + EMBED_COL + """ IS NOT NULL
         """, (oracle_id,)).fetchall()
 
     #if the user picked lines on the page, only search with those
@@ -1124,7 +1129,7 @@ def find_similar(oracle_id, picked, filters, min_pct, sort, offset=0, how_many=2
             return c.execute("""
                 SELECT l.oracle_id, l.line_text, l.face, 1 - (l.""" + EMBED_COL + """ <=> %s) AS sim, """ + pcol + """ AS price, c.edhrec_rank, c.released_at
                 FROM lines l JOIN cards c ON c.oracle_id = l.oracle_id
-                WHERE l.oracle_id <> %s AND NOT l.whole""" + where + """
+                WHERE l.oracle_id <> %s AND NOT l.whole AND l.""" + EMBED_COL + """ IS NOT NULL""" + where + """
                 ORDER BY l.""" + EMBED_COL + """ <=> %s
                 LIMIT 400
             """, [ql["embedding"], oracle_id] + fparams + [ql["embedding"]]).fetchall()
@@ -1755,9 +1760,9 @@ def best_sim(conn, anchor_id, other_id, picked):
         SELECT 1 - (a.""" + EMBED_COL + """ <=> b.""" + EMBED_COL + """) AS sim,
                coalesce(s.count, 1) AS count
         FROM lines a
-        JOIN lines b ON b.oracle_id = %s AND NOT b.whole
+        JOIN lines b ON b.oracle_id = %s AND NOT b.whole AND b.""" + EMBED_COL + """ IS NOT NULL
         LEFT JOIN line_stats s ON s.line_text = a.line_text
-        WHERE a.oracle_id = %s AND NOT a.whole
+        WHERE a.oracle_id = %s AND NOT a.whole AND a.""" + EMBED_COL + """ IS NOT NULL
     """
     params = [other_id, anchor_id]
     if picked:
