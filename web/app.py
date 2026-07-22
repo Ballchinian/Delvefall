@@ -376,15 +376,22 @@ BLEND_DEFAULT = 2
 #full-card denominator and quietly deflate every score, which would move the
 #cutoff without moving the calibration. with nothing dropped this returns the
 #baked norm to the digit, so the default path is a true no-op
-#the line -> tag attribution is dark until it earns its place. at 88%
-#precision / 82% recall a picked line still sets aside tags it shouldn't, and
-#a concepts side that quietly ignores the right tag is worse than one that
-#ignores nothing. set LINE_TAGS on a staging service to try it. with it unset
-#every path below falls through to the behaviour that shipped before the
-#attribution landed: picking a line moves the rules-text side only, and the
-#concepts side reads the whole card. the fallbacks it reuses are the ones
-#already written for a database whose line_tags was never built
-LINE_TAGS = bool(os.environ.get("LINE_TAGS", "").strip())
+#the line -> tag attribution, SHIPPED 2026-07-22. it was dark for months at
+#88% precision / 82% recall, on the grounds that a concepts side quietly
+#ignoring the right tag is worse than one ignoring nothing. the line-to-tag
+#model took it to 94%/82%, and picking a line now moves both axes.
+#
+#ON BY DEFAULT rather than switched on by a railway variable: a shipped
+#feature that depends on remembering an env var disappears the first time one
+#gets reset, silently, with the site still returning 200s. set LINE_TAGS=0 to
+#turn it off, which is the kill switch if the attribution ever regresses.
+#
+#with it off every path below falls through to the behaviour that shipped
+#before the attribution landed: picking a line moves the rules-text side only,
+#and the concepts side reads the whole card. those fallbacks are the ones
+#already written for a database whose line_tags was never built, so it stays
+#safe on a database the attribution has never run against
+LINE_TAGS = os.environ.get("LINE_TAGS", "1").strip().lower() not in ("0", "false", "off", "no", "")
 
 #the atlas is dark for the same reason and by the same switch: the pages work,
 #the copy is a first draft and ATLAS_RANK and ATLAS_COUNT are still guesses, so

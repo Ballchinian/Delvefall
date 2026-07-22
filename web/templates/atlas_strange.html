@@ -14,9 +14,13 @@ you could meet across a table.{% endblock %}
 
 {# one section's worth of cards. the meters put both axis scores on the same
    0 to 100 scale, so the disagreement is visible as the gap between the two
-   bars. each direction links into search with the slider preset to the end
-   where that card actually has neighbours #}
-{% macro grid(entries, quote, blend, link_text, link_title) %}
+   bars.
+   the links used to preset the slider to the end where that card actually has
+   neighbours. the slider went on 2026-07-22 and search now always blends both
+   evenly, so the blend argument is gone: a card that is strange on one axis
+   and ordinary on the other still lands somewhere sensible, it is just no
+   longer aimed #}
+{% macro grid(entries, quote, link_text, link_title) %}
     <div class="card-grid">
         {% for e in entries %}
         <div class="result">
@@ -41,7 +45,7 @@ you could meet across a table.{% endblock %}
             {% if quote and e.unique_line %}
             <div class="match-line" title="its most one-of-a-kind line, nothing else in the game comes close to it">"{{ e.unique_line | mana }}"</div>
             {% endif %}
-            <div class="more-lines"><a href="/search?q={{ e.name | urlencode }}&amp;blend={{ blend }}" title="{{ link_title }}">{{ link_text }}</a></div>
+            <div class="more-lines"><a href="/search?q={{ e.name | urlencode }}" title="{{ link_title }}">{{ link_text }}</a></div>
         </div>
         {% endfor %}
     </div>
@@ -52,16 +56,16 @@ you could meet across a table.{% endblock %}
     <p class="results-blurb">Nothing in the game is worded like these cards, but plenty
     of cards are tagged like them: a one-of-a-kind sentence doing a job the game does
     all the time. Each quotes the line nothing else comes close to.</p>
-    {{ grid(strange_words, True, 4,
+    {{ grid(strange_words, True,
             "what shares its job?",
-            "search this card with the slider on concepts, where its neighbours live") }}
+            "search this card, where its neighbours are the ones sharing its role") }}
 
     <h2>Ordinary words for strange jobs</h2>
     <p class="results-blurb">These read like a hundred other cards, but no other card
     is tagged like them: familiar sentences adding up to a role nothing else fills.</p>
-    {{ grid(strange_jobs, False, 0,
+    {{ grid(strange_jobs, False,
             "what says the same thing?",
-            "search this card with the slider on rules text, where its neighbours live") }}
+            "search this card, where its neighbours are the ones worded like it") }}
 
     <p class="atlas-note">Both scores are measured across the {{ total }} cards that
     carry them, each against every other card at once. Rules text compares printed

@@ -87,20 +87,18 @@
                 </div>
                 <p class="line-hint">
                     {% if picked_count %}
-                    searching {{ 'this line' if picked_count == 1 else 'these lines' }} only{% if line_tags_on %}, on both sides of the slider{% endif %}. click to toggle
+                    searching {{ 'this line' if picked_count == 1 else 'these lines' }} only{% if line_tags_on %}, on both scores{% endif %}. click to toggle
                     {% else %}
                     every line here is clickable: search one ability on its own, or a few together
                     {% endif %}
                 </p>
                 {# the concepts side's half of the picker: the community tags
                    this card was given, with picking a line narrowing them to
-                   that one ability. the WHOLE block is behind LINE_TAGS (see
-                   app.py) until the attribution earns its place, so the route
-                   hands back no chips at all and everything below falls away
-                   with them, hint included. rendered past slider detent 0 only,
-                   where the concept axis actually counts. the slider itself is
-                   NOT gated: the concepts side still scores off the whole
-                   card's tags, you just cannot hand-tune which ones #}
+                   that one ability. shipped 2026-07-22; LINE_TAGS=0 is the
+                   kill switch, and with it off the route hands back no chips
+                   at all so everything below falls away with them, hint
+                   included. the concepts SCORE is not gated either way, you
+                   just cannot hand-tune which tags it uses #}
                 {% if tag_chips %}
                 <div class="tag-picker">
                     {% for chip in tag_chips %}
@@ -116,10 +114,10 @@
                     {% elif dropped_count %}
                     concepts: the crossed out tags are switched off, the concepts side is ignoring them
                     {% elif line_tags_on %}
-                    concepts: the slider's right hand side searches these community tags. highlight a line above to
+                    concepts: the concepts score searches these community tags. highlight a line above to
                     narrow them to that ability, or click one to switch it off
                     {% else %}
-                    concepts: the slider's right hand side searches these community tags. click one to switch it off
+                    concepts: the concepts score searches these community tags. click one to switch it off
                     {% endif %}
                 </p>
                 {% endif %}
@@ -260,9 +258,9 @@
             reordering is not researching. changing the sort is the one
             reload that should leave the weaker matches you had opened where
             they are: you are asking for the same cards in a different order.
-            everything else that submits this form (Apply, the slider, the
-            filters, enter in the query box) is a NEW search and starts you
-            back at the strong matches.
+            everything else that submits this form (Apply, the filters, enter
+            in the query box) is a NEW search and starts you back at the
+            strong matches.
 
             the depth rides sessionStorage rather than the url, and is eaten
             on the way in. that is what keeps a plain refresh from restoring
