@@ -1,16 +1,39 @@
 {% extends "base.html" %}
 
-{% block title %}Unique cards - Delvefall{% endblock %}
+{# "Unique cards" alone said neither Magic nor MTG, which are the two words
+   every real query for this page contains. people search "most unique mtg
+   cards", "weird magic cards", "unusual magic the gathering cards": the title
+   leads with the superlative they type and carries both names of the game,
+   since which one gets typed is a coin flip #}
+{# kept under about 60 characters, which is where google truncates. the first
+   version ran to 82 and lost everything past "MTG one of a", so the words that
+   survived were the least useful ones #}
+{% block title %}The most unique cards in Magic: The Gathering - Delvefall{% endblock %}
 
-{% block metadesc %}Get dealt unique Magic: The Gathering cards no other card resembles, one at a time. The opposite of a random card page, with the same filters as search and a trail of everything you've drawn.{% endblock %}
+{# and about 155 for the snippet. the first version was 266, so the sentence
+   google actually printed stopped halfway through the second clause #}
+{% block metadesc %}The weirdest, most unusual Magic cards, dealt one at a time: MTG cards whose abilities nothing else in the game comes close to.{% endblock %}
+
+{# /unique takes filters and a currency in the query string, so the same page
+   is reachable at a dozen urls. one canonical folds them together, exactly
+   like a card page's #}
+{% block head_extra %}
+<link rel="canonical" href="{{ request.url_root ~ 'unique' }}">
+{% endblock %}
 
 {% block content %}
+    {# the h1 carries the query, not the nav label. "Unique cards" is what the
+       menu calls it; "the most unique Magic cards" is what someone types. both
+       names of the game appear once between the heading and the sentence under
+       it, because MTG and Magic: The Gathering are searched about equally and
+       repeating either one more than that reads as stuffing #}
     <div class="unique-intro">
-        <h1>Unique cards</h1>
-        <p>The opposite of a random card: this deals you cards that do something no other
-        card really does. Every deal comes from the most unique cards you haven't seen yet,
-        picked at random from among the closely matched ones, so no two people walk the same
-        order. It works its way toward ordinary as you go.</p>
+        <h1>The most unique Magic cards</h1>
+        <p>The opposite of a random card generator: this deals you unique MTG cards, ones
+        that do something no other card in the game really does. Every deal comes from the
+        most unusual cards you haven't seen yet, picked at random from among the closely
+        matched ones, so no two people walk the same order. It works its way toward ordinary
+        as you go.</p>
     </div>
 
     {# no submit button here on purpose: the deal happens on load and through

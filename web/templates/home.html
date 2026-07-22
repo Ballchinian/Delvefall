@@ -1,5 +1,11 @@
 {% extends "base.html" %}
 
+{# the home page used to inherit the bare "Delvefall" title, which is the one
+   word nobody searching for this has ever heard. a brand-only title is only
+   worth it once the brand is the query. the phrase people actually type goes
+   first, the name after #}
+{% block title %}Find Magic: The Gathering cards similar to any card - Delvefall{% endblock %}
+
 {% block bodyclass %}home{% endblock %}
 
 {# structured data: tells google the site's name and that /search?q= is the
@@ -35,6 +41,9 @@
     "sameAs": ["https://discord.gg/kfjYbRYKbg"]
 }
 </script>
+{# the home page is reachable with and without a trailing slash, and any
+   tracking parameter a shared link picks up makes another url of it #}
+<link rel="canonical" href="{{ request.url_root }}">
 {% endblock %}
 
 {# no header strip here, the hero below IS the search. the logo up top would
