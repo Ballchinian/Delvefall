@@ -66,6 +66,10 @@ def main():
     schema_path = os.path.join(os.path.dirname(__file__), "..", "common", "schema.sql")
     with open(schema_path, encoding="utf-8") as f:
         conn.execute(f.read())
+    #schema.sql stopped creating the trial column once the last one was cut
+    #over, so a fresh trial makes its own rather than needing that line
+    #uncommented first
+    conn.execute("ALTER TABLE lines ADD COLUMN IF NOT EXISTS " + TARGET + " vector(768)")
     conn.commit()
 
     total = conn.execute("SELECT count(*) FROM lines").fetchone()[0]

@@ -37,25 +37,36 @@ PRICES_FILE = "default-cards.json"
 #the prompt was glued to the front of every line during training, encoding
 #without it gives useless vectors. swapping EMBED_MODEL for something else
 #makes the next run rebuild every vector on its own
-EMBED_MODEL = "BallchinianMan/mtg-tuned-embeddinggemma-300m"
+#the line-to-tag model, live since 2026-07-22. it scores 78% recall @10 on the
+#tag exam against the old model's 47%, keeps the same 26/31 on the line-to-line
+#regression guard, and lifts line attribution from 88% to 94% precision.
+#
+#its predecessor, BallchinianMan/mtg-tuned-embeddinggemma-300m, is the rollback:
+#the repo tag v1-rules-text marks the last commit before the swap, and the
+#vectors it produced are still in lines.embedding_v1
+EMBED_MODEL = "BallchinianMan/mtg-tagtuned-embeddinggemma-300m"
 EMBED_PROMPT = "task: sentence similarity | query: "
 EMBED_DIMS = 768
 
 #axis 1's calibration map: raw cosine -> the percent the site shows,
-#piecewise linear through hand-judged pairs. raw cosine is arbitrary per
-#model, so this map is ANCHORED TO THE MODEL ABOVE and lives right next to
-#it - swapping models means re-judging these anchors along with rebuilding
-#the vectors. the load-bearing anchor is 0.895 -> 80: the quality boundary
-#the old raw-90 cutoff actually guarded (int(round()) let 89.5 through) now
-#reads as 80 and exactly the same set of cards passes. identical text stays
-#100 (nothing that isn't identical may show 100), the flagship match
-#(rhystic/remora, raw .97) lands low 90s, and the "same shell, different
-#payload" band (raw ~.85) drops visibly under the gate.
+#piecewise linear. raw cosine is arbitrary per model, so this map is ANCHORED
+#TO THE MODEL ABOVE and lives right next to it: swapping models means refitting
+#these anchors, and forgetting to is why a near verbatim match read 62% for an
+#afternoon.
+#
+#refitted 2026-07-22 for the line-to-tag model, in two steps. first by quantile
+#mapping the old anchors, which put a hand judged "yes these match" at exactly
+#80, the boundary a human had set, from a method that never saw the exam.
+#then lifted deliberately on Ethan's call after browsing: too many results sat
+#in the 60-70 band and the axis read stingy next to concepts. the lift moves a
+#human's "yes" to 88 and their "no" to 59, so the two still separate by nearly
+#thirty points, and it takes the share of results above the 70 gate from about
+#half to about three quarters.
 #
 #both maps ride to the website through the meta table (written in main
 #below, next to the model name they belong to), so the site and the
 #pipeline can never disagree about what a percent means
-MECH_CALIBRATION = [(0.0, 0), (0.50, 30), (0.70, 45), (0.85, 65), (0.895, 80), (0.97, 92), (1.0, 100)]
+MECH_CALIBRATION = [(0.0, 0), (0.30, 30), (0.42, 45), (0.62, 65), (0.76, 80), (0.90, 92), (1.0, 100)]
 
 
 def get_with_retries(url, tries=3):

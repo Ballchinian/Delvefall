@@ -106,8 +106,19 @@ CREATE TABLE IF NOT EXISTS lines (
 --NULLABLE on purpose, unlike embedding: rows exist long before anything fills
 --this. ingest/backfill_embeddings.py is what fills it, the daily update does
 --not maintain it, so it goes stale during a trial and that is fine for one.
---drop the column when the trial ends, whichever way it went
-ALTER TABLE lines ADD COLUMN IF NOT EXISTS embedding_v2 vector(768);
+--
+--NOT created here any more. the 2026-07-22 cutover finished with a rename
+--swap (embedding -> embedding_v1, embedding_v2 -> embedding), so recreating it
+--would only add an empty column back on the next ingest. uncomment for the
+--next trial; backfill_embeddings.py adds it itself when it runs.
+--ALTER TABLE lines ADD COLUMN IF NOT EXISTS embedding_v2 vector(768);
+
+--the previous model's vectors, kept as the rollback for the 2026-07-22 swap:
+--BallchinianMan/mtg-tuned-embeddinggemma-300m, the line-to-line model, with
+--the repo tagged v1-rules-text at the last commit before it stopped being
+--live. reverting is renaming the two columns back. drop this once the new
+--model has been live long enough to trust, and take back ~330mb with it
+ALTER TABLE lines ADD COLUMN IF NOT EXISTS embedding_v1 vector(768);
 
 ALTER TABLE lines ADD COLUMN IF NOT EXISTS nn_sim real;
 

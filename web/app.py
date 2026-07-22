@@ -300,7 +300,7 @@ def concept_raw_gate(pct):
 #the ingest embeds with, and the full story of the anchors lives next to
 #EMBED_MODEL in ingest/update.py, which is the source of truth that lands
 #in meta. this copy is the seed for databases the ingest hasn't touched yet
-MECH_CALIBRATION = [(0.0, 0), (0.50, 30), (0.70, 45), (0.85, 65), (0.895, 80), (0.97, 92), (1.0, 100)]
+MECH_CALIBRATION = [(0.0, 0), (0.30, 30), (0.42, 45), (0.62, 65), (0.76, 80), (0.90, 92), (1.0, 100)]
 
 
 def load_calibration():
