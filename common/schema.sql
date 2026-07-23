@@ -227,6 +227,41 @@ CREATE TABLE IF NOT EXISTS card_tag_norms (
     norm      real NOT NULL
 );
 
+--preconstructed commander decks from mtgjson, the calibration set for deck
+--originality. a deck's originality score means nothing on its own ("0.24" is
+--not a sentence), it only reads against other decks, and precons are the one
+--population where the comparison is fair: same size, same format, same budget
+--tier, same design brief. so this is not a nice-to-have list, it is what lets
+--a pasted decklist be told where it stands.
+--
+--mtgjson hands us identifiers.scryfallOracleId on every card, so this joins
+--straight to cards with no name matching anywhere. ingest/decks.py rebuilds
+--both tables whenever mtgjson publishes a new version, same philosophy as
+--line_stats and the tag tables
+CREATE TABLE IF NOT EXISTS decks (
+    slug         text PRIMARY KEY,  --mtgjson's fileName, e.g. MindSeize_C13
+    name         text NOT NULL,
+    code         text NOT NULL DEFAULT '',  --the set the deck shipped in
+    release_date date,
+    type         text NOT NULL DEFAULT ''
+);
+
+--no originality column on purpose. the score is derived from cards.uniqueness,
+--which moves every time the embedding model changes, so a stored number would
+--quietly rot into a lie about a model that no longer exists. 166 decks by ~100
+--cards is 16k rows, small enough that the leaderboard aggregates on the fly and
+--is always telling the truth about the CURRENT scores. this is the opposite
+--call to card_tag_norms and it is the size of the table that makes it right
+CREATE TABLE IF NOT EXISTS deck_cards (
+    deck_slug    text NOT NULL REFERENCES decks(slug) ON DELETE CASCADE,
+    oracle_id    uuid NOT NULL REFERENCES cards(oracle_id) ON DELETE CASCADE,
+    count        int NOT NULL DEFAULT 1,
+    is_commander boolean NOT NULL DEFAULT false,
+    PRIMARY KEY (deck_slug, oracle_id)
+);
+
+CREATE INDEX IF NOT EXISTS deck_cards_oracle ON deck_cards (oracle_id);
+
 --which tags each LINE is about, so picking one ability on the search page can
 --narrow the concept axis to that ability instead of searching the whole
 --card's tag vector. tagger tags cards, never lines, so this is inferred
