@@ -1581,6 +1581,100 @@ def unique():
     return render_template("unique.html", types=CARD_TYPES, blend=read_blend(), cur=read_currency())
 
 
+#a deck is original because of its WEIRDEST cards, not its average card. the
+#mean over a whole list is dominated by the mana base and the removal suite
+#that every deck shares: measured over the 166 precons it squashed the spread
+#between first and last to 0.071, against 0.146 for the top 20
+PRECON_TOP_N = 20
+
+#the eras the leaderboard can be cut down to. originality correlates with
+#release year at r=+0.46, partly because design space genuinely fills up (an
+#old card has had fifteen years of imitators, and imitated is the opposite of
+#unique). the ranking still separates decks INSIDE one era, so rather than
+#pretend the effect isn't there, the page says so and lets you rank like
+#against like. bounds are inclusive
+PRECON_ERAS = [
+    ("all", "All precons", None, None),
+    ("early", "2011-2019", 2011, 2019),
+    ("mid", "2020-2022", 2020, 2022),
+    ("recent", "2023 on", 2023, 9999),
+]
+
+PRECON_SQL = """
+WITH scored AS (
+    SELECT dc.deck_slug, c.name, c.uniqueness,
+           row_number() OVER (PARTITION BY dc.deck_slug ORDER BY c.uniqueness DESC) AS n
+    FROM deck_cards dc
+    JOIN cards c ON c.oracle_id = dc.oracle_id
+    WHERE c.uniqueness IS NOT NULL
+      AND c.type_line NOT LIKE '%%Land%%'
+),
+rolled AS (
+    SELECT deck_slug, avg(uniqueness) AS originality
+    FROM scored WHERE n <= %s GROUP BY deck_slug
+)
+SELECT d.slug, d.name, d.code, d.release_date, r.originality,
+       (SELECT array_agg(s.name ORDER BY s.n) FROM scored s
+         WHERE s.deck_slug = d.slug AND s.n <= 3) AS drivers,
+       (SELECT array_agg(c2.name ORDER BY c2.name) FROM deck_cards dc2
+          JOIN cards c2 ON c2.oracle_id = dc2.oracle_id
+         WHERE dc2.deck_slug = d.slug AND dc2.is_commander) AS leaders
+FROM decks d JOIN rolled r ON r.deck_slug = d.slug
+ORDER BY r.originality DESC, d.name
+"""
+
+#same shape as the seed cache: the board is identical for everyone and only
+#moves when the ingest reruns, so it is worth an hour of not asking. the
+#query costs ~130ms against railway, which is too much to pay per visit and
+#nothing to pay once
+_precon_cache = {"at": 0.0, "rows": []}
+
+
+def precon_board():
+    if time.time() - _precon_cache["at"] > 3600:
+        try:
+            with pool.connection() as conn:
+                rows = conn.execute(PRECON_SQL, (PRECON_TOP_N,)).fetchall()
+            _precon_cache["rows"] = [dict(r) for r in rows]
+        except Exception:
+            pass
+        _precon_cache["at"] = time.time()
+    return _precon_cache["rows"]
+
+
+@app.route("/precons")
+def precons():
+    #the leaderboard, and the reason the deck lens can say anything: a score
+    #on its own is not a sentence, "more original than every precon but two"
+    #is, and that needs a fair population to sit against. fully server
+    #rendered, unlike the /unique dealer, so a crawler meets the actual decks
+    want = request.args.get("era", "all")
+    era = next((e for e in PRECON_ERAS if e[0] == want), PRECON_ERAS[0])
+    _, _, lo, hi = era
+
+    rows = []
+    for r in precon_board():
+        year = r["release_date"].year if r["release_date"] else 0
+        if lo is not None and not (lo <= year <= hi):
+            continue
+        rows.append(dict(r, year=year))
+
+    #the bar under each score is relative to the cut on screen, not to the
+    #whole board: inside one era the spread is narrower, and a bar that only
+    #ever fills a third of the way says nothing about which deck is which
+    if rows:
+        top = max(r["originality"] for r in rows)
+        floor = min(r["originality"] for r in rows)
+        span = top - floor
+        for i, r in enumerate(rows, 1):
+            r["place"] = i
+            #every bar keeps a visible stub, or the last row reads as a
+            #missing value rather than as the least original deck
+            r["fill"] = 8 + 92 * ((r["originality"] - floor) / span) if span else 100
+    return render_template("precons.html", rows=rows, eras=PRECON_ERAS, era=era[0],
+                           top_n=PRECON_TOP_N)
+
+
 def card_json(c, currency):
     #one dealt (or revisited) card the way the /unique frontend wants it.
     #layout and image_back are what let the page offer the rotate and
@@ -2202,7 +2296,7 @@ def sitemap():
     root = request.url_root
     out = ['<?xml version="1.0" encoding="UTF-8"?>',
            '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
-    for page in ("", "unique", "guide"):
+    for page in ("", "unique", "precons", "guide"):
         out.append("<url><loc>" + root + page + "</loc></url>")
     for name in _sitemap_names["names"]:
         #quote() with its defaults mirrors the urlencode filter building the

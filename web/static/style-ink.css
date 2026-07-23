@@ -1309,6 +1309,172 @@ footer {
 
 footer a { color: var(--teal); }
 
+/* ---- the /precons leaderboard. borrows .guide's column width, so the prose
+   at the top sets the same measure as the rest of the site's reading pages.
+   the board itself is a plain <ol>: the rank IS the list marker, so an
+   ordered list is what it is, and it stays readable with no css at all ---- */
+
+.precons {
+    /* wider than .guide's 720px, the rows carry three columns of content */
+    max-width: 860px;
+}
+
+/* the method note is collapsed by default. it is the page's credibility, but
+   it is not what anyone came for, and open by default it pushed the actual
+   board below the fold on a laptop */
+.precon-method {
+    background: var(--wash);
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    padding: 10px 14px;
+    margin: 16px 0;
+    font-size: 14px;
+}
+
+.precon-method summary {
+    cursor: pointer;
+    color: var(--teal);
+    font-weight: 600;
+}
+
+.precon-method p { margin: 10px 0 0; }
+
+.precon-eras {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 18px 0 10px;
+}
+
+.precon-era {
+    border: 1px solid var(--line-strong);
+    border-radius: 999px;
+    padding: 4px 14px;
+    font-size: 13px;
+    text-decoration: none;
+    color: var(--text);
+    background: var(--panel);
+}
+
+.precon-era:hover { background: var(--wash); }
+
+.precon-era.on {
+    background: var(--ink);
+    border-color: var(--ink);
+    color: var(--paper);
+}
+
+.precon-count {
+    color: var(--muted);
+    font-size: 13px;
+    margin: 0 0 14px;
+}
+
+.precon-empty { color: var(--muted); }
+
+.precon-board {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.precon-row {
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    padding: 10px 4px;
+    border-bottom: 1px solid var(--line);
+}
+
+.precon-row:hover { background: var(--panel); }
+
+.precon-place {
+    font-family: var(--serif);
+    font-size: 17px;
+    color: var(--muted);
+    min-width: 2.2em;
+    text-align: right;
+    flex: none;
+}
+
+.precon-main {
+    flex: 1;
+    min-width: 0;
+}
+
+.precon-name {
+    font-family: var(--serif);
+    font-weight: 600;
+    font-size: 16px;
+}
+
+.precon-sub, .precon-drivers {
+    font-size: 13px;
+    color: var(--muted);
+    margin-top: 2px;
+}
+
+.precon-sub a, .precon-drivers a {
+    color: var(--teal);
+    text-decoration: none;
+}
+
+.precon-sub a:hover, .precon-drivers a:hover { text-decoration: underline; }
+
+.precon-drivers-label { color: var(--muted); }
+
+.precon-set { white-space: nowrap; }
+
+.precon-score {
+    flex: none;
+    width: 120px;
+    text-align: right;
+}
+
+.precon-figure {
+    font-variant-numeric: tabular-nums;
+    font-size: 15px;
+    color: var(--gold);
+    font-weight: 600;
+}
+
+/* the bar is the comparison and the number beside it is the receipt. it fills
+   relative to the decks currently listed, not to the whole board, so an era
+   cut still reads as a ranking instead of as four bars all the same length */
+.precon-bar {
+    height: 5px;
+    background: var(--line);
+    border-radius: 999px;
+    margin-top: 4px;
+    overflow: hidden;
+}
+
+.precon-bar span {
+    display: block;
+    height: 100%;
+    background: var(--teal);
+    border-radius: 999px;
+}
+
+/* on a phone the score column stops being a column and sits under the name,
+   because 120px of bar plus three card names in 360px is unreadable */
+@media (max-width: 560px) {
+    .precon-row {
+        flex-wrap: wrap;
+        gap: 4px 12px;
+    }
+
+    .precon-main { flex-basis: calc(100% - 3.5em); }
+
+    .precon-score {
+        width: 100%;
+        text-align: left;
+        margin-left: 3.5em;
+    }
+
+    .precon-bar { max-width: 200px; }
+}
+
 /* ---- the home page. flat ink instead of the old gradient, with a grain
    texture and a faint glow behind the search so it doesn't read as a raw
    css fill. the grain is an inline svg turbulence tile ---- */
