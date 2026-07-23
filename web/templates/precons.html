@@ -6,6 +6,7 @@
 
 {% block content %}
 <div class="guide precons">
+    <p class="precon-back"><a href="/deck">&larr; The deck lens</a></p>
     <h1>The most original Commander precons</h1>
     <p>Every preconstructed Commander deck, ranked by how unusual its cards are. Not how
     strong, not how expensive, and not how popular: <strong>how little the rest of Magic
@@ -66,6 +67,14 @@
                         &middot;
                     {% endif %}
                     <span class="precon-set">{{ r.code }}{% if r.year %} {{ r.year }}{% endif %}</span>
+                    {% if r.source %}
+                    {# wizards' own page for the list. for the older sets it is
+                       that deck's page, for recent ones the set announcement
+                       carrying all of its decks, so the label says decklist
+                       rather than promising this exact deck's page #}
+                    &middot; <a class="precon-source" href="{{ r.source }}" target="_blank" rel="noopener"
+                        aria-label="official decklist for {{ r.name }} (opens in a new tab)">official decklist</a>
+                    {% endif %}
                 </div>
                 {% if r.drivers %}
                 <div class="precon-drivers"><span class="precon-drivers-label">Most original cards:</span>

@@ -119,9 +119,14 @@ def main():
     #same gate as the tag ingest: seen this exact version already, stop. an
     #empty deck_cards means a first run (or one that died halfway), do the
     #work anyway
+    #an empty source column means the same thing a missing version does:
+    #schema.sql just added the column and nothing has filled it, and skipping
+    #here would leave every deck without its decklist link until mtgjson
+    #happens to publish a new version
     row = conn.execute("SELECT value FROM meta WHERE key = 'mtgjson_version'").fetchone()
     if (row and row[0] == version
-            and conn.execute("SELECT 1 FROM deck_cards LIMIT 1").fetchone()):
+            and conn.execute("SELECT 1 FROM deck_cards LIMIT 1").fetchone()
+            and not conn.execute("SELECT 1 FROM decks WHERE source = '' LIMIT 1").fetchone()):
         print("already processed mtgjson " + version + ", nothing to do")
         conn.close()
         return
@@ -137,6 +142,7 @@ def main():
             "code": deck.get("code", ""),
             "date": deck.get("releaseDate"),
             "type": deck.get("type", DECK_TYPE),
+            "source": deck.get("source") or "",
             "cards": deck_cards(deck),
         }
     before = len(decks)
@@ -156,8 +162,9 @@ def main():
         rows = 0
         missing = 0
         for slug, d in decks.items():
-            cur.execute("INSERT INTO decks (slug, name, code, release_date, type) VALUES (%s, %s, %s, %s, %s)",
-                        (slug, d["name"], d["code"], d["date"], d["type"]))
+            cur.execute("""INSERT INTO decks (slug, name, code, release_date, type, source)
+                           VALUES (%s, %s, %s, %s, %s, %s)""",
+                        (slug, d["name"], d["code"], d["date"], d["type"], d["source"]))
             for oid, count, commander in d["cards"]:
                 if oid not in known:
                     missing += 1

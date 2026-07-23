@@ -246,6 +246,13 @@ CREATE TABLE IF NOT EXISTS decks (
     type         text NOT NULL DEFAULT ''
 );
 
+--where the decklist was published, which mtgjson carries for every deck: 179
+--of the 190 point at magic.wizards.com and the other 11 at mtg.wiki. for the
+--older sets it is that deck's own page, for recent ones it is the set's
+--announcement article carrying all four or five lists at once, so it is a
+--provenance link rather than a deep link and the page should not promise more
+ALTER TABLE decks ADD COLUMN IF NOT EXISTS source text NOT NULL DEFAULT '';
+
 --no originality column on purpose. the score is derived from cards.uniqueness,
 --which moves every time the embedding model changes, so a stored number would
 --quietly rot into a lie about a model that no longer exists. 166 decks by ~100

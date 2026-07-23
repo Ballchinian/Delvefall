@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+
+{% block title %}The deck lens - Delvefall{% endblock %}
+
+{% block metadesc %}Look at a Commander deck through what its cards actually do: which of them nothing else in Magic resembles, and which jobs the deck doubles up on. Starting with every preconstructed deck ranked by how original it is.{% endblock %}
+
+{% block content %}
+<div class="guide deck-hub">
+    <h1>The deck lens</h1>
+    <p>A lens over a decklist, not a deck builder. It reads what the cards <em>do</em> and
+    tells you something you would not get from a price total or a curve chart: which cards in
+    a deck are doing a job nothing else in Magic does, and which ones are covering ground the
+    deck already covers.</p>
+    <p class="deck-hub-promise">No accounts, nothing saved, nothing to sign up for.</p>
+
+    <h2>What you can look at now</h2>
+
+    <div class="deck-lens-sections">
+        <a class="deck-lens-card" href="/precons">
+            <span class="deck-lens-title">The most original precons</span>
+            <span class="deck-lens-body">Every preconstructed Commander deck ranked by how
+            unusual its cards are, measured against every card ever printed. {{ deck_count }}
+            decks, and the cards that earned each one its place.</span>
+            <span class="deck-lens-go">See the ranking &rarr;</span>
+        </a>
+    </div>
+
+    <h2>Where this is going</h2>
+    <p>The ranking above exists because a deck's score means nothing on its own. "0.24" is
+    not a sentence. <em>"More original than every precon but two"</em> is one, and saying it
+    needs a fair population to measure against: same size, same format, same brief. That is
+    what the precons are for, and it is the piece that had to come first.</p>
+    <p>What it makes possible is the same reading applied to a list you paste in, which is
+    the part being built now.</p>
+</div>
+{% endblock %}

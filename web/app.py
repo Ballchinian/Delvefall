@@ -1613,7 +1613,7 @@ rolled AS (
     SELECT deck_slug, avg(uniqueness) AS originality
     FROM scored WHERE n <= %s GROUP BY deck_slug
 )
-SELECT d.slug, d.name, d.code, d.release_date, r.originality,
+SELECT d.slug, d.name, d.code, d.release_date, d.source, r.originality,
        (SELECT array_agg(s.name ORDER BY s.n) FROM scored s
          WHERE s.deck_slug = d.slug AND s.n <= 3) AS drivers,
        (SELECT array_agg(c2.name ORDER BY c2.name) FROM deck_cards dc2
@@ -1640,6 +1640,15 @@ def precon_board():
             pass
         _precon_cache["at"] = time.time()
     return _precon_cache["rows"]
+
+
+@app.route("/deck")
+def deck():
+    #the lens's front door. it is one idea with several views, so the nav
+    #carries one item and this page routes into them, rather than a tab
+    #appearing every time a view ships. right now there is one view, and when
+    #the paste box lands it belongs HERE rather than beside this
+    return render_template("deck.html", deck_count=len(precon_board()))
 
 
 @app.route("/precons")
@@ -2296,7 +2305,7 @@ def sitemap():
     root = request.url_root
     out = ['<?xml version="1.0" encoding="UTF-8"?>',
            '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
-    for page in ("", "unique", "precons", "guide"):
+    for page in ("", "unique", "deck", "precons", "guide"):
         out.append("<url><loc>" + root + page + "</loc></url>")
     for name in _sitemap_names["names"]:
         #quote() with its defaults mirrors the urlencode filter building the

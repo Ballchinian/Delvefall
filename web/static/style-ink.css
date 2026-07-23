@@ -1319,6 +1319,72 @@ footer a { color: var(--teal); }
     max-width: 860px;
 }
 
+/* the hub the nav points at. one nav item for the whole lens, and this page
+   routes into its views, so shipping a second view costs a card here instead
+   of another tab in a header that already carries four */
+.deck-hub-promise {
+    color: var(--muted);
+    font-size: 14px;
+}
+
+.deck-lens-sections {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 14px;
+    margin: 14px 0 8px;
+}
+
+.deck-lens-card {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 16px 18px;
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    background: var(--panel);
+    text-decoration: none;
+    color: var(--text);
+}
+
+.deck-lens-card:hover {
+    background: var(--wash);
+    border-color: var(--line-strong);
+}
+
+.deck-lens-title {
+    font-family: var(--serif);
+    font-weight: 600;
+    font-size: 17px;
+}
+
+.deck-lens-body {
+    font-size: 14px;
+    color: var(--muted);
+    line-height: 1.45;
+}
+
+.deck-lens-go {
+    color: var(--teal);
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.precon-back {
+    margin: 0 0 4px;
+    font-size: 13px;
+}
+
+.precon-back a {
+    color: var(--teal);
+    text-decoration: none;
+}
+
+.precon-back a:hover { text-decoration: underline; }
+
+/* the outbound decklist link carries the site's box-and-arrow like every other
+   target=_blank, so it reads as leaving before it is clicked */
+.precon-source { white-space: nowrap; }
+
 /* the method note is collapsed by default. it is the page's credibility, but
    it is not what anyone came for, and open by default it pushed the actual
    board below the fold on a laptop */

@@ -61,7 +61,10 @@
                    both without anyone remembering the second copy #}
                 {% set nav_items %}
                     <a href="/unique">Unique cards</a>
-                    <a href="/precons">Precons</a>
+                    {# the lens is one idea with several views, so it gets one
+                       nav item and its own hub rather than a tab per view.
+                       /precons keeps its url, it is just reached from there #}
+                    <a href="/deck">Deck lens</a>
                     <a href="/guide">How it works</a>
                     {# leaves the site, so it carries the little box-and-arrow
                        (css, on target=_blank) and says so out loud for screen
