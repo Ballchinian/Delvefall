@@ -55,7 +55,7 @@
         <li class="precon-row">
             <div class="precon-place">{{ r.place }}</div>
             <div class="precon-main">
-                <div class="precon-name">{{ r.name }}</div>
+                <div class="precon-name"><a href="/precons/{{ r.slug }}">{{ r.name }}</a></div>
                 <div class="precon-sub">
                     {% if r.leaders %}
                         {# the commander identifies a precon to a player far better

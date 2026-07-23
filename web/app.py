@@ -1648,7 +1648,9 @@ def deck():
     #carries one item and this page routes into them, rather than a tab
     #appearing every time a view ships. right now there is one view, and when
     #the paste box lands it belongs HERE rather than beside this
-    return render_template("deck.html", deck_count=len(precon_board()))
+    board = precon_board()
+    return render_template("deck.html", deck_count=len(board),
+                           example=board[0] if board else None)
 
 
 @app.route("/precons")
@@ -1682,6 +1684,130 @@ def precons():
             r["fill"] = 8 + 92 * ((r["originality"] - floor) / span) if span else 100
     return render_template("precons.html", rows=rows, eras=PRECON_ERAS, era=era[0],
                            top_n=PRECON_TOP_N)
+
+
+#the idf weight from line_weight() written in sql, so the deck queries below
+#can rank inside postgres instead of hauling every pair back here. same curve:
+#nothing is punished until a line is on more than 5 cards, then it falls off
+#gently. it MUST stay in step with line_weight, which is why the python one is
+#the doc comment and this is the transcription
+LINE_WEIGHT_SQL = ("CASE WHEN coalesce(s.count, 1) <= 5 THEN 1.0"
+                   " ELSE 1.0 / (1.0 + log(coalesce(s.count, 1) / 5.0)) END")
+
+#every card in one deck, each against the closest thing in the SAME deck. it
+#is cards.uniqueness with the universe swapped from all 31k cards to the other
+#99 here, which is a different and more useful question on a decklist: not
+#"has anyone printed this before" but "does anything else in MY deck do this".
+#
+#at ~100 cards this is ~250 lines, so the all-pairs the ingest has to do in
+#numpy overnight is a 250x250 join here, 160-215ms measured against railway on
+#the wordiest precons. that is the whole reason the lens can be a page and not
+#a batch job.
+#
+#the weights are why the pairings are readable. unweighted, every top pair was
+#two lands sharing "This land enters tapped." (438 cards) or two rocks sharing
+#a mana ability (831): technically the nearest neighbour, useless as "these do
+#the same job". weighting both sides by the line's rarity buries all of it
+DECK_PAIRS_SQL = """
+WITH dl AS (
+    SELECT l.id, l.oracle_id, l.line_text, l.""" + EMBED_COL + """ AS embedding,
+           """ + LINE_WEIGHT_SQL + """ AS w
+    FROM lines l
+    JOIN deck_cards dc ON dc.oracle_id = l.oracle_id
+    LEFT JOIN line_stats s ON s.line_text = l.line_text
+    WHERE dc.deck_slug = %s AND NOT l.whole AND l.""" + EMBED_COL + """ IS NOT NULL
+),
+scored AS (
+    SELECT DISTINCT ON (a.id) a.id, a.oracle_id, a.line_text, b.oracle_id AS partner,
+           1 - (a.embedding <=> b.embedding) AS raw,
+           (1 - (a.embedding <=> b.embedding)) * a.w * b.w AS weighted
+    FROM dl a JOIN dl b ON b.oracle_id <> a.oracle_id
+    ORDER BY a.id, (1 - (a.embedding <=> b.embedding)) * a.w * b.w DESC
+),
+per_card AS (
+    SELECT DISTINCT ON (oracle_id) oracle_id, line_text, partner, raw, weighted
+    FROM scored ORDER BY oracle_id, weighted DESC
+)
+SELECT c.name, c.type_line, c.uniqueness AS global_u, c.oracle_id,
+       p.line_text, p.weighted, pc.name AS partner_name
+FROM per_card p
+JOIN cards c ON c.oracle_id = p.oracle_id
+LEFT JOIN cards pc ON pc.oracle_id = p.partner
+ORDER BY p.weighted DESC
+"""
+
+#how close two cards have to sit before the page says they do the same job.
+#0.75 was picked by reading the pairings on a dozen decks: above it they are
+#things like Nekusar/Spiteful Visions and Fog Bank/Guard Gomazoa, below it
+#they start being two cards that merely share a rider. the site's own result
+#gate is 70, and this is deliberately STRICTER, because there the user judges
+#a list and here the page is making the claim itself
+DECK_PAIR_CUT = 0.75
+
+#how many cards the detail page lists per section. enough to read as evidence,
+#short enough that nobody scrolls a 100 row table looking for the point
+DECK_SECTION = 12
+
+_deck_cache = {}
+
+
+def deck_detail(slug):
+    #cached per deck for an hour, same as the board. the numbers only move
+    #when the ingest reruns or the model changes, and the query is far too
+    #heavy to pay for on every visit
+    hit = _deck_cache.get(slug)
+    if hit and time.time() - hit["at"] < 3600:
+        return hit["rows"]
+    try:
+        with pool.connection() as conn:
+            rows = [dict(r) for r in conn.execute(DECK_PAIRS_SQL, (slug,)).fetchall()]
+    except Exception:
+        return []
+    _deck_cache[slug] = {"at": time.time(), "rows": rows}
+    return rows
+
+
+@app.route("/precons/<slug>")
+def precon(slug):
+    #one deck read through the lens. this is the view a PASTED list will get
+    #too, which is the point of building it here first: the precons are 166
+    #worked examples of what the paste box does, and the template is the same
+    #either way
+    board = precon_board()
+    place = None
+    deck_row = None
+    for i, r in enumerate(board, 1):
+        if r["slug"] == slug:
+            place, deck_row = i, r
+            break
+    if deck_row is None:
+        abort(404)
+
+    cards = deck_detail(slug)
+    #lands are excluded from every section for the same reason they are
+    #excluded from the score: a mana base is not what makes a deck a deck,
+    #and left in it fills both lists with duals that pair with other duals
+    spells = [c for c in cards if "Land" not in (c["type_line"] or "")]
+
+    #the two readings. one deck, one query, sorted twice: what nothing else
+    #here resembles, and what has an obvious partner in the list
+    original = sorted(spells, key=lambda c: -(c["global_u"] or 0))[:DECK_SECTION]
+    doubled = [c for c in spells if c["weighted"] >= DECK_PAIR_CUT][:DECK_SECTION]
+    #the pair list names both sides, so without this the same partnership
+    #prints twice facing opposite ways (Nekusar/Spiteful, Spiteful/Nekusar)
+    seen_pairs = set()
+    pairs = []
+    for c in doubled:
+        key = frozenset((c["name"], c["partner_name"]))
+        if key in seen_pairs:
+            continue
+        seen_pairs.add(key)
+        pairs.append(c)
+
+    year = deck_row["release_date"].year if deck_row["release_date"] else 0
+    return render_template("precon.html", deck=deck_row, place=place, total=len(board),
+                           year=year, original=original, pairs=pairs,
+                           counted=len(spells), top_n=PRECON_TOP_N)
 
 
 def card_json(c, currency):
@@ -2307,6 +2433,12 @@ def sitemap():
            '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
     for page in ("", "unique", "deck", "precons", "guide"):
         out.append("<url><loc>" + root + page + "</loc></url>")
+    #one page per precon. they are server rendered and each one is about a
+    #deck people search by name, so they are worth crawling. the slugs are
+    #mtgjson filenames (letters, digits and underscores) so nothing here
+    #needs escaping, but quote() runs anyway rather than trusting that
+    for r in precon_board():
+        out.append("<url><loc>" + root + "precons/" + quote(r["slug"]) + "</loc></url>")
     for name in _sitemap_names["names"]:
         #quote() with its defaults mirrors the urlencode filter building the
         #canonicals in search.html, so these are the urls the pages declare.

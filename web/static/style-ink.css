@@ -1369,6 +1369,153 @@ footer a { color: var(--teal); }
     font-weight: 600;
 }
 
+/* the deck name is the way in to its detail page, so it reads as ink rather
+   than as a link until hovered: 166 teal headings would turn the board into a
+   wall of link colour and bury the scores, which are what the page is for */
+.precon-name a {
+    color: inherit;
+    text-decoration: none;
+}
+
+.precon-name a:hover {
+    color: var(--teal);
+    text-decoration: underline;
+}
+
+/* ---- one deck through the lens. same page a pasted list will get ---- */
+
+.deck-detail-sub {
+    color: var(--muted);
+    font-size: 14px;
+    margin: 4px 0 16px;
+}
+
+.deck-detail-sub a { color: var(--teal); text-decoration: none; }
+.deck-detail-sub a:hover { text-decoration: underline; }
+
+/* the standing block: the rank is the headline because it is the part that
+   is a sentence, and the score sits next to it as the receipt */
+.deck-standing {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    background: var(--wash);
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    padding: 14px 18px;
+    margin-bottom: 8px;
+}
+
+.deck-standing-place {
+    flex: none;
+    text-align: center;
+    line-height: 1.05;
+}
+
+.deck-standing-figure {
+    display: block;
+    font-family: var(--serif);
+    font-size: 34px;
+    font-weight: 600;
+    color: var(--teal);
+}
+
+.deck-standing-of {
+    display: block;
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+.deck-standing-text {
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.deck-section-note {
+    color: var(--muted);
+    font-size: 13px;
+    margin: 4px 0 12px;
+}
+
+.deck-cards {
+    list-style: none;
+    margin: 0 0 8px;
+    padding: 0;
+    /* two columns where there is room: twelve card names in one column is a
+       lot of vertical scroll for what is meant to be a glance */
+    columns: 2;
+    column-gap: 24px;
+}
+
+.deck-card {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 5px 0;
+    border-bottom: 1px solid var(--line);
+    break-inside: avoid;
+}
+
+.deck-card-name {
+    color: var(--teal);
+    text-decoration: none;
+    min-width: 0;
+}
+
+.deck-card-name:hover { text-decoration: underline; }
+
+.deck-card-score {
+    flex: none;
+    font-variant-numeric: tabular-nums;
+    font-size: 13px;
+    color: var(--gold);
+}
+
+.deck-pairs {
+    list-style: none;
+    margin: 0 0 8px;
+    padding: 0;
+}
+
+.deck-pair {
+    padding: 7px 0;
+    border-bottom: 1px solid var(--line);
+}
+
+.deck-pair-cards a {
+    color: var(--teal);
+    text-decoration: none;
+}
+
+.deck-pair-cards a:hover { text-decoration: underline; }
+
+.deck-pair-join {
+    color: var(--muted);
+    margin: 0 4px;
+}
+
+/* the shared line is the evidence for the pairing, so it is quoted rather
+   than paraphrased. it wraps instead of truncating: a clipped rules line
+   reads as a bug, and these are short enough */
+.deck-pair-line {
+    display: block;
+    font-size: 12.5px;
+    color: var(--muted);
+    margin-top: 2px;
+}
+
+.deck-detail-foot {
+    color: var(--muted);
+    font-size: 12.5px;
+    margin-top: 18px;
+}
+
+@media (max-width: 560px) {
+    .deck-cards { columns: 1; }
+}
+
 .precon-back {
     margin: 0 0 4px;
     font-size: 13px;

@@ -23,6 +23,15 @@
             decks, and the cards that earned each one its place.</span>
             <span class="deck-lens-go">See the ranking &rarr;</span>
         </a>
+        {% if example %}
+        <a class="deck-lens-card" href="/precons/{{ example.slug }}">
+            <span class="deck-lens-title">One deck, read closely</span>
+            <span class="deck-lens-body">Every precon has its own page: the cards nothing
+            else in Magic resembles, and the pairs of cards covering the same ground.
+            {{ example.name }} is the most original of them.</span>
+            <span class="deck-lens-go">Open {{ example.name }} &rarr;</span>
+        </a>
+        {% endif %}
     </div>
 
     <h2>Where this is going</h2>
