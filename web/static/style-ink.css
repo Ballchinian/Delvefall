@@ -662,17 +662,33 @@ h2 {
     cursor: help;
 }
 
-/* the salt score, third on the price row. it is NOT printed on every card:
-   the scores are so skewed (median 0.24) that a number on every result would
-   be noise, so it only appears above the 95th percentile and its presence is
-   the message. that is why it can afford a colour where the rank cannot,
-   and why the mark comes with it: a bare "1.5" next to a price and a #rank
-   needs to say what kind of number it is before it says anything else */
+/* the salt score, third on the price row. printed on every card that has one,
+   so a missing mark means nobody voted rather than "below a bar you cannot
+   see". plain ink by default, like the price: the number is the reading, and
+   colour is reserved for a verdict.
+   the mark earns its place because a bare "0.24" next to a price and a #rank
+   has to say what KIND of number it is before it says anything else */
 .result-salt {
-    color: var(--gold);
+    color: var(--muted);
     margin-left: 8px;
     cursor: help;
     white-space: nowrap;
+}
+
+/* colour goes ONE WAY only, and that is deliberate. red for a card notably
+   saltier than the one you searched is a fact about two numbers. green for a
+   milder one would be the site saying a card is nicer to play against, which
+   is an opinion the score cannot support, and the same reason the play-rate
+   arrow carries no colour at all. milder cards get the arrow and stay quiet */
+.result-salt.saltier { color: var(--gold); }
+
+.result-salt.much-saltier { color: #b3352a; }
+
+/* matches the price and rank arrows: heavier than the number so the direction
+   survives at 13px whether or not any colour applies */
+.salt-vs {
+    margin-left: 2px;
+    font-weight: 700;
 }
 
 /* the shaker itself, masked from the text colour so it inherits whatever the

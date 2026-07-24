@@ -153,15 +153,17 @@ function render(c) {
             rank.textContent = c.rank;
             price.appendChild(rank);
         }
-        //the salt filter rides in on the shared filter panel, so this page can
-        //narrow by a number it would otherwise never print. same bar as the
-        //search results: only the saltiest 5% say anything
+        //no colour and no arrow here, unlike the search results. those carry a
+        //verdict because there IS a card to compare against, the one you
+        //searched; this page deals one card at a time with nothing beside it,
+        //so a red number would have to mean "salty in the abstract", and the
+        //site does not otherwise use colour to grade a card on its own
         if (c.salt) {
             var salt = document.createElement("span");
             salt.className = "result-salt";
             salt.title = "salt " + c.salt + " out of about 3, from edhrec's salt survey, " +
                 "where players vote on the cards they least enjoy facing. " +
-                "only shown on the saltiest 5% of cards";
+                "the median card scores 0.24 and only 2% pass 1.0";
             var mark = document.createElement("i");
             mark.className = "salt-mark";
             mark.setAttribute("aria-hidden", "true");

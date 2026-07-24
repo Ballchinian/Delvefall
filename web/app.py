@@ -567,21 +567,13 @@ def rank_label(rank):
     return "#" + str(rank) if rank is not None else ""
 
 
-#a card only wears the salt mark once it clears this. the scores are heavily
-#skewed (median 0.24, p90 0.57, p95 0.74) so printing every card's salt would
-#put a meaningless 0.2 on 95% of results and teach people to ignore the mark.
-#0.75 is the 95th percentile, 1522 cards: at that bar the mark APPEARING is
-#the message, and it is rare enough to still mean something when it does
-SALT_SHOW = 0.75
-
-
 def salt_label(salt):
-    #one decimal, because the survey's own precision does not survive a second
-    #one: the gap between 1.46 and 1.44 is noise in a poll, and the number is
-    #being read at a glance next to a price
-    if salt is None or salt < SALT_SHOW:
-        return ""
-    return "%.1f" % salt
+    #on EVERY card that has a score, not just the salty ones: the number is
+    #only useful if its absence means "nobody voted" rather than "below some
+    #bar you cannot see". two decimals to match the deck pages, and because
+    #most of the pool lives between 0.07 and 0.38 where one decimal collapses
+    #half the range into "0.2"
+    return "" if salt is None else "%.2f" % salt
 
 
 CURRENCY_SIGNS = {"usd": "$", "eur": "€", "gbp": "£"}
@@ -916,7 +908,7 @@ def tier_cut(blend):
 
 def read_sort():
     s = request.args.get("sort", "")
-    if s not in ("cheap", "pricey", "played", "obscure", "new", "old"):
+    if s not in ("cheap", "pricey", "played", "obscure", "new", "old", "salty", "mild"):
         s = "best"
     return s
 
@@ -1127,6 +1119,33 @@ def rank_verdict(rank, anchor):
     return "more-played" if rank < anchor else "less-played"
 
 
+#salt is judged on the GAP alone, no ratio test. price needs one because 25p
+#against 10p is 2.5x and nobody would call it much more expensive, but salt is
+#an average of votes rather than an amount of something: 0.1 against 0.2 is
+#double and means nothing, while half a point is half a point wherever it
+#lands. the pool's whole interquartile range is 0.31, so 0.4 is a gap wider
+#than the middle half of every card in the game, and 0.1 is the point below
+#which two cards are just the same card
+SALT_BAND = 0.1
+SALT_MUCH_GAP = 0.4
+
+
+def salt_verdict(salt, anchor):
+    #which side of the searched card this one sits on for annoyance. only the
+    #SALTIER side ever earns colour, deliberately: colouring "much milder"
+    #green would be the site saying a card is nicer to play against, which is
+    #an opinion, where "saltier than the card you searched" is a fact about
+    #two numbers. same reason the play-rate arrow has no colour at all
+    if anchor is None or salt is None:
+        return ""
+    diff = salt - anchor
+    if abs(diff) < SALT_BAND:
+        return ""
+    if diff < 0:
+        return "milder"
+    return "much-saltier" if diff >= SALT_MUCH_GAP else "saltier"
+
+
 #everything under the cut used to be one undivided pile that the sorts ran
 #over whole, which made "cheapest first" useless the moment you opened it: the
 #cheapest card in a pile that reaches down to 0% is a 0% card, so the sort
@@ -1153,7 +1172,8 @@ def band_words(step):
 
 
 def find_similar(oracle_id, picked, filters, min_pct, sort, offset=0, how_many=20, band=None, blend=0.0,
-                 currency="usd", dropped=(), forced=(), anchor_price=None, anchor_rank=None):
+                 currency="usd", dropped=(), forced=(), anchor_price=None, anchor_rank=None,
+                 anchor_salt=None):
     #every candidate card keeps all its matching line pairs now instead of
     #just the best one, so results can show "+2 more matching lines".
     #
@@ -1165,6 +1185,7 @@ def find_similar(oracle_id, picked, filters, min_pct, sort, offset=0, how_many=2
     prices = {}         #other card's oracle_id -> price in the chosen currency, for the price sorts
     ranks = {}          #other card's oracle_id -> edhrec rank, for the played sorts
     dates = {}          #other card's oracle_id -> first printing's date, for the newest sort
+    salts = {}          #other card's oracle_id -> edhrec salt score, for the salt sorts
     where, fparams = filter_sql(filters)
     #the column the price sorts read, matching the currency the page prints
     pcol = price_col(currency)
@@ -1210,7 +1231,7 @@ def find_similar(oracle_id, picked, filters, min_pct, sort, offset=0, how_many=2
         #same rows in the same order, and only the ingest changes the graph
         with pool.connection() as c:
             return c.execute("""
-                SELECT l.oracle_id, l.line_text, l.face, 1 - (l.""" + EMBED_COL + """ <=> %s) AS sim, """ + pcol + """ AS price, c.edhrec_rank, c.released_at
+                SELECT l.oracle_id, l.line_text, l.face, 1 - (l.""" + EMBED_COL + """ <=> %s) AS sim, """ + pcol + """ AS price, c.edhrec_rank, c.released_at, c.salt
                 FROM lines l JOIN cards c ON c.oracle_id = l.oracle_id
                 WHERE l.oracle_id <> %s AND NOT l.whole AND l.""" + EMBED_COL + """ IS NOT NULL""" + where + """
                 ORDER BY l.""" + EMBED_COL + """ <=> %s
@@ -1238,6 +1259,7 @@ def find_similar(oracle_id, picked, filters, min_pct, sort, offset=0, how_many=2
             prices[m["oracle_id"]] = m["price"]
             ranks[m["oracle_id"]] = m["edhrec_rank"]
             dates[m["oracle_id"]] = m["released_at"]
+            salts[m["oracle_id"]] = m["salt"]
 
     with pool.connection() as conn:
         #sort each card's pairs so pairs[0] is its best one, then rank the
@@ -1383,6 +1405,23 @@ def find_similar(oracle_id, picked, filters, min_pct, sort, offset=0, how_many=2
             flip = -1 if sort == "new" else 1
             dated.sort(key=lambda x: (flip * dates[x[0]].toordinal(), -gate_score(x)))
             wanted = dated + undated
+        elif sort in ("salty", "mild"):
+            #a card nobody voted on has no salt, which is not the same as
+            #being mild, so it sinks on BOTH directions rather than being
+            #claimed as the least annoying card in the results. same call the
+            #price and date sorts make about their own missing values.
+            #.get because concept-found cards never went through the line
+            #scan that fills these maps
+            salted = []
+            unsalted = []
+            for entry in wanted:
+                if salts.get(entry[0]) is None:
+                    unsalted.append(entry)
+                else:
+                    salted.append(entry)
+            flip = -1 if sort == "salty" else 1
+            salted.sort(key=lambda x: (flip * float(salts[x[0]]), -gate_score(x)))
+            wanted = salted + unsalted
 
         has_more = len(wanted) > offset + how_many
         page = wanted[offset:offset + how_many]
@@ -1476,6 +1515,7 @@ def find_similar(oracle_id, picked, filters, min_pct, sort, offset=0, how_many=2
         #both tooltips name the card being compared against
         price_vs = price_verdict(price_in(c, currency), anchor_price)
         rank_vs = rank_verdict(c["edhrec_rank"], anchor_rank)
+        salt_vs = salt_verdict(c["salt"], anchor_salt)
         #a match that lives on the back face shows that side first, so the
         #line printed under the card is on the picture the user is looking
         #at (the ulvenwald lesson). the front face keeps the flip button
@@ -1508,11 +1548,8 @@ def find_similar(oracle_id, picked, filters, min_pct, sort, offset=0, how_many=2
             "price_vs": price_vs,
             "rank": rank_label(c["edhrec_rank"]),
             "rank_vs": rank_vs,
-            #no arrow for salt. price and rank compare against the anchor
-            #because "cheaper than what you searched" is the question people
-            #came with; nobody is looking for a card that annoys people
-            #slightly less than another one, so the number stands alone
             "salt": salt_label(c["salt"]),
+            "salt_vs": salt_vs,
             "more_count": len(more),
             "more_text": "\n".join(more),
         })
@@ -1573,7 +1610,10 @@ def search():
     #result's arrows are measured against these, so they have to be visible
     card["price"] = price_label(card, filters["cur"])
     card["rank"] = rank_label(card["edhrec_rank"])
-    card["salt"] = salt_label(card["salt"])
+    #under its own key, NOT over card["salt"]: the raw number is what every
+    #result is compared against below, and price and rank each keep their
+    #source column for the same reason
+    card["salt_text"] = salt_label(card["salt"])
     blend = read_blend()
     min_pct = tier_cut(blend)
     sort = read_sort()
@@ -1591,7 +1631,8 @@ def search():
                                                 blend=BLEND_WEIGHTS[blend], currency=filters["cur"],
                                                 dropped=dropped, forced=forced,
                                                 anchor_price=price_in(card, filters["cur"]),
-                                                anchor_rank=card["edhrec_rank"])
+                                                anchor_rank=card["edhrec_rank"],
+                                                anchor_salt=card["salt"])
     resp = make_response(render_template("search.html", query=query, card=card, card_lines=card_lines,
                                          picked_count=len(picked), results=results, has_more=has_more,
                                          next_band=next_band, min_pct=min_pct, errors=filters["errors"],
@@ -2344,7 +2385,8 @@ def more():
                                                 band=band, blend=BLEND_WEIGHTS[blend], currency=filters["cur"],
                                                 dropped=read_dropped(), forced=read_forced(),
                                                 anchor_price=price_in(card, filters["cur"]),
-                                                anchor_rank=card["edhrec_rank"])
+                                                anchor_rank=card["edhrec_rank"],
+                                                anchor_salt=card["salt"])
     return {"results": results, "has_more": has_more, "next_band": next_band}
 
 
