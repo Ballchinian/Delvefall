@@ -923,9 +923,9 @@ SORT_FIELDS = {
     "played": {"label": "Play rate", "default": "desc",
                "asc": ("obscure", "least played first"),
                "desc": ("played", "most played first")},
-    "age":    {"label": "Age", "default": "desc",
-               "asc": ("old", "oldest first"),
-               "desc": ("new", "newest first")},
+    "released": {"label": "Release date", "default": "desc",
+                 "asc": ("old", "oldest first"),
+                 "desc": ("new", "newest first")},
     "salt":   {"label": "Salt", "default": "desc",
                "asc": ("mild", "least salty first"),
                "desc": ("salty", "saltiest first")},
@@ -937,8 +937,11 @@ SORT_FIELDS = {
 SORT_LEGACY = {
     "cheap": ("price", "asc"), "pricey": ("price", "desc"),
     "played": ("played", "desc"), "obscure": ("played", "asc"),
-    "new": ("age", "desc"), "old": ("age", "asc"),
+    "new": ("released", "desc"), "old": ("released", "asc"),
     "salty": ("salt", "desc"), "mild": ("salt", "asc"),
+    #the release-date field was briefly called age, before the label and the
+    #url were made to agree with each other
+    "age": ("released", "desc"),
 }
 
 

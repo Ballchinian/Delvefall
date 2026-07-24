@@ -72,7 +72,7 @@
                 {% if card.price or card.rank or card.salt_text %}
                 <p class="anchor-figures">
                     {% if card.price %}<span class="anchor-price" title="the cheapest paper printing of {{ card.name }} in any finish, from scryfall. digital, oversized and gold border versions don't count. every price arrow below is measured against this number">{{ card.price }}</span>{% endif %}
-                    {% if card.rank %}<span class="result-rank" title="edhrec rank, 1 is the most played card in commander. every play-rate arrow below is measured against this number">{{ card.rank }}</span>{% endif %}
+                    {% if card.rank %}<span class="result-rank" title="play rate: edhrec's rank for how often this card is played in commander, where #1 is the most played card in the format. every play-rate arrow below is measured against this number">{{ card.rank }}</span>{% endif %}
                     {% if card.salt_text %}<span class="result-salt" title="salt {{ card.salt_text }} out of about 3, from edhrec's salt survey, where players vote on the cards they least enjoy facing. this is the one number here that is an opinion rather than a measurement. every salt mark below is measured against this one"><i class="salt-mark" aria-hidden="true"></i>{{ card.salt_text }}</span>{% endif %}
                     <span class="anchor-note">what the arrows below compare against</span>
                 </p>
@@ -244,7 +244,7 @@
                     <button class="report-flag" data-id="{{ r.oracle_id }}" data-name="{{ r.name }}" title="shouldn't be here? report this as a bad match">?</button>
                 </div>
                 <div class="result-name">{{ r.name }} <span class="percent{% if r.concept_only %} concept{% endif %}"{% if r.blended %} title="rules text {{ r.mech_pct }}%, concepts {{ r.concept_pct }}%, evenly blended"{% endif %}>{{ r.percent }}%</span></div>
-                {% if r.price or r.rank or r.salt %}<div class="result-price"><span class="price-figure {{ r.price_vs }}"{% if r.price_vs %} title="{{ r.price_vs.replace('-', ' ') }} than {{ card.name }} at {{ card.price }}"{% endif %}>{{ r.price }}{% if r.price_vs %}<span class="price-vs">{{ '↓' if 'cheaper' in r.price_vs else '↑' }}</span>{% endif %}</span>{% if r.rank %}<span class="result-rank" title="edhrec rank, 1 is the most played card in commander">{{ r.rank }}{% if r.rank_vs %}<span class="rank-vs" title="{{ 'more' if r.rank_vs == 'more-played' else 'less' }} played than {{ card.name }} at {{ card.rank }}">{{ '↑' if r.rank_vs == 'more-played' else '↓' }}</span>{% endif %}</span>{% endif %}{% if r.salt %}<span class="result-salt {{ r.salt_vs }}"{% if r.salt_vs %} title="{{ r.salt_vs.replace('-', ' ').replace('milder', 'less salty') }} than {{ card.name }} at {{ card.salt_text }}"{% else %} title="salt {{ r.salt }} out of about 3, from edhrec's salt survey, where players vote on the cards they least enjoy facing"{% endif %}><i class="salt-mark" aria-hidden="true"></i>{{ r.salt }}{% if r.salt_vs %}<span class="salt-vs">{{ '↓' if 'milder' in r.salt_vs else '↑' }}</span>{% endif %}</span>{% endif %}</div>{% endif %}
+                {% if r.price or r.rank or r.salt %}<div class="result-price"><span class="price-figure {{ r.price_vs }}"{% if r.price_vs %} title="{{ r.price_vs.replace('-', ' ') }} than {{ card.name }} at {{ card.price }}"{% endif %}>{{ r.price }}{% if r.price_vs %}<span class="price-vs">{{ '↓' if 'cheaper' in r.price_vs else '↑' }}</span>{% endif %}</span>{% if r.rank %}<span class="result-rank" title="play rate: edhrec's rank for how often this card is played in commander, where #1 is the most played card in the format">{{ r.rank }}{% if r.rank_vs %}<span class="rank-vs" title="{{ 'more' if r.rank_vs == 'more-played' else 'less' }} played than {{ card.name }} at {{ card.rank }}">{{ '↑' if r.rank_vs == 'more-played' else '↓' }}</span>{% endif %}</span>{% endif %}{% if r.salt %}<span class="result-salt {{ r.salt_vs }}"{% if r.salt_vs %} title="{{ r.salt_vs.replace('-', ' ').replace('milder', 'less salty') }} than {{ card.name }} at {{ card.salt_text }}"{% else %} title="salt {{ r.salt }} out of about 3, from edhrec's salt survey, where players vote on the cards they least enjoy facing"{% endif %}><i class="salt-mark" aria-hidden="true"></i>{{ r.salt }}{% if r.salt_vs %}<span class="salt-vs">{{ '↓' if 'milder' in r.salt_vs else '↑' }}</span>{% endif %}</span>{% endif %}</div>{% endif %}
                 {% if r.their_line %}
                 <div class="match-line" title="matches your card's line: {{ r.our_line }}{% if r.matched_back %} (printed on the back face, shown here){% endif %}">"{{ r.their_line | mana }}"</div>
                 {% endif %}
@@ -446,7 +446,8 @@
                 }
                 if (r.rank) {
                     var rank = el("span", "result-rank", price, r.rank);
-                    rank.title = "edhrec rank, 1 is the most played card in commander";
+                    rank.title = "play rate: edhrec's rank for how often this card is played in " +
+                        "commander, where #1 is the most played card in the format";
                     if (r.rank_vs) {
                         el("span", "rank-vs", rank, r.rank_vs == "more-played" ? "↑" : "↓")
                             .title = (r.rank_vs == "more-played" ? "more" : "less") + " played than " +

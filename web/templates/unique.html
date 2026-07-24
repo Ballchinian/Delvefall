@@ -149,7 +149,8 @@ function render(c) {
         if (c.rank) {
             var rank = document.createElement("span");
             rank.className = "result-rank";
-            rank.title = "edhrec rank, 1 is the most played card in commander";
+            rank.title = "play rate: edhrec's rank for how often this card is played in " +
+                        "commander, where #1 is the most played card in the format";
             rank.textContent = c.rank;
             price.appendChild(rank);
         }
