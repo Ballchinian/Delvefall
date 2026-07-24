@@ -1,17 +1,27 @@
 {% extends "base.html" %}
 
-{% block title %}The most original Commander precons - Delvefall{% endblock %}
+{% set salty = sort == 'salt' %}
 
-{% block metadesc %}Every preconstructed Commander deck ranked by how original its cards are, measured against every Magic card ever printed. See which precons play cards nothing else in the game resembles, and which are built from the format's usual suspects.{% endblock %}
+{% block title %}{{ 'The saltiest' if salty else 'The most original' }} Commander precons - Delvefall{% endblock %}
+
+{% block metadesc %}{% if salty %}Every preconstructed Commander deck ranked by how much its cards annoy people, from EDHREC's salt survey. See which precons are built on the cards players least enjoy facing.{% else %}Every preconstructed Commander deck ranked by how original its cards are, measured against every Magic card ever printed. See which precons play cards nothing else in the game resembles, and which are built from the format's usual suspects.{% endif %}{% endblock %}
 
 {% block content %}
 <div class="guide precons">
     <p class="precon-back"><a href="/deck">&larr; The deck lens</a></p>
+    {% if salty %}
+    <h1>The saltiest Commander precons</h1>
+    <p>Every preconstructed Commander deck, ranked by how much its cards annoy people.
+    This is the one ranking here built on <strong>opinion rather than measurement</strong>:
+    it comes from <a href="https://edhrec.com/top/salt" target="_blank" rel="noopener">EDHREC's
+    salt survey</a>, where players vote on the cards they least enjoy facing.</p>
+    {% else %}
     <h1>The most original Commander precons</h1>
     <p>Every preconstructed Commander deck, ranked by how unusual its cards are. Not how
     strong, not how expensive, and not how popular: <strong>how little the rest of Magic
     looks like it</strong>. A card scores high here when nothing else in the game does what
     it does.</p>
+    {% endif %}
 
     {% if not rows %}
     <p class="precon-empty">The deck list hasn't been built yet. It arrives with the next
@@ -19,10 +29,25 @@
     {% else %}
 
     {# the honest bit. a leaderboard that won't say what it measured is a
-       leaderboard nobody should believe, and the recency effect is real
-       enough that someone would spot it and assume it was being hidden #}
+       leaderboard nobody should believe, and both of these have an effect in
+       them that someone would spot and assume was being hidden #}
     <details class="precon-method">
         <summary>How this is measured, and what it doesn't measure</summary>
+        {% if salty %}
+        <p>Every card carries a salt score from EDHREC's annual survey, 0 to about 3. A
+        deck's score is the <strong>sum across its cards</strong>, so a deck is salty by
+        holding many mildly annoying cards or a few very annoying ones.</p>
+        <p><strong>Basic lands are left out, and nothing else is.</strong> Not because the
+        votes on them are wrong, but because counting them measures how a mana base was
+        built rather than how a deck plays: counting one of each charged five colour decks
+        for being five colours, counting every copy charged mono decks for running thirty
+        Islands. The distortion flipped direction with the choice, which is how you know it
+        belonged to the arithmetic and not to the decks. Every other land counts, including
+        Gaea's Cradle and The Tabernacle at Pendrell Vale.</p>
+        <p><strong>Protest votes count.</strong> The scores are used exactly as voted.
+        Filtering the ones that look unserious would mean overriding the poll with our own
+        taste, and then it would stop measuring what it says it measures.</p>
+        {% else %}
         <p>Every card carries an originality score: one minus how close its closest match
         anywhere else in Magic gets. A deck's score is the average of its <strong>{{ top_n }}
         most original nonland cards</strong>. Averaging all 100 instead just measures the
@@ -35,20 +60,34 @@
         2011 has had fifteen years of imitators, and being imitated is the opposite of being
         unique. The ranking still separates decks inside a single era, which is what the
         era buttons are for.</p>
+        {% endif %}
     </details>
+
+    {# both controls keep the other's choice, so picking an era does not throw
+       away the sort and the other way round #}
+    <nav class="precon-eras" aria-label="rank by">
+        {% for key, label, fkey, dkey, dlabel, dp in sorts %}
+            {% if key == sort %}
+                <span class="precon-era on" aria-current="true">{{ label }}</span>
+            {% else %}
+                <a class="precon-era" href="/precons?sort={{ key }}{{ '' if era == 'all' else '&era=' ~ era }}">{{ label }}</a>
+            {% endif %}
+        {% endfor %}
+    </nav>
 
     <nav class="precon-eras" aria-label="filter by era">
         {% for key, label, lo, hi in eras %}
             {% if key == era %}
                 <span class="precon-era on" aria-current="true">{{ label }}</span>
             {% else %}
-                <a class="precon-era" href="/precons{{ '' if key == 'all' else '?era=' ~ key }}">{{ label }}</a>
+                <a class="precon-era" href="/precons?era={{ key }}{{ '' if sort == 'original' else '&sort=' ~ sort }}">{{ label }}</a>
             {% endif %}
         {% endfor %}
     </nav>
 
     <p class="precon-count">{{ rows|length }} deck{{ '' if rows|length == 1 else 's' }},
-    most original first. Collector's editions are folded into the deck they reprint.</p>
+    {{ 'saltiest' if salty else 'most original' }} first. Collector's editions are folded
+    into the deck they reprint.</p>
 
     <ol class="precon-board">
         {% for r in rows %}
@@ -76,18 +115,20 @@
                         aria-label="official decklist for {{ r.name }} (opens in a new tab)">official decklist</a>
                     {% endif %}
                 </div>
-                {% if r.drivers %}
-                <div class="precon-drivers"><span class="precon-drivers-label">Most original cards:</span>
-                    {% for d in r.drivers %}<a href="/search?q={{ d | urlencode }}">{{ d }}</a>{{ '' if loop.last else ', ' }}{% endfor %}
+                {% if r.cards %}
+                {# whichever number the board is sorted by, this is the cards
+                   that made it, so the ranking can always be checked #}
+                <div class="precon-drivers"><span class="precon-drivers-label">{{ sort_label }}:</span>
+                    {% for d in r.cards %}<a href="/search?q={{ d | urlencode }}">{{ d }}</a>{{ '' if loop.last else ', ' }}{% endfor %}
                 </div>
                 {% endif %}
             </div>
             <div class="precon-score">
-                <div class="precon-figure">{{ '%.3f'|format(r.originality) }}</div>
+                <div class="precon-figure">{{ ('%.' ~ decimals ~ 'f')|format(r.figure) }}</div>
                 {# the bar is the comparison, the number is the receipt. width is
                    relative to the decks currently on screen, which is why the
                    top row is always full and the bottom row always a stub #}
-                <div class="precon-bar"><span style="width: {{ '%.1f'|format(r.fill) }}%"></span></div>
+                <div class="precon-bar{{ ' precon-bar-salt' if salty }}"><span style="width: {{ '%.1f'|format(r.fill) }}%"></span></div>
             </div>
         </li>
         {% endfor %}

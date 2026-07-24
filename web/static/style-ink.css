@@ -1750,6 +1750,12 @@ footer a { color: var(--teal); }
     border-radius: 999px;
 }
 
+/* the salt board is the same rows carrying a different number, so its bars
+   run gold instead of teal. that matches the deck pages, where salt is the
+   gold figure and originality the teal one, and it means a glance at the page
+   says which of the two rankings is on screen */
+.precon-bar-salt span { background: var(--gold); }
+
 /* on a phone the score column stops being a column and sits under the name,
    because 120px of bar plus three card names in 360px is unreadable */
 @media (max-width: 560px) {

@@ -1601,6 +1601,46 @@ PRECON_ERAS = [
     ("recent", "2023 on", 2023, 9999),
 ]
 
+#BASIC lands are left out of the salt tally, and nothing else is. this is not
+#a judgement about the votes: the salt on Island is real data about how
+#players feel about Island, and it stays untouched in the database. it is that
+#a DECK-LEVEL SUM cannot use it fairly, because how many basics a deck holds
+#is a fact about its mana base, not about how annoying it is to play against.
+#
+#measured over the 166 precons, and the giveaway is that the distortion runs
+#in OPPOSITE DIRECTIONS depending on an arbitrary choice of arithmetic:
+#
+#  counting distinct cards  r = +0.29 against the number of basic land types
+#  counting every copy      r = -0.15 against the same thing
+#
+#so a five colour deck was being charged salt for being five colours, and
+#under the other rule a mono deck was charged for running thirty Islands.
+#nothing about either is a property of the deck. basics were 11% of the
+#average total distinct, 30% counting copies, all of it noise.
+#
+#BASIC only, never lands in general. The Tabernacle at Pendrell Vale (2.68),
+#Gaea's Cradle (2.17), Glacial Chasm (1.99) and Strip Mine (1.48) are among
+#the saltiest cards in the game and they stay counted.
+SALT_SKIP_BASICS = True
+
+
+def is_basic_land(type_line):
+    #'Basic Land - Island' and 'Basic Snow Land - Forest', but NOT the one
+    #'Basic Creature - Shapeshifter' in the card pool, which is why this asks
+    #for both words rather than just the first
+    t = type_line or ""
+    return t.startswith("Basic") and "Land" in t
+
+
+#the same rule as is_basic_land, for the queries that aggregate in postgres.
+#it and the python one have to agree or a deck's tally would disagree with the
+#board it is ranked against
+SALT_BASIC_SQL = "(c.type_line LIKE 'Basic%%' AND c.type_line LIKE '%%Land%%')"
+
+#one query, both numbers. originality is the mean of the top N nonland
+#uniqueness scores; salt is the plain sum over everything the rule above
+#leaves in. each carries its own top 3 cards, because whichever column the
+#board is sorted by, the row should show what MADE that number
 PRECON_SQL = """
 WITH scored AS (
     SELECT dc.deck_slug, c.name, c.uniqueness,
@@ -1613,16 +1653,39 @@ WITH scored AS (
 rolled AS (
     SELECT deck_slug, avg(uniqueness) AS originality
     FROM scored WHERE n <= %s GROUP BY deck_slug
+),
+salted AS (
+    SELECT dc.deck_slug, c.name, c.salt,
+           row_number() OVER (PARTITION BY dc.deck_slug ORDER BY c.salt DESC) AS sn
+    FROM deck_cards dc
+    JOIN cards c ON c.oracle_id = dc.oracle_id
+    WHERE c.salt IS NOT NULL""" + (" AND NOT " + SALT_BASIC_SQL if SALT_SKIP_BASICS else "") + """
+),
+salt_rolled AS (
+    SELECT deck_slug, sum(salt) AS salt FROM salted GROUP BY deck_slug
 )
 SELECT d.slug, d.name, d.code, d.release_date, d.source, r.originality,
+       sr.salt,
        (SELECT array_agg(s.name ORDER BY s.n) FROM scored s
          WHERE s.deck_slug = d.slug AND s.n <= 3) AS drivers,
+       (SELECT array_agg(s2.name ORDER BY s2.sn) FROM salted s2
+         WHERE s2.deck_slug = d.slug AND s2.sn <= 3) AS salt_drivers,
        (SELECT array_agg(c2.name ORDER BY c2.name) FROM deck_cards dc2
           JOIN cards c2 ON c2.oracle_id = dc2.oracle_id
          WHERE dc2.deck_slug = d.slug AND dc2.is_commander) AS leaders
-FROM decks d JOIN rolled r ON r.deck_slug = d.slug
+FROM decks d
+JOIN rolled r ON r.deck_slug = d.slug
+LEFT JOIN salt_rolled sr ON sr.deck_slug = d.slug
 ORDER BY r.originality DESC, d.name
 """
+
+#what the board can be ranked by. each entry is the key, the button label, the
+#row key holding the number, the row key holding its top cards, the label for
+#the list under each row, and how many decimals the figure wants
+PRECON_SORTS = [
+    ("original", "Most original", "originality", "drivers", "Most original cards", 3),
+    ("salt", "Saltiest", "salt", "salt_drivers", "Saltiest cards", 1),
+]
 
 #same shape as the seed cache: the board is identical for everyone and only
 #moves when the ingest reruns, so it is worth an hour of not asking. the
@@ -1663,28 +1726,40 @@ def precons():
     want = request.args.get("era", "all")
     era = next((e for e in PRECON_ERAS if e[0] == want), PRECON_ERAS[0])
     _, _, lo, hi = era
+    #an unknown sort falls back to originality rather than 404ing, same as
+    #every other url reader here
+    swant = request.args.get("sort", "original")
+    sort = next((s for s in PRECON_SORTS if s[0] == swant), PRECON_SORTS[0])
+    skey, driver_key = sort[2], sort[3]
 
     rows = []
     for r in precon_board():
         year = r["release_date"].year if r["release_date"] else 0
         if lo is not None and not (lo <= year <= hi):
             continue
-        rows.append(dict(r, year=year))
+        #a deck with no salt at all cannot be placed on a salt board, and
+        #sorting None against floats would raise rather than degrade
+        if r.get(skey) is None:
+            continue
+        rows.append(dict(r, year=year, figure=float(r[skey]),
+                         cards=r.get(driver_key) or []))
+    rows.sort(key=lambda r: (-r["figure"], r["name"]))
 
     #the bar under each score is relative to the cut on screen, not to the
     #whole board: inside one era the spread is narrower, and a bar that only
     #ever fills a third of the way says nothing about which deck is which
     if rows:
-        top = max(r["originality"] for r in rows)
-        floor = min(r["originality"] for r in rows)
+        top = max(r["figure"] for r in rows)
+        floor = min(r["figure"] for r in rows)
         span = top - floor
         for i, r in enumerate(rows, 1):
             r["place"] = i
             #every bar keeps a visible stub, or the last row reads as a
             #missing value rather than as the least original deck
-            r["fill"] = 8 + 92 * ((r["originality"] - floor) / span) if span else 100
+            r["fill"] = 8 + 92 * ((r["figure"] - floor) / span) if span else 100
     return render_template("precons.html", rows=rows, eras=PRECON_ERAS, era=era[0],
-                           top_n=PRECON_TOP_N)
+                           sorts=PRECON_SORTS, sort=sort[0], sort_label=sort[4],
+                           decimals=sort[5], top_n=PRECON_TOP_N)
 
 
 #the idf weight from line_weight() written in sql, so the deck queries below
@@ -1822,70 +1897,12 @@ def originality_of(cards):
 #and this is what it is MADE of, which is the part anyone can act on
 SALT_SECTION = 10
 
-#BASIC lands are left out of the tally, and nothing else is. this is not a
-#judgement about the votes: the salt on Island is real data about how players
-#feel about Island, and it stays untouched in the database. it is that a
-#DECK-LEVEL SUM cannot use it fairly, because how many basics a deck holds is
-#a fact about its mana base, not about how annoying it is to play against.
-#
-#measured over the 166 precons, and the giveaway is that the distortion runs
-#in OPPOSITE DIRECTIONS depending on an arbitrary choice of arithmetic:
-#
-#  counting distinct cards  r = +0.29 against the number of basic land types
-#  counting every copy      r = -0.15 against the same thing
-#
-#so a five colour deck was being charged salt for being five colours, and
-#under the other rule a mono deck was charged for running thirty Islands.
-#nothing about either is a property of the deck. basics were 11% of the
-#average total distinct, 30% counting copies, all of it noise.
-#
-#BASIC only, never lands in general. The Tabernacle at Pendrell Vale (2.68),
-#Gaea's Cradle (2.17), Glacial Chasm (1.99) and Strip Mine (1.48) are among
-#the saltiest cards in the game and they stay counted.
-SALT_SKIP_BASICS = True
-
-
-def is_basic_land(type_line):
-    #'Basic Land - Island' and 'Basic Snow Land - Forest', but NOT the one
-    #'Basic Creature - Shapeshifter' in the card pool, which is why this asks
-    #for both words rather than just the first
-    t = type_line or ""
-    return t.startswith("Basic") and "Land" in t
-
-
-#every precon's salt total, so one deck's tally has something to stand
-#against. "31.4 salt" is not a sentence any more than "0.24 originality" was,
-#and the precons are the same fair population for this: 100 singleton cards
-#each, built to the same brief. the LIST is what is cached, the standing is
-#read off it
-_salt_board = {"at": 0.0, "totals": []}
-
-
-def salt_board():
-    if time.time() - _salt_board["at"] > 3600:
-        try:
-            with pool.connection() as conn:
-                #mirrors deck_salt: distinct cards, and the same basics rule,
-                #or a pasted deck would be measured against a board scored by
-                #different arithmetic
-                skip = " AND NOT (c.type_line LIKE 'Basic%%' AND c.type_line LIKE '%%Land%%')" if SALT_SKIP_BASICS else ""
-                rows = conn.execute("""
-                    SELECT dc.deck_slug, sum(c.salt) AS total
-                    FROM deck_cards dc JOIN cards c ON c.oracle_id = dc.oracle_id
-                    WHERE c.salt IS NOT NULL""" + skip + """
-                    GROUP BY dc.deck_slug ORDER BY total DESC
-                """).fetchall()
-            _salt_board["totals"] = [float(r["total"]) for r in rows]
-        except Exception:
-            pass
-        _salt_board["at"] = time.time()
-    return _salt_board["totals"]
-
 
 def salt_standing(total):
     #how many precons this deck is SALTIER than, plus the population size, so
-    #the page can say it in words rather than printing a bare number
-    totals = salt_board()
+    #the page can say it in words rather than printing a bare number. reads
+    #the one board rather than keeping a second cache of the same decks
+    totals = [r["salt"] for r in precon_board() if r["salt"] is not None]
     if not totals:
         return None
     return {"saltier_than": sum(1 for t in totals if t < total), "total": len(totals)}
