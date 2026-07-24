@@ -1822,17 +1822,27 @@ def originality_of(cards):
 #and this is what it is MADE of, which is the part anyone can act on
 SALT_SECTION = 10
 
-#the database stores a salt score for every card including lands, because
-#ingest/salt.py does not judge. whether to leave any of them out is a question
-#for THIS layer, and right now the answer is no, everything counts.
+#BASIC lands are left out of the tally, and nothing else is. this is not a
+#judgement about the votes: the salt on Island is real data about how players
+#feel about Island, and it stays untouched in the database. it is that a
+#DECK-LEVEL SUM cannot use it fairly, because how many basics a deck holds is
+#a fact about its mana base, not about how annoying it is to play against.
 #
-#when it is switched on it drops BASIC lands only, never lands in general.
-#The Tabernacle at Pendrell Vale (2.68), Gaea's Cradle (2.17), Glacial Chasm
-#(1.99) and Strip Mine (1.48) are genuinely among the saltiest cards in the
-#game, and throwing out every land to be rid of the basics would lose them.
-#the basics are the ones carrying protest votes (Island 0.92 against Sol Ring
-#1.46), and they arrive 37 to a deck
-SALT_SKIP_BASICS = False
+#measured over the 166 precons, and the giveaway is that the distortion runs
+#in OPPOSITE DIRECTIONS depending on an arbitrary choice of arithmetic:
+#
+#  counting distinct cards  r = +0.29 against the number of basic land types
+#  counting every copy      r = -0.15 against the same thing
+#
+#so a five colour deck was being charged salt for being five colours, and
+#under the other rule a mono deck was charged for running thirty Islands.
+#nothing about either is a property of the deck. basics were 11% of the
+#average total distinct, 30% counting copies, all of it noise.
+#
+#BASIC only, never lands in general. The Tabernacle at Pendrell Vale (2.68),
+#Gaea's Cradle (2.17), Glacial Chasm (1.99) and Strip Mine (1.48) are among
+#the saltiest cards in the game and they stay counted.
+SALT_SKIP_BASICS = True
 
 
 def is_basic_land(type_line):

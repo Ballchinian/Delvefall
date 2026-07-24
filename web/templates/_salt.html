@@ -25,9 +25,13 @@ rules text tells you how a table feels about a card.</p>
                 <strong>Saltier than {{ salt_rank.saltier_than }} of the
                 {{ salt_rank.total }} Commander precons.</strong>
             {% endif %}
-            Counted across every card in the list, lands included.
+            Counted across every card in the list except basic lands, which measure
+            how a mana base was built rather than how the deck plays. Every other
+            land counts.
         {% else %}
-            Counted across every card in the list, lands included.
+            Counted across every card in the list except basic lands, which measure
+            how a mana base was built rather than how the deck plays. Every other
+            land counts.
         {% endif %}
     </div>
 </div>
