@@ -49,9 +49,16 @@
         taste, and then it would stop measuring what it says it measures.</p>
         {% else %}
         <p>Every card carries an originality score: one minus how close its closest match
-        anywhere else in Magic gets. A deck's score is the average of its <strong>{{ top_n }}
-        most original nonland cards</strong>. Averaging all 100 instead just measures the
-        mana base and the removal package, which every deck shares.</p>
+        anywhere else in Magic gets. A deck's score is the average of its <strong>most
+        original {{ depth_label|lower }} of nonland cards</strong> &mdash; a share of each
+        deck rather than a fixed number, so a deck holding 53 nonland cards and one holding
+        66 are each judged on the same slice of themselves.</p>
+        <p><strong>Reading deeper does not make it more accurate.</strong> Precons differ
+        mostly in their unusual cards; the rest is the mana base and the removal package
+        everyone shares, so adding them pulls every deck toward the same middle. The spread
+        between first and last falls from 0.143 at a third to 0.103 using every card. The
+        ends of the board hardly move at all &mdash; the same deck is first, and the same
+        five are last, at every setting.</p>
         <p><strong>It is not measuring how good or how expensive a deck is.</strong> Against
         the decks' median EDHREC rank the correlation is r&nbsp;=&nbsp;-0.05, which is
         nothing. Original and popular turn out to be unrelated.</p>
@@ -63,14 +70,23 @@
         {% endif %}
     </details>
 
-    {# both controls keep the other's choice, so picking an era does not throw
-       away the sort and the other way round #}
+    {# every control keeps the other two, so picking one never silently throws
+       away the others. built as one query string per link rather than three
+       nested conditionals #}
+    {% macro board_url(s, e, d) -%}
+    /precons{% set parts = [] %}
+    {%- if s != 'original' %}{% set _ = parts.append('sort=' ~ s) %}{% endif %}
+    {%- if e != 'all' %}{% set _ = parts.append('era=' ~ e) %}{% endif %}
+    {%- if d != 'third' %}{% set _ = parts.append('depth=' ~ d) %}{% endif %}
+    {{- '?' ~ parts|join('&') if parts else '' -}}
+    {%- endmacro %}
+
     <nav class="precon-eras" aria-label="rank by">
         {% for key, label, fkey, dkey, dlabel, dp in sorts %}
             {% if key == sort %}
                 <span class="precon-era on" aria-current="true">{{ label }}</span>
             {% else %}
-                <a class="precon-era" href="/precons?sort={{ key }}{{ '' if era == 'all' else '&era=' ~ era }}">{{ label }}</a>
+                <a class="precon-era" href="{{ board_url(key, era, depth)|trim }}">{{ label }}</a>
             {% endif %}
         {% endfor %}
     </nav>
@@ -80,10 +96,25 @@
             {% if key == era %}
                 <span class="precon-era on" aria-current="true">{{ label }}</span>
             {% else %}
-                <a class="precon-era" href="/precons?era={{ key }}{{ '' if sort == 'original' else '&sort=' ~ sort }}">{{ label }}</a>
+                <a class="precon-era" href="{{ board_url(sort, key, depth)|trim }}">{{ label }}</a>
             {% endif %}
         {% endfor %}
     </nav>
+
+    {# only meaningful while ranking by originality: salt is a plain sum over
+       the whole deck, so there is no depth to read it at #}
+    {% if not salty %}
+    <nav class="precon-eras precon-depths" aria-label="how deep to read each deck">
+        <span class="precon-depth-label">Read:</span>
+        {% for key, label, value in depths %}
+            {% if key == depth %}
+                <span class="precon-era on" aria-current="true">{{ label }}</span>
+            {% else %}
+                <a class="precon-era" href="{{ board_url(sort, era, key)|trim }}">{{ label }}</a>
+            {% endif %}
+        {% endfor %}
+    </nav>
+    {% endif %}
 
     <p class="precon-count">{{ rows|length }} deck{{ '' if rows|length == 1 else 's' }},
     {{ 'saltiest' if salty else 'most original' }} first. Collector's editions are folded

@@ -1584,9 +1584,32 @@ def unique():
 
 #a deck is original because of its WEIRDEST cards, not its average card. the
 #mean over a whole list is dominated by the mana base and the removal suite
-#that every deck shares: measured over the 166 precons it squashed the spread
-#between first and last to 0.071, against 0.146 for the top 20
-PRECON_TOP_N = 20
+#that every deck shares, and it squashes the spread between first and last
+#from 0.143 to 0.103.
+#
+#a FRACTION of each deck rather than a fixed count, because precons hold 53 to
+#66 nonland cards and a fixed top 20 scored a small deck on 38% of itself
+#against a big one's 30%. worse, the gap grew with the count: at top 50 a
+#53 card deck had to include nearly all its weak tail while a 66 card deck
+#dropped its worst 16, and bigger decks scored higher for it (r=+0.34 against
+#deck size, against +0.26 at top 20). a fraction is size independent by
+#construction and takes that to +0.19.
+#
+#a third lands at 20.3 cards on the average precon, so the board it produces
+#is the one that was there before, just distributed fairly
+PRECON_TOP_FRAC = 1.0 / 3.0
+
+#how deep the board can be read, for the curious. the default is first.
+#raising it does NOT make the number more accurate, which is worth knowing
+#before reaching for it: every step costs discrimination (spread 0.143 at a
+#third, 0.103 using everything) because the cards being added are the ones
+#every deck shares. the ranking itself barely moves, the ends not at all
+PRECON_DEPTHS = [
+    ("third", "Top third", 1.0 / 3.0),
+    ("half", "Top half", 0.5),
+    ("threequarters", "Top three quarters", 0.75),
+    ("all", "Every card", 1.0),
+]
 
 #the eras the leaderboard can be cut down to. originality correlates with
 #release year at r=+0.46, partly because design space genuinely fills up (an
@@ -1644,15 +1667,19 @@ SALT_BASIC_SQL = "(c.type_line LIKE 'Basic%%' AND c.type_line LIKE '%%Land%%')"
 PRECON_SQL = """
 WITH scored AS (
     SELECT dc.deck_slug, c.name, c.uniqueness,
-           row_number() OVER (PARTITION BY dc.deck_slug ORDER BY c.uniqueness DESC) AS n
+           row_number() OVER (PARTITION BY dc.deck_slug ORDER BY c.uniqueness DESC) AS n,
+           count(*) OVER (PARTITION BY dc.deck_slug) AS held
     FROM deck_cards dc
     JOIN cards c ON c.oracle_id = dc.oracle_id
     WHERE c.uniqueness IS NOT NULL
       AND c.type_line NOT LIKE '%%Land%%'
 ),
 rolled AS (
+    --the fraction becomes a per-deck count here, so every deck is scored on
+    --the same share of itself. greatest(1, ...) so a deck of one card still
+    --gets a score rather than dividing by nothing
     SELECT deck_slug, avg(uniqueness) AS originality
-    FROM scored WHERE n <= %s GROUP BY deck_slug
+    FROM scored WHERE n <= greatest(1, round(held * %s)) GROUP BY deck_slug
 ),
 salted AS (
     SELECT dc.deck_slug, c.name, c.salt,
@@ -1690,20 +1717,22 @@ PRECON_SORTS = [
 #same shape as the seed cache: the board is identical for everyone and only
 #moves when the ingest reruns, so it is worth an hour of not asking. the
 #query costs ~130ms against railway, which is too much to pay per visit and
-#nothing to pay once
-_precon_cache = {"at": 0.0, "rows": []}
+#nothing to pay once. keyed by depth, and only the four in PRECON_DEPTHS can
+#ever get in, so the url cannot grow this without bound
+_precon_cache = {}
 
 
-def precon_board():
-    if time.time() - _precon_cache["at"] > 3600:
-        try:
-            with pool.connection() as conn:
-                rows = conn.execute(PRECON_SQL, (PRECON_TOP_N,)).fetchall()
-            _precon_cache["rows"] = [dict(r) for r in rows]
-        except Exception:
-            pass
-        _precon_cache["at"] = time.time()
-    return _precon_cache["rows"]
+def precon_board(frac=PRECON_TOP_FRAC):
+    hit = _precon_cache.get(frac)
+    if hit and time.time() - hit["at"] < 3600:
+        return hit["rows"]
+    try:
+        with pool.connection() as conn:
+            rows = [dict(r) for r in conn.execute(PRECON_SQL, (frac,)).fetchall()]
+    except Exception:
+        return hit["rows"] if hit else []
+    _precon_cache[frac] = {"at": time.time(), "rows": rows}
+    return rows
 
 
 @app.route("/deck")
@@ -1731,9 +1760,13 @@ def precons():
     swant = request.args.get("sort", "original")
     sort = next((s for s in PRECON_SORTS if s[0] == swant), PRECON_SORTS[0])
     skey, driver_key = sort[2], sort[3]
+    #how deep to read each deck. only the listed keys resolve, so the cache
+    #cannot be grown from the url
+    dwant = request.args.get("depth", "third")
+    depth = next((d for d in PRECON_DEPTHS if d[0] == dwant), PRECON_DEPTHS[0])
 
     rows = []
-    for r in precon_board():
+    for r in precon_board(depth[2]):
         year = r["release_date"].year if r["release_date"] else 0
         if lo is not None and not (lo <= year <= hi):
             continue
@@ -1759,7 +1792,8 @@ def precons():
             r["fill"] = 8 + 92 * ((r["figure"] - floor) / span) if span else 100
     return render_template("precons.html", rows=rows, eras=PRECON_ERAS, era=era[0],
                            sorts=PRECON_SORTS, sort=sort[0], sort_label=sort[4],
-                           decimals=sort[5], top_n=PRECON_TOP_N)
+                           decimals=sort[5], depths=PRECON_DEPTHS, depth=depth[0],
+                           depth_label=depth[1])
 
 
 #the idf weight from line_weight() written in sql, so the deck queries below
@@ -1883,14 +1917,18 @@ def lens_sections(cards):
     return spells, original, pairs
 
 
-def originality_of(cards):
+def originality_of(cards, frac=PRECON_TOP_FRAC):
     #the same number the leaderboard ranks on, so a pasted list and a precon
-    #are measured identically: the mean of the top N nonland scores
-    vals = sorted((c["global_u"] or 0) for c in cards
-                  if "Land" not in (c["type_line"] or ""))
-    vals.reverse()
-    vals = vals[:PRECON_TOP_N]
-    return sum(vals) / len(vals) if vals else 0.0
+    #are measured identically: the mean of the top FRACTION of nonland cards.
+    #a fraction rather than a count matters more here than on the board,
+    #because a pasted list can be any size at all
+    vals = sorted(((c["global_u"] or 0) for c in cards
+                   if "Land" not in (c["type_line"] or "")), reverse=True)
+    if not vals:
+        return 0.0
+    keep = max(1, round(len(vals) * frac))
+    vals = vals[:keep]
+    return sum(vals) / len(vals)
 
 
 #how many of the deck's salt sources the page names. the total is the headline
@@ -1962,7 +2000,7 @@ def precon(slug):
     year = deck_row["release_date"].year if deck_row["release_date"] else 0
     return render_template("precon.html", deck=deck_row, place=place, total=len(board),
                            year=year, original=original, pairs=pairs,
-                           counted=len(spells), top_n=PRECON_TOP_N,
+                           counted=len(spells),
                            salt_total=salt_total, salt_cards=salt_cards,
                            salt_rank=salt_standing(salt_total))
 
@@ -1993,12 +2031,13 @@ DECK_MAX_CARDS = 250
 #rejected without walking it
 DECK_MAX_CHARS = 60000
 
-#below this many nonland cards the precon comparison is not offered. the score
-#is a mean of the top PRECON_TOP_N, so a list shorter than that is averaging
-#fewer numbers than every deck it would be ranked against and the comparison
-#is not like for like. the SECTIONS still work on any number of cards, they
-#are statements about the list itself rather than about where it stands
-DECK_MIN_FOR_RANK = PRECON_TOP_N
+#below this many nonland cards the precon comparison is not offered. scoring
+#on a FRACTION means a short list is at least measured on the same share of
+#itself as the decks it is ranked against, so this is no longer about unequal
+#counts. it is about noise: a third of a six card list is two cards, and a
+#two card mean says nothing about a deck. the SECTIONS still work at any size,
+#being statements about the list itself rather than about where it stands
+DECK_MIN_FOR_RANK = 20
 
 
 def deck_norm(name):
@@ -2120,8 +2159,7 @@ def deck_read():
                            counted=len(spells), matched=len(ids), missing=missing,
                            score=score, beaten=beaten, total=len(board),
                            ranked=ranked, min_cards=DECK_MIN_FOR_RANK,
-                           top_n=PRECON_TOP_N, salt_total=salt_total,
-                           salt_cards=salt_cards,
+                           salt_total=salt_total, salt_cards=salt_cards,
                            salt_rank=salt_standing(salt_total) if ranked else None)
 
 

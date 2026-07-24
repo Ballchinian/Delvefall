@@ -1658,6 +1658,15 @@ footer a { color: var(--teal); }
     color: var(--paper);
 }
 
+/* the depth row carries a label, since "Top third" on its own does not say
+   what it is the top third OF */
+.precon-depths { align-items: center; }
+
+.precon-depth-label {
+    font-size: 13px;
+    color: var(--muted);
+}
+
 .precon-count {
     color: var(--muted);
     font-size: 13px;
