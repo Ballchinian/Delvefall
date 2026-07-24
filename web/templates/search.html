@@ -149,17 +149,26 @@
             {% include "_filters.html" %}
             {# sort and apply ride the extra filters line, out of the filter
                box's way, where the sort list has room for its options #}
+            {# WHAT to sort by and WHICH END first, as two controls. one list of
+               nine was mostly the same four ideas written twice, and the pair
+               reads the way scryfall's does, which is the sort control this
+               audience has already learned.
+               the direction's wording belongs to the field ("cheapest first",
+               "saltiest first"), so its options are rendered for the field on
+               screen and the script below rewrites them when the field
+               changes. with no javascript they are simply correct on arrival,
+               which is the state that matters since Apply is doing the work #}
             <span class="filter-actions">
                 <select name="sort" aria-label="sort results by">
-                    <option value="best">Best match</option>
-                    <option value="cheap" {% if request.args.get('sort') == 'cheap' %}selected{% endif %}>Price: low to high</option>
-                    <option value="pricey" {% if request.args.get('sort') == 'pricey' %}selected{% endif %}>Price: high to low</option>
-                    <option value="played" {% if request.args.get('sort') == 'played' %}selected{% endif %}>Most played</option>
-                    <option value="obscure" {% if request.args.get('sort') == 'obscure' %}selected{% endif %}>Least played</option>
-                    <option value="new" {% if request.args.get('sort') == 'new' %}selected{% endif %}>Newest first</option>
-                    <option value="old" {% if request.args.get('sort') == 'old' %}selected{% endif %}>Oldest first</option>
-                    <option value="salty" {% if request.args.get('sort') == 'salty' %}selected{% endif %}>Saltiest first</option>
-                    <option value="mild" {% if request.args.get('sort') == 'mild' %}selected{% endif %}>Least salty first</option>
+                    {% for key, spec in sort_fields.items() %}
+                    <option value="{{ key }}" {% if key == sort_field %}selected{% endif %}>{{ spec.label }}</option>
+                    {% endfor %}
+                </select>
+                {% set spec = sort_fields[sort_field] %}
+                <select name="dir" aria-label="which end first" class="sort-dir"
+                    {% if not spec.asc %}hidden disabled{% endif %}>
+                    <option value="asc" {% if sort_dir == 'asc' %}selected{% endif %}>{{ spec.asc[1] if spec.asc }}</option>
+                    <option value="desc" {% if sort_dir == 'desc' %}selected{% endif %}>{{ spec.desc[1] if spec.desc }}</option>
                 </select>
                 <button type="submit">Apply</button>
             </span>
@@ -221,8 +230,9 @@
            best-match, for the price sorts and for the date sorts, the last
            because a release date is not on the row at all and the price is
            still the number being scanned #}
-        {% set sort_now = request.args.get('sort') %}
-        <div class="card-grid{% if sort_now in ('salty', 'mild') %} focus-salt{% elif sort_now in ('played', 'obscure') %} focus-rank{% endif %}">
+        {# off the RESOLVED field, not the raw url: ?sort=salty from an old
+           link and ?sort=salt&dir=desc from the control are the same page #}
+        <div class="card-grid{% if sort_field == 'salt' %} focus-salt{% elif sort_field == 'played' %} focus-rank{% endif %}">
             {% for r in results %}
             <div class="result">
                 {# the ? in the picture's corner is the misplaced-card report,
@@ -292,13 +302,49 @@
         */
         var KEEP_BAND = "delvefall_keep_band";
 
-        document.querySelector('.filter-bar select[name="sort"]').onchange = function() {
+        /*
+            the two sort controls. the direction's wording belongs to whatever
+            field is picked, so changing the field rewrites its options and
+            resets it to that field's natural end (cheapest for money, saltiest
+            for salt) rather than carrying over a direction chosen for
+            something else. best match has no direction at all and hides it.
+
+            picking a field applies immediately, the same as the old single
+            list did. changing only the direction applies too: it is the same
+            question asked backwards, and waiting for Apply to reverse a list
+            is the friction the auto-submit exists to avoid
+        */
+        var SORT_DIRS = {{ sort_fields | tojson }};
+        var sortSel = document.querySelector('.filter-bar select[name="sort"]');
+        var dirSel = document.querySelector('.filter-bar select[name="dir"]');
+
+        function applySort(el) {
             if (band !== null) {
                 try {
                     sessionStorage.setItem(KEEP_BAND, band);
                 } catch (e) {}
             }
-            this.form.requestSubmit();
+            el.form.requestSubmit();
+        }
+
+        sortSel.onchange = function() {
+            var spec = SORT_DIRS[this.value] || {};
+            if (!spec.asc) {
+                //no direction to offer, and disabled so it stays out of the url
+                dirSel.hidden = true;
+                dirSel.disabled = true;
+            } else {
+                dirSel.options[0].textContent = spec.asc[1];
+                dirSel.options[1].textContent = spec.desc[1];
+                dirSel.value = spec["default"] || "desc";
+                dirSel.hidden = false;
+                dirSel.disabled = false;
+            }
+            applySort(this);
+        };
+
+        dirSel.onchange = function() {
+            applySort(this);
         };
 
         /*

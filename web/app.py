@@ -906,11 +906,63 @@ def tier_cut(blend):
     return 70 if 0 < blend < len(BLEND_WEIGHTS) - 1 else 80
 
 
+#the sort is a FIELD plus a DIRECTION rather than one entry per combination.
+#as one list it had grown to nine options, and half of them were the same idea
+#backwards: "price low to high" and "price high to low" are not two things to
+#choose between, they are one thing and a switch. scryfall splits them the
+#same way, which is the control this audience already knows.
+#
+#asc/desc read as the CONCEPT named in the label, not as the column underneath:
+#ascending play rate is least played, even though it is descending edhrec rank.
+#nobody sees the words asc and desc, they see the sentence in the option
+SORT_FIELDS = {
+    "best":   {"label": "Best match"},
+    "price":  {"label": "Price", "default": "asc",
+               "asc": ("cheap", "cheapest first"),
+               "desc": ("pricey", "priciest first")},
+    "played": {"label": "Play rate", "default": "desc",
+               "asc": ("obscure", "least played first"),
+               "desc": ("played", "most played first")},
+    "age":    {"label": "Age", "default": "desc",
+               "asc": ("old", "oldest first"),
+               "desc": ("new", "newest first")},
+    "salt":   {"label": "Salt", "default": "desc",
+               "asc": ("mild", "least salty first"),
+               "desc": ("salty", "saltiest first")},
+}
+
+#every value the sort took before the split. old links and old bookmarks still
+#carry them, and they cost one dict to keep working forever. note that "played"
+#is deliberately in both vocabularies and means the same thing in each
+SORT_LEGACY = {
+    "cheap": ("price", "asc"), "pricey": ("price", "desc"),
+    "played": ("played", "desc"), "obscure": ("played", "asc"),
+    "new": ("age", "desc"), "old": ("age", "asc"),
+    "salty": ("salt", "desc"), "mild": ("salt", "asc"),
+}
+
+
+def read_sort_parts():
+    #the two controls' values, which is what the page renders from
+    field = request.args.get("sort", "best")
+    direction = request.args.get("dir", "")
+    if direction not in ("asc", "desc"):
+        direction = ""
+    if field in SORT_LEGACY:
+        was_field, was_dir = SORT_LEGACY[field]
+        #an explicit direction still wins, so flipping the toggle on a page
+        #reached from an old link does what it looks like it does
+        return was_field, (direction or was_dir)
+    if field not in SORT_FIELDS:
+        field = "best"
+    return field, (direction or SORT_FIELDS[field].get("default", "desc"))
+
+
 def read_sort():
-    s = request.args.get("sort", "")
-    if s not in ("cheap", "pricey", "played", "obscure", "new", "old", "salty", "mild"):
-        s = "best"
-    return s
+    #the single key the ranking code has always spoken
+    field, direction = read_sort_parts()
+    pair = SORT_FIELDS[field].get(direction)
+    return pair[0] if pair else "best"
 
 
 def read_currency():
@@ -1621,6 +1673,7 @@ def search():
     blend = read_blend()
     min_pct = tier_cut(blend)
     sort = read_sort()
+    sort_field, sort_dir = read_sort_parts()
     card_lines, picked = build_lines(card, read_picked())
     dropped = read_dropped()
     forced = read_forced()
@@ -1643,7 +1696,9 @@ def search():
                                          blend=blend, cur=filters["cur"], types=CARD_TYPES,
                                          tag_chips=chips, dropped_count=sum(1 for c in chips if c["state"] == "off"),
                                          aside_count=sum(1 for c in chips if c["state"] == "aside"),
-                                         line_tags_on=LINE_TAGS))
+                                         line_tags_on=LINE_TAGS,
+                                         sort_fields=SORT_FIELDS, sort_field=sort_field,
+                                         sort_dir=sort_dir, sort_key=sort))
     #the blend cookie is gone with the slider. it is actively DELETED rather
     #than left alone, or anyone who moved the slider before today keeps a
     #stale preference in their browser forever, invisible and doing nothing
