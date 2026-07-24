@@ -1818,6 +1818,97 @@ def originality_of(cards):
     return sum(vals) / len(vals) if vals else 0.0
 
 
+#how many of the deck's salt sources the page names. the total is the headline
+#and this is what it is MADE of, which is the part anyone can act on
+SALT_SECTION = 10
+
+#the database stores a salt score for every card including lands, because
+#ingest/salt.py does not judge. whether to leave any of them out is a question
+#for THIS layer, and right now the answer is no, everything counts.
+#
+#when it is switched on it drops BASIC lands only, never lands in general.
+#The Tabernacle at Pendrell Vale (2.68), Gaea's Cradle (2.17), Glacial Chasm
+#(1.99) and Strip Mine (1.48) are genuinely among the saltiest cards in the
+#game, and throwing out every land to be rid of the basics would lose them.
+#the basics are the ones carrying protest votes (Island 0.92 against Sol Ring
+#1.46), and they arrive 37 to a deck
+SALT_SKIP_BASICS = False
+
+
+def is_basic_land(type_line):
+    #'Basic Land - Island' and 'Basic Snow Land - Forest', but NOT the one
+    #'Basic Creature - Shapeshifter' in the card pool, which is why this asks
+    #for both words rather than just the first
+    t = type_line or ""
+    return t.startswith("Basic") and "Land" in t
+
+
+#every precon's salt total, so one deck's tally has something to stand
+#against. "31.4 salt" is not a sentence any more than "0.24 originality" was,
+#and the precons are the same fair population for this: 100 singleton cards
+#each, built to the same brief. the LIST is what is cached, the standing is
+#read off it
+_salt_board = {"at": 0.0, "totals": []}
+
+
+def salt_board():
+    if time.time() - _salt_board["at"] > 3600:
+        try:
+            with pool.connection() as conn:
+                #mirrors deck_salt: distinct cards, and the same basics rule,
+                #or a pasted deck would be measured against a board scored by
+                #different arithmetic
+                skip = " AND NOT (c.type_line LIKE 'Basic%%' AND c.type_line LIKE '%%Land%%')" if SALT_SKIP_BASICS else ""
+                rows = conn.execute("""
+                    SELECT dc.deck_slug, sum(c.salt) AS total
+                    FROM deck_cards dc JOIN cards c ON c.oracle_id = dc.oracle_id
+                    WHERE c.salt IS NOT NULL""" + skip + """
+                    GROUP BY dc.deck_slug ORDER BY total DESC
+                """).fetchall()
+            _salt_board["totals"] = [float(r["total"]) for r in rows]
+        except Exception:
+            pass
+        _salt_board["at"] = time.time()
+    return _salt_board["totals"]
+
+
+def salt_standing(total):
+    #how many precons this deck is SALTIER than, plus the population size, so
+    #the page can say it in words rather than printing a bare number
+    totals = salt_board()
+    if not totals:
+        return None
+    return {"saltier_than": sum(1 for t in totals if t < total), "total": len(totals)}
+
+
+def deck_salt(oracle_ids):
+    #the salt tally: what this pile of cards is worth on edhrec's annoyance
+    #poll. its own query rather than a read off the lens rows, because the
+    #lens only sees cards with rules LINES and a basic land has none, so half
+    #a mana base would silently go missing from a total that claims to count
+    #everything.
+    #
+    #counted per DISTINCT card, not per copy. salt is how much a card annoys
+    #the table and nine Islands are not nine times the annoyance of one, and
+    #it is also the only way this can agree with the pasted path, which drops
+    #counts on the way in
+    if not oracle_ids:
+        return 0.0, []
+    try:
+        with pool.connection() as conn:
+            rows = conn.execute("""
+                SELECT name, salt, type_line FROM cards
+                WHERE oracle_id = ANY(%s::uuid[]) AND salt IS NOT NULL
+                ORDER BY salt DESC
+            """, ([str(o) for o in oracle_ids],)).fetchall()
+    except Exception:
+        return 0.0, []
+    if SALT_SKIP_BASICS:
+        rows = [r for r in rows if not is_basic_land(r["type_line"])]
+    total = sum(r["salt"] or 0 for r in rows)
+    return total, [dict(r) for r in rows[:SALT_SECTION]]
+
+
 @app.route("/precons/<slug>")
 def precon(slug):
     #one deck read through the lens. this is the view a PASTED list will get
@@ -1835,10 +1926,18 @@ def precon(slug):
         abort(404)
 
     spells, original, pairs = lens_sections(deck_detail(slug))
+    #the salt tally reads the WHOLE deck, not the lens rows: it counts lands,
+    #and a basic land has no rules lines to appear in the lens with
+    with pool.connection() as conn:
+        ids = [r["oracle_id"] for r in
+               conn.execute("SELECT oracle_id FROM deck_cards WHERE deck_slug = %s", (slug,)).fetchall()]
+    salt_total, salt_cards = deck_salt(ids)
     year = deck_row["release_date"].year if deck_row["release_date"] else 0
     return render_template("precon.html", deck=deck_row, place=place, total=len(board),
                            year=year, original=original, pairs=pairs,
-                           counted=len(spells), top_n=PRECON_TOP_N)
+                           counted=len(spells), top_n=PRECON_TOP_N,
+                           salt_total=salt_total, salt_cards=salt_cards,
+                           salt_rank=salt_standing(salt_total))
 
 
 #----- the paste box: someone else's decklist, read through the same lens -----
@@ -1987,11 +2086,16 @@ def deck_read():
     ranked = len(spells) >= DECK_MIN_FOR_RANK
     score = originality_of(cards) if ranked else 0.0
     beaten = sum(1 for r in board if r["originality"] < score) if ranked else 0
+    #the tally counts the whole pasted list, lands included, off the ids
+    #rather than the lens rows for the same reason the precon page does
+    salt_total, salt_cards = deck_salt(ids)
     return render_template("deck_read.html", original=original, pairs=pairs,
                            counted=len(spells), matched=len(ids), missing=missing,
                            score=score, beaten=beaten, total=len(board),
                            ranked=ranked, min_cards=DECK_MIN_FOR_RANK,
-                           top_n=PRECON_TOP_N)
+                           top_n=PRECON_TOP_N, salt_total=salt_total,
+                           salt_cards=salt_cards,
+                           salt_rank=salt_standing(salt_total) if ranked else None)
 
 
 def card_json(c, currency):

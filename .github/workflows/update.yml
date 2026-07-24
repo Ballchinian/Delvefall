@@ -47,6 +47,14 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           PYTHONUNBUFFERED: "1"
 
+      #edhrec's salt survey, the one opinion in the database. same gate-and-skip
+      #pattern, its own meta key so it and the deck ingest cannot skip each
+      #other. the survey runs yearly so most days this updates nothing
+      - run: python -m ingest.salt
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          PYTHONUNBUFFERED: "1"
+
       #the precon decklists, the population a pasted deck's originality gets
       #compared against. same gate-and-skip pattern again, keyed on mtgjson's
       #version rather than scryfall's timestamp. needs the cards table filled

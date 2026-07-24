@@ -1509,6 +1509,11 @@ footer a { color: var(--teal); }
     line-height: 1.5;
 }
 
+/* salt gets its own colour so it never reads as another originality score.
+   the two numbers sit in identical blocks and mean completely different
+   things, one measured and one voted on */
+.salt-standing .deck-standing-figure { color: var(--gold); }
+
 .deck-section-note {
     color: var(--muted);
     font-size: 13px;

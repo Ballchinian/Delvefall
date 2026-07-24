@@ -1,0 +1,44 @@
+{# the salt tally, shared by the precon page and the pasted one so the two can
+   never drift apart. every other number on these pages is derived from what a
+   card DOES; this one is what players think of facing it, and the copy says so
+   because a number that is an opinion should not be presented as a measurement #}
+{% if salt_cards %}
+<h2>Salt</h2>
+<p class="deck-section-note">How much this deck annoys people, from
+<a href="https://edhrec.com/top/salt" target="_blank" rel="noopener">EDHREC's salt survey</a>,
+where players vote on the cards they least enjoy facing. This is the one number here that
+is an opinion rather than a measurement, which is the point of it: no amount of reading
+rules text tells you how a table feels about a card.</p>
+
+<div class="deck-standing salt-standing">
+    <div class="deck-standing-place">
+        <span class="deck-standing-figure">{{ '%.1f'|format(salt_total) }}</span>
+        <span class="deck-standing-of">salt</span>
+    </div>
+    <div class="deck-standing-text">
+        {% if salt_rank %}
+            {% if salt_rank.saltier_than >= salt_rank.total %}
+                <strong>Saltier than every Commander precon.</strong>
+            {% elif salt_rank.saltier_than == 0 %}
+                <strong>Less salty than every Commander precon.</strong>
+            {% else %}
+                <strong>Saltier than {{ salt_rank.saltier_than }} of the
+                {{ salt_rank.total }} Commander precons.</strong>
+            {% endif %}
+            Counted across every card in the list, lands included.
+        {% else %}
+            Counted across every card in the list, lands included.
+        {% endif %}
+    </div>
+</div>
+
+<p class="deck-section-note">What the total is made of:</p>
+<ol class="deck-cards">
+    {% for c in salt_cards %}
+    <li class="deck-card">
+        <a class="deck-card-name" href="/search?q={{ c.name | urlencode }}">{{ c.name }}</a>
+        <span class="deck-card-score">{{ '%.2f'|format(c.salt or 0) }}</span>
+    </li>
+    {% endfor %}
+</ol>
+{% endif %}

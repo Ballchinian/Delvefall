@@ -66,6 +66,23 @@ ALTER TABLE cards ADD COLUMN IF NOT EXISTS edhrec_rank int;
 --powers the newest sort. NULL sinks to the bottom of that sort
 ALTER TABLE cards ADD COLUMN IF NOT EXISTS released_at date;
 
+--edhrec's salt score: how much a card annoys people, from their annual salt
+--survey, carried to us by mtgjson (scryfall does not have it). filled by
+--ingest/salt.py.
+--
+--this is the only number in the database that is an OPINION rather than a
+--measurement, and that is the point of it, not a flaw. everything else here
+--is derived from what a card does; salt is what players think of being on the
+--other side of it, which no amount of rules text analysis can reach. so the
+--votes are stored exactly as cast, protest votes included: filtering the ones
+--that look "wrong" would be overriding the poll with our own taste, and then
+--it would no longer be measuring what it says it measures.
+--
+--NULL means nobody voted, which is not the same as zero. roughly 8% of cards
+--have no score, and they are overwhelmingly cards too new or too obscure to
+--have annoyed anyone yet
+ALTER TABLE cards ADD COLUMN IF NOT EXISTS salt real;
+
 --how the card physically works, straight from scryfall: 'split' and battle
 --type lines mean the picture is printed sideways and the site offers a
 --rotate button, 'flip' means the bottom half reads upside down, and
