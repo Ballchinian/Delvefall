@@ -675,32 +675,28 @@ h2 {
     white-space: nowrap;
 }
 
-/* WHICH number is the foreground follows the sort. sorting by salt makes salt
-   the thing being read and the price a detail, so they swap: the sorted
-   figure takes the ink and its verdict colours, the other drops to grey and
-   keeps only its arrow.
-   the unfocused one gives up its green and red deliberately. two coloured
-   verdicts on one row is two things shouting, and the site's own rule is that
-   colour is spent on the ONE comparison being made. the arrow survives, so
-   the direction is never lost, only the emphasis */
-.card-grid.focus-salt .price-figure,
-.card-grid.focus-salt .price-figure.much-cheaper,
-.card-grid.focus-salt .price-figure.much-pricier {
+/* WHICH number is the foreground follows the sort: the one you sorted by
+   takes the ink, the rest sit back in grey. that is ALL the sort changes.
+   a verdict colour is a fact about the card and it is printed in every sort,
+   including best-match, so green and red never depend on which order the
+   results happen to be in. the row's own ordering (price, then play rate,
+   then salt) already says which is the headline.
+   hence the :not()s: they keep the greying off any figure already wearing a
+   verdict, rather than the focus rule winning on specificity and quietly
+   draining the colour out of half the page */
+.card-grid.focus-salt .price-figure:not(.much-cheaper):not(.much-pricier),
+.card-grid.focus-rank .price-figure:not(.much-cheaper):not(.much-pricier) {
     color: var(--muted);
 }
 
-.card-grid.focus-salt .result-salt { color: var(--text); }
-
-.card-grid.focus-salt .result-salt.much-milder { color: #1f6b41; }
-
-.card-grid.focus-salt .result-salt.much-saltier { color: #b3352a; }
-
-/* and the other way: on every sort that is not a salt sort, salt is the
-   detail, so it keeps its grey and gives up its hues */
-.card-grid:not(.focus-salt) .result-salt.much-milder,
-.card-grid:not(.focus-salt) .result-salt.much-saltier {
-    color: var(--muted);
+.card-grid.focus-salt .result-salt:not(.much-milder):not(.much-saltier) {
+    color: var(--text);
 }
+
+/* the play-rate sort gets a foreground too, even though the rank never earns
+   a verdict colour. being sorted on is a different claim from being better:
+   it is what the page is currently about, so it reads as ink */
+.card-grid.focus-rank .result-rank { color: var(--text); }
 
 /* the SAME two hues and the same rules as the price, on purpose. green reads
    as better and red as worse everywhere on the internet, and salt has a

@@ -217,11 +217,12 @@
         <p class="message">Nothing matched with these filters.</p>
         {% endif %}
         {# the sorted-on metric is the one the eye should land on, so the grid
-           says which that is and the css swaps the emphasis. only salt needs
-           naming: price is the foreground everywhere else, which is also the
-           right answer for "best match" and for the play-rate and date sorts,
-           where the price is still the number people are scanning #}
-        <div class="card-grid{{ ' focus-salt' if request.args.get('sort') in ('salty', 'mild') }}">
+           names it and the css moves the ink. price is the foreground for
+           best-match, for the price sorts and for the date sorts, the last
+           because a release date is not on the row at all and the price is
+           still the number being scanned #}
+        {% set sort_now = request.args.get('sort') %}
+        <div class="card-grid{% if sort_now in ('salty', 'mild') %} focus-salt{% elif sort_now in ('played', 'obscure') %} focus-rank{% endif %}">
             {% for r in results %}
             <div class="result">
                 {# the ? in the picture's corner is the misplaced-card report,
