@@ -1327,6 +1327,82 @@ footer a { color: var(--teal); }
     font-size: 14px;
 }
 
+/* the paste box. a textarea and a button, no javascript: the whole
+   interaction is paste, submit, read, leave */
+.deck-paste label {
+    display: block;
+    font-size: 13px;
+    color: var(--muted);
+    margin-bottom: 6px;
+}
+
+.deck-paste textarea {
+    width: 100%;
+    font-family: ui-monospace, Menlo, Consolas, monospace;
+    font-size: 13px;
+    line-height: 1.5;
+    padding: 10px 12px;
+    border: 1px solid var(--line-strong);
+    border-radius: 3px;
+    background: var(--panel);
+    color: var(--text);
+    resize: vertical;
+}
+
+.deck-paste textarea:focus {
+    outline: 2px solid var(--teal);
+    outline-offset: -1px;
+}
+
+.deck-paste-go {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+}
+
+.deck-paste button {
+    font: inherit;
+    font-weight: 600;
+    padding: 8px 20px;
+    border: 0;
+    border-radius: 3px;
+    background: var(--teal);
+    color: #fff;
+    cursor: pointer;
+}
+
+.deck-paste button:hover { background: var(--teal-hover); }
+
+.deck-paste-note, .deck-missing-why {
+    font-size: 12.5px;
+    color: var(--muted);
+}
+
+.deck-missing-why { display: block; margin-top: 4px; }
+
+.deck-error {
+    background: #fbf1ec;
+    border: 1px solid #e0c3b4;
+    border-radius: 3px;
+    padding: 10px 14px;
+    font-size: 14px;
+}
+
+/* what did not resolve. it is information, not an error: a decklist carrying
+   a token or a sticker is normal, and the reading is still good */
+.deck-missing {
+    background: var(--wash);
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    padding: 10px 14px;
+    margin: 14px 0;
+    font-size: 13px;
+    color: var(--muted);
+    word-break: break-word;
+}
+
 .deck-lens-sections {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));

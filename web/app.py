@@ -11,6 +11,7 @@ import uuid
 import json
 import random
 import hashlib
+import unicodedata
 import urllib.request
 from urllib.parse import quote
 from concurrent.futures import ThreadPoolExecutor
@@ -1708,14 +1709,16 @@ LINE_WEIGHT_SQL = ("CASE WHEN coalesce(s.count, 1) <= 5 THEN 1.0"
 #two lands sharing "This land enters tapped." (438 cards) or two rocks sharing
 #a mana ability (831): technically the nearest neighbour, useless as "these do
 #the same job". weighting both sides by the line's rarity buries all of it
+#it takes a LIST OF IDS rather than a deck slug so the pasted-list path and
+#the precon pages run the exact same query. that is not tidiness: it means the
+#166 precon pages are a standing test of the code the paste box depends on
 DECK_PAIRS_SQL = """
 WITH dl AS (
     SELECT l.id, l.oracle_id, l.line_text, l.""" + EMBED_COL + """ AS embedding,
            """ + LINE_WEIGHT_SQL + """ AS w
     FROM lines l
-    JOIN deck_cards dc ON dc.oracle_id = l.oracle_id
     LEFT JOIN line_stats s ON s.line_text = l.line_text
-    WHERE dc.deck_slug = %s AND NOT l.whole AND l.""" + EMBED_COL + """ IS NOT NULL
+    WHERE l.oracle_id = ANY(%s::uuid[]) AND NOT l.whole AND l.""" + EMBED_COL + """ IS NOT NULL
 ),
 scored AS (
     SELECT DISTINCT ON (a.id) a.id, a.oracle_id, a.line_text, b.oracle_id AS partner,
@@ -1751,6 +1754,18 @@ DECK_SECTION = 12
 _deck_cache = {}
 
 
+def lens_rows(oracle_ids):
+    #the lens over any pile of cards. no caching here: the precon path caches
+    #by slug below, and a pasted list is seen once and never again
+    if not oracle_ids:
+        return []
+    try:
+        with pool.connection() as conn:
+            return [dict(r) for r in conn.execute(DECK_PAIRS_SQL, ([str(o) for o in oracle_ids],)).fetchall()]
+    except Exception:
+        return []
+
+
 def deck_detail(slug):
     #cached per deck for an hour, same as the board. the numbers only move
     #when the ingest reruns or the model changes, and the query is far too
@@ -1760,11 +1775,47 @@ def deck_detail(slug):
         return hit["rows"]
     try:
         with pool.connection() as conn:
-            rows = [dict(r) for r in conn.execute(DECK_PAIRS_SQL, (slug,)).fetchall()]
+            ids = [r["oracle_id"] for r in
+                   conn.execute("SELECT oracle_id FROM deck_cards WHERE deck_slug = %s", (slug,)).fetchall()]
     except Exception:
         return []
+    rows = lens_rows(ids)
     _deck_cache[slug] = {"at": time.time(), "rows": rows}
     return rows
+
+
+def lens_sections(cards):
+    #the two readings both pages show, from one query's rows. lands are left
+    #out for the same reason they are left out of the score: a mana base is
+    #not what makes a deck a deck, and left in they fill both lists with duals
+    #pairing with other duals
+    spells = [c for c in cards if "Land" not in (c["type_line"] or "")]
+    original = sorted(spells, key=lambda c: -(c["global_u"] or 0))[:DECK_SECTION]
+
+    #the pair list names both sides, so without the dedup the same partnership
+    #prints twice facing opposite ways (Nekusar/Spiteful, Spiteful/Nekusar)
+    seen, pairs = set(), []
+    for c in spells:
+        if c["weighted"] < DECK_PAIR_CUT:
+            break
+        key = frozenset((c["name"], c["partner_name"]))
+        if key in seen:
+            continue
+        seen.add(key)
+        pairs.append(c)
+        if len(pairs) >= DECK_SECTION:
+            break
+    return spells, original, pairs
+
+
+def originality_of(cards):
+    #the same number the leaderboard ranks on, so a pasted list and a precon
+    #are measured identically: the mean of the top N nonland scores
+    vals = sorted((c["global_u"] or 0) for c in cards
+                  if "Land" not in (c["type_line"] or ""))
+    vals.reverse()
+    vals = vals[:PRECON_TOP_N]
+    return sum(vals) / len(vals) if vals else 0.0
 
 
 @app.route("/precons/<slug>")
@@ -1783,31 +1834,164 @@ def precon(slug):
     if deck_row is None:
         abort(404)
 
-    cards = deck_detail(slug)
-    #lands are excluded from every section for the same reason they are
-    #excluded from the score: a mana base is not what makes a deck a deck,
-    #and left in it fills both lists with duals that pair with other duals
-    spells = [c for c in cards if "Land" not in (c["type_line"] or "")]
-
-    #the two readings. one deck, one query, sorted twice: what nothing else
-    #here resembles, and what has an obvious partner in the list
-    original = sorted(spells, key=lambda c: -(c["global_u"] or 0))[:DECK_SECTION]
-    doubled = [c for c in spells if c["weighted"] >= DECK_PAIR_CUT][:DECK_SECTION]
-    #the pair list names both sides, so without this the same partnership
-    #prints twice facing opposite ways (Nekusar/Spiteful, Spiteful/Nekusar)
-    seen_pairs = set()
-    pairs = []
-    for c in doubled:
-        key = frozenset((c["name"], c["partner_name"]))
-        if key in seen_pairs:
-            continue
-        seen_pairs.add(key)
-        pairs.append(c)
-
+    spells, original, pairs = lens_sections(deck_detail(slug))
     year = deck_row["release_date"].year if deck_row["release_date"] else 0
     return render_template("precon.html", deck=deck_row, place=place, total=len(board),
                            year=year, original=original, pairs=pairs,
                            counted=len(spells), top_n=PRECON_TOP_N)
+
+
+#----- the paste box: someone else's decklist, read through the same lens -----
+
+#lines that are structure rather than cards. exporters write these as section
+#headings and a decklist is not obliged to have any of them
+DECK_HEADERS = re.compile(r"^(deck|decklist|sideboard|commander|companion|maybeboard|"
+                          r"considering|tokens?|creatures?|lands?|instants?|sorceries|"
+                          r"artifacts?|enchantments?|planeswalkers?|battles?)\b[:\s]*$", re.I)
+#"1 ", "1x ", "4x " at the front of a line
+DECK_COUNT = re.compile(r"^(\d+)\s*[xX]?\s+")
+#everything the exporters bolt on AFTER the name: (SET) 123, *F*, [Category]
+DECK_TRAILERS = re.compile(r"\s*(\([^)]*\)|\[[^\]]*\]|\*[^*]*\*|<[^>]*>)\s*")
+#a collector number left stranded once its set code is gone. NOT applied
+#blind: twelve real cards end in a digit (Pip-Boy 3000, Overseer of Vault 76),
+#so this is only tried after the whole name has failed to match
+DECK_TRAILING_NUM = re.compile(r"\s+\d+\s*$")
+
+#the cap on a pasted list. the pair query is all-pairs over the LINES of the
+#list, so cost climbs with the square: ~250 lines (a commander deck) measured
+#160-215ms, and letting someone paste a 5000 line file would be handing out a
+#way to tie up the database. a commander deck is 100 cards and the biggest
+#constructed sideboard-and-all is well under this
+DECK_MAX_CARDS = 250
+#and a cap on the raw text before it is even split, so an enormous paste is
+#rejected without walking it
+DECK_MAX_CHARS = 60000
+
+#below this many nonland cards the precon comparison is not offered. the score
+#is a mean of the top PRECON_TOP_N, so a list shorter than that is averaging
+#fewer numbers than every deck it would be ranked against and the comparison
+#is not like for like. the SECTIONS still work on any number of cards, they
+#are statements about the list itself rather than about where it stands
+DECK_MIN_FOR_RANK = PRECON_TOP_N
+
+
+def deck_norm(name):
+    #match a name the way a human reads it: case, accents and the two kinds of
+    #apostrophe all stop mattering. NFKD splits an accented letter into letter
+    #plus combining mark, then dropping the marks leaves plain ascii, which is
+    #what lets a list typed without accents find Grima Wormtongue
+    name = name.replace("’", "'").replace("‘", "'")
+    name = unicodedata.normalize("NFKD", name)
+    name = "".join(c for c in name if not unicodedata.combining(c))
+    return " ".join(name.lower().split())
+
+
+_name_index = {"at": 0.0, "map": {}}
+
+
+def name_index():
+    #every name a decklist might write, normalised, pointing at an oracle id.
+    #~33k keys for 31k cards, a couple of megabytes, rebuilt hourly like the
+    #other caches. doing it in memory rather than in sql is what keeps a 100
+    #card list to ZERO round trips for matching, and it puts normalisation
+    #somewhere it can be read
+    if time.time() - _name_index["at"] > 3600 and pool is not None:
+        try:
+            with pool.connection() as conn:
+                rows = conn.execute("SELECT oracle_id, name FROM cards").fetchall()
+            idx = {}
+            #a two-faced card gets a key per face, because exporters write
+            #"Delver of Secrets" where the database has the full
+            #"Delver of Secrets // Insectile Aberration". full names go in
+            #SECOND so they always win a collision with a face
+            for r in rows:
+                if "//" in r["name"]:
+                    for part in r["name"].split("//"):
+                        idx.setdefault(deck_norm(part), r["oracle_id"])
+            for r in rows:
+                idx[deck_norm(r["name"])] = r["oracle_id"]
+            _name_index["map"] = idx
+        except Exception:
+            pass
+        _name_index["at"] = time.time()
+    return _name_index["map"]
+
+
+def parse_decklist(text):
+    #returns (matched oracle ids, names we could not find, how many lines were
+    #cards at all). deliberately blind to WHICH board a card is in: the lens
+    #reads the whole pile, and a commander deck has no sideboard anyway.
+    #
+    #matching is EXACT on the normalised name, never fuzzy. find_card guesses
+    #because a human is watching one result and can retype; here a wrong guess
+    #would sit silently in a hundred rows pretending to be someone's deck
+    idx = name_index()
+    found, missing = [], []
+    seen = set()
+    for raw in text[:DECK_MAX_CHARS].splitlines():
+        line = raw.strip()
+        if not line or line.startswith("//") or line.startswith("#") or DECK_HEADERS.match(line):
+            continue
+        m = DECK_COUNT.match(line)
+        if m:
+            line = line[m.end():]
+        line = DECK_TRAILERS.sub(" ", line).strip()
+        if not line:
+            continue
+        oid = idx.get(deck_norm(line))
+        if oid is None:
+            #only now try it as a name with a collector number stuck on the
+            #end, so the twelve cards whose names really do end in a digit
+            #are never truncated into nothing
+            trimmed = DECK_TRAILING_NUM.sub("", line).strip()
+            if trimmed and trimmed != line:
+                oid = idx.get(deck_norm(trimmed))
+        if oid is None:
+            if len(missing) < 40:
+                missing.append(line)
+            continue
+        #counts are dropped on purpose: nine Islands say nothing about a
+        #deck's ideas that one Island does not, and the lens is about ideas
+        if oid in seen:
+            continue
+        seen.add(oid)
+        found.append(oid)
+        if len(found) >= DECK_MAX_CARDS:
+            break
+    return found, missing
+
+
+@app.route("/deck/read", methods=["POST"])
+def deck_read():
+    #the pasted list, read and thrown away. nothing is stored and there is no
+    #url to come back to, which is the product decision from the start: a lens
+    #over someone else's list, not a deck builder with accounts and saves
+    text = request.form.get("list", "")
+    ids, missing = parse_decklist(text)
+    if not ids:
+        return render_template("deck.html", deck_count=len(precon_board()),
+                               example=(precon_board() or [None])[0],
+                               error=("None of those lines matched a card." if text.strip()
+                                      else "Paste a decklist first."),
+                               missing=missing, pasted=text[:DECK_MAX_CHARS])
+
+    cards = lens_rows(ids)
+    spells, original, pairs = lens_sections(cards)
+
+    #the number only means something against the precons, which is what the
+    #whole calibration set was for. beaten counts how many it is MORE original
+    #than, so the sentence reads the way a person would say it. a list too
+    #short to compare fairly gets the sections and no ranking, rather than a
+    #placing that quietly comes from averaging six cards against a hundred
+    board = precon_board()
+    ranked = len(spells) >= DECK_MIN_FOR_RANK
+    score = originality_of(cards) if ranked else 0.0
+    beaten = sum(1 for r in board if r["originality"] < score) if ranked else 0
+    return render_template("deck_read.html", original=original, pairs=pairs,
+                           counted=len(spells), matched=len(ids), missing=missing,
+                           score=score, beaten=beaten, total=len(board),
+                           ranked=ranked, min_cards=DECK_MIN_FOR_RANK,
+                           top_n=PRECON_TOP_N)
 
 
 def card_json(c, currency):
@@ -2461,6 +2645,9 @@ def robots():
         "Disallow: /suggest",
         "Disallow: /more",
         "Disallow: /unique/",
+        #a pasted list is nobody's business and there is no url to index
+        #anyway, the page is a post result. belt and braces with its noindex
+        "Disallow: /deck/read",
         "Sitemap: " + request.url_root + "sitemap.xml",
     ]) + "\n", mimetype="text/plain")
 

@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+
+{% block title %}Your deck through the lens - Delvefall{% endblock %}
+
+{# a pasted list is nobody's business but the person who pasted it, and there
+   is no url to index anyway, so this page asks not to be crawled #}
+{% block head_extra %}<meta name="robots" content="noindex">{% endblock %}
+
+{% block content %}
+<div class="guide precons deck-detail">
+    <p class="precon-back"><a href="/deck">&larr; Read another deck</a></p>
+
+    <h1>Your deck</h1>
+    <p class="deck-detail-sub">{{ matched }} card{{ '' if matched == 1 else 's' }} matched{% if missing %},
+    {{ missing|length }} not found{% endif %}.</p>
+
+    {% if missing %}
+    <div class="deck-missing">
+        <strong>Not found:</strong> {{ missing|join(', ') }}
+        <span class="deck-missing-why">Anything the site doesn't hold (a token, a
+        sticker, a typo) is simply left out of the reading.</span>
+    </div>
+    {% endif %}
+
+    {% if ranked %}
+    <div class="deck-standing">
+        <div class="deck-standing-place">
+            <span class="deck-standing-figure">{{ '%.3f'|format(score) }}</span>
+            <span class="deck-standing-of">originality</span>
+        </div>
+        <div class="deck-standing-text">
+            {# the whole reason the precon board was built first: this number
+               is not a sentence until it has a population to sit against #}
+            {% if beaten >= total %}
+                <strong>More original than every Commander precon.</strong>
+                Nothing preconstructed plays cards this unusual.
+            {% elif beaten == 0 %}
+                <strong>Less original than every Commander precon.</strong>
+                This is a deck built from cards the format plays a lot of.
+            {% else %}
+                <strong>More original than {{ beaten }} of the {{ total }} Commander
+                precons.</strong>
+                Measured on how little the rest of Magic resembles its cards, the same
+                way <a href="/precons">the precon board</a> is.
+            {% endif %}
+        </div>
+    </div>
+    {% else %}
+    {# saying nothing is better than saying something unearned. the score
+       averages the top {{ min_cards }} cards, so a shorter list would be
+       averaging fewer numbers than every deck it got ranked against #}
+    <p class="deck-section-note deck-unranked">Too few cards to place against the precons,
+    which needs at least {{ min_cards }} nonland cards. Everything below still reads.</p>
+    {% endif %}
+
+    {% if original %}
+    <h2>What nothing else in Magic does</h2>
+    <p class="deck-section-note">The cards here that come closest to being one of a kind,
+    across every card ever printed. These {{ top_n }} are what the score above is made of.</p>
+    <ol class="deck-cards">
+        {% for c in original %}
+        <li class="deck-card">
+            <a class="deck-card-name" href="/search?q={{ c.name | urlencode }}">{{ c.name }}</a>
+            <span class="deck-card-score">{{ '%.2f'|format(c.global_u or 0) }}</span>
+        </li>
+        {% endfor %}
+    </ol>
+    {% endif %}
+
+    {% if pairs %}
+    <h2>Doing the same job</h2>
+    <p class="deck-section-note">Pairs of cards in this list that cover the same ground.
+    This is not a fault, it is how a deck stays consistent. It is here because it is the
+    fastest way to see what the deck is built out of, and where a swap would cost you
+    least.</p>
+    <ul class="deck-pairs">
+        {% for c in pairs %}
+        <li class="deck-pair">
+            <span class="deck-pair-cards">
+                <a href="/search?q={{ c.name | urlencode }}">{{ c.name }}</a>
+                <span class="deck-pair-join">&amp;</span>
+                <a href="/search?q={{ c.partner_name | urlencode }}">{{ c.partner_name }}</a>
+            </span>
+            {% if c.line_text %}<span class="deck-pair-line">{{ c.line_text }}</span>{% endif %}
+        </li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+
+    <p class="deck-detail-foot">Read from {{ counted }} nonland cards. Lands are left out
+    of both lists for the same reason they are left out of the score: a mana base is not
+    what makes a deck a deck. Nothing here was saved.</p>
+</div>
+{% endblock %}

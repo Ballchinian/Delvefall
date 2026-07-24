@@ -13,7 +13,26 @@
     deck already covers.</p>
     <p class="deck-hub-promise">No accounts, nothing saved, nothing to sign up for.</p>
 
-    <h2>What you can look at now</h2>
+    <h2>Read a decklist</h2>
+    {% if error %}<p class="deck-error">{{ error }}</p>{% endif %}
+    <form class="deck-paste" action="/deck/read" method="post">
+        <label for="list">Paste a decklist. Exports from Moxfield, Archidekt, MTGO and a
+        plain list of names all work.</label>
+        <textarea id="list" name="list" rows="10" spellcheck="false"
+            placeholder="1 Sol Ring&#10;1 Arcane Signet&#10;1 Nekusar, the Mindrazer&#10;...">{{ pasted or '' }}</textarea>
+        <div class="deck-paste-go">
+            <button type="submit">Read this deck</button>
+            <span class="deck-paste-note">Nothing is saved, and there is no link back to it.</span>
+        </div>
+    </form>
+    {% if missing %}
+    <div class="deck-missing">
+        <strong>{{ missing|length }} line{{ '' if missing|length == 1 else 's' }} didn't match a card:</strong>
+        {{ missing|join(', ') }}
+    </div>
+    {% endif %}
+
+    <h2>Or start from a deck we already have</h2>
 
     <div class="deck-lens-sections">
         <a class="deck-lens-card" href="/precons">
