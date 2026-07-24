@@ -216,7 +216,12 @@
         {% if not results %}
         <p class="message">Nothing matched with these filters.</p>
         {% endif %}
-        <div class="card-grid">
+        {# the sorted-on metric is the one the eye should land on, so the grid
+           says which that is and the css swaps the emphasis. only salt needs
+           naming: price is the foreground everywhere else, which is also the
+           right answer for "best match" and for the play-rate and date sorts,
+           where the price is still the number people are scanning #}
+        <div class="card-grid{{ ' focus-salt' if request.args.get('sort') in ('salty', 'mild') }}">
             {% for r in results %}
             <div class="result">
                 {# the ? in the picture's corner is the misplaced-card report,
@@ -228,7 +233,7 @@
                     <button class="report-flag" data-id="{{ r.oracle_id }}" data-name="{{ r.name }}" title="shouldn't be here? report this as a bad match">?</button>
                 </div>
                 <div class="result-name">{{ r.name }} <span class="percent{% if r.concept_only %} concept{% endif %}"{% if r.blended %} title="rules text {{ r.mech_pct }}%, concepts {{ r.concept_pct }}%, evenly blended"{% endif %}>{{ r.percent }}%</span></div>
-                {% if r.price or r.rank or r.salt %}<div class="result-price"><span class="price-figure {{ r.price_vs }}"{% if r.price_vs %} title="{{ r.price_vs.replace('-', ' ') }} than {{ card.name }} at {{ card.price }}"{% endif %}>{{ r.price }}{% if r.price_vs %}<span class="price-vs">{{ '↓' if 'cheaper' in r.price_vs else '↑' }}</span>{% endif %}</span>{% if r.rank %}<span class="result-rank" title="edhrec rank, 1 is the most played card in commander">{{ r.rank }}{% if r.rank_vs %}<span class="rank-vs" title="{{ 'more' if r.rank_vs == 'more-played' else 'less' }} played than {{ card.name }} at {{ card.rank }}">{{ '↑' if r.rank_vs == 'more-played' else '↓' }}</span>{% endif %}</span>{% endif %}{% if r.salt %}<span class="result-salt {{ r.salt_vs }}"{% if r.salt_vs %} title="{{ r.salt_vs.replace('-', ' ').replace('milder', 'less salty') }} than {{ card.name }} at {{ card.salt_text }}"{% else %} title="salt {{ r.salt }} out of about 3, from edhrec's salt survey, where players vote on the cards they least enjoy facing"{% endif %}><i class="salt-mark" aria-hidden="true"></i>{{ r.salt }}{% if r.salt_vs %}<span class="salt-vs">{{ '↓' if r.salt_vs == 'milder' else '↑' }}</span>{% endif %}</span>{% endif %}</div>{% endif %}
+                {% if r.price or r.rank or r.salt %}<div class="result-price"><span class="price-figure {{ r.price_vs }}"{% if r.price_vs %} title="{{ r.price_vs.replace('-', ' ') }} than {{ card.name }} at {{ card.price }}"{% endif %}>{{ r.price }}{% if r.price_vs %}<span class="price-vs">{{ '↓' if 'cheaper' in r.price_vs else '↑' }}</span>{% endif %}</span>{% if r.rank %}<span class="result-rank" title="edhrec rank, 1 is the most played card in commander">{{ r.rank }}{% if r.rank_vs %}<span class="rank-vs" title="{{ 'more' if r.rank_vs == 'more-played' else 'less' }} played than {{ card.name }} at {{ card.rank }}">{{ '↑' if r.rank_vs == 'more-played' else '↓' }}</span>{% endif %}</span>{% endif %}{% if r.salt %}<span class="result-salt {{ r.salt_vs }}"{% if r.salt_vs %} title="{{ r.salt_vs.replace('-', ' ').replace('milder', 'less salty') }} than {{ card.name }} at {{ card.salt_text }}"{% else %} title="salt {{ r.salt }} out of about 3, from edhrec's salt survey, where players vote on the cards they least enjoy facing"{% endif %}><i class="salt-mark" aria-hidden="true"></i>{{ r.salt }}{% if r.salt_vs %}<span class="salt-vs">{{ '↓' if 'milder' in r.salt_vs else '↑' }}</span>{% endif %}</span>{% endif %}</div>{% endif %}
                 {% if r.their_line %}
                 <div class="match-line" title="matches your card's line: {{ r.our_line }}{% if r.matched_back %} (printed on the back face, shown here){% endif %}">"{{ r.their_line | mana }}"</div>
                 {% endif %}
@@ -409,7 +414,7 @@
                     if (r.salt_vs) {
                         salt.title = r.salt_vs.replace("-", " ").replace("milder", "less salty") +
                             " than " + cardName + " at " + ANCHOR.salt;
-                        el("span", "salt-vs", salt, r.salt_vs == "milder" ? "↓" : "↑");
+                        el("span", "salt-vs", salt, r.salt_vs.indexOf("milder") > -1 ? "↓" : "↑");
                     } else {
                         salt.title = "salt " + r.salt + " out of about 3, from edhrec's salt " +
                             "survey, where players vote on the cards they least enjoy facing";

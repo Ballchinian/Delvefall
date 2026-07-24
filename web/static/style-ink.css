@@ -675,12 +675,44 @@ h2 {
     white-space: nowrap;
 }
 
-/* colour goes ONE WAY only, and that is deliberate. red for a card notably
-   saltier than the one you searched is a fact about two numbers. green for a
-   milder one would be the site saying a card is nicer to play against, which
-   is an opinion the score cannot support, and the same reason the play-rate
-   arrow carries no colour at all. milder cards get the arrow and stay quiet */
-.result-salt.saltier { color: var(--gold); }
+/* WHICH number is the foreground follows the sort. sorting by salt makes salt
+   the thing being read and the price a detail, so they swap: the sorted
+   figure takes the ink and its verdict colours, the other drops to grey and
+   keeps only its arrow.
+   the unfocused one gives up its green and red deliberately. two coloured
+   verdicts on one row is two things shouting, and the site's own rule is that
+   colour is spent on the ONE comparison being made. the arrow survives, so
+   the direction is never lost, only the emphasis */
+.card-grid.focus-salt .price-figure,
+.card-grid.focus-salt .price-figure.much-cheaper,
+.card-grid.focus-salt .price-figure.much-pricier {
+    color: var(--muted);
+}
+
+.card-grid.focus-salt .result-salt { color: var(--text); }
+
+.card-grid.focus-salt .result-salt.much-milder { color: #1f6b41; }
+
+.card-grid.focus-salt .result-salt.much-saltier { color: #b3352a; }
+
+/* and the other way: on every sort that is not a salt sort, salt is the
+   detail, so it keeps its grey and gives up its hues */
+.card-grid:not(.focus-salt) .result-salt.much-milder,
+.card-grid:not(.focus-salt) .result-salt.much-saltier {
+    color: var(--muted);
+}
+
+/* the SAME two hues and the same rules as the price, on purpose. green reads
+   as better and red as worse everywhere on the internet, and salt has a
+   better and a worse direction, so it uses them. gold used to sit on the
+   middle state here and it is gone: it says "look at this" without saying
+   which way, so on a row where the price beside it is already saying better
+   or worse in plain green and red, the gold number was the only figure you
+   had to stop and decode.
+   (gold still marks salt on the DECK pages, where its job is to tell a salt
+   number apart from an originality one. that is a category, not a verdict,
+   and no green or red is claimed there) */
+.result-salt.much-milder { color: #1f6b41; }
 
 .result-salt.much-saltier { color: #b3352a; }
 

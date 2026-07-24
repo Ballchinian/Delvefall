@@ -1131,19 +1131,23 @@ SALT_MUCH_GAP = 0.4
 
 
 def salt_verdict(salt, anchor):
-    #which side of the searched card this one sits on for annoyance. only the
-    #SALTIER side ever earns colour, deliberately: colouring "much milder"
-    #green would be the site saying a card is nicer to play against, which is
-    #an opinion, where "saltier than the card you searched" is a fact about
-    #two numbers. same reason the play-rate arrow has no colour at all
+    #which side of the searched card this one sits on for annoyance, in the
+    #same four states the price verdict uses: a small move gets the arrow
+    #alone, a big one earns colour. green for less salt and red for more,
+    #matching money, because a colour that means "worse" in one row and
+    #nothing in the next is a colour nobody learns to read.
+    #
+    #the play-rate arrow stays colourless and that is not an inconsistency:
+    #more played is not better or worse, where more annoying is
     if anchor is None or salt is None:
         return ""
     diff = salt - anchor
     if abs(diff) < SALT_BAND:
         return ""
+    much = abs(diff) >= SALT_MUCH_GAP
     if diff < 0:
-        return "milder"
-    return "much-saltier" if diff >= SALT_MUCH_GAP else "saltier"
+        return "much-milder" if much else "milder"
+    return "much-saltier" if much else "saltier"
 
 
 #everything under the cut used to be one undivided pile that the sorts ran
