@@ -142,7 +142,7 @@ function render(c) {
     name.appendChild(pct);
     div.appendChild(name);
 
-    if (c.price || c.rank) {
+    if (c.price || c.rank || c.salt) {
         var price = document.createElement("div");
         price.className = "result-price";
         price.textContent = c.price;
@@ -152,6 +152,22 @@ function render(c) {
             rank.title = "edhrec rank, 1 is the most played card in commander";
             rank.textContent = c.rank;
             price.appendChild(rank);
+        }
+        //the salt filter rides in on the shared filter panel, so this page can
+        //narrow by a number it would otherwise never print. same bar as the
+        //search results: only the saltiest 5% say anything
+        if (c.salt) {
+            var salt = document.createElement("span");
+            salt.className = "result-salt";
+            salt.title = "salt " + c.salt + " out of about 3, from edhrec's salt survey, " +
+                "where players vote on the cards they least enjoy facing. " +
+                "only shown on the saltiest 5% of cards";
+            var mark = document.createElement("i");
+            mark.className = "salt-mark";
+            mark.setAttribute("aria-hidden", "true");
+            salt.appendChild(mark);
+            salt.appendChild(document.createTextNode(c.salt));
+            price.appendChild(salt);
         }
         div.appendChild(price);
     }

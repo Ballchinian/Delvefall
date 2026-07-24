@@ -147,7 +147,7 @@ with pool.connection() as _conn:
 ADMIN_KEY = os.environ.get("ADMIN_KEY", "")
 
 #the display columns the frontend needs, so every query grabs the same set
-CARD_FIELDS = "oracle_id, name, mana_cost, type_line, oracle_text, image, scryfall_uri, price_usd, price_eur, layout, image_back, edhrec_rank"
+CARD_FIELDS = "oracle_id, name, mana_cost, type_line, oracle_text, image, scryfall_uri, price_usd, price_eur, layout, image_back, edhrec_rank, salt"
 
 #the choices in the type filter dropdown. also acts as a whitelist so
 #nothing weird from the url ends up inside a LIKE pattern
@@ -567,6 +567,23 @@ def rank_label(rank):
     return "#" + str(rank) if rank is not None else ""
 
 
+#a card only wears the salt mark once it clears this. the scores are heavily
+#skewed (median 0.24, p90 0.57, p95 0.74) so printing every card's salt would
+#put a meaningless 0.2 on 95% of results and teach people to ignore the mark.
+#0.75 is the 95th percentile, 1522 cards: at that bar the mark APPEARING is
+#the message, and it is rare enough to still mean something when it does
+SALT_SHOW = 0.75
+
+
+def salt_label(salt):
+    #one decimal, because the survey's own precision does not survive a second
+    #one: the gap between 1.46 and 1.44 is noise in a poll, and the number is
+    #being read at a glance next to a price
+    if salt is None or salt < SALT_SHOW:
+        return ""
+    return "%.1f" % salt
+
+
 CURRENCY_SIGNS = {"usd": "$", "eur": "€", "gbp": "£"}
 
 #pounds are derived, not sourced: scryfall prices in dollars and euros only,
@@ -655,6 +672,8 @@ def sideways(layout, type_line):
 #  f:commander             legal in commander. banned:commander for the reverse
 #  usd>=1 eur<5 mv=2       price and mana value, cmc works for mv, eur too,
 #                          and a bare price<5 follows the currency toggle
+#  salt>=1.5               edhrec's salt score, 0 to about 3. cards nobody
+#                          voted on have none and fail any salt comparison
 #  - before anything negates it, words side by side mean and, "or" means or,
 #  parens group: (o:draw or o:scry) -t:creature usd<5
 #anything unrecognisable is skipped, a typo never breaks the search
@@ -663,7 +682,7 @@ FQ_TOKEN = re.compile(r"""
     (?P<paren>[()])
   | (?P<kw>and|or)(?=[\s()]|$)
   | (?P<neg>-)
-  | (?P<cfield>usd|eur|gbp|price|mv|cmc)\s*(?P<op>>=|<=|=|>|<)\s*(?P<num>\d+(?:\.\d+)?)
+  | (?P<cfield>usd|eur|gbp|price|salt|mv|cmc)\s*(?P<op>>=|<=|=|>|<)\s*(?P<num>\d+(?:\.\d+)?)
   | (?P<key>[a-z]+):(?:"(?P<qval>[^"]*)"|(?P<val>[^\s()]+))
   | (?P<junk>[^\s()]+)
 """, re.IGNORECASE | re.VERBOSE)
@@ -738,7 +757,7 @@ def compile_fq(fq, currency="usd"):
             #usd, eur and gbp always mean themselves, the bare word price
             #follows the currency toggle
             col = {"usd": "c.price_usd", "eur": "c.price_eur", "gbp": price_col("gbp"),
-                   "price": price_col(currency)}.get(cf, "c.cmc")
+                   "price": price_col(currency), "salt": "c.salt"}.get(cf, "c.cmc")
             tokens.append(("term", (col + " " + m.group("op") + " %s", [float(m.group("num"))])))
         elif m.group("key"):
             value = m.group("qval") if m.group("qval") is not None else m.group("val")
@@ -832,6 +851,8 @@ def read_filters():
     f["pmax"] = read_number("pmax", "maximum price", f["errors"])
     f["mvmin"] = read_number("mvmin", "minimum mana value", f["errors"])
     f["mvmax"] = read_number("mvmax", "maximum mana value", f["errors"])
+    f["smin"] = read_number("smin", "minimum salt", f["errors"])
+    f["smax"] = read_number("smax", "maximum salt", f["errors"])
     #an inverted range used to hand back an empty page with no explanation,
     #which read as the site breaking rather than the bounds disagreeing.
     #the filter still applies exactly as typed, the page just says why
@@ -840,6 +861,8 @@ def read_filters():
         f["errors"].append("your minimum price is above your maximum, so no card can fit between them")
     if f["mvmin"] is not None and f["mvmax"] is not None and f["mvmin"] > f["mvmax"]:
         f["errors"].append("your minimum mana value is above your maximum, so no card can fit between them")
+    if f["smin"] is not None and f["smax"] is not None and f["smin"] > f["smax"]:
+        f["errors"].append("your minimum salt is above your maximum, so no card can fit between them")
     #any of the picked types matches: an Artifact Creature answers to
     #Artifact, to Creature, and to both together. the whitelist stands in
     #for escaping, nothing else reaches the ILIKE patterns
@@ -1032,6 +1055,17 @@ def filter_sql(filters):
     if filters["mvmax"] is not None:
         where += " AND c.cmc <= %s"
         params.append(filters["mvmax"])
+    #salt behaves exactly like price: a card nobody voted on fails both
+    #comparisons, so any salt bound quietly drops the ~250 cards with no
+    #score. that is the right answer for a minimum ("show me salty cards")
+    #and a defensible one for a maximum, since an unvoted card is unproven
+    #rather than known-mild. the widget's tooltip says so
+    if filters["smin"] is not None:
+        where += " AND c.salt >= %s"
+        params.append(filters["smin"])
+    if filters["smax"] is not None:
+        where += " AND c.salt <= %s"
+        params.append(filters["smax"])
     if filters["types"]:
         #any picked type matches, so an Artifact Creature shows up whether
         #Artifact, Creature or both are ticked
@@ -1474,6 +1508,11 @@ def find_similar(oracle_id, picked, filters, min_pct, sort, offset=0, how_many=2
             "price_vs": price_vs,
             "rank": rank_label(c["edhrec_rank"]),
             "rank_vs": rank_vs,
+            #no arrow for salt. price and rank compare against the anchor
+            #because "cheaper than what you searched" is the question people
+            #came with; nobody is looking for a card that annoys people
+            #slightly less than another one, so the number stands alone
+            "salt": salt_label(c["salt"]),
             "more_count": len(more),
             "more_text": "\n".join(more),
         })
@@ -1534,6 +1573,7 @@ def search():
     #result's arrows are measured against these, so they have to be visible
     card["price"] = price_label(card, filters["cur"])
     card["rank"] = rank_label(card["edhrec_rank"])
+    card["salt"] = salt_label(card["salt"])
     blend = read_blend()
     min_pct = tier_cut(blend)
     sort = read_sort()
@@ -2180,6 +2220,7 @@ def card_json(c, currency):
         "scryfall_uri": c["scryfall_uri"],
         "price": price,
         "rank": rank_label(c["edhrec_rank"]),
+        "salt": salt_label(c["salt"]),
         "percent": int(round((c.get("blended_u") if c.get("blended_u") is not None else (c["uniqueness"] or 0)) * 100)),
         "unique_line": c["unique_line"] or "",
     }

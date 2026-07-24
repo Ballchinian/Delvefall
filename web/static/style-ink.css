@@ -44,6 +44,12 @@
     --funnel: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2016%2016'%3E%3Cpath%20d='M1.5%202.5h13L9.5%208.5v5l-3%201.5v-6.5z'/%3E%3C/svg%3E");
     --burger: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2016%2016'%3E%3Cpath%20d='M1%203h14M1%208h14M1%2013h14'%20stroke='%23000'%20stroke-width='2'%20stroke-linecap='round'/%3E%3C/svg%3E");
     --external: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2016%2016'%20fill='none'%20stroke='%23000'%20stroke-width='1.7'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Cpath%20d='M6.5%202.75H2.75v10.5h10.5V9.5'/%3E%3Cpath%20d='M9.75%202.75h3.5v3.5'/%3E%3Cpath%20d='M13.25%202.75L7%209'/%3E%3C/svg%3E");
+    /* a salt shaker, for the salt score. drawn as a silhouette with the
+       holes and the cap seam CUT OUT (evenodd), because the rules below
+       mask it from currentColor and a masked shape has no second colour to
+       draw them in. deliberately chunky: it is read at 11px, where a
+       finer shaker turns into a grey blob */
+    --shaker: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2016%2016'%3E%3Cpath%20fill-rule='evenodd'%20d='M8%201.6c-2%200-3.6%201.6-3.6%203.6v7.3c0%20.9.7%201.6%201.6%201.6h4c.9%200%201.6-.7%201.6-1.6V5.2c0-2-1.6-3.6-3.6-3.6zM4.6%206.2h6.8v1H4.6zM6.5%203.3a.6.6%200%201%200%200%201.2.6.6%200%200%200%200-1.2zm3%200a.6.6%200%201%200%200%201.2.6.6%200%200%200%200-1.2zM8%202.6a.6.6%200%201%200%200%201.2.6.6%200%200%200%200-1.2z'/%3E%3C/svg%3E");
 }
 
 * { box-sizing: border-box; }
@@ -654,6 +660,41 @@ h2 {
     color: var(--muted);
     margin-left: 8px;
     cursor: help;
+}
+
+/* the salt score, third on the price row. it is NOT printed on every card:
+   the scores are so skewed (median 0.24) that a number on every result would
+   be noise, so it only appears above the 95th percentile and its presence is
+   the message. that is why it can afford a colour where the rank cannot,
+   and why the mark comes with it: a bare "1.5" next to a price and a #rank
+   needs to say what kind of number it is before it says anything else */
+.result-salt {
+    color: var(--gold);
+    margin-left: 8px;
+    cursor: help;
+    white-space: nowrap;
+}
+
+/* the shaker itself, masked from the text colour so it inherits whatever the
+   figure beside it is wearing. an <i> rather than an <img> keeps it out of
+   the accessibility tree entirely: the tooltip and the number carry the
+   meaning, and a screen reader announcing "image" here would add nothing */
+.salt-mark {
+    display: inline-block;
+    width: 11px;
+    height: 11px;
+    margin-right: 3px;
+    vertical-align: -1px;
+    background: currentColor;
+    -webkit-mask: var(--shaker) center / contain no-repeat;
+    mask: var(--shaker) center / contain no-repeat;
+}
+
+/* in the filter panel it sits against the slot's own label, which is ink
+   rather than gold, and wants a touch more room from the word */
+.slot-name .salt-mark {
+    margin-right: 4px;
+    vertical-align: -1px;
 }
 
 .match-line img {

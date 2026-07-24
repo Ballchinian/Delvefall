@@ -19,14 +19,15 @@
    question the box itself provokes, and nobody opens a panel to find out
    what the thing above the panel is for #}
 <p class="adv-help"><a href="/guide#filters">what syntax from scryfall do we use</a></p>
-{# which of the four narrowing filters arrive already added: the ones the url
+{# which of the narrowing filters arrive already added: the ones the url
    carries a value for. everything else starts off the page #}
 {% set on_colors = request.args.getlist('colors') | length > 0 %}
 {% set on_price = request.args.get('pmin') or request.args.get('pmax') %}
 {% set on_mv = request.args.get('mvmin') or request.args.get('mvmax') %}
+{% set on_salt = request.args.get('smin') or request.args.get('smax') %}
 {% set on_type = request.args.getlist('type') | length > 0 %}
 {% set ns = namespace(count=0) %}
-{% for on in [on_colors, on_price, on_mv, on_type,
+{% for on in [on_colors, on_price, on_mv, on_salt, on_type,
               request.args.get('cmdr'), request.args.get('gc'), request.args.get('illegal')] %}
     {% if on %}{% set ns.count = ns.count + 1 %}{% endif %}
 {% endfor %}
@@ -114,6 +115,18 @@
                 to <input type="number" name="mvmax" min="0" max="20" step="1" placeholder="20" aria-label="maximum mana value" value="{{ request.args.get('mvmax', '') }}">
             </span>
         </div>
+        {# salt is the only filter here running on OPINION rather than on what
+           a card does, so the slot says where the number comes from. the
+           bounds are 0 to 3 because that is the real range of the survey, and
+           1.0 is named in the placeholder because a bare "0 to 3" gives no
+           sense of where salty starts #}
+        <div class="adv-slot" data-filter="salt" {% if not on_salt %}hidden{% endif %}>
+            <span class="slot-head"><button type="button" class="slot-off" title="remove this filter" aria-label="remove the salt filter">&times;</button><span class="slot-name"><i class="salt-mark" aria-hidden="true"></i>Salt</span></span>
+            <span class="filter-prices" title="edhrec's salt survey: how much players dislike facing a card, 0 to about 3. anything over 1 is genuinely disliked, and only 2% of cards get there. cards nobody voted on are hidden by any salt filter">
+                <input type="number" name="smin" min="0" max="4" step="0.1" placeholder="0" aria-label="minimum salt" value="{{ request.args.get('smin', '') }}">
+                to <input type="number" name="smax" min="0" max="4" step="0.1" placeholder="any" aria-label="maximum salt" value="{{ request.args.get('smax', '') }}">
+            </span>
+        </div>
         {# the same on/off language as the colour symbols directly above: off is
            drained and quiet, on is filled and teal, and nothing has to be
            opened to see the state of all eight at once. every type a card
@@ -136,6 +149,7 @@
             <button type="button" class="slot-on" data-add="colors" {% if on_colors %}hidden{% endif %}>colours</button>
             <button type="button" class="slot-on" data-add="price" {% if on_price %}hidden{% endif %}>price</button>
             <button type="button" class="slot-on" data-add="mv" {% if on_mv %}hidden{% endif %}>mana value</button>
+            <button type="button" class="slot-on" data-add="salt" {% if on_salt %}hidden{% endif %}>salt</button>
             <button type="button" class="slot-on" data-add="type" {% if on_type %}hidden{% endif %}>type</button>
         </p>
     </div>
@@ -164,7 +178,7 @@
         });
     }
 
-    //once all four are on the page there is nothing left to add, so the row
+    //once they are all on the page there is nothing left to add, so the row
     //that offers them goes rather than sitting there empty under its label
     function refreshAdd() {
         var row = fold.querySelector(".adv-add");
