@@ -193,6 +193,34 @@ CREATE TABLE IF NOT EXISTS meta (
     value text
 );
 
+--privacy-preserving visitor counting. the web app creates these too (railway
+--only deploys web/), they live here so the ingest self-heals a fresh database
+--like every other table. the design is the privacy-first standard: a per-day
+--salt that is DELETED once the day is over, so the stored tokens can never be
+--turned back into an ip afterwards, and the raw ip is never written at all.
+--nothing here touches the visitor's device, which is what keeps the site free
+--of a cookie banner.
+--
+--visit_salt holds only the CURRENT day's salt (older rows are deleted as each
+--day rolls over). visit_seen is that day's distinct visitor tokens, also
+--cleared once the day is counted. visit_daily is all that survives: one
+--integer per day, fully anonymous
+CREATE TABLE IF NOT EXISTS visit_salt (
+    day  date PRIMARY KEY,
+    salt text NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS visit_seen (
+    day   date NOT NULL,
+    token text NOT NULL,
+    PRIMARY KEY (day, token)
+);
+
+CREATE TABLE IF NOT EXISTS visit_daily (
+    day     date PRIMARY KEY,
+    uniques int NOT NULL
+);
+
 --axis 2 (conceptual similarity) groundwork: community tags from scryfall
 --tagger, via the official oracle_tags bulk file. one row per card-tag link.
 --ingest/tags.py rebuilds both tables from scratch whenever the bulk file

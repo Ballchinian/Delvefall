@@ -11,6 +11,8 @@ import uuid
 import json
 import random
 import hashlib
+import secrets
+import datetime
 import unicodedata
 import urllib.request
 from urllib.parse import quote
@@ -142,6 +144,17 @@ with pool.connection() as _conn:
             created_at    timestamptz DEFAULT now()
         )
     """)
+    #privacy-preserving visitor counting. same reason as the feedback table:
+    #these live in common/schema.sql too, but railway only deploys web/, so
+    #the app makes sure they exist. what each holds is explained at
+    #todays_salt/count_visit below
+    _conn.execute("CREATE TABLE IF NOT EXISTS visit_salt (day date PRIMARY KEY, salt text NOT NULL)")
+    _conn.execute("""CREATE TABLE IF NOT EXISTS visit_seen (
+        day   date NOT NULL,
+        token text NOT NULL,
+        PRIMARY KEY (day, token)
+    )""")
+    _conn.execute("CREATE TABLE IF NOT EXISTS visit_daily (day date PRIMARY KEY, uniques int NOT NULL)")
 
 #the review page at /admin only exists when this is set in the environment
 ADMIN_KEY = os.environ.get("ADMIN_KEY", "")
@@ -1725,6 +1738,13 @@ def unique():
     return render_template("unique.html", types=CARD_TYPES, blend=read_blend(), cur=read_currency())
 
 
+@app.route("/privacy")
+def privacy():
+    #plain-english, and short because there is genuinely little to say: the
+    #site keeps almost nothing. linked from the footer
+    return render_template("privacy.html")
+
+
 #a deck is original because of its WEIRDEST cards, not its average card. the
 #mean over a whole list is dominated by the mana base and the removal suite
 #that every deck shares, and it squashes the spread between first and last
@@ -2467,6 +2487,82 @@ def client_ip():
     return request.remote_addr or ""
 
 
+#---- privacy-preserving visitor counting ----
+#how many distinct people used the site each day, keeping NOTHING that can be
+#traced back to one of them. the recipe is the privacy-first standard (the same
+#one plausible and friends use): hash the ip with a salt that ROTATES DAILY and
+#is then thrown away. within a day the same visitor collapses to one token; once
+#that day's salt is deleted, nobody, us included, can turn the stored tokens
+#back into an ip. the raw ip is never written to disk.
+#
+#done server-side ON PURPOSE. it touches nothing on the visitor's device, so it
+#needs no cookie banner, where a localStorage "visited" flag would count as
+#non-essential storage the eprivacy rules require consent for. counter-intuitive
+#but true: the device-storage route is the more regulated one.
+
+_visit = {"day": None, "salt": None}
+
+
+def _utc_day():
+    return datetime.datetime.now(datetime.timezone.utc).date()
+
+
+def todays_salt():
+    #today's rotating salt, generated once and shared by every worker through
+    #the db. the first request of a new day also does the housekeeping: each
+    #finished day collapses into a single count in visit_daily and its
+    #per-visitor tokens and its salt are deleted. that deletion is what makes
+    #yesterday unrecoverable, so only ever an integer survives the day
+    day = _utc_day()
+    if _visit["day"] == day and _visit["salt"]:
+        return _visit["salt"]
+    with pool.connection() as conn:
+        conn.execute("INSERT INTO visit_salt (day, salt) VALUES (%s, %s) ON CONFLICT (day) DO NOTHING",
+                     (day, secrets.token_hex(16)))
+        salt = conn.execute("SELECT salt FROM visit_salt WHERE day = %s", (day,)).fetchone()["salt"]
+        conn.execute("""INSERT INTO visit_daily (day, uniques)
+                        SELECT day, count(*) FROM visit_seen WHERE day < %s GROUP BY day
+                        ON CONFLICT (day) DO UPDATE SET uniques = EXCLUDED.uniques""", (day,))
+        conn.execute("DELETE FROM visit_seen WHERE day < %s", (day,))
+        conn.execute("DELETE FROM visit_salt WHERE day < %s", (day,))
+    _visit["day"] = day
+    _visit["salt"] = salt
+    return salt
+
+
+def visitor_token(ip):
+    #one-way daily fingerprint of an ip, shared by the visit counter and the
+    #feedback rate limit so the two never diverge. an empty ip (nothing to
+    #hash) stays empty rather than becoming a hash of the salt alone
+    if not ip:
+        return ""
+    return hashlib.sha256((todays_salt() + "|" + ip).encode("utf-8")).hexdigest()
+
+
+#the routes that count as a page view. the json endpoints are deliberately
+#absent: /suggest alone fires on every keystroke and would swamp the number,
+#and /more, the unique dealer and the report post are not visits
+PAGE_ENDPOINTS = {"home", "search", "unique", "precons", "precon", "deck", "guide"}
+
+
+@app.before_request
+def count_visit():
+    #one insert-or-nothing per page view, deduped by the day's token. wrapped
+    #in a blanket catch because analytics must NEVER be able to break a page:
+    #a missing table (fresh deploy before the ingest self-heals) or a db hiccup
+    #just means an uncounted visit, never a 500
+    if request.method != "GET" or request.endpoint not in PAGE_ENDPOINTS:
+        return
+    try:
+        token = visitor_token(client_ip())
+        if token:
+            with pool.connection() as conn:
+                conn.execute("INSERT INTO visit_seen (day, token) VALUES (%s, %s) ON CONFLICT DO NOTHING",
+                             (_utc_day(), token))
+    except Exception:
+        pass
+
+
 def best_sim(conn, anchor_id, other_id, picked):
     #the calibrated percent the results page prints next to the other card.
     #the winning pair is chosen by WEIGHTED similarity, exactly like the
@@ -2575,9 +2671,14 @@ def feedback():
     dropped = read_dropped()
 
     with pool.connection() as conn:
-        #a gentle lid, there's no login so this is all the abuse control there is
-        ip = client_ip()
-        recent = conn.execute("SELECT count(*) AS n FROM feedback WHERE ip = %s AND created_at > now() - interval '1 hour'",
+        #a gentle lid, there's no login so this is all the abuse control there
+        #is. the ip is stored only as the day's one-way token, same as the
+        #visit counter: enough to spot one source flooding reports within an
+        #hour, nothing that survives as a real address. the window is 1 hour so
+        #the token rotating at midnight only ever RESETS the lid, never carries
+        #a stale grudge, which is exactly what a spam limiter should do
+        ip = visitor_token(client_ip())
+        recent = conn.execute("SELECT count(*) AS n FROM feedback WHERE ip = %s AND ip <> '' AND created_at > now() - interval '1 hour'",
                               (ip,)).fetchone()["n"]
         if recent >= 20:
             return {"ok": False, "stored": False, "msg": "That's a lot of reports for one hour. Thank you, but please come back later."}
@@ -2816,6 +2917,15 @@ def admin():
             for l in conn.execute("SELECT oracle_id, line_text FROM lines WHERE oracle_id = ANY(%s) AND NOT whole", (list(ids),)):
                 line_texts.setdefault(l["oracle_id"], []).append(l["line_text"])
 
+        #daily unique visitors. today is still accumulating in visit_seen, past
+        #days are the frozen integer counts, so the two are read separately and
+        #stitched newest-first
+        today = _utc_day()
+        live = conn.execute("SELECT count(*) AS n FROM visit_seen WHERE day = %s", (today,)).fetchone()["n"]
+        usage = [{"day": today.isoformat(), "uniques": live, "today": True}]
+        for u in conn.execute("SELECT day, uniques FROM visit_daily ORDER BY day DESC LIMIT 60"):
+            usage.append({"day": u["day"].isoformat(), "uniques": u["uniques"], "today": False})
+
     def card_bit(role, oid, name, pct):
         c = info.get(oid)
         return {"role": role, "name": name, "image": c["image"] if c else "", "pct": pct}
@@ -2844,7 +2954,9 @@ def admin():
             "id": r["id"], "kind": r["kind"], "cards": cards, "reason": r["reason"],
             "created": r["created_at"].strftime("%Y-%m-%d %H:%M"),
             "picked": r["picked_lines"].replace("\n", "  |  "),
-            "filters": r["filters"], "model": r["embed_model"], "ip": r["ip"],
+            #a short prefix of the day-token, enough to eyeball two reports as
+            #the same source within a day, not a real address
+            "filters": r["filters"], "model": r["embed_model"], "ip": (r["ip"] or "")[:12],
             "tag": r["tag"], "tag_was": tag_was,
         }
         if r["status"] == "pending":
@@ -2860,7 +2972,7 @@ def admin():
 
     return render_template("admin.html", key=ADMIN_KEY, pending=pending, accepted=accepted,
                            triplet_md="\n".join(triplet_md), pair_md="\n".join(pair_md),
-                           tag_md="\n".join(tag_md))
+                           tag_md="\n".join(tag_md), usage=usage)
 
 
 @app.route("/admin/act", methods=["POST"])
@@ -2929,7 +3041,7 @@ def sitemap():
     root = request.url_root
     out = ['<?xml version="1.0" encoding="UTF-8"?>',
            '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
-    for page in ("", "unique", "deck", "precons", "guide"):
+    for page in ("", "unique", "deck", "precons", "guide", "privacy"):
         out.append("<url><loc>" + root + page + "</loc></url>")
     #one page per precon. they are server rendered and each one is about a
     #deck people search by name, so they are worth crawling. the slugs are

@@ -5,6 +5,20 @@
 {% block content %}
     <h1>Feedback review</h1>
 
+    <h2>Daily unique visitors</h2>
+    {# distinct people per day, from the one-way daily token. today is still
+       counting; every earlier day is frozen and its tokens are long gone #}
+    <table class="fb-usage">
+        <tr><th>day</th><th>unique visitors</th></tr>
+        {% for u in usage %}
+        <tr><td>{{ u.day }}{% if u.today %} <span class="fb-quiet">(so far today)</span>{% endif %}</td>
+            <td>{{ u.uniques }}</td></tr>
+        {% endfor %}
+        {% if usage|length == 1 and usage[0].uniques == 0 %}
+        <tr><td colspan="2" class="fb-quiet">nothing counted yet</td></tr>
+        {% endif %}
+    </table>
+
     <h2>Pending ({{ pending|length }})</h2>
     {% if not pending %}
     <p class="message">Nothing waiting.</p>
@@ -13,7 +27,7 @@
     <div class="fb-row">
         <div class="fb-head">
             <span>#{{ r.id }} · {{ r.kind }} · {{ r.created }}</span>
-            <span>{{ r.ip }}</span>
+            <span class="fb-quiet">{% if r.ip %}token {{ r.ip }}…{% endif %}</span>
         </div>
         <div class="fb-cards">
             {% for c in r.cards %}

@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+
+{% block title %}Privacy - Delvefall{% endblock %}
+
+{% block metadesc %}What Delvefall stores about you: almost nothing. No accounts, no tracking cookies, no IP addresses kept. How the visitor count and spam control work.{% endblock %}
+
+{% block content %}
+<div class="guide">
+    <h1>Privacy</h1>
+    <p>The short version: Delvefall keeps almost nothing about you. There are no accounts,
+    no tracking cookies, and your IP address is never stored. This page says exactly what
+    the site does and does not do.</p>
+
+    <h2>Counting visitors</h2>
+    <p>The site keeps a tally of how many different people visit each day, so I can tell
+    whether it is being used. It does this without storing anything that points back to you:
+    your IP address is turned into a one-way fingerprint using a secret that <strong>changes
+    every day and is then thrown away</strong>. Within a single day that fingerprint lets the
+    count avoid counting you twice; once the day is over the secret is deleted, and after
+    that nobody &mdash; including me &mdash; can turn the stored fingerprints back into an IP
+    address or link them to you. All that survives is a number: how many people came that
+    day. Your raw IP address is never written down.</p>
+    <p>This happens on the server, so nothing is stored on your device and there is nothing
+    to consent to. It cannot follow you across days or to any other website.</p>
+
+    <h2>Cookies and local storage</h2>
+    <p>There are no tracking or advertising cookies. The site uses your browser's local
+    storage only for features you are actually using: remembering which cards the
+    <a href="/unique">unique-card dealer</a> has already shown you, keeping your place when
+    you sort results, and remembering your chosen currency. That information stays in your
+    browser, is never sent anywhere to identify you, and clearing your browser data removes
+    it.</p>
+
+    <h2>When you report a bad match</h2>
+    <p>If you use the report button on a result, the site stores what you told it &mdash; the
+    cards involved and your note &mdash; so the matcher can be improved. To stop that form
+    being abused it also keeps the same one-way daily fingerprint described above, never your
+    actual IP address, and only long enough to notice one source sending a flood of reports.</p>
+
+    <h2>Other services</h2>
+    <p>Card names, images and prices come from <a href="https://scryfall.com">Scryfall</a>,
+    and card images load directly from Scryfall when you view a page. The site is hosted on
+    Railway and its domain runs through Cloudflare, both of which process requests in order to
+    serve the site. Nothing about your visits is sold or shared for advertising.</p>
+
+    <h2>Questions</h2>
+    <p>This is a personal project, not a company. If something here needs clarifying, the
+    <a href="https://discord.gg/kfjYbRYKbg" target="_blank" rel="noopener">Discord</a> is the
+    place to ask.</p>
+</div>
+{% endblock %}
