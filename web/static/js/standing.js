@@ -1,4 +1,8 @@
-<script>
+//the standings on /deck/read and /precons/<slug>. moved out of
+//partials/standing_js.html unchanged: same code, same sloppy-mode
+//semantics, loaded with defer so it still runs after the dom is parsed.
+//the iife it is wrapped in is redundant in a file of its own and is kept
+//so this stayed a move rather than a rewrite
 (function () {
     /*
         the standings. two controls, and they are independent: the arrows pick
@@ -181,4 +185,3 @@
     }
     go(at);
 })();
-</script>
