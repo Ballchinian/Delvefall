@@ -1,0 +1,402 @@
+{% extends "base.html" %}
+
+{% block title %}Improving your deck - Delvefall{% endblock %}
+
+{# same reasoning as /deck/read: a pasted list is nobody's business and there
+   is no url to come back to anyway #}
+{% block head_extra %}<meta name="robots" content="noindex">{% endblock %}
+
+{% block content %}
+<div class="guide precons deck-detail deck-swap">
+    <p class="precon-back"><a href="/deck">&larr; Read another deck</a></p>
+
+    <h1>Making this deck {{ goal }}</h1>
+    {# the count starts at nought and climbs. nothing can honestly say a card
+       is swappable before its replacements have been looked for, so this is
+       discovered rather than predicted: promising twelve and delivering four
+       is the version that reads as broken #}
+    <p class="deck-detail-sub">
+        <span id="swap-progress">0</span> of {{ queue|length }} checked so far have
+        somewhere to go, worst first. Nothing is saved, and nothing changes until you copy
+        the list out at the end.</p>
+
+    {% if not queue %}
+    <p class="deck-section-note deck-unranked">Nothing in this list can be moved that way.
+    Either every card is already {{ goal }}, or the cards that aren't have no rules text to
+    match on.</p>
+    {% else %}
+
+    {# the working area. one card at a time: a page of forty suggestions is the
+       thing every other tool already does, and it is the part people do not
+       finish. the queue is walked, not dumped #}
+    <div id="swap-live">
+        <div class="swap-out">
+            <span class="swap-label">Out</span>
+            <span class="swap-out-figure" id="swap-out-figure"></span>
+        </div>
+        <div class="swap-out-card" id="swap-out-card"></div>
+
+        <p class="deck-section-note" id="swap-note">Looking for replacements&hellip;</p>
+
+        {# the same grid the results page uses, so a replacement is read the
+           way every other card on the site is read: picture, price, play rate,
+           salt, and the line that matched. every figure carries its verdict
+           against the card leaving, which is the only question being asked #}
+        <div class="card-grid swap-grid" id="swap-options"></div>
+
+        <div class="swap-actions">
+            <button type="button" class="swap-skip" id="swap-skip">Keep it, next card</button>
+        </div>
+    </div>
+
+    {# the cards that were passed over for having nothing above the bar. named
+       rather than silently dropped: a card that disappears without explanation
+       reads as the tool missing it, and "there is nothing that does this job"
+       is a real finding about the card #}
+    <div class="swap-nothing" id="swap-nothing" hidden>
+        <h2>Nothing close enough</h2>
+        <p class="deck-section-note">No card does what these do and moves the deck
+        {{ goal }}, so they were passed over rather than swapped for something worse.</p>
+        <ul class="swap-made" id="swap-nothing-list"></ul>
+    </div>
+
+    {# what has been decided so far, and the only thing on this page that
+       persists past the last card. it is the deliverable: without a list you
+       can paste back into moxfield the whole session evaporates #}
+    <div id="swap-done" hidden>
+        <h2>Your swaps</h2>
+        <ul class="swap-made" id="swap-made"></ul>
+        <p class="deck-section-note" id="swap-summary"></p>
+        <h2>The new list</h2>
+        <p class="deck-section-note">Your original list with the swaps applied, ready to
+        paste back wherever it came from.</p>
+        <textarea class="swap-output" id="swap-output" rows="12" readonly></textarea>
+        <div class="swap-actions">
+            <button type="button" class="swap-copy" id="swap-copy">Copy the list</button>
+            <a class="swap-again" href="/deck">Read another deck</a>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+{# the deck the page is holding. it lives here rather than on the server
+   because there is no session to put it in and that is deliberate: every
+   request states its own deck, so nothing has to be stored, expired or
+   cleaned up, and closing the tab really does end it #}
+<script id="swap-data" type="application/json">{{ {
+    'queue': queue,
+    'deck': deck_ids,
+    'colors': colors,
+    'axis': axis,
+    'dir': direction,
+    'goal': goal,
+    'text': pasted
+} | tojson }}</script>
+{% endblock %}
+
+{% block scripts %}
+<script>
+/* the token -> svg map manaFill needs, same as the results and unique pages */
+window.MANA_URLS = {{ mana_urls() | tojson }};
+
+(function () {
+    var dataEl = document.getElementById("swap-data");
+    if (!dataEl) return;
+    var D = JSON.parse(dataEl.textContent);
+    if (!D.queue.length) return;
+
+    /* the same one-line builder search.html uses. it lives in both because
+       neither page owns it and cards.js is about card FRAMES, not markup */
+    function el(tag, cls, parent, text) {
+        var node = document.createElement(tag);
+        node.className = cls;
+        if (text !== undefined) node.textContent = text;
+        parent.appendChild(node);
+        return node;
+    }
+
+    /*
+        the deck grows and never shrinks. a card swapped IN has to be excluded
+        from every later suggestion or the tool offers it twice, and a card
+        swapped OUT has to stay excluded too, or the next card's list happily
+        suggests the thing just taken out. one list does both jobs
+    */
+    var deck = D.deck.slice();
+    var at = 0;
+    var swaps = [];
+
+    /*
+        every card's replacements once they have been asked for. undefined
+        means not asked yet, "pending" means in flight, an array means
+        answered, and an EMPTY array is a real answer rather than a failure:
+        it says nothing in the game does this card's job and moves the deck
+        the right way, which is why those cards get skipped instead of being
+        offered something worse
+    */
+    var cache = {};
+    var found = 0;
+    var nothing = [];
+
+    /* how far ahead to look. the count only climbs if answers arrive before
+       the user does, and three is enough to stay in front of someone reading
+       a card without opening twelve connections to say hello */
+    var LOOKAHEAD = 3;
+
+    var $ = function (id) { return document.getElementById(id); };
+    var options = $("swap-options"), note = $("swap-note");
+    var skipBtn = $("swap-skip");
+
+    /*
+        ask for one card's replacements, once. the result is cached whichever
+        way it comes back, so walking forwards and the look-ahead never ask
+        the same question twice, and an empty answer is remembered as an
+        answer rather than retried forever
+    */
+    function load(i) {
+        var card = D.queue[i];
+        if (!card || cache[card.oracle_id] !== undefined) return Promise.resolve();
+        cache[card.oracle_id] = "pending";
+        return fetch("/deck/swap/cards", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({card: card.oracle_id, deck: deck, colors: D.colors,
+                                  axis: D.axis, dir: D.dir})
+        }).then(function (r) { return r.json(); }).then(function (j) {
+            var cards = j.cards || [];
+            cache[card.oracle_id] = cards;
+            if (cards.length) {
+                found++;
+                $("swap-progress").textContent = found;
+            } else {
+                nothing.push(card.name);
+            }
+            /* the answer may have arrived for the card being looked at, in
+               which case the page was waiting on exactly this */
+            if (i === at) show();
+        }).catch(function () {
+            /* leave it uncached so moving on and coming back can retry */
+            delete cache[card.oracle_id];
+            if (i === at) note.textContent = "Could not reach the card database. Try again in a moment.";
+        });
+    }
+
+    function prefetch() {
+        var n = 0;
+        for (var i = at + 1; i < D.queue.length && n < LOOKAHEAD; i++) {
+            if (cache[D.queue[i].oracle_id] === undefined) { load(i); n++; }
+        }
+    }
+
+    function show() {
+        /* walk past anything already known to have nowhere to go. the skip is
+           silent here because those cards are named together at the end, and
+           stopping on each one to say "nothing" would be twelve dead ends */
+        while (at < D.queue.length) {
+            var known = cache[D.queue[at].oracle_id];
+            if (Array.isArray(known) && !known.length) { at++; continue; }
+            break;
+        }
+        if (at >= D.queue.length) return finish();
+
+        var card = D.queue[at];
+        $("swap-out-figure").textContent = card.figure;
+        var out = $("swap-out-card");
+        out.innerHTML = "";
+        out.appendChild(build(card));
+        enhanceCardFrames(out);
+        options.innerHTML = "";
+
+        var got = cache[card.oracle_id];
+        if (Array.isArray(got)) {
+            render(got);
+        } else {
+            note.textContent = "Looking for replacements…";
+            load(at);
+        }
+        prefetch();
+    }
+
+    /*
+        one card, drawn the way the results grid draws one. the card leaving
+        and the cards that could replace it go through here together: if they
+        were built by two functions the comparison would eventually be between
+        two different presentations of the same numbers, which is the way a
+        page starts lying without anyone editing it
+
+        anchorName is set for candidates and empty for the outgoing card. it
+        is what turns a bare figure into a verdict ("cheaper than Stasis"),
+        and its absence is why the card leaving carries no arrows: a card
+        compared against itself has nothing to say
+    */
+    function build(c, anchorName) {
+        var div = document.createElement("div");
+        div.className = "result";
+
+        var frame = el("div", "card-frame", div);
+        frame.dataset.sideways = c.sideways ? "1" : "";
+        frame.dataset.flip = c.flip ? "1" : "";
+        frame.dataset.back = c.image_back || "";
+        var link = el("a", "", frame);
+        link.href = c.scryfall_uri;
+        link.target = "_blank";
+        link.rel = "noopener";
+        link.title = "opens on scryfall";
+        var img = el("img", "", link);
+        img.src = c.image;
+        img.alt = c.name;
+        img.width = 488;
+        img.height = 680;
+        img.loading = "lazy";
+
+        var name = el("div", "result-name", div, c.name + " ");
+        if (c.match !== undefined) el("span", "percent", name, c.match + "%");
+
+        if (c.price || c.rank || c.salt) {
+            var row = el("div", "result-price", div);
+            var figure = el("span", "price-figure " + (c.price_vs || ""), row, c.price);
+            if (c.price_vs) {
+                figure.title = c.price_vs.replace("-", " ") + " than " + anchorName;
+                el("span", "price-vs", figure, c.price_vs.indexOf("cheaper") > -1 ? "↓" : "↑");
+            }
+            if (c.rank) {
+                var rank = el("span", "result-rank", row, c.rank);
+                rank.title = "play rate: edhrec's rank for how often this card is played in " +
+                    "commander, where #1 is the most played card in the format";
+                if (c.rank_vs) {
+                    el("span", "rank-vs", rank, c.rank_vs == "more-played" ? "↑" : "↓")
+                        .title = (c.rank_vs == "more-played" ? "more" : "less") + " played than " + anchorName;
+                }
+            }
+            /* empty means no score at all, not that the card is mild */
+            if (c.salt) {
+                var salt = el("span", "result-salt " + (c.salt_vs || ""), row);
+                el("i", "salt-mark", salt).setAttribute("aria-hidden", "true");
+                salt.appendChild(document.createTextNode(c.salt));
+                if (c.salt_vs) {
+                    salt.title = c.salt_vs.replace("-", " ").replace("milder", "less salty") +
+                        " than " + anchorName;
+                    el("span", "salt-vs", salt, c.salt_vs.indexOf("milder") > -1 ? "↓" : "↑");
+                } else {
+                    salt.title = "salt " + c.salt + " out of about 3, from edhrec's salt survey, " +
+                        "where players vote on the cards they least enjoy facing";
+                }
+            }
+        }
+        if (c.their_line) {
+            var ml = el("div", "match-line", div);
+            manaFill(ml, '"' + c.their_line + '"');
+            ml.title = "matches " + anchorName + "'s line: " + c.our_line;
+        }
+        return div;
+    }
+
+    function render(cards) {
+        options.innerHTML = "";
+        /* an empty list never reaches here: show() walks past those before
+           drawing anything, and they are named in the passed-over section */
+        if (!cards.length) { at++; return show(); }
+        note.textContent = "Pick one to swap it in, or keep the card you have.";
+        var outName = D.queue[at].name;
+        cards.forEach(function (c) {
+            var card = build(c, outName);
+            /* the picture stays a link to scryfall like everywhere else on the
+               site, so the swap gets its own button rather than making the
+               whole card a target that fights the link inside it */
+            var take_btn = el("button", "swap-take", card, "Swap this in");
+            take_btn.type = "button";
+            take_btn.addEventListener("click", function () { take(c); });
+            options.appendChild(card);
+        });
+        enhanceCardFrames(options);
+    }
+
+    function take(c) {
+        swaps.push({out: D.queue[at].name, in: c.name, match: c.match});
+        deck.push(c.oracle_id);
+        at++;
+        show();
+    }
+
+    skipBtn.addEventListener("click", function () { at++; show(); });
+
+    function finish() {
+        $("swap-live").hidden = true;
+        var done = $("swap-done");
+        done.hidden = false;
+
+        /* the cards nothing could replace, named together rather than one
+           dead end at a time on the way through */
+        if (nothing.length) {
+            var box = $("swap-nothing"), list = $("swap-nothing-list");
+            list.innerHTML = "";
+            nothing.forEach(function (n) {
+                el("li", "swap-made-row", list).textContent = n;
+            });
+            box.hidden = false;
+        }
+
+        var made = $("swap-made");
+        made.innerHTML = "";
+        swaps.forEach(function (s) {
+            var li = document.createElement("li");
+            li.className = "swap-made-row";
+            li.innerHTML = '<span class="swap-made-out"></span>'
+                         + '<span class="swap-made-arrow">→</span>'
+                         + '<span class="swap-made-in"></span>';
+            li.querySelector(".swap-made-out").textContent = s.out;
+            li.querySelector(".swap-made-in").textContent = s.in;
+            made.appendChild(li);
+        });
+        $("swap-summary").textContent = swaps.length
+            ? swaps.length + " card" + (swaps.length === 1 ? "" : "s") + " swapped."
+            : "You kept every card. Nothing to copy.";
+        $("swap-output").value = rebuild();
+    }
+
+    /*
+        the original text with the names substituted, rather than a list
+        rebuilt from our own data. the paste path drops duplicate counts on the
+        way in, so a rebuilt list would quietly return someone's 30 basics as
+        one line each. substituting leaves every count, every section header
+        and every bit of the user's own formatting exactly where it was
+    */
+    function rebuild() {
+        var text = D.text || "";
+        swaps.forEach(function (s) {
+            var lines = text.split("\n");
+            var hit = -1;
+            for (var i = 0; i < lines.length; i++) {
+                /* case insensitive, because an export may not match our
+                   capitalisation and the parser normalised it away anyway */
+                if (lines[i].toLowerCase().indexOf(s.out.toLowerCase()) !== -1) { hit = i; break; }
+            }
+            if (hit === -1) {
+                /* a name we cannot find in the raw text (a face name, or a
+                   collector number wedged in the middle). say so rather than
+                   dropping the swap on the floor */
+                text += "\n# swap by hand: " + s.out + " -> " + s.in;
+            } else {
+                var re = new RegExp(s.out.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+                lines[hit] = lines[hit].replace(re, s.in);
+                text = lines.join("\n");
+            }
+        });
+        return text;
+    }
+
+    $("swap-copy").addEventListener("click", function () {
+        var out = $("swap-output");
+        out.select();
+        navigator.clipboard.writeText(out.value).then(function () {
+            $("swap-copy").textContent = "Copied";
+        }).catch(function () {
+            /* clipboard is blocked on http origins and in some browsers, and
+               the textarea is already selected, so say what to press */
+            $("swap-copy").textContent = "Press Ctrl+C";
+        });
+    });
+
+    show();
+})();
+</script>
+{% endblock %}

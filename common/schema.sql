@@ -376,3 +376,19 @@ CREATE TABLE IF NOT EXISTS feedback (
 --attribution at review time rather than trusted from the form, so a report
 --stays readable even if the attribution is rebuilt before anyone looks at it
 ALTER TABLE feedback ADD COLUMN IF NOT EXISTS tag text NOT NULL DEFAULT '';
+
+--the feedback.ip column holds the day's one-way token now, never an address.
+--reports filed BEFORE that change stored the real ip, and /privacy says
+--plainly that an ip address is never stored, so the old rows have to go or the
+--page is not telling the truth about what is on disk.
+--
+--length is what tells them apart with no ambiguity: a token is a sha256 hex
+--digest, exactly 64 characters, and no ip address of either family is that
+--long. the rate limit only ever looks an hour back so nothing is lost by
+--clearing them, and matching on length rather than a date means this stays
+--correct however long it sits here.
+--
+--idempotent like everything else in this file: after the first run it matches
+--no rows. the web app runs the same statement at startup (railway only deploys
+--web/) so it lands on the next deploy rather than waiting for an ingest
+UPDATE feedback SET ip = '' WHERE ip <> '' AND length(ip) <> 64;

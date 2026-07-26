@@ -82,7 +82,7 @@
     {%- endmacro %}
 
     <nav class="precon-eras" aria-label="rank by">
-        {% for key, label, fkey, dkey, dlabel, dp in sorts %}
+        {% for key, label, fkey, dkey, dlabel, dp, best in sorts %}
             {% if key == sort %}
                 <span class="precon-era on" aria-current="true">{{ label }}</span>
             {% else %}
@@ -101,9 +101,10 @@
         {% endfor %}
     </nav>
 
-    {# only meaningful while ranking by originality: salt is a plain sum over
-       the whole deck, so there is no depth to read it at #}
-    {% if not salty %}
+    {# only meaningful while ranking by originality, which is the one score
+       built from a FRACTION of each deck. every other number here reads the
+       whole list, so there is no depth to read them at #}
+    {% if sort == 'original' %}
     <nav class="precon-eras precon-depths" aria-label="how deep to read each deck">
         <span class="precon-depth-label">Read:</span>
         {% for key, label, value in depths %}
@@ -155,7 +156,16 @@
                 {% endif %}
             </div>
             <div class="precon-score">
-                <div class="precon-figure">{{ ('%.' ~ decimals ~ 'f')|format(r.figure) }}</div>
+                <div class="precon-figure">{{ prefix }}{{ ('%.' ~ decimals ~ 'f')|format(r.figure) }}{{ suffix }}</div>
+                {# the vivid number, under the one the board actually sorts on.
+                   the collective total is the fact people repeat ("this deck
+                   is 900 years old"), and the AVERAGE is the only one a
+                   ranking can honestly use, because precons hold anywhere from
+                   53 to 66 nonland cards and a sum quietly rewards the bigger
+                   deck for being bigger #}
+                {% if sort == 'age' and r.age_total %}
+                <div class="precon-subfigure" title="every card's age added together, across the {{ r.age_cards }} cards that aren't basic lands">{{ '%.0f'|format(r.age_total) }} years all told</div>
+                {% endif %}
                 {# the bar is the comparison, the number is the receipt. width is
                    relative to the decks currently on screen, which is why the
                    top row is always full and the bottom row always a stub #}

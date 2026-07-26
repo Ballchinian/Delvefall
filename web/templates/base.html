@@ -95,7 +95,12 @@
             The concept tags come from <a href="https://tagger.scryfall.com">Scryfall Tagger</a>,
             applied by hand by its volunteers.
             Unofficial Fan Content, not approved or endorsed by Wizards of the Coast.</p>
-            <p class="footer-links"><a href="/privacy">Privacy</a></p>
+            {# quiet, and quiet is the whole placement decision: the ask sits
+               here and at the foot of a read deck, never on the landing page,
+               because the landing page is where nobody has been given anything
+               yet #}
+            <p class="footer-links"><a href="/privacy">Privacy</a>
+            <a href="/support">Support</a></p>
         </footer>
         {% endblock %}
 

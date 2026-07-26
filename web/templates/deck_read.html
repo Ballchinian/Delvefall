@@ -22,30 +22,67 @@
     </div>
     {% endif %}
 
-    {% if ranked %}
-    <div class="deck-standing">
-        <div class="deck-standing-place">
-            <span class="deck-standing-figure">{{ '%.3f'|format(score) }}</span>
-            <span class="deck-standing-of">originality</span>
+    {% if ranked and metrics %}
+    {# the pager follows you down the page rather than sitting at the top as a
+       control you have to go back up to. it is prev/next rather than five
+       buttons because these are five readings of ONE deck, meant to be walked
+       through, not a setting to be chosen once and left #}
+    <nav class="deck-pager" id="deck-pager" aria-label="which comparison">
+        <button type="button" class="deck-pager-arrow" id="deck-prev" aria-label="previous comparison">&larr;</button>
+        <span class="deck-pager-now" id="deck-pager-now">{{ metrics[0].label }}</span>
+        <button type="button" class="deck-pager-arrow" id="deck-next" aria-label="next comparison">&rarr;</button>
+    </nav>
+
+    {% for m in metrics %}
+    <section class="deck-metric" id="metric-{{ m.key }}" data-label="{{ m.label }}">
+        <div class="deck-standing">
+            <div class="deck-standing-place">
+                <span class="deck-standing-figure">{{ m.prefix }}{{ ('%.' ~ m.decimals ~ 'f')|format(m.figure) }}{{ m.suffix }}</span>
+                <span class="deck-standing-of">{{ m.label|lower }}</span>
+            </div>
+            <div class="deck-standing-text">
+                {# the whole reason the precon board was built first: a number
+                   is not a sentence until it has a population to sit against #}
+                {% if m.place == 1 %}
+                    <strong>Top of all {{ m.total }} Commander precons.</strong>
+                {% elif m.beaten == 0 %}
+                    <strong>Bottom of all {{ m.total }} Commander precons.</strong>
+                {% else %}
+                    <strong>{{ m.place }}{{ 'st' if m.place % 10 == 1 and m.place != 11 else ('nd' if m.place % 10 == 2 and m.place != 12 else ('rd' if m.place % 10 == 3 and m.place != 13 else 'th')) }}
+                    of {{ m.total + 1 }}</strong>, ahead of {{ m.beaten }} Commander
+                    precon{{ '' if m.beaten == 1 else 's' }}.
+                {% endif %}
+                {% if m.total_years %}
+                <span class="deck-standing-extra">{{ '%.0f'|format(m.total_years) }} years
+                all told, across {{ m.age_cards }} cards.</span>
+                {% endif %}
+                {% if m.drivers %}
+                <span class="deck-standing-extra">{{ m.driver_label }}:
+                {% for d in m.drivers %}<a href="/search?q={{ d | urlencode }}">{{ d }}</a>{{ '' if loop.last else ', ' }}{% endfor %}</span>
+                {% endif %}
+            </div>
         </div>
-        <div class="deck-standing-text">
-            {# the whole reason the precon board was built first: this number
-               is not a sentence until it has a population to sit against #}
-            {% if beaten >= total %}
-                <strong>More original than every Commander precon.</strong>
-                Nothing preconstructed plays cards this unusual.
-            {% elif beaten == 0 %}
-                <strong>Less original than every Commander precon.</strong>
-                This is a deck built from cards the format plays a lot of.
-            {% else %}
-                <strong>More original than {{ beaten }} of the {{ total }} Commander
-                precons.</strong>
-                Measured on how little the rest of Magic resembles its cards, the same
-                way <a href="/precons">the precon board</a> is.
-            {% endif %}
-        </div>
-    </div>
-    {% else %}
+
+        {# the deck dropped into the board where it actually lands, with the
+           decks either side of it. a placing on its own is a number; the decks
+           it landed between are what make it mean something #}
+        <ol class="deck-neighbours">
+            {% for n in m.window %}
+            <li class="deck-neighbour{{ ' is-you' if n.you }}">
+                <span class="deck-neighbour-place">{{ n.place }}</span>
+                <span class="deck-neighbour-name">
+                    {%- if n.slug %}<a href="/precons/{{ n.slug }}">{{ n.name }}</a>
+                    {%- else %}{{ n.name }}{% endif -%}
+                </span>
+                <span class="deck-neighbour-figure">{{ m.prefix }}{{ ('%.' ~ m.decimals ~ 'f')|format(n.figure) }}{{ m.suffix }}</span>
+            </li>
+            {% endfor %}
+        </ol>
+        <p class="deck-section-note"><a href="/precons?sort={{ m.key }}">The whole board by
+        {{ m.label|lower }} &rarr;</a></p>
+    </section>
+    {% endfor %}
+    {% elif not ranked %}
     {# saying nothing is better than saying something unearned. the score
        averages the top {{ min_cards }} cards, so a shorter list would be
        averaging fewer numbers than every deck it got ranked against #}
@@ -88,10 +125,88 @@
     </ul>
     {% endif %}
 
-    {% include "_salt.html" %}
+    {# _salt.html is deliberately NOT included here any more. it said the salt
+       total, its standing against the precons and the cards behind it, and all
+       three are now the salt panel above, said the same way as the other four
+       comparisons. precon.html still uses it, and that is the point of it
+       having been a partial: one page changed and the other did not #}
+
+    {# the one place the lens stops describing and offers to act. it sits at
+       the BOTTOM on purpose: the reading is what was asked for, and a tool
+       that opens by offering to change your deck has stopped being a lens.
+       the list rides a hidden field so nobody pastes twice #}
+    <h2>Change it</h2>
+    <p class="deck-section-note">Walk the deck one card at a time, worst first, and swap
+    what you want to. Nothing is saved and nothing changes until you copy the new list out
+    at the end.</p>
+    <form class="swap-start" method="post" action="/deck/swap">
+        <input type="hidden" name="list" value="{{ pasted }}">
+        <input type="hidden" name="axis" value="{{ swap_default[0] }}">
+        <input type="hidden" name="dir" value="{{ swap_default[1] }}">
+        <button type="submit">Make this deck {{ swap_axes[swap_default]['goal'] }}</button>
+    </form>
 
     <p class="deck-detail-foot">Read from {{ counted }} nonland cards. Lands are left out
     of both lists for the same reason they are left out of the score: a mana base is not
     what makes a deck a deck. Nothing here was saved.</p>
+
+
+    {# the one place on the site that asks, besides the footer link. it is here
+       because the reading is finished directly above it, which is the only
+       moment the user has actually been handed something. a statement of what
+       the site costs, not an appeal, and it stays a sentence: no button, no
+       panel, nothing that competes with the deck they came to read #}
+    <p class="deck-detail-foot deck-support">Delvefall is free and has no ads. It costs
+    {{ running_cost }} to run. <a href="/support">You can chip in</a> if you found this
+    useful.</p>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    /*
+        the pager. the sections are all on the page and the header just moves
+        you between them, rather than showing one at a time: scrolling past
+        the salt panel on your way to price is how you notice the salt panel,
+        and hiding four fifths of a reading behind arrows is how people miss
+        the thing they came for
+
+        it also means the page still reads top to bottom with no script at
+        all. the pager is the only part that needs js, so it hides itself if
+        it cannot work
+    */
+    var pager = document.getElementById("deck-pager");
+    var sections = Array.prototype.slice.call(document.querySelectorAll(".deck-metric"));
+    if (!pager || sections.length < 2) { if (pager) pager.hidden = true; return; }
+
+    var now = document.getElementById("deck-pager-now");
+    var at = 0;
+
+    function go(i) {
+        at = Math.max(0, Math.min(sections.length - 1, i));
+        sections[at].scrollIntoView({behavior: "smooth", block: "start"});
+    }
+
+    document.getElementById("deck-prev").addEventListener("click", function () { go(at - 1); });
+    document.getElementById("deck-next").addEventListener("click", function () { go(at + 1); });
+
+    /*
+        the label follows the scroll rather than only changing when an arrow
+        is pressed, so it never claims you are looking at price while salt is
+        on screen. rootMargin pulls the trigger line down under the sticky
+        header, which is the band the reader is actually reading
+    */
+    if ("IntersectionObserver" in window) {
+        var seen = new IntersectionObserver(function (entries) {
+            entries.forEach(function (e) {
+                if (!e.isIntersecting) return;
+                var i = sections.indexOf(e.target);
+                if (i > -1) { at = i; now.textContent = e.target.dataset.label; }
+            });
+        }, {rootMargin: "-25% 0px -60% 0px"});
+        sections.forEach(function (s) { seen.observe(s); });
+    }
+})();
+</script>
 {% endblock %}

@@ -88,11 +88,15 @@
     </ul>
     {% endif %}
 
-    {% include "_salt.html" %}
-
     <p class="deck-detail-foot">Read from {{ counted }} nonland cards. Lands are left out
     of both lists for the same reason they are left out of the score: a mana base is not
     what makes a deck a deck.</p>
     {% endif %}
+
+    {# outside the block above, because salt comes from its own query over the
+       whole decklist and knows nothing about the lens. a deck the lens has
+       nothing to say about still has a salt total, and hiding it because the
+       OTHER half of the page came back empty was just where the tag sat #}
+    {% include "_salt.html" %}
 </div>
 {% endblock %}

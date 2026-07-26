@@ -27,6 +27,7 @@ import psycopg
 import requests
 
 from common.cards import HEADERS
+from ingest.update import get_with_retries
 
 META_URL = "https://mtgjson.com/api/v5/Meta.json"
 ATOMIC_URL = "https://mtgjson.com/api/v5/AtomicCards.json.xz"
@@ -85,8 +86,11 @@ def main():
         conn.execute(f.read())
     conn.commit()
 
+    #through the retrier like every other version check in the ingest. one 502
+    #from mtgjson used to fail the whole step, and the step it fails is the one
+    #that decides whether there is any work to do
     print("asking mtgjson for its version...")
-    version = requests.get(META_URL, headers=HEADERS, timeout=60).json()["data"]["version"]
+    version = get_with_retries(META_URL).json()["data"]["version"]
 
     #same gate as the rest of the ingest. an empty salt column means a first
     #run (or one that died halfway), do the work anyway

@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% block title %}Support Delvefall - Delvefall{% endblock %}
+
+{% block metadesc %}Delvefall is free and has no ads. What it costs to run, where the money goes, and how to chip in if you want to.{% endblock %}
+
+{% block content %}
+<div class="guide">
+    <h1>Support Delvefall</h1>
+    <p>Delvefall is free, has no ads, and does not want an account from you. That is not
+    going to change. This page exists in case you have got something out of the site and
+    wondered whether you could put something back.</p>
+
+    <h2>What it costs</h2>
+    <p>Running the site comes to <strong>{{ running_cost }}</strong>. That is the Postgres
+    database the card vectors live in, and the domain. The daily update pipeline runs on
+    GitHub Actions, which is free at this size, and the language model only ever runs inside
+    that pipeline, so there is no expensive server sitting there waiting for a search.</p>
+    <p>It is a small number on purpose. This is a side project, not a business, and nothing
+    on the site is behind a payment.</p>
+
+    <h2>Chipping in</h2>
+    <p>There is a tip jar on Ko-fi. One off, any amount, no account here and no subscription
+    anywhere.</p>
+    <p class="support-cta">
+        <a class="support-link" href="{{ kofi_url }}" target="_blank" rel="noopener"
+           aria-label="Delvefall on Ko-fi (opens in a new tab)">Delvefall on Ko-fi</a>
+    </p>
+    <p>You get nothing for it. There is no supporter badge, no ad free tier (there are no
+    ads to remove), and no feature waiting behind a tier. Everything the site does, it does
+    for everyone who turns up.</p>
+
+    <h2>Other ways, all of them free</h2>
+    <p>Honestly, these are worth more than the money:</p>
+    <ul>
+        <li><strong>Report a bad match.</strong> Every result carries a quiet flag, and the
+        reports become the test cases the next model is graded against. That loop is the only
+        reason the matching gets better.</li>
+        <li><strong>Tell someone.</strong> The site lives or dies on people finding it, and
+        it has no marketing budget at all.</li>
+        <li><strong>Come and argue in the
+        <a href="https://discord.gg/kfjYbRYKbg" target="_blank" rel="noopener">Discord</a>.</strong>
+        Several of the things the site does exist because somebody said the old version was
+        wrong.</li>
+    </ul>
+
+    <h2>Where the money does not come from</h2>
+    <p>For completeness, since a free site always raises the question. There are no ads and
+    no trackers, and <a href="/privacy">nothing about your visits</a> is sold. If a shop link
+    ever appears on the precon pages it will be an affiliate link and it will say so, right
+    there on the page. Card search will carry nothing either way: the price sort is only
+    useful if it is honest about which card is cheaper, so nothing is ever allowed to pay its
+    way up a result list.</p>
+</div>
+{% endblock %}

@@ -2,63 +2,119 @@
 
 {% block title %}The deck lens - Delvefall{% endblock %}
 
-{% block metadesc %}Look at a Commander deck through what its cards actually do: which of them nothing else in Magic resembles, and which jobs the deck doubles up on. Starting with every preconstructed deck ranked by how original it is.{% endblock %}
+{% block metadesc %}Paste a Commander decklist or import one from Archidekt: see which cards nothing else in Magic resembles, how salty the deck is, and get card-by-card swaps to make it cheaper, milder or less predictable.{% endblock %}
 
 {% block content %}
 <div class="guide deck-hub">
     <h1>The deck lens</h1>
-    <p>A lens over a decklist, not a deck builder. It reads what the cards <em>do</em> and
-    tells you something you would not get from a price total or a curve chart: which cards in
-    a deck are doing a job nothing else in Magic does, and which ones are covering ground the
-    deck already covers.</p>
-    <p class="deck-hub-promise">No accounts, nothing saved, nothing to sign up for.</p>
+    <p class="deck-hub-lede">Give it a deck. It reads what the cards <em>do</em>, tells you
+    how the deck stands against every Commander precon, and offers you swaps card by card.</p>
+    <p class="deck-hub-promise">No accounts, nothing saved on our side, nothing to sign up for.</p>
 
-    <h2>Read a decklist</h2>
     {% if error %}<p class="deck-error">{{ error }}</p>{% endif %}
-    <form class="deck-paste" action="/deck/read" method="post">
-        <label for="list">Paste a decklist. Exports from Moxfield, Archidekt, MTGO and a
-        plain list of names all work.</label>
-        <textarea id="list" name="list" rows="10" spellcheck="false"
-            placeholder="1 Sol Ring&#10;1 Arcane Signet&#10;1 Nekusar, the Mindrazer&#10;...">{{ pasted or '' }}</textarea>
-        <div class="deck-paste-go">
-            <button type="submit">Read this deck</button>
-            <span class="deck-paste-note">Nothing is saved, and there is no link back to it.</span>
+
+    <div class="deck-hub-cols">
+        <div class="deck-hub-main">
+            {# two inputs, not one clever one. a single box sniffing at its own
+               contents is the version where validating is hardest and the
+               error messages are worst: here each control checks exactly one
+               shape and can say exactly what was wrong with it #}
+            <form class="deck-import" action="/deck/open" method="post">
+                <label for="url">Import from Archidekt</label>
+                <div class="deck-import-row">
+                    <input id="url" name="url" type="url" inputmode="url" spellcheck="false"
+                           placeholder="https://archidekt.com/decks/1234567" value="{{ url or '' }}">
+                    <button type="submit">Import</button>
+                </div>
+                <span class="deck-hub-note">Moxfield and the rest are coming. Until then the
+                paste box below takes their exports fine.</span>
+            </form>
+
+            <div class="deck-or"><span>or</span></div>
+
+            <form class="deck-paste" action="/deck/open" method="post">
+                <label for="list">Paste a decklist</label>
+                <textarea id="list" name="list" rows="10" spellcheck="false"
+                    placeholder="1 Sol Ring&#10;1 Arcane Signet&#10;1 Nekusar, the Mindrazer&#10;...">{{ pasted or '' }}</textarea>
+                <div class="deck-paste-go">
+                    <button type="submit">Read this deck</button>
+                    <span class="deck-hub-note">Exports from Moxfield, Archidekt, MTGO and a
+                    plain list of names all work.</span>
+                </div>
+            </form>
+
+            {% if missing %}
+            <div class="deck-missing">
+                <strong>{{ missing|length }} line{{ '' if missing|length == 1 else 's' }} didn't match a card:</strong>
+                {{ missing|join(', ') }}
+            </div>
+            {% endif %}
+
+            <p class="deck-hub-precons">Haven't got a list to hand?
+            <a href="/precons">All {{ deck_count }} Commander precons, ranked</a> by how
+            original they are and by how much they annoy the table.</p>
         </div>
-    </form>
-    {% if missing %}
-    <div class="deck-missing">
-        <strong>{{ missing|length }} line{{ '' if missing|length == 1 else 's' }} didn't match a card:</strong>
-        {{ missing|join(', ') }}
+
+        {# the decks this browser has read before. it is localStorage, so it
+           never leaves the machine and there is still nothing stored on our
+           side and still no account. the panel says so, because "recent decks"
+           reads like an account to anyone who does not already know that #}
+        <aside class="deck-recent" id="deck-recent" hidden>
+            <h2>Decks you've read</h2>
+            <ul class="deck-recent-list" id="deck-recent-list"></ul>
+            <p class="deck-hub-note">Kept in this browser only, never sent anywhere.
+            <button type="button" class="deck-recent-clear" id="deck-recent-clear">Forget them</button></p>
+        </aside>
     </div>
-    {% endif %}
-
-    <h2>Or start from a deck we already have</h2>
-
-    <div class="deck-lens-sections">
-        <a class="deck-lens-card" href="/precons">
-            <span class="deck-lens-title">The most original precons</span>
-            <span class="deck-lens-body">Every preconstructed Commander deck ranked by how
-            unusual its cards are, measured against every card ever printed. {{ deck_count }}
-            decks, and the cards that earned each one its place.</span>
-            <span class="deck-lens-go">See the ranking &rarr;</span>
-        </a>
-        {% if example %}
-        <a class="deck-lens-card" href="/precons/{{ example.slug }}">
-            <span class="deck-lens-title">One deck, read closely</span>
-            <span class="deck-lens-body">Every precon has its own page: the cards nothing
-            else in Magic resembles, and the pairs of cards covering the same ground.
-            {{ example.name }} is the most original of them.</span>
-            <span class="deck-lens-go">Open {{ example.name }} &rarr;</span>
-        </a>
-        {% endif %}
-    </div>
-
-    <h2>Where this is going</h2>
-    <p>The ranking above exists because a deck's score means nothing on its own. "0.24" is
-    not a sentence. <em>"More original than every precon but two"</em> is one, and saying it
-    needs a fair population to measure against: same size, same format, same brief. That is
-    what the precons are for, and it is the piece that had to come first.</p>
-    <p>What it makes possible is the same reading applied to a list you paste in, which is
-    the part being built now.</p>
 </div>
+
+{# the form the recent list posts through. one hidden form reused by every
+   entry, rather than a form per row #}
+<form id="deck-recent-form" action="/deck/open" method="post" hidden>
+    <input type="hidden" name="list" id="deck-recent-list-field">
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    var KEY = "delvefall_recent_decks";
+    var box = document.getElementById("deck-recent");
+    var list = document.getElementById("deck-recent-list");
+    if (!box || !list) return;
+
+    function read() {
+        try { return JSON.parse(localStorage.getItem(KEY)) || []; }
+        catch (e) { return []; }
+    }
+
+    var decks = read();
+    if (!decks.length) return;
+    box.hidden = false;
+
+    decks.forEach(function (d) {
+        var li = document.createElement("li");
+        li.className = "deck-recent-row";
+        var btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "deck-recent-open";
+        btn.textContent = d.label || (d.count + " cards");
+        btn.addEventListener("click", function () {
+            document.getElementById("deck-recent-list-field").value = d.text;
+            document.getElementById("deck-recent-form").submit();
+        });
+        li.appendChild(btn);
+        var meta = document.createElement("span");
+        meta.className = "deck-recent-meta";
+        meta.textContent = d.count + " cards";
+        li.appendChild(meta);
+        list.appendChild(li);
+    });
+
+    document.getElementById("deck-recent-clear").addEventListener("click", function () {
+        try { localStorage.removeItem(KEY); } catch (e) {}
+        box.hidden = true;
+    });
+})();
+</script>
 {% endblock %}

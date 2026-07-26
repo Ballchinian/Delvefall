@@ -35,7 +35,9 @@
     <p>If you use the report button on a result, the site stores what you told it about the
     cards involved and your note so the matcher can be improved. To stop that form
     being abused it also keeps the same one way daily fingerprint described above, never your
-    actual IP address, and only long enough to notice one source sending a flood of reports.</p>
+    actual IP address. It is only ever looked at across the past hour, which is all it takes
+    to notice one source sending a flood of reports, and once that day's secret is thrown
+    away the fingerprint stored beside the report stops pointing at anything at all.</p>
 
     <h2>Other services</h2>
     <p>Card names, images and prices come from <a href="https://scryfall.com">Scryfall</a>,

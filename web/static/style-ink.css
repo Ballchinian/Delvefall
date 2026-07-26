@@ -1394,6 +1394,16 @@ footer {
 
 footer a { color: var(--teal); }
 
+/* two separate places to go, so they need to look like it. the markup only
+   had a collapsed whitespace character between them, which read as one
+   wrapped line. flex rather than a margin on the anchors so the gap belongs
+   to the row and neither link carries a stray edge if the other ever goes */
+.footer-links {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+}
+
 /* ---- the /precons leaderboard. borrows .guide's column width, so the prose
    at the top sets the same measure as the rest of the site's reading pages.
    the board itself is a plain <ol>: the rank IS the list marker, so an
@@ -1460,9 +1470,312 @@ footer a { color: var(--teal); }
 
 .deck-paste button:hover { background: var(--teal-hover); }
 
-.deck-paste-note, .deck-missing-why {
+.deck-paste-note, .deck-missing-why, .deck-hub-note {
     font-size: 12.5px;
     color: var(--muted);
+}
+
+.deck-hub-lede { font-size: 16px; }
+
+/* ---- comparison mode: the deck against the board, one metric at a time ---- */
+
+/* follows the reader down rather than sitting at the top as a control you
+   have to scroll back up to reach */
+.deck-pager {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    margin: 16px 0 4px;
+    padding: 8px 12px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 3px;
+}
+
+.deck-pager-now {
+    font-family: var(--serif);
+    font-weight: 600;
+    font-size: 15px;
+    min-width: 9em;
+    text-align: center;
+}
+
+.deck-pager-arrow {
+    background: none;
+    border: 1px solid var(--line-strong);
+    border-radius: 2px;
+    padding: 2px 10px;
+    font: inherit;
+    font-size: 15px;
+    color: var(--teal);
+    cursor: pointer;
+}
+
+.deck-pager-arrow:hover { background: var(--wash); }
+
+/* scroll-margin so a section landed on by the pager clears the sticky header
+   instead of hiding its own heading behind it */
+.deck-metric {
+    scroll-margin-top: 54px;
+    padding-top: 10px;
+    margin-bottom: 26px;
+}
+
+.deck-standing-extra {
+    display: block;
+    margin-top: 4px;
+    font-size: 12.5px;
+    color: var(--muted);
+}
+
+/* the board window. the deck's own row is the point of it, so it is the only
+   one that carries any weight */
+.deck-neighbours {
+    list-style: none;
+    margin: 12px 0 8px;
+    padding: 0;
+}
+
+.deck-neighbour {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--line);
+    font-size: 14px;
+}
+
+.deck-neighbour-place {
+    color: var(--muted);
+    font-size: 12.5px;
+    min-width: 2.5em;
+    font-variant-numeric: tabular-nums;
+}
+
+.deck-neighbour-name { flex: 1; min-width: 0; }
+
+.deck-neighbour-name a { color: var(--teal); text-decoration: none; }
+
+.deck-neighbour-name a:hover { text-decoration: underline; }
+
+.deck-neighbour-figure {
+    font-variant-numeric: tabular-nums;
+    color: var(--muted);
+}
+
+.deck-neighbour.is-you {
+    background: var(--wash);
+    border-left: 3px solid var(--teal);
+    font-weight: 600;
+}
+
+.deck-neighbour.is-you .deck-neighbour-figure { color: var(--text); }
+
+/* the secondary figure under a board score. smaller than the number the board
+   sorts on, because it is the memorable version of it rather than the one the
+   ranking is built from */
+.precon-subfigure {
+    font-size: 11.5px;
+    color: var(--muted);
+    margin-top: 2px;
+    cursor: help;
+}
+
+/* the hub is the front door now, so the inputs come first and everything else
+   sits beside or under them. one column on a narrow screen, where "to the
+   right" stops meaning anything */
+.deck-hub-cols {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 210px;
+    gap: 28px;
+    align-items: start;
+    margin-top: 18px;
+}
+
+@media (max-width: 720px) {
+    .deck-hub-cols { grid-template-columns: minmax(0, 1fr); gap: 20px; }
+}
+
+.deck-import label {
+    display: block;
+    font-size: 13px;
+    color: var(--muted);
+    margin-bottom: 6px;
+}
+
+.deck-import-row {
+    display: flex;
+    gap: 8px;
+}
+
+.deck-import input {
+    flex: 1;
+    min-width: 0;
+    font: inherit;
+    font-size: 14px;
+    padding: 8px 12px;
+    border: 1px solid var(--line-strong);
+    border-radius: 3px;
+    background: var(--panel);
+    color: var(--text);
+}
+
+.deck-import input:focus {
+    outline: 2px solid var(--teal);
+    outline-offset: -1px;
+}
+
+.deck-import button {
+    font: inherit;
+    font-weight: 600;
+    padding: 8px 18px;
+    border: 1px solid var(--teal);
+    border-radius: 3px;
+    background: none;
+    color: var(--teal);
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.deck-import button:hover { background: var(--teal); color: #fff; }
+
+.deck-import .deck-hub-note { display: block; margin-top: 6px; }
+
+/* the two inputs are alternatives, not a sequence, so the divider says so
+   rather than letting them read as step one and step two */
+.deck-or {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 18px 0;
+    color: var(--muted);
+    font-size: 13px;
+}
+
+.deck-or::before, .deck-or::after {
+    content: "";
+    flex: 1;
+    border-top: 1px solid var(--line);
+}
+
+.deck-hub-precons {
+    margin-top: 18px;
+    font-size: 14px;
+    color: var(--muted);
+}
+
+/* the decks this browser remembers. quiet and to one side: it is a shortcut
+   for someone coming back, not the point of the page */
+.deck-recent {
+    border-left: 1px solid var(--line);
+    padding-left: 18px;
+}
+
+@media (max-width: 720px) {
+    .deck-recent {
+        border-left: 0;
+        border-top: 1px solid var(--line);
+        padding-left: 0;
+        padding-top: 16px;
+    }
+}
+
+.deck-recent h2 {
+    font-size: 14px;
+    margin: 0 0 8px;
+}
+
+.deck-recent-list {
+    list-style: none;
+    margin: 0 0 10px;
+    padding: 0;
+}
+
+.deck-recent-row {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--line);
+}
+
+.deck-recent-open {
+    background: none;
+    border: 0;
+    padding: 0;
+    font: inherit;
+    font-size: 14px;
+    color: var(--teal);
+    text-align: left;
+    cursor: pointer;
+}
+
+.deck-recent-open:hover { text-decoration: underline; }
+
+.deck-recent-meta { font-size: 12px; color: var(--muted); }
+
+.deck-recent-clear {
+    background: none;
+    border: 0;
+    padding: 0;
+    font: inherit;
+    font-size: 12.5px;
+    color: var(--teal);
+    cursor: pointer;
+    text-decoration: underline;
+}
+
+/* the two modes, offered as equals. neither is the default and neither is
+   the small print: reading and changing are two different visits */
+.deck-modes-pick {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 14px;
+    margin: 20px 0 8px;
+}
+
+.deck-mode button {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    width: 100%;
+    height: 100%;
+    padding: 18px 20px;
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    background: var(--panel);
+    font: inherit;
+    color: var(--text);
+    text-align: left;
+    cursor: pointer;
+}
+
+.deck-mode button:hover {
+    background: var(--wash);
+    border-color: var(--teal);
+}
+
+.deck-mode-title {
+    font-family: var(--serif);
+    font-weight: 600;
+    font-size: 19px;
+}
+
+.deck-mode-body {
+    font-size: 13.5px;
+    color: var(--muted);
+    line-height: 1.5;
+}
+
+.deck-mode-go {
+    margin-top: auto;
+    padding-top: 6px;
+    font-size: 13.5px;
+    color: var(--teal);
 }
 
 .deck-missing-why { display: block; margin-top: 4px; }
@@ -1678,8 +1991,185 @@ footer a { color: var(--teal); }
     margin-top: 18px;
 }
 
+/* the tip jar line under a read deck. a rule above it because it is the one
+   thing down here that is not about the deck, and it should read as an aside
+   rather than as another finding. no background, no box, no button: the ask
+   is a sentence, and the moment it gets a panel it starts competing with the
+   reading it is supposed to be thanking you for */
+.deck-support {
+    border-top: 1px solid var(--line);
+    padding-top: 12px;
+    margin-top: 14px;
+}
+
+.deck-support a { color: var(--teal); }
+
 @media (max-width: 560px) {
     .deck-cards { columns: 1; }
+}
+
+/* the ko-fi link on /support. outlined rather than filled, unlike the search
+   button, which is the site's one loud action. this page is asking for a
+   favour and a big solid button reads as a checkout */
+.support-cta { margin: 14px 0 18px; }
+
+.support-link {
+    display: inline-block;
+    padding: 8px 18px;
+    border: 1px solid var(--teal);
+    border-radius: 2px;
+    color: var(--teal);
+    text-decoration: none;
+    font-size: 15px;
+}
+
+.support-link:hover {
+    background: var(--teal);
+    color: #fffef9;
+}
+
+/* ---- the swap tool. one card at a time, so the page is mostly empty on
+   purpose: the whole point is that you are looking at ONE decision, and a
+   grid of forty suggestions is the thing every other tool already does ---- */
+
+.swap-out {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin: 18px 0 6px;
+}
+
+/* the card leaving, drawn at the same size as the ones that could replace it
+   but held to one column so the page reads as a comparison rather than as a
+   row of equals: this is the card in question, those are the answers */
+.swap-out-card {
+    max-width: 200px;
+    margin-bottom: 6px;
+}
+
+/* the word "Out" carries the whole frame: this is the card leaving, and
+   everything under it is what could take the slot */
+.swap-label {
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-size: 10.5px;
+    color: var(--muted);
+}
+
+.swap-out-name {
+    color: var(--teal);
+    font-size: 17px;
+    text-decoration: none;
+}
+
+.swap-out-name:hover { text-decoration: underline; }
+
+/* the number that put this card in the queue. shown so a queue the user
+   disagrees with is arguable rather than mysterious */
+.swap-out-figure {
+    margin-left: auto;
+    font-size: 13px;
+    color: var(--muted);
+}
+
+.swap-grid { margin-bottom: 14px; }
+
+/* the cards nothing could replace. quiet, because it is a footnote to the
+   session rather than a failure report: "nothing in the game does this" is a
+   real answer and often the interesting one */
+.swap-nothing { margin-top: 22px; }
+
+/* picking a replacement is the only thing this page asks anyone to do, so the
+   button is full width under the card it belongs to. it is a separate control
+   rather than the whole card being clickable because the picture is already a
+   link to scryfall, and two targets in one place is how a click goes wrong */
+.swap-take {
+    display: block;
+    width: 100%;
+    margin-top: 8px;
+    padding: 7px 10px;
+    border: 1px solid var(--teal);
+    border-radius: 2px;
+    background: none;
+    color: var(--teal);
+    font: inherit;
+    font-size: 14px;
+    cursor: pointer;
+}
+
+.swap-take:hover {
+    background: var(--teal);
+    color: #fffef9;
+}
+
+.swap-actions {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+    margin: 14px 0 4px;
+}
+
+/* keeping the card is a real answer and not a failure, so it is a plain
+   button rather than something that looks like giving up */
+.swap-actions button {
+    padding: 7px 14px;
+    border: 1px solid var(--line-strong);
+    border-radius: 2px;
+    background: #fffef9;
+    font: inherit;
+    font-size: 14px;
+    cursor: pointer;
+}
+
+.swap-actions button:hover { background: var(--wash); }
+
+.swap-again { color: var(--teal); font-size: 14px; }
+
+.swap-made {
+    list-style: none;
+    margin: 0 0 10px;
+    padding: 0;
+}
+
+.swap-made-row {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 5px 0;
+    border-bottom: 1px solid var(--line);
+    font-size: 14px;
+}
+
+.swap-made-out { text-decoration: line-through; color: var(--muted); }
+
+.swap-made-arrow { color: var(--muted); }
+
+.swap-output {
+    width: 100%;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12.5px;
+    padding: 10px;
+    border: 1px solid var(--line-strong);
+    border-radius: 2px;
+    background: #fffef9;
+    resize: vertical;
+}
+
+/* the entry point at the foot of a reading. one button, and it says what it
+   will do rather than naming the feature */
+.swap-start { margin: 10px 0 4px; }
+
+.swap-start button {
+    padding: 8px 18px;
+    border: 0;
+    border-radius: 2px;
+    background: var(--teal);
+    color: white;
+    font: inherit;
+    font-size: 15px;
+    cursor: pointer;
 }
 
 .precon-back {

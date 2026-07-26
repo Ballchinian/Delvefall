@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+
+{% block title %}What next - Delvefall{% endblock %}
+
+{# a pasted list is nobody's business, and there is no url to index anyway #}
+{% block head_extra %}<meta name="robots" content="noindex">{% endblock %}
+
+{% block content %}
+<div class="guide deck-hub deck-modes">
+    <p class="precon-back"><a href="/deck">&larr; Use a different deck</a></p>
+
+    <h1>{{ deck_name or 'Your deck' }}</h1>
+
+    {# the receipt. it costs a click to show this and it buys the one thing an
+       IMPORT most needs: proof the list arrived whole. a link that quietly
+       read 40 of your 100 cards is the failure nobody notices until the
+       numbers look wrong #}
+    <p class="deck-detail-sub">{{ matched }} card{{ '' if matched == 1 else 's' }} read in{% if commanders %},
+    led by {{ commanders|join(' and ') }}{% endif %}{% if missing %},
+    {{ missing|length }} not found{% endif %}.</p>
+
+    {% if missing %}
+    <div class="deck-missing">
+        <strong>Not found:</strong> {{ missing|join(', ') }}
+        <span class="deck-missing-why">Anything the site doesn't hold (a token, a
+        sticker, a typo) is simply left out.</span>
+    </div>
+    {% endif %}
+
+    <div class="deck-modes-pick">
+        <form action="/deck/read" method="post" class="deck-mode">
+            <input type="hidden" name="list" value="{{ pasted }}">
+            <button type="submit">
+                <span class="deck-mode-title">Read it</span>
+                <span class="deck-mode-body">How original it is, how salty, what nothing
+                else in Magic resembles, and where it lands against every Commander
+                precon.</span>
+                <span class="deck-mode-go">See the reading &rarr;</span>
+            </button>
+        </form>
+
+        <form action="/deck/swap" method="post" class="deck-mode">
+            <input type="hidden" name="list" value="{{ pasted }}">
+            <input type="hidden" name="axis" value="{{ swap_default[0] }}">
+            <input type="hidden" name="dir" value="{{ swap_default[1] }}">
+            <button type="submit">
+                <span class="deck-mode-title">Change it</span>
+                <span class="deck-mode-body">Walk the deck a card at a time, worst first,
+                and swap what you want to. Ends with a list you can paste back.</span>
+                <span class="deck-mode-go">Make it {{ swap_axes[swap_default]['goal'] }} &rarr;</span>
+            </button>
+        </form>
+    </div>
+</div>
+
+<script id="deck-remember" type="application/json">{{ {
+    'text': pasted,
+    'count': matched,
+    'label': (commanders | join(' & ')) or deck_name or ''
+} | tojson }}</script>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    /*
+        remember this deck in THIS BROWSER. the server has already forgotten
+        it: /deck/open parsed the text, rendered this page and kept nothing,
+        so the only copy that outlives the tab is the one written here, on the
+        user's own machine, where they can delete it from the hub
+    */
+    var el = document.getElementById("deck-remember");
+    if (!el) return;
+    var d = JSON.parse(el.textContent);
+    if (!d.text) return;
+    var KEY = "delvefall_recent_decks";
+    var KEEP = 5;
+    try {
+        var decks = JSON.parse(localStorage.getItem(KEY)) || [];
+        /* same list twice is one entry, moved back to the front, rather than
+           a history that fills with the deck you keep re-reading */
+        decks = decks.filter(function (x) { return x.text !== d.text; });
+        decks.unshift({text: d.text, count: d.count, label: d.label, at: Date.now()});
+        localStorage.setItem(KEY, JSON.stringify(decks.slice(0, KEEP)));
+    } catch (e) {
+        /* private browsing, a full quota, or storage switched off. the site
+           works exactly the same without this, so it fails quietly */
+    }
+})();
+</script>
+{% endblock %}

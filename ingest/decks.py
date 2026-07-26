@@ -27,6 +27,12 @@ from ingest.update import get_with_retries
 DECKLIST_URL = "https://mtgjson.com/api/v5/DeckList.json"
 DECK_URL = "https://mtgjson.com/api/v5/decks/%s.json"
 
+#which of mtgjson's per-deck fields this script copies across. nothing reads
+#the string, it is a marker: change it whenever this starts filling a column
+#it did not fill before, and the gate in main() forces exactly one rebuild to
+#go and get it
+DECK_FIELDS = "source"
+
 #the only deck type worth having. mtgjson publishes 2990 decks across theme
 #decks, jumpstart, secret lair drops and mtgo redemption piles, none of which
 #are 100 card singleton commander decks and so none of which are comparable to
@@ -118,15 +124,20 @@ def main():
 
     #same gate as the tag ingest: seen this exact version already, stop. an
     #empty deck_cards means a first run (or one that died halfway), do the
-    #work anyway
-    #an empty source column means the same thing a missing version does:
-    #schema.sql just added the column and nothing has filled it, and skipping
-    #here would leave every deck without its decklist link until mtgjson
-    #happens to publish a new version
+    #work anyway.
+    #
+    #DECK_FIELDS is the third condition, and it is what forces the one rerun a
+    #new column needs: schema.sql adds the column empty, mtgjson's version has
+    #not moved, and without this it stays empty until mtgjson happens to
+    #publish. the obvious way to write that check asks the DATA instead, "is
+    #any deck's source empty?", which reads right and is a trap. the day
+    #mtgjson ships one Commander deck with no source field the answer is yes
+    #forever, and this redownloads all 190 files every night for nothing
     row = conn.execute("SELECT value FROM meta WHERE key = 'mtgjson_version'").fetchone()
+    fields = conn.execute("SELECT value FROM meta WHERE key = 'mtgjson_deck_fields'").fetchone()
     if (row and row[0] == version
-            and conn.execute("SELECT 1 FROM deck_cards LIMIT 1").fetchone()
-            and not conn.execute("SELECT 1 FROM decks WHERE source = '' LIMIT 1").fetchone()):
+            and fields and fields[0] == DECK_FIELDS
+            and conn.execute("SELECT 1 FROM deck_cards LIMIT 1").fetchone()):
         print("already processed mtgjson " + version + ", nothing to do")
         conn.close()
         return
@@ -159,8 +170,8 @@ def main():
         #rebuilt from scratch every time the version moves, same philosophy as
         #line_stats and the tag tables. the cascade clears deck_cards with it
         cur.execute("TRUNCATE decks CASCADE")
-        rows = 0
         missing = 0
+        card_rows = []
         for slug, d in decks.items():
             cur.execute("""INSERT INTO decks (slug, name, code, release_date, type, source)
                            VALUES (%s, %s, %s, %s, %s, %s)""",
@@ -169,11 +180,20 @@ def main():
                 if oid not in known:
                     missing += 1
                     continue
-                cur.execute("""INSERT INTO deck_cards (deck_slug, oracle_id, count, is_commander)
-                               VALUES (%s, %s, %s, %s)""", (slug, oid, count, commander))
-                rows += 1
+                card_rows.append((slug, oid, count, commander))
+        #the deck rows go one at a time above because there are 166 of them and
+        #each one has to land before its cards can point at it. the cards are
+        #16k and they all go together, which is the difference between one
+        #round trip and sixteen thousand
+        cur.executemany("""INSERT INTO deck_cards (deck_slug, oracle_id, count, is_commander)
+                           VALUES (%s, %s, %s, %s)""", card_rows)
+        rows = len(card_rows)
         cur.execute("""INSERT INTO meta (key, value) VALUES ('mtgjson_version', %s)
                        ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value""", (version,))
+        #written in the same transaction as the rows it describes, so a run
+        #that dies halfway leaves neither and the next one does the work again
+        cur.execute("""INSERT INTO meta (key, value) VALUES ('mtgjson_deck_fields', %s)
+                       ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value""", (DECK_FIELDS,))
     conn.commit()
     print("wrote " + str(len(decks)) + " decks and " + str(rows) + " deck cards")
     if missing:
