@@ -285,8 +285,13 @@ LINE_TAGS = os.environ.get("LINE_TAGS", "1").strip().lower() not in ("0", "false
 @app.context_processor
 def feature_flags():
     #base.html builds the nav for every page, so the flags have to reach every
-    #template rather than the handful that pass them explicitly
-    return {"line_tags_on": LINE_TAGS, "kofi_url": KOFI_URL, "running_cost": RUNNING_COST}
+    #template rather than the handful that pass them explicitly.
+    #
+    #deck_min rides along because the paste box and the reading both quote the
+    #floor, and the hub is rendered from two places with different arguments.
+    #passing it by hand meant one of them would eventually say a stale number
+    return {"line_tags_on": LINE_TAGS, "kofi_url": KOFI_URL, "running_cost": RUNNING_COST,
+            "deck_min": DECK_MIN_FOR_RANK}
 
 
 def card_has_attribution(conn, oracle_id):

@@ -38,8 +38,14 @@
                     placeholder="1 Sol Ring&#10;1 Arcane Signet&#10;1 Nekusar, the Mindrazer&#10;...">{{ pasted or '' }}</textarea>
                 <div class="deck-paste-go">
                     <button type="submit">Read this deck</button>
+                    {# the floor is said here as well as on the reading, because
+                       finding it out afterwards means having pasted for nothing.
+                       any list is still read, so this is a boundary on the
+                       ranking rather than on the paste box #}
                     <span class="deck-hub-note">Text, CSV or .dek, from Moxfield, Archidekt,
-                    MTGO, Arena or a plain list of names. All of them work.</span>
+                    MTGO, Arena or a plain list of names. All of them work. Any length is
+                    read; placing it against the precons takes {{ deck_min }} nonland
+                    cards.</span>
                 </div>
             </form>
 

@@ -32,9 +32,14 @@
     {% elif not ranked %}
     {# saying nothing is better than saying something unearned. the score
        averages the top half of the list, so a shorter one would be averaging
-       fewer numbers than every deck it got ranked against #}
-    <p class="deck-section-note deck-unranked">Too few cards to place against the precons,
-    which needs at least {{ min_cards }} nonland cards.</p>
+       fewer numbers than every deck it got ranked against.
+
+       it says both numbers because one of them alone is a dead end: "needs 20"
+       leaves you counting your own paste to find out how far off you are, and
+       most of the time the answer is that the lands did not count #}
+    <p class="deck-section-note deck-unranked">Too few cards to place against the precons.
+    That needs at least {{ min_cards }} nonland cards and this deck has
+    {{ counted }}.</p>
     {% endif %}
 
     {# the one place the lens stops describing and offers to act. it sits at
@@ -45,7 +50,14 @@
        the offer FOLLOWS the standing on screen, and on the one standing it
        cannot act on it is not there at all. originality has no swap axis, and
        the nearest thing to one ("cards fewer people play") read as the wrong
-       button on the wrong panel, because that is what it was #}
+       button on the wrong panel, because that is what it was.
+
+       swaps is only filled when the deck ranked, so an empty one means there is
+       no standing to walk away from and nothing here can be offered honestly.
+       it is also the guard that keeps this block from rendering at all: the
+       fields below read swaps.salt, and a deck under min_cards used to reach
+       them with an empty dict and 500 the whole page, losing the paste #}
+    {% if swaps %}
     <div id="deck-change" hidden>
         <h2>Change it</h2>
         <p class="deck-section-note">Walk the deck one card at a time, worst first, and swap
@@ -64,6 +76,7 @@
         </form>
     </div>
     <script id="deck-swap-axes" type="application/json">{{ swaps | tojson }}</script>
+    {% endif %}
 
     <p class="deck-detail-foot">Read from {{ counted }} nonland cards. Lands are left out of
     the originality and age figures for the same reason: a mana base is not what makes a
