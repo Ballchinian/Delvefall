@@ -97,7 +97,7 @@
     {# the currency control, on the money panel only. the figure above it is
        real money in one currency, and until now this page could print it
        without offering any way to change which #}
-    {% if p.key == 'price' %}{% include "_currency.html" %}{% endif %}
+    {% if p.key == 'price' %}{% include "partials/currency.html" %}{% endif %}
 
     {% if p.cards %}
     {# what the number is MADE of, held ONCE and read from either end. the

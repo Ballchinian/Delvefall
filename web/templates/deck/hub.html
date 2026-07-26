@@ -43,7 +43,7 @@
                 </div>
             </form>
 
-            {% if missing %}{% with reread = '/deck/open' %}{% include "_missing.html" %}{% endwith %}{% endif %}
+            {% if missing %}{% with reread = '/deck/open' %}{% include "partials/missing.html" %}{% endwith %}{% endif %}
 
             <p class="deck-hub-precons">Haven't got a list to hand?
             <a href="/precons">All {{ deck_count }} Commander precons, ranked</a> by how
@@ -87,7 +87,7 @@
 {% endblock %}
 
 {% block scripts %}
-{% include "_missing_js.html" %}
+{% include "partials/missing_js.html" %}
 <script>
 (function () {
     var KEY = "delvefall_recent_decks";

@@ -32,7 +32,7 @@
     {% if not panels %}
     <p class="precon-empty">No scored cards for this deck yet.</p>
     {% else %}
-    {% include "_standing.html" %}
+    {% include "partials/standing.html" %}
     {% endif %}
 
     <p class="deck-detail-foot">Every ranking here is against the other
@@ -42,5 +42,5 @@
 {% endblock %}
 
 {% block scripts %}
-{% include "_standing_js.html" %}
+{% include "partials/standing_js.html" %}
 {% endblock %}

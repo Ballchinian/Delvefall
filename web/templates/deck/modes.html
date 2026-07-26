@@ -18,7 +18,7 @@
     <p class="deck-detail-sub">{{ matched }} card{{ '' if matched == 1 else 's' }} read in{% if missing %},
     {{ missing|length }} not found{% endif %}.</p>
 
-    {% if missing %}{% with reread = '/deck/read' %}{% include "_missing.html" %}{% endwith %}{% endif %}
+    {% if missing %}{% with reread = '/deck/read' %}{% include "partials/missing.html" %}{% endwith %}{% endif %}
 
     {# who leads it, which is the only thing that turns a pile of cards into a
        deck with a name. a list has no way to say it (the parser is blind to
@@ -82,7 +82,7 @@
 {% endblock %}
 
 {% block scripts %}
-{% include "_missing_js.html" %}
+{% include "partials/missing_js.html" %}
 <script>
 (function () {
     var input = document.getElementById("deck-lead-input");

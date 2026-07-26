@@ -28,7 +28,7 @@
     <p class="deck-detail-sub">{{ matched }} card{{ '' if matched == 1 else 's' }} read.</p>
 
     {% if ranked and panels %}
-    {% include "_standing.html" %}
+    {% include "partials/standing.html" %}
     {% elif not ranked %}
     {# saying nothing is better than saying something unearned. the score
        averages the top half of the list, so a shorter one would be averaging
@@ -81,5 +81,5 @@
 {% endblock %}
 
 {% block scripts %}
-{% include "_standing_js.html" %}
+{% include "partials/standing_js.html" %}
 {% endblock %}

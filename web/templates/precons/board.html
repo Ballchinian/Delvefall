@@ -93,7 +93,7 @@
 
     {# only where money is on screen. the other four rankings do not change
        with it, and a control that does nothing is worse than no control #}
-    {% if sort.metric.key == 'price' %}{% include "_currency.html" %}{% endif %}
+    {% if sort.metric.key == 'price' %}{% include "partials/currency.html" %}{% endif %}
 
     {# the honest bit, and it is about THIS number rather than about the idea of
        measuring decks. a reader who meets "19.4 years" or "#1204" with no scale

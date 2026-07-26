@@ -2437,7 +2437,7 @@ def precons():
     #remembered. it is the first and last row on screen, so it follows the era
     #cut and the currency toggle and it cannot go stale
     span = {"top": rows[0]["figure"], "bottom": rows[-1]["figure"]} if rows else None
-    return render_template("precons.html", rows=rows, eras=PRECON_ERAS, era=era[0],
+    return render_template("precons/board.html", rows=rows, eras=PRECON_ERAS, era=era[0],
                            sorts=PRECON_SORTS, sort=sort, cur=cur, span=span,
                            metrics=PRECON_METRICS, hide_new=hide_new,
                            new_here=new_here, new_days=PRECON_NEW_DAYS,
@@ -2727,7 +2727,7 @@ def precon(slug):
     #whose number is affected, rather than a blanket disclaimer nobody reads
     is_new = bool(deck_row["release_date"] and deck_row["release_date"] >
                   datetime.date.today() - datetime.timedelta(days=PRECON_NEW_DAYS))
-    return render_template("precon.html", deck=deck_row, year=year, panels=panels,
+    return render_template("precons/deck.html", deck=deck_row, year=year, panels=panels,
                            opened=opened, back=arrived["key"], cur=cur, is_new=is_new,
                            cur_urls=currency_urls(), cur_labels=CURRENCY_LABELS,
                            section=DECK_SECTION,
@@ -3093,7 +3093,7 @@ def deck_hub(error=None, pasted="", url="", missing=None):
     #being returned to with a complaint. one function so an error state can
     #never drift into looking like a different page
     board = precon_board()
-    return render_template("deck.html", deck_count=len(board),
+    return render_template("deck/hub.html", deck_count=len(board),
                            example=board[0] if board else None,
                            error=error, pasted=pasted, url=url, missing=missing)
 
@@ -3229,7 +3229,7 @@ def deck_open():
     #confirmation that the list arrived intact, which is the thing an IMPORT
     #most needs: a link that silently read 40 of your 100 cards is the failure
     #nobody notices until the numbers look wrong
-    return render_template("deck_modes.html", pasted=text[:DECK_MAX_CHARS],
+    return render_template("deck/modes.html", pasted=text[:DECK_MAX_CHARS],
                            matched=len(ids), missing=missing,
                            deck_name=name, commander=commander,
                            leaders=leaders, picker=picker,
@@ -3280,7 +3280,7 @@ def deck_read():
         for d, r in p["readings"].items():
             if r["swap"]:
                 swaps[r["sort_key"]] = r["swap"]
-    return render_template("deck_read.html", panels=panels, opened=PRECON_METRICS[0]["key"],
+    return render_template("deck/read.html", panels=panels, opened=PRECON_METRICS[0]["key"],
                            counted=len(scored), matched=len(ids), missing=missing,
                            total=len(board), ranked=ranked, min_cards=DECK_MIN_FOR_RANK,
                            cur=cur, deck_name=name, commander=commander, swaps=swaps,
@@ -3925,7 +3925,7 @@ def deck_swap():
     field, direction = read_axis()
     ids, missing = parse_decklist(text)
     if not ids:
-        return render_template("deck.html", deck_count=len(precon_board()),
+        return render_template("deck/hub.html", deck_count=len(precon_board()),
                                example=(precon_board() or [None])[0],
                                error=("None of those lines matched a card." if text.strip()
                                       else "Paste a decklist first."),
@@ -3946,7 +3946,7 @@ def deck_swap():
         row["figure"] = swap_figure(c, field, cur) or ""
         queue.append(row)
     name, commander = deck_identity()
-    return render_template("deck_swap.html", queue=queue, deck_ids=[str(i) for i in ids],
+    return render_template("deck/swap.html", queue=queue, deck_ids=[str(i) for i in ids],
                            colors=colors, axis=field, direction=direction,
                            goal=SWAP_AXES[(field, direction)]["goal"],
                            matched=len(ids), missing=missing, cur=cur,
