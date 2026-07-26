@@ -32,6 +32,11 @@ from prefix_words import PREFIX_WORDS
 from mirror import (REMINDER_KEYWORDS, reminder_is_the_rule, clean_line, line_weight,
                     EMBED_COLUMNS, embed_column, EMBED_COL,
                     concept_display, concept_raw_gate, mech_display)
+#who a visitor is for a day, without keeping anything that says who they are.
+#the report limiter and the import limiter identify people through this too
+import visitors
+from visitors import client_ip, visitor_token, _utc_day
+from views.meta import bp as meta_bp
 
 app = Flask(__name__)
 
@@ -3977,124 +3982,6 @@ def more():
 
 #---- user feedback: "a card is missing" / "this card shouldn't be here" ----
 
-def client_ip():
-    #railway's proxy APPENDS the address it saw to X-Forwarded-For, so the
-    #last entry is its word and everything left of it is client supplied.
-    #reading the first entry would let anyone dodge the report rate limit by
-    #sending a made-up header. one proxy deep is a railway fact: putting a
-    #cdn in front of the site would add an entry and this needs to move one
-    #step left
-    fwd = request.headers.get("X-Forwarded-For", "")
-    if fwd:
-        return fwd.split(",")[-1].strip()
-    return request.remote_addr or ""
-
-
-#---- privacy-preserving visitor counting ----
-#how many distinct people used the site each day, keeping NOTHING that can be
-#traced back to one of them. the recipe is the privacy-first standard (the same
-#one plausible and friends use): hash the ip with a salt that ROTATES DAILY and
-#is then thrown away. within a day the same visitor collapses to one token; once
-#that day's salt is deleted, nobody, us included, can turn the stored tokens
-#back into an ip. the raw ip is never written to disk.
-#
-#done server-side ON PURPOSE. it touches nothing on the visitor's device, so it
-#needs no cookie banner, where a localStorage "visited" flag would count as
-#non-essential storage the eprivacy rules require consent for. counter-intuitive
-#but true: the device-storage route is the more regulated one.
-
-_visit = {"day": None, "salt": None}
-
-
-def _utc_day():
-    return datetime.datetime.now(datetime.timezone.utc).date()
-
-
-def todays_salt():
-    #today's rotating salt, generated once and shared by every worker through
-    #the db. the first request of a new day also does the housekeeping: each
-    #finished day collapses into a single count in visit_daily and its
-    #per-visitor tokens and its salt are deleted. that deletion is what makes
-    #yesterday unrecoverable, so only ever an integer survives the day
-    day = _utc_day()
-    if _visit["day"] == day and _visit["salt"]:
-        return _visit["salt"]
-    with pool.connection() as conn:
-        conn.execute("INSERT INTO visit_salt (day, salt) VALUES (%s, %s) ON CONFLICT (day) DO NOTHING",
-                     (day, secrets.token_hex(16)))
-        salt = conn.execute("SELECT salt FROM visit_salt WHERE day = %s", (day,)).fetchone()["salt"]
-        conn.execute("""INSERT INTO visit_daily (day, uniques)
-                        SELECT day, count(*) FROM visit_seen WHERE day < %s GROUP BY day
-                        ON CONFLICT (day) DO UPDATE SET uniques = EXCLUDED.uniques""", (day,))
-        conn.execute("DELETE FROM visit_seen WHERE day < %s", (day,))
-        conn.execute("DELETE FROM visit_salt WHERE day < %s", (day,))
-    _visit["day"] = day
-    _visit["salt"] = salt
-    return salt
-
-
-def visitor_token(ip):
-    #one-way daily fingerprint of an ip, shared by the visit counter and the
-    #feedback rate limit so the two never diverge. an empty ip (nothing to
-    #hash) stays empty rather than becoming a hash of the salt alone
-    if not ip:
-        return ""
-    return hashlib.sha256((todays_salt() + "|" + ip).encode("utf-8")).hexdigest()
-
-
-#the routes that count as a page view. the json endpoints are deliberately
-#absent: /suggest alone fires on every keystroke and would swamp the number,
-#and /more, the unique dealer and the report post are not visits
-PAGE_ENDPOINTS = {"home", "search", "unique", "precons", "precon", "deck", "guide", "privacy"}
-
-
-#the tokens this worker has already written today, so a visitor's second and
-#twentieth page view cost nothing. every page view used to borrow one of the
-#pool's four connections before the handler had even started, on a search that
-#already borrows three for its line scans.
-#
-#the count stays correct because correctness was never here: the primary key
-#on (day, token) is what makes a repeat visit one row, and this only skips
-#inserts that would have hit that key and done nothing.
-#
-#one entry per unique visitor per day per worker, dropped when the day rolls
-#over. the cap is a floor under the worst case rather than a real limit, since
-#past it the memo stops growing and the inserts go back to being paid for,
-#which is what happened before any of this existed
-VISIT_MEMO_MAX = 50000
-
-_visit_memo = {"day": None, "seen": set()}
-
-
-@app.before_request
-def count_visit():
-    #one insert-or-nothing per new visitor per day. wrapped in a blanket catch
-    #because analytics must NEVER be able to break a page: a missing table
-    #(fresh deploy before the ingest self-heals) or a db hiccup just means an
-    #uncounted visit, never a 500
-    if request.method != "GET" or request.endpoint not in PAGE_ENDPOINTS:
-        return
-    try:
-        token = visitor_token(client_ip())
-        if not token:
-            return
-        day = _utc_day()
-        if _visit_memo["day"] != day:
-            _visit_memo["day"] = day
-            _visit_memo["seen"] = set()
-        if token in _visit_memo["seen"]:
-            return
-        with pool.connection() as conn:
-            conn.execute("INSERT INTO visit_seen (day, token) VALUES (%s, %s) ON CONFLICT DO NOTHING",
-                         (day, token))
-        #memoised only after the insert lands, so a failed one is retried on
-        #the next page view rather than being remembered as done
-        if len(_visit_memo["seen"]) < VISIT_MEMO_MAX:
-            _visit_memo["seen"].add(token)
-    except Exception:
-        pass
-
-
 def best_sim(conn, anchor_id, other_id, picked):
     #the calibrated percent the results page prints next to the other card.
     #the winning pair is chosen by WEIGHTED similarity, exactly like the
@@ -4573,92 +4460,17 @@ def suggest():
     return {"names": names}
 
 
-#---- crawler plumbing: robots.txt and the sitemap ----
-
-#every card's search page is a landing page, but crawlers can only find
-#them by walking result pages link by link. the sitemap hands over the
-#whole list of canonical card urls in one file. the names are cached for a
-#day (they change on the ingest's schedule, not the request's), the xml is
-#rebuilt per request because it embeds whichever host the request came in on
-_sitemap_names = {"names": [], "made": 0.0}
-
-
-@app.route("/sitemap.xml")
-def sitemap():
-    now = time.time()
-    if not _sitemap_names["names"] or now - _sitemap_names["made"] > 60 * 60 * 24:
-        with pool.connection() as conn:
-            _sitemap_names["names"] = [r["name"] for r in conn.execute("SELECT name FROM cards ORDER BY name")]
-        _sitemap_names["made"] = now
-    root = request.url_root
-    #one date for every url, and it is the day the ingest last finished rather
-    #than today. a sitemap that swears all 31k pages changed this morning is a
-    #sitemap google stops believing, and it is not even true: a card page only
-    #moves when the scores behind it are recomputed. meta carries that date
-    #already, so nothing new has to be stored to say it honestly
-    #the date is checked into shape rather than escaped, because escape()
-    #hands back Markup and "<lastmod>" + Markup escapes the LEFT side, which
-    #would put &lt;lastmod&gt; in the file. a yyyy-mm-dd that matches this
-    #pattern has no xml special characters in it by definition
-    stamp = ""
-    try:
-        with pool.connection() as conn:
-            row = conn.execute("SELECT value FROM meta WHERE key = 'scryfall_updated_at'").fetchone()
-        day = (row["value"] or "")[:10] if row else ""
-        if re.fullmatch(r"\d{4}-\d{2}-\d{2}", day):
-            stamp = "<lastmod>" + day + "</lastmod>"
-    except Exception:
-        pass
-    out = ['<?xml version="1.0" encoding="UTF-8"?>',
-           '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
-    for page in ("", "unique", "deck", "precons", "guide", "privacy", "support"):
-        out.append("<url><loc>" + root + page + "</loc>" + stamp + "</url>")
-    #every ranking of the board is its own page with its own title, heading and
-    #sentence, so every one of them is worth crawling: "the cheapest commander
-    #precons" and "the precons with the oldest cards" are different questions
-    #people type, and one page answering all ten answers none of them. the
-    #default sort is /precons above and is not repeated here, or google meets
-    #the same board at two addresses. the era cuts are deliberately absent: they
-    #canonicalise back to their sort, being a filter on one ranking rather than
-    #a ranking of their own. the keys are plain lowercase words from the
-    #constant, so nothing here needs escaping
-    for s in PRECON_SORTS:
-        if s["key"] != PRECON_DEFAULT["key"]:
-            out.append("<url><loc>" + root + "precons?sort=" + quote(s["key"]) + "</loc>" + stamp + "</url>")
-    #one page per precon. they are server rendered and each one is about a
-    #deck people search by name, so they are worth crawling. the slugs are
-    #mtgjson filenames (letters, digits and underscores) so nothing here
-    #needs escaping, but quote() runs anyway rather than trusting that
-    for r in precon_board():
-        out.append("<url><loc>" + root + "precons/" + quote(r["slug"]) + "</loc>" + stamp + "</url>")
-    for name in _sitemap_names["names"]:
-        #quote() with its defaults mirrors the urlencode filter building the
-        #canonicals in search.html, so these are the urls the pages declare.
-        #it also percent-encodes every xml-special character, & included, so
-        #the raw name never needs xml escaping
-        out.append("<url><loc>" + root + "search?q=" + quote(name) + "</loc>" + stamp + "</url>")
-    out.append("</urlset>")
-    #text/xml instead of application/xml so flask-compress gzips it. the
-    #protocol caps one sitemap at 50k urls, the card pool sits well under
-    return Response("\n".join(out), mimetype="text/xml")
-
-
-@app.route("/robots.txt")
-def robots():
-    #the disallows are the json endpoints the pages fetch, nothing a search
-    #result should point at. every human page stays open, and the sitemap
-    #line lets crawlers find the card list without a console submission
-    return Response("\n".join([
-        "User-agent: *",
-        "Disallow: /suggest",
-        "Disallow: /more",
-        "Disallow: /unique/",
-        #a pasted list is nobody's business and there is no url to index
-        #anyway, the page is a post result. belt and braces with its noindex
-        "Disallow: /deck/read",
-        "Disallow: /deck/found",
-        "Sitemap: " + request.url_root + "sitemap.xml",
-    ]) + "\n", mimetype="text/plain")
+#---- wiring ----
+#down here rather than beside the imports, because both of these reach back
+#into names this module defines: the visit counter's PAGE_ENDPOINTS are this
+#file's endpoints, and the sitemap reads the precon board out of it. by this
+#line everything they ask for exists.
+#
+#the counter goes on after force_canonical_host above, which is the order it
+#ran in before it moved out: a request that is about to be 301'd to the
+#canonical host should not be counted at its wrong-host address
+visitors.register(app)
+app.register_blueprint(meta_bp)
 
 
 if __name__ == "__main__":
