@@ -2548,9 +2548,8 @@ def precon(slug):
         panels = deck_panels(conn, ids, figures, board, cur, slug=slug)
     year = deck_row["release_date"].year if deck_row["release_date"] else 0
     return render_template("precon.html", deck=deck_row, year=year, panels=panels,
-                           opened=opened, back=arrived["key"], cur=cur, counted=len(ids),
-                           place=panels[0]["place"] if panels else 0,
-                           total=len(board))
+                           opened=opened, back=arrived["key"], cur=cur,
+                           counted=len(ids), total=len(board))
 
 
 #----- the paste box: someone else's decklist, read through the same lens -----
