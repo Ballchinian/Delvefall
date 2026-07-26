@@ -172,7 +172,11 @@
     var el = document.getElementById("deck-remember");
     if (!el) return;
     var KEY = "delvefall_recent_decks";
-    var KEEP = 5;
+    /* ten rather than five. a decklist is about 2kb against localStorage's ~5mb
+       budget, so the cap was never about space: it is about how long a list
+       stays scannable, and with an x and a rename on every row the shelf is
+       something you keep rather than something that happens to you */
+    var KEEP = 10;
 
     function remember() {
         /* read at SUBMIT time, never at load. what the deck is called is not

@@ -102,7 +102,7 @@ header {
     min-width: 0;
     padding: 8px 12px;
     border: 0;
-    border-radius: 2px 0 0 2px;
+    border-radius: 3px 0 0 3px;
     font-size: 15px;
     outline: none;
     background: #fffef9;
@@ -110,10 +110,11 @@ header {
 
 .search-form button {
     background: var(--teal);
-    color: white;
+    color: #fff;
     border: 0;
     padding: 8px 18px;
-    border-radius: 0 2px 2px 0;
+    /* welded to the input, so only the outer corners round */
+    border-radius: 0 3px 3px 0;
     font-size: 15px;
     cursor: pointer;
 }
@@ -516,9 +517,9 @@ main {
    the more specific selector kept winning */
 .filter-actions button {
     background: var(--teal);
-    color: white;
+    color: #fff;
     border: 0;
-    border-radius: 2px;
+    border-radius: 3px;
     padding: 6px 16px;
     font-size: 14px;
     cursor: pointer;
@@ -1299,7 +1300,7 @@ h2 {
     background: var(--teal);
     color: #fff;
     border: 0;
-    border-radius: 2px;
+    border-radius: 3px;
     padding: 7px 20px;
     font-size: 14px;
     cursor: pointer;
@@ -1629,19 +1630,22 @@ footer a { color: var(--teal); }
     outline-offset: -1px;
 }
 
+/* the two inputs on the hub are equals, and the page argues that they are:
+   one takes a url and one takes a list, neither is the real one. this was
+   drawn as a ghost next to a solid "Read this deck", which said the opposite */
 .deck-import button {
     font: inherit;
     font-weight: 600;
     padding: 8px 18px;
-    border: 1px solid var(--teal);
+    border: 0;
     border-radius: 3px;
-    background: none;
-    color: var(--teal);
+    background: var(--teal);
+    color: #fff;
     cursor: pointer;
     white-space: nowrap;
 }
 
-.deck-import button:hover { background: var(--teal); color: #fff; }
+.deck-import button:hover { background: var(--teal-hover); }
 
 .deck-import .deck-hub-note { display: block; margin-top: 6px; }
 
@@ -1695,13 +1699,22 @@ footer a { color: var(--teal); }
     padding: 0;
 }
 
+/* the name and its card count stack, and the tools sit beside them. a grid
+   rather than nested flex so the tools can pin to the right of the whole row
+   while the two lines on the left stay stacked */
 .deck-recent-row {
-    display: flex;
-    flex-direction: column;
-    gap: 1px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    row-gap: 1px;
     padding: 6px 0;
     border-bottom: 1px solid var(--line);
 }
+
+.deck-recent-row .deck-recent-open,
+.deck-recent-row .deck-recent-meta { grid-column: 1; }
+
+.deck-recent-row .deck-recent-tools { grid-column: 2; grid-row: 1 / span 2; }
 
 .deck-recent-open {
     background: none;
@@ -2051,24 +2064,24 @@ footer a { color: var(--teal); }
    button is full width under the card it belongs to. it is a separate control
    rather than the whole card being clickable because the picture is already a
    link to scryfall, and two targets in one place is how a click goes wrong */
+/* the loudest button on the page, because it is the only one that changes
+   the deck. it was a ghost sitting under a filled "Keep it, next card", so
+   the action that did nothing looked heavier than the action that did */
 .swap-take {
     display: block;
     width: 100%;
     margin-top: 8px;
     padding: 7px 10px;
-    border: 1px solid var(--teal);
-    border-radius: 2px;
-    background: none;
-    color: var(--teal);
+    border: 0;
+    border-radius: 3px;
+    background: var(--teal);
+    color: #fff;
     font: inherit;
     font-size: 14px;
     cursor: pointer;
 }
 
-.swap-take:hover {
-    background: var(--teal);
-    color: #fffef9;
-}
+.swap-take:hover { background: var(--teal-hover); }
 
 .swap-actions {
     display: flex;
@@ -2083,8 +2096,9 @@ footer a { color: var(--teal); }
 .swap-actions button {
     padding: 7px 14px;
     border: 1px solid var(--line-strong);
-    border-radius: 2px;
-    background: #fffef9;
+    border-radius: 3px;
+    background: none;
+    color: var(--teal);
     font: inherit;
     font-size: 14px;
     cursor: pointer;
@@ -2144,9 +2158,9 @@ footer a { color: var(--teal); }
 .swap-start button {
     padding: 8px 18px;
     border: 0;
-    border-radius: 2px;
+    border-radius: 3px;
     background: var(--teal);
-    color: white;
+    color: #fff;
     font: inherit;
     font-size: 15px;
     cursor: pointer;
@@ -2422,13 +2436,13 @@ body.home main {
 .home-search input {
     padding: 13px 16px;
     font-size: 17px;
-    border-radius: 2px 0 0 2px;
+    border-radius: 3px 0 0 3px;
 }
 
 .home-search button {
     padding: 13px 26px;
     font-size: 17px;
-    border-radius: 0 2px 2px 0;
+    border-radius: 0 3px 3px 0;
 }
 
 .home-search #suggestions { text-align: left; color: var(--text); }
@@ -2911,7 +2925,7 @@ body.home main {
     background: #2c7d4e;
     color: white;
     border: 0;
-    border-radius: 2px;
+    border-radius: 3px;
     padding: 8px 18px;
     font-size: 14px;
     cursor: pointer;
@@ -3179,7 +3193,7 @@ body.home main {
 .deck-missing-try {
     background: none;
     border: 1px solid var(--line-strong);
-    border-radius: 2px;
+    border-radius: 3px;
     padding: 1px 8px;
     font: inherit;
     font-size: 12px;
@@ -3273,15 +3287,15 @@ body.home main {
 .deck-lead-clear {
     background: none;
     border: 1px solid var(--line-strong);
-    border-radius: 2px;
+    border-radius: 3px;
     padding: 5px 10px;
     font: inherit;
     font-size: 13px;
-    color: var(--muted);
+    color: var(--teal);
     cursor: pointer;
 }
 
-.deck-lead-clear:hover { background: var(--panel); color: var(--text); }
+.deck-lead-clear:hover { background: var(--wash); }
 
 .deck-lead-hits {
     list-style: none;
@@ -3518,3 +3532,141 @@ body.home main {
    multi-column layout and order does nothing inside one */
 .deck-cards .deck-card.is-over,
 .deck-card-grid .result.is-over { display: none; }
+
+/* the tools on a saved deck: rename, and forget. they sit at the end of the
+   row and stay quiet until the row is hovered, because the row's job is to
+   open the deck and these two are housekeeping */
+.deck-recent-tools {
+    display: flex;
+    gap: 2px;
+    opacity: 0;
+    transition: opacity .12s;
+}
+
+.deck-recent-row:hover .deck-recent-tools,
+.deck-recent-tools:focus-within { opacity: 1; }
+
+/* never hidden on touch, where there is no hover to reveal them with */
+@media (hover: none) {
+    .deck-recent-tools { opacity: 1; }
+}
+
+.deck-recent-tool {
+    background: none;
+    border: 0;
+    padding: 2px 5px;
+    font: inherit;
+    font-size: 13px;
+    line-height: 1;
+    color: var(--muted);
+    cursor: pointer;
+    border-radius: 3px;
+}
+
+.deck-recent-tool:hover { background: var(--wash); color: var(--text); }
+
+.deck-recent-drop:hover { color: #b3352a; }
+
+/* ---- a swap, drawn as the pair it is ---- */
+
+/* out on the left, in on the right, so the comparison is the layout rather
+   than something the reader holds in their head. it wraps to a stack on a
+   narrow screen, which is the whole reason each side carries a label */
+.swap-pairs {
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+    margin-top: 14px;
+}
+
+.swap-pair {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    align-items: start;
+    gap: 14px;
+    padding-bottom: 18px;
+    border-bottom: 1px solid var(--line);
+}
+
+.swap-pair-side { min-width: 0; }
+
+.swap-pair-label {
+    display: block;
+    margin-bottom: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+}
+
+.swap-pair-out .swap-pair-label { color: #b3352a; }
+
+.swap-pair-in .swap-pair-label { color: #1f6b41; }
+
+/* the card leaving is faded, so which way the row reads is obvious before any
+   of the words are */
+.swap-pair-out .card-frame img { opacity: .55; }
+
+.swap-pair-out:hover .card-frame img { opacity: 1; }
+
+.swap-pair-arrow {
+    align-self: center;
+    color: var(--muted);
+    font-size: 20px;
+}
+
+/* the undo spans the row under both cards, because it is about the pair */
+.swap-pair .swap-undo { grid-column: 1 / -1; justify-self: start; }
+
+.swap-undo {
+    background: none;
+    border: 1px solid var(--line-strong);
+    border-radius: 3px;
+    padding: 3px 10px;
+    font: inherit;
+    font-size: 12px;
+    color: var(--teal);
+    cursor: pointer;
+}
+
+.swap-undo:hover { background: var(--wash); }
+
+/* in the names list the undo sits at the end of its row and stays out of the
+   way until the row is reached */
+.swap-made-row .swap-undo { margin-left: auto; }
+
+@media (max-width: 560px) {
+    /* the pair stacks, and the arrow turns to point down it */
+    .swap-pair { grid-template-columns: minmax(0, 1fr); }
+    .swap-pair-arrow { justify-self: start; transform: rotate(90deg); }
+}
+
+/* a finished swap session, opened under the deck it belongs to. it is a row
+   in the same list rather than a page of its own, because none of this ever
+   reached the server and there is no url for it to live at */
+.deck-recent-panel {
+    padding: 12px 0 14px;
+    border-bottom: 1px solid var(--line);
+}
+
+.deck-recent-panel-head {
+    font-size: 14px;
+    margin: 14px 0 4px;
+}
+
+.deck-recent-panel .swap-output {
+    width: 100%;
+    margin-top: 6px;
+}
+
+/* the panel lives in a narrow sidebar, so its card pairs stack rather than
+   trying to hold three columns in 210px */
+.deck-recent-panel .swap-pair {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.deck-recent-panel .swap-pair-arrow {
+    justify-self: start;
+    transform: rotate(90deg);
+}

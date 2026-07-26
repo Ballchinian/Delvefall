@@ -90,6 +90,15 @@
         <ul class="swap-made" id="swap-made"></ul>
         <p class="deck-section-note" id="swap-summary"></p>
 
+        {# the same swaps as pictures, folded. names are the fast read and are
+           right most of the time; the pictures are for the moment somebody
+           wants to check what they actually did, which is exactly when a list
+           of names is the wrong medium #}
+        <details class="deck-card-open swap-pairs-box" id="swap-pairs-box" hidden>
+            <summary>Show the swaps as cards</summary>
+            <div class="swap-pairs" id="swap-pairs"></div>
+        </details>
+
         {# the cards that came IN, on their own, above the whole list.
 
            importing the whole deck again is the wrong shape for how people
@@ -379,10 +388,29 @@ window.MANA_URLS = {{ mana_urls() | tojson }};
     }
 
     function take(c) {
-        swaps.push({out: D.queue[at].name, in: c.name, match: c.match});
+        /* the WHOLE card on both sides, not just the names. the review at the
+           end draws them as pictures and offers to put one back, and neither
+           is possible from a name: the outgoing card has already left the
+           screen by then and there is no url to ask about it again */
+        swaps.push({out: D.queue[at], in: c, match: c.match});
         deck.push(c.oracle_id);
         at++;
         show();
+    }
+
+    /*
+        put one back. the card that came in leaves the deck list (so later
+        suggestions can offer it again) and the card that went out is NOT
+        requeued: the queue is walked once and rewinding it would reorder
+        everything decided after this point. the swap simply stops existing,
+        which is what "revert" has to mean for the exports to stay true
+    */
+    function revert(i) {
+        var s = swaps[i];
+        var at_in = deck.indexOf(s["in"].oracle_id);
+        if (at_in > -1) deck.splice(at_in, 1);
+        swaps.splice(i, 1);
+        finish();
     }
 
     skipBtn.addEventListener("click", function () { at++; show(); });
@@ -426,31 +454,111 @@ window.MANA_URLS = {{ mana_urls() | tojson }};
 
         var made = $("swap-made");
         made.innerHTML = "";
-        swaps.forEach(function (s) {
-            var li = document.createElement("li");
-            li.className = "swap-made-row";
+        swaps.forEach(function (s, i) {
+            var li = el("li", "swap-made-row", made);
             /* both names are LINKS, like every other card name on the site.
                these are the cards a session's whole decision rests on and they
                were the only ones on the page you could not click. data-card
                gets them the same ctrl-click-to-scryfall the rest have */
-            li.appendChild(cardLink(s.out, "swap-made-out"));
+            li.appendChild(cardLink(s.out.name, "swap-made-out"));
             el("span", "swap-made-arrow", li, "→");
-            li.appendChild(cardLink(s.in, "swap-made-in"));
-            made.appendChild(li);
+            li.appendChild(cardLink(s["in"].name, "swap-made-in"));
+
+            var undo = el("button", "swap-undo", li, "put it back");
+            undo.type = "button";
+            undo.addEventListener("click", function () { revert(i); });
         });
         $("swap-summary").textContent = swaps.length
             ? swaps.length + " card" + (swaps.length === 1 ? "" : "s") + " swapped."
             : "You kept every card. Nothing to copy.";
+
+        /*
+            the same swaps as PICTURES, folded away. a list of names is the
+            fast read and is right most of the time; the pictures are for the
+            moment somebody wants to check what they actually did, which is
+            exactly when names are the wrong medium.
+
+            the pair is drawn as one row per swap, out on the left and in on
+            the right, so the comparison is the layout rather than something
+            the reader has to hold in their head. on a narrow screen the pair
+            stacks and keeps its labels, which is why the labels exist at all
+        */
+        var pairs = $("swap-pairs");
+        pairs.innerHTML = "";
+        $("swap-pairs-box").hidden = !swaps.length;
+        swaps.forEach(function (s, i) {
+            var row = el("div", "swap-pair", pairs);
+
+            var left = el("div", "swap-pair-side swap-pair-out", row);
+            el("span", "swap-pair-label", left, "Out");
+            left.appendChild(build(s.out));
+
+            el("div", "swap-pair-arrow", row, "→");
+
+            var right = el("div", "swap-pair-side swap-pair-in", row);
+            el("span", "swap-pair-label", right, "In");
+            right.appendChild(build(s["in"]));
+
+            var back = el("button", "swap-undo", row, "Put " + s.out.name + " back");
+            back.type = "button";
+            back.addEventListener("click", function () { revert(i); });
+        });
+        enhanceCardFrames(pairs);
 
         /* the cards that came IN, on their own, in the shape a decklist is in.
            one copy each, because that is what a swap is: the card leaving took
            one slot and the card arriving takes it back */
         if (swaps.length) {
             $("swap-added-count").textContent = swaps.length;
-            $("swap-added").value = swaps.map(function (s) { return "1 " + s.in; }).join("\n");
+            $("swap-added").value = swaps.map(function (s) { return "1 " + s["in"].name; }).join("\n");
             $("swap-added-box").hidden = false;
         }
         $("swap-output").value = rebuild();
+        remember();
+    }
+
+    /*
+        hand the session back to the deck it belongs to, in this browser.
+
+        without this a swap session evaporates the moment the tab closes, and
+        the work it represents (twelve judgement calls about somebody's deck)
+        is exactly the kind of thing worth being able to come back to. the
+        server still stores nothing: this is the same localStorage shelf the
+        hub already keeps, and the deck is found by the TEXT it was read from,
+        which is the key that shelf is built on.
+
+        written on every finish, including after a revert, so what is stored is
+        always what is on screen rather than a snapshot of an earlier decision
+    */
+    function remember() {
+        var KEY = "delvefall_recent_decks";
+        try {
+            var decks = JSON.parse(localStorage.getItem(KEY)) || [];
+            var found = false;
+            decks.forEach(function (x) {
+                if (x.text !== D.text) return;
+                found = true;
+                x.swaps = swaps.map(function (s) {
+                    /* only what the review needs to draw a card. the rest of
+                       the queue row is about picking, and picking is over */
+                    var keep = function (c) {
+                        return {name: c.name, image: c.image, image_back: c.image_back || "",
+                                sideways: !!c.sideways, flip: !!c.flip,
+                                scryfall_uri: c.scryfall_uri, price: c.price,
+                                rank: c.rank, salt: c.salt};
+                    };
+                    return {out: keep(s.out), "in": keep(s["in"])};
+                });
+                x.goal = D.goal;
+                x.newList = $("swap-output").value;
+                x.added = $("swap-added").value;
+                x.at = Date.now();
+            });
+            if (found) localStorage.setItem(KEY, JSON.stringify(decks));
+        } catch (e) {
+            /* private browsing, a full quota, or storage switched off. the
+               session on screen is unaffected, so this fails quietly */
+        }
     }
 
     /*
@@ -463,21 +571,24 @@ window.MANA_URLS = {{ mana_urls() | tojson }};
     function rebuild() {
         var text = D.text || "";
         swaps.forEach(function (s) {
+            /* the swap holds whole cards now, and this only ever wanted their
+               names. pulled out here rather than at every use below */
+            var out = s.out.name, into = s["in"].name;
             var lines = text.split("\n");
             var hit = -1;
             for (var i = 0; i < lines.length; i++) {
                 /* case insensitive, because an export may not match our
                    capitalisation and the parser normalised it away anyway */
-                if (lines[i].toLowerCase().indexOf(s.out.toLowerCase()) !== -1) { hit = i; break; }
+                if (lines[i].toLowerCase().indexOf(out.toLowerCase()) !== -1) { hit = i; break; }
             }
             if (hit === -1) {
                 /* a name we cannot find in the raw text (a face name, or a
                    collector number wedged in the middle). say so rather than
                    dropping the swap on the floor */
-                text += "\n# swap by hand: " + s.out + " -> " + s.in;
+                text += "\n# swap by hand: " + out + " -> " + into;
             } else {
-                var re = new RegExp(s.out.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
-                lines[hit] = lines[hit].replace(re, s.in);
+                var re = new RegExp(out.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+                lines[hit] = lines[hit].replace(re, into);
                 text = lines.join("\n");
             }
         });
