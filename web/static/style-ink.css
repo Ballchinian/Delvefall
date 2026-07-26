@@ -216,7 +216,7 @@ header {
 
 /* the autocomplete dropdown, sits right under the search bar. the report
    bar's mini version borrows the exact same look */
-#suggestions, #report-suggest {
+#suggestions, #report-suggest, .deck-missing-drop {
     display: none;
     position: absolute;
     top: 100%;
@@ -1952,39 +1952,6 @@ footer a { color: var(--teal); }
     color: var(--gold);
 }
 
-.deck-pairs {
-    list-style: none;
-    margin: 0 0 8px;
-    padding: 0;
-}
-
-.deck-pair {
-    padding: 7px 0;
-    border-bottom: 1px solid var(--line);
-}
-
-.deck-pair-cards a {
-    color: var(--teal);
-    text-decoration: none;
-}
-
-.deck-pair-cards a:hover { text-decoration: underline; }
-
-.deck-pair-join {
-    color: var(--muted);
-    margin: 0 4px;
-}
-
-/* the shared line is the evidence for the pairing, so it is quoted rather
-   than paraphrased. it wraps instead of truncating: a clipped rules line
-   reads as a bug, and these are short enough */
-.deck-pair-line {
-    display: block;
-    font-size: 12.5px;
-    color: var(--muted);
-    margin-top: 2px;
-}
-
 .deck-detail-foot {
     color: var(--muted);
     font-size: 12.5px;
@@ -2334,11 +2301,14 @@ footer a { color: var(--teal); }
     border-radius: 999px;
 }
 
-/* the salt board is the same rows carrying a different number, so its bars
-   run gold instead of teal. that matches the deck pages, where salt is the
-   gold figure and originality the teal one, and it means a glance at the page
-   says which of the two rankings is on screen */
+/* a colour per measure rather than per page. salt runs gold because salt is
+   the gold figure on the deck pages too, and the point of the rest is the
+   same: a glance at the bars says which of the five rankings is on screen
+   without reading the heading */
 .precon-bar-salt span { background: var(--gold); }
+.precon-bar-price span { background: #4b7f5c; }
+.precon-bar-played span { background: #7a6ba8; }
+.precon-bar-age span { background: #a8724b; }
 
 /* on a phone the score column stops being a column and sits under the name,
    because 120px of bar plus three card names in 360px is unreadable */
@@ -3111,3 +3081,268 @@ body.home main {
     .unique-rank { width: 1.8em; }
     .unique-board-fold { margin-top: 28px; }
 }
+
+/* ---- the standings, shared by a precon's page and a pasted deck's ---- */
+
+/* the arrows swap which standing is on screen rather than scrolling between
+   five of them. it is hidden in the markup and unhidden by its script, so a
+   page with no javascript keeps all five stacked and readable */
+.deck-board-link {
+    margin: 0 0 10px;
+}
+
+.deck-board-link a {
+    color: var(--teal);
+    text-decoration: none;
+}
+
+.deck-board-link a:hover { text-decoration: underline; }
+
+/* the sentence that says what the number on screen actually means. quieter
+   than the standing above it, because it is the footnote to a fact rather
+   than the fact */
+.deck-standing-means {
+    max-width: 62ch;
+    line-height: 1.5;
+}
+
+/* the evidence, opened. a plain summary rather than a button: it works with
+   no script, it keeps the pictures out of the way until they are wanted, and
+   the browser does not download them while it is shut */
+.deck-card-open {
+    margin: 4px 0 10px;
+}
+
+.deck-card-open summary {
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--teal);
+}
+
+.deck-card-open summary::marker { color: var(--muted); }
+
+.deck-card-grid { margin-top: 12px; }
+
+/* ---- the missing lines, and fixing one where it stands ---- */
+
+.deck-missing-list {
+    list-style: none;
+    margin: 8px 0 6px;
+    padding: 0;
+}
+
+.deck-missing-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 4px 0;
+}
+
+/* the line exactly as the export wrote it, so it can be recognised in the
+   paste it came from. monospace for the same reason the filter box is */
+.deck-missing-raw {
+    font-family: ui-monospace, Consolas, monospace;
+    color: var(--text);
+}
+
+.deck-missing-row.is-fixed .deck-missing-raw {
+    text-decoration: line-through;
+    color: var(--muted);
+}
+
+.deck-missing-try {
+    background: none;
+    border: 1px solid var(--line-strong);
+    border-radius: 2px;
+    padding: 1px 8px;
+    font: inherit;
+    font-size: 12px;
+    color: var(--teal);
+    cursor: pointer;
+}
+
+.deck-missing-try:hover { background: var(--panel); }
+
+/* the lookup box borrows the suggestion dropdown the search bar uses, so it
+   has to be the thing that dropdown positions itself against */
+.deck-missing-fix {
+    position: relative;
+    display: inline-block;
+}
+
+.deck-missing-input {
+    font: inherit;
+    font-size: 13px;
+    padding: 3px 6px;
+    border: 1px solid var(--line-strong);
+    border-radius: 2px;
+    background: var(--panel);
+    color: var(--text);
+    min-width: 15em;
+}
+
+.deck-missing-said { font-size: 12px; color: var(--teal); }
+
+.deck-missing-row.is-fixed .deck-missing-said { color: #1f6b41; }
+
+.deck-missing-again { margin: 10px 0 0; }
+
+.deck-missing-again button {
+    background: var(--teal);
+    border: none;
+    border-radius: 3px;
+    padding: 6px 14px;
+    font: inherit;
+    font-size: 13px;
+    color: #fff;
+    cursor: pointer;
+}
+
+.deck-missing-again button:hover { background: var(--teal-hover); }
+
+/* ---- who leads the deck ---- */
+
+/* asked after the list rather than before it, because until the list is read
+   there is nothing to offer as an answer. a commander deck holds one or two
+   legends, so this is usually a confirmation rather than a search */
+.deck-lead {
+    margin: 18px 0 6px;
+    padding: 12px 14px;
+    background: var(--wash);
+    border: 1px solid var(--line);
+    border-radius: 3px;
+}
+
+.deck-lead label {
+    display: block;
+    font-family: var(--serif);
+    font-weight: 600;
+    font-size: 15px;
+    margin-bottom: 6px;
+}
+
+.deck-lead-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.deck-lead-input {
+    flex: 1;
+    min-width: 0;
+    font: inherit;
+    font-size: 14px;
+    padding: 6px 9px;
+    border: 1px solid var(--line-strong);
+    border-radius: 2px;
+    background: var(--panel);
+    color: var(--text);
+}
+
+.deck-lead-input:focus {
+    outline: none;
+    border-color: var(--teal);
+}
+
+.deck-lead-clear {
+    background: none;
+    border: 1px solid var(--line-strong);
+    border-radius: 2px;
+    padding: 5px 10px;
+    font: inherit;
+    font-size: 13px;
+    color: var(--muted);
+    cursor: pointer;
+}
+
+.deck-lead-clear:hover { background: var(--panel); color: var(--text); }
+
+.deck-lead-hits {
+    list-style: none;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 8px 0 0;
+    padding: 0;
+}
+
+.deck-lead-hit {
+    background: var(--panel);
+    border: 1px solid var(--line-strong);
+    border-radius: 999px;
+    padding: 3px 11px;
+    font: inherit;
+    font-size: 13px;
+    color: var(--teal);
+    cursor: pointer;
+}
+
+.deck-lead-hit:hover { background: var(--teal); color: #fff; border-color: var(--teal); }
+
+.deck-lead .deck-hub-note { display: block; margin-top: 8px; }
+
+/* ---- going back without losing the deck ---- */
+
+/* a form rather than a link, because the list and its name have to travel
+   with the click. it is drawn as the back link it replaces */
+.deck-back {
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+}
+
+.deck-back button {
+    background: none;
+    border: none;
+    padding: 0;
+    font: inherit;
+    font-size: 13px;
+    color: var(--teal);
+    cursor: pointer;
+}
+
+.deck-back button:hover { text-decoration: underline; }
+
+/* ---- the other nine rankings, spelled out under the board ---- */
+
+.precon-also {
+    margin-top: 34px;
+    padding-top: 16px;
+    border-top: 1px solid var(--line);
+}
+
+.precon-also h2 {
+    font-size: 16px;
+    margin: 0 0 8px;
+}
+
+.precon-also ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    columns: 2;
+    column-gap: 28px;
+}
+
+.precon-also li { margin-bottom: 5px; break-inside: avoid; }
+
+.precon-also a {
+    color: var(--teal);
+    text-decoration: none;
+    font-size: 14px;
+}
+
+.precon-also a:hover { text-decoration: underline; }
+
+/* ten readings is more buttons than five, so they wrap into a block rather
+   than trying to hold one line */
+.precon-sorts { row-gap: 6px; }
+
+@media (max-width: 560px) {
+    .precon-also ul { columns: 1; }
+}
+
+/* just the cards a swap session added, above the whole list. shorter box,
+   because it is a handful of lines rather than a hundred */
+.swap-output-short { min-height: 0; }

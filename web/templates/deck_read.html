@@ -1,135 +1,39 @@
 {% extends "base.html" %}
 
-{% block title %}Your deck through the lens - Delvefall{% endblock %}
+{% block title %}{{ deck_name or 'Your deck' }} through the lens - Delvefall{% endblock %}
 
 {# a pasted list is nobody's business but the person who pasted it, and there
    is no url to index anyway, so this page asks not to be crawled #}
 {% block head_extra %}<meta name="robots" content="noindex">{% endblock %}
 
 {% block content %}
-<div class="guide precons deck-detail">
-    <p class="precon-back"><a href="/deck">&larr; Read another deck</a></p>
+<div class="guide precons deck-detail" data-opened="{{ opened }}">
+    {# the list rides the link, so going back to change something keeps the
+       deck AND its name. a plain href to /deck lost both, and the page you
+       landed on then invented a new entry called "72 cards" #}
+    <form class="precon-back deck-back" method="post" action="/deck/open">
+        <input type="hidden" name="list" value="{{ pasted }}">
+        <input type="hidden" name="name" value="{{ deck_name }}">
+        <input type="hidden" name="commander" value="{{ commander }}">
+        <button type="submit">&larr; Back to this deck</button>
+        <a href="/deck">Read another deck</a>
+    </form>
 
-    <h1>Your deck</h1>
+    <h1>{{ deck_name or 'Your deck' }}</h1>
     <p class="deck-detail-sub">{{ matched }} card{{ '' if matched == 1 else 's' }} matched{% if missing %},
     {{ missing|length }} not found{% endif %}.</p>
 
-    {% if missing %}
-    <div class="deck-missing">
-        <strong>Not found:</strong> {{ missing|join(', ') }}
-        <span class="deck-missing-why">Anything the site doesn't hold (a token, a
-        sticker, a typo) is simply left out of the reading.</span>
-    </div>
-    {% endif %}
+    {% if missing %}{% include "_missing.html" %}{% endif %}
 
-    {% if ranked and metrics %}
-    {# the pager follows you down the page rather than sitting at the top as a
-       control you have to go back up to. it is prev/next rather than five
-       buttons because these are five readings of ONE deck, meant to be walked
-       through, not a setting to be chosen once and left #}
-    <nav class="deck-pager" id="deck-pager" aria-label="which comparison">
-        <button type="button" class="deck-pager-arrow" id="deck-prev" aria-label="previous comparison">&larr;</button>
-        <span class="deck-pager-now" id="deck-pager-now">{{ metrics[0].label }}</span>
-        <button type="button" class="deck-pager-arrow" id="deck-next" aria-label="next comparison">&rarr;</button>
-    </nav>
-
-    {% for m in metrics %}
-    <section class="deck-metric" id="metric-{{ m.key }}" data-label="{{ m.label }}">
-        <div class="deck-standing">
-            <div class="deck-standing-place">
-                <span class="deck-standing-figure">{{ m.prefix }}{{ ('%.' ~ m.decimals ~ 'f')|format(m.figure) }}{{ m.suffix }}</span>
-                <span class="deck-standing-of">{{ m.label|lower }}</span>
-            </div>
-            <div class="deck-standing-text">
-                {# the whole reason the precon board was built first: a number
-                   is not a sentence until it has a population to sit against #}
-                {% if m.place == 1 %}
-                    <strong>Top of all {{ m.total }} Commander precons.</strong>
-                {% elif m.beaten == 0 %}
-                    <strong>Bottom of all {{ m.total }} Commander precons.</strong>
-                {% else %}
-                    <strong>{{ m.place }}{{ 'st' if m.place % 10 == 1 and m.place != 11 else ('nd' if m.place % 10 == 2 and m.place != 12 else ('rd' if m.place % 10 == 3 and m.place != 13 else 'th')) }}
-                    of {{ m.total + 1 }}</strong>, ahead of {{ m.beaten }} Commander
-                    precon{{ '' if m.beaten == 1 else 's' }}.
-                {% endif %}
-                {% if m.total_years %}
-                <span class="deck-standing-extra">{{ '%.0f'|format(m.total_years) }} years
-                all told, across {{ m.age_cards }} cards.</span>
-                {% endif %}
-                {% if m.drivers %}
-                <span class="deck-standing-extra">{{ m.driver_label }}:
-                {% for d in m.drivers %}<a href="/search?q={{ d | urlencode }}" data-card="{{ d }}">{{ d }}</a>{{ '' if loop.last else ', ' }}{% endfor %}</span>
-                {% endif %}
-            </div>
-        </div>
-
-        {# the deck dropped into the board where it actually lands, with the
-           decks either side of it. a placing on its own is a number; the decks
-           it landed between are what make it mean something #}
-        <ol class="deck-neighbours">
-            {% for n in m.window %}
-            <li class="deck-neighbour{{ ' is-you' if n.you }}">
-                <span class="deck-neighbour-place">{{ n.place }}</span>
-                <span class="deck-neighbour-name">
-                    {%- if n.slug %}<a href="/precons/{{ n.slug }}">{{ n.name }}</a>
-                    {%- else %}{{ n.name }}{% endif -%}
-                </span>
-                <span class="deck-neighbour-figure">{{ m.prefix }}{{ ('%.' ~ m.decimals ~ 'f')|format(n.figure) }}{{ m.suffix }}</span>
-            </li>
-            {% endfor %}
-        </ol>
-        <p class="deck-section-note"><a href="/precons?sort={{ m.key }}">The whole board by
-        {{ m.label|lower }} &rarr;</a></p>
-    </section>
-    {% endfor %}
+    {% if ranked and panels %}
+    {% include "_standing.html" %}
     {% elif not ranked %}
     {# saying nothing is better than saying something unearned. the score
-       averages the top {{ min_cards }} cards, so a shorter list would be
-       averaging fewer numbers than every deck it got ranked against #}
+       averages the top half of the list, so a shorter one would be averaging
+       fewer numbers than every deck it got ranked against #}
     <p class="deck-section-note deck-unranked">Too few cards to place against the precons,
-    which needs at least {{ min_cards }} nonland cards. Everything below still reads.</p>
+    which needs at least {{ min_cards }} nonland cards.</p>
     {% endif %}
-
-    {% if original %}
-    <h2>What nothing else in Magic does</h2>
-    <p class="deck-section-note">The cards here that come closest to being one of a kind,
-    across every card ever printed. The score above is the average of this deck's most
-    original third, and these are the top of that.</p>
-    <ol class="deck-cards">
-        {% for c in original %}
-        <li class="deck-card">
-            <a class="deck-card-name" href="/search?q={{ c.name | urlencode }}" data-card="{{ c.name }}">{{ c.name }}</a>
-            <span class="deck-card-score">{{ '%.2f'|format(c.global_u or 0) }}</span>
-        </li>
-        {% endfor %}
-    </ol>
-    {% endif %}
-
-    {% if pairs %}
-    <h2>Doing the same job</h2>
-    <p class="deck-section-note">Pairs of cards in this list that cover the same ground.
-    This is not a fault, it is how a deck stays consistent. It is here because it is the
-    fastest way to see what the deck is built out of, and where a swap would cost you
-    least.</p>
-    <ul class="deck-pairs">
-        {% for c in pairs %}
-        <li class="deck-pair">
-            <span class="deck-pair-cards">
-                <a href="/search?q={{ c.name | urlencode }}" data-card="{{ c.name }}">{{ c.name }}</a>
-                <span class="deck-pair-join">&amp;</span>
-                <a href="/search?q={{ c.partner_name | urlencode }}" data-card="{{ c.partner_name }}">{{ c.partner_name }}</a>
-            </span>
-            {% if c.line_text %}<span class="deck-pair-line">{{ c.line_text }}</span>{% endif %}
-        </li>
-        {% endfor %}
-    </ul>
-    {% endif %}
-
-    {# _salt.html is deliberately NOT included here any more. it said the salt
-       total, its standing against the precons and the cards behind it, and all
-       three are now the salt panel above, said the same way as the other four
-       comparisons. precon.html still uses it, and that is the point of it
-       having been a partial: one page changed and the other did not #}
 
     {# the one place the lens stops describing and offers to act. it sits at
        the BOTTOM on purpose: the reading is what was asked for, and a tool
@@ -141,15 +45,16 @@
     at the end.</p>
     <form class="swap-start" method="post" action="/deck/swap">
         <input type="hidden" name="list" value="{{ pasted }}">
+        <input type="hidden" name="name" value="{{ deck_name }}">
+        <input type="hidden" name="commander" value="{{ commander }}">
         <input type="hidden" name="axis" value="{{ swap_default[0] }}">
         <input type="hidden" name="dir" value="{{ swap_default[1] }}">
         <button type="submit">Make this deck {{ swap_axes[swap_default]['goal'] }}</button>
     </form>
 
-    <p class="deck-detail-foot">Read from {{ counted }} nonland cards. Lands are left out
-    of both lists for the same reason they are left out of the score: a mana base is not
-    what makes a deck a deck. Nothing here was saved.</p>
-
+    <p class="deck-detail-foot">Read from {{ counted }} nonland cards. Lands are left out of
+    the originality and age figures for the same reason: a mana base is not what makes a
+    deck a deck. Nothing here was saved.</p>
 
     {# the one place on the site that asks, besides the footer link. it is here
        because the reading is finished directly above it, which is the only
@@ -163,50 +68,6 @@
 {% endblock %}
 
 {% block scripts %}
-<script>
-(function () {
-    /*
-        the pager. the sections are all on the page and the header just moves
-        you between them, rather than showing one at a time: scrolling past
-        the salt panel on your way to price is how you notice the salt panel,
-        and hiding four fifths of a reading behind arrows is how people miss
-        the thing they came for
-
-        it also means the page still reads top to bottom with no script at
-        all. the pager is the only part that needs js, so it hides itself if
-        it cannot work
-    */
-    var pager = document.getElementById("deck-pager");
-    var sections = Array.prototype.slice.call(document.querySelectorAll(".deck-metric"));
-    if (!pager || sections.length < 2) { if (pager) pager.hidden = true; return; }
-
-    var now = document.getElementById("deck-pager-now");
-    var at = 0;
-
-    function go(i) {
-        at = Math.max(0, Math.min(sections.length - 1, i));
-        sections[at].scrollIntoView({behavior: "smooth", block: "start"});
-    }
-
-    document.getElementById("deck-prev").addEventListener("click", function () { go(at - 1); });
-    document.getElementById("deck-next").addEventListener("click", function () { go(at + 1); });
-
-    /*
-        the label follows the scroll rather than only changing when an arrow
-        is pressed, so it never claims you are looking at price while salt is
-        on screen. rootMargin pulls the trigger line down under the sticky
-        header, which is the band the reader is actually reading
-    */
-    if ("IntersectionObserver" in window) {
-        var seen = new IntersectionObserver(function (entries) {
-            entries.forEach(function (e) {
-                if (!e.isIntersecting) return;
-                var i = sections.indexOf(e.target);
-                if (i > -1) { at = i; now.textContent = e.target.dataset.label; }
-            });
-        }, {rootMargin: "-25% 0px -60% 0px"});
-        sections.forEach(function (s) { seen.observe(s); });
-    }
-})();
-</script>
+{% include "_standing_js.html" %}
+{% include "_missing_js.html" %}
 {% endblock %}

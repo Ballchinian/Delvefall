@@ -1842,21 +1842,23 @@ def support():
 #deck size, against +0.26 at top 20). a fraction is size independent by
 #construction and takes that to +0.19.
 #
-#a third lands at 20.3 cards on the average precon, so the board it produces
-#is the one that was there before, just distributed fairly
-PRECON_TOP_FRAC = 1.0 / 3.0
-
-#how deep the board can be read, for the curious. the default is first.
-#raising it does NOT make the number more accurate, which is worth knowing
-#before reaching for it: every step costs discrimination (spread 0.143 at a
-#third, 0.103 using everything) because the cards being added are the ones
-#every deck shares. the ranking itself barely moves, the ends not at all
-PRECON_DEPTHS = [
-    ("third", "Top third", 1.0 / 3.0),
-    ("half", "Top half", 0.5),
-    ("threequarters", "Top three quarters", 0.75),
-    ("all", "Every card", 1.0),
-]
+#HALF, and it is fixed. it was a third, adjustable between a third and the
+#whole list from the url, and the control went because it was a control with
+#one right answer, same as the blend slider and the similarity knob before it.
+#
+#half rather than a third because a third of a commander deck is about the
+#lands: 100 cards is roughly 36 of them, so reading a third means reading
+#almost nothing but the mana base's neighbours, and the handful above it are
+#the staples every deck brings. half reaches past both and into the cards that
+#actually tell one deck from another, which is the thing being measured.
+#
+#reading deeper does not make the number more ACCURATE, and that was measured:
+#every step costs discrimination (spread 0.143 at a third, 0.103 using every
+#card) because the cards being added are the ones every deck shares. the
+#ranking itself barely moves either, the ends not at all. so the setting only
+#ever decided the middle of the board, which is not a decision worth handing to
+#a visitor, and half is the reading that holds
+PRECON_TOP_FRAC = 0.5
 
 #the eras the leaderboard can be cut down to. originality correlates with
 #release year at r=+0.46, partly because design space genuinely fills up (an
@@ -2004,22 +2006,227 @@ LEFT JOIN age_rolled ar ON ar.deck_slug = d.slug
 ORDER BY r.originality DESC, d.name
 """
 
-#what the board can be ranked by. each entry is the key, the button label, the
-#row key holding the number, the row key holding its top cards, the label for
-#the list under each row, how many decimals the figure wants, and WHICH WAY IS
-#BEST.
+#what the board can be ranked by. FIVE numbers, TEN readings, because every one
+#of them is a number with a direction rather than two different numbers:
+#cheapest and priciest are one sum read from either end. the card search splits
+#its sorts the same way and for the same reason, so this is the control the
+#audience already has.
 #
-#that last one is new and it is not decoration: "most played" is the LOWEST
-#median rank, because rank 1 is the most played card in the format. the board
-#sorted descending on everything until now because every number it held
-#happened to be better when bigger
-PRECON_SORTS = [
-    ("original", "Most original", "originality", "drivers", "Most original cards", 3, "desc"),
-    ("salt", "Saltiest", "salt", "salt_drivers", "Saltiest cards", 1, "desc"),
-    ("price", "Most expensive", "price", "price_drivers", "Priciest cards", 2, "desc"),
-    ("played", "Most played", "play_median", "play_drivers", "Most played cards", 0, "asc"),
-    ("age", "Oldest cards", "age_mean", "age_drivers", "Oldest cards", 1, "desc"),
+#"best" is which way the COLUMN runs to put the flattering reading first, and
+#it is not decoration: most played is the LOWEST median rank, because rank 1 is
+#the most played card in the format. everything else is better when bigger.
+#
+#"means" is the sentence the page prints when it is showing this number, and it
+#has to say what the FIGURE means, not what the idea means. a reader who meets
+#"19.4 years" or "#1204" with no scale cannot tell a high score from a low one,
+#and a leaderboard nobody can read is a leaderboard nobody believes
+PRECON_METRICS = [
+    {
+        "key": "original", "figure": "originality", "drivers": "drivers",
+        "decimals": 3, "best": "desc", "cards": "Most original cards",
+        "noun": "originality", "more": "more original",
+        "means": "Every card scores from 0 to 1: one minus how close its nearest "
+                 "match anywhere in Magic gets. A card at 0.30 has something out "
+                 "there 70% like it, a card at 0.05 has a near twin. A deck's "
+                 "figure is the average across its most original half of nonland "
+                 "cards, so it climbs by holding cards with less competition, "
+                 "never by holding more cards.",
+        "scale": "Measured today, precons run 0.244 at the top down to 0.106 at the bottom, so the whole board lives inside a fifth of the scale.",
+        "desc": {
+            "key": "original", "label": "Most original", "first": "most original",
+            "h1": "The most original Commander precons",
+            "lede": "Every preconstructed Commander deck, ranked by how unusual its "
+                    "cards are. Not how strong, not how expensive, and not how "
+                    "popular: <strong>how little the rest of Magic looks like "
+                    "it</strong>. A card scores high here when nothing else in the "
+                    "game does what it does.",
+            "meta": "Every preconstructed Commander deck ranked by how original its "
+                    "cards are, measured against every Magic card ever printed. See "
+                    "which precons play cards nothing else in the game resembles.",
+        },
+        "asc": {
+            "key": "unoriginal", "label": "Least original", "first": "least original",
+            "h1": "The least original Commander precons",
+            "lede": "Every preconstructed Commander deck, ranked from the ones built "
+                    "almost entirely out of <strong>cards the rest of the format "
+                    "also plays</strong>. Familiar is not the same as bad: these are "
+                    "the decks a new player will recognise most of.",
+            "meta": "Every preconstructed Commander deck ranked from least original "
+                    "first: the decks built out of the format's usual suspects, "
+                    "measured against every Magic card ever printed.",
+        },
+    },
+    {
+        "key": "salt", "figure": "salt", "drivers": "salt_drivers",
+        "decimals": 1, "best": "desc", "cards": "Saltiest cards",
+        "noun": "salt", "more": "saltier",
+        "means": "Every card carries a salt score from EDHREC's annual survey, "
+                 "running 0 to about 3: Stasis is 3.06, Rhystic Study 2.73, Mind "
+                 "Stone a flat 0. A deck's figure is those scores added up across "
+                 "its cards, so a deck gets there either by holding a few famous "
+                 "offenders or by holding a long tail of mildly irritating ones.",
+        "scale": "Measured today, precons run 37.7 at the top down to 9.3 at the bottom, so the saltiest precon is about four times the mildest.",
+        "desc": {
+            "key": "salt", "label": "Saltiest", "first": "saltiest",
+            "h1": "The saltiest Commander precons",
+            "lede": "Every preconstructed Commander deck, ranked by how much its "
+                    "cards annoy people. This is the one ranking here built on "
+                    "<strong>opinion rather than measurement</strong>: it comes from "
+                    "EDHREC's salt survey, where players vote on the cards they "
+                    "least enjoy facing.",
+            "meta": "Every preconstructed Commander deck ranked by how much its "
+                    "cards annoy people, from EDHREC's salt survey. See which "
+                    "precons are built on the cards players least enjoy facing.",
+        },
+        "asc": {
+            "key": "mild", "label": "Mildest", "first": "mildest",
+            "h1": "The mildest Commander precons",
+            "lede": "Every preconstructed Commander deck, ranked from the ones "
+                    "<strong>nobody minds losing to</strong>. Low salt is the good "
+                    "news if you are handing a deck to someone at a table that has "
+                    "to keep liking each other afterwards.",
+            "meta": "Every preconstructed Commander deck ranked from the least salty "
+                    "first, using EDHREC's salt survey. The precons that annoy a "
+                    "table least.",
+        },
+    },
+    {
+        "key": "price", "figure": "price", "drivers": "price_drivers",
+        "decimals": 2, "best": "desc", "cards": "Priciest cards",
+        "noun": "of cards", "more": "worth more",
+        "means": "The cheapest paper printing of every card in the deck, added "
+                 "together. It is what the hundred cards cost to own as singles, "
+                 "not what the sealed box sells for, which is why a deck with one "
+                 "reserved list card can sit above four decks of staples.",
+        "scale": "Measured today in dollars, precons run about $304 at the top down to about $23 at the bottom.",
+        "desc": {
+            "key": "price", "label": "Most expensive", "first": "most expensive",
+            "h1": "The most expensive Commander precons",
+            "lede": "Every preconstructed Commander deck, ranked by what its cards "
+                    "are worth as singles. <strong>The cheapest paper printing of "
+                    "each card, added up</strong>, refreshed from Scryfall daily.",
+            "meta": "Every preconstructed Commander deck ranked by what its cards "
+                    "cost as singles, using the cheapest paper printing of each and "
+                    "prices refreshed from Scryfall daily.",
+        },
+        "asc": {
+            "key": "cheap", "label": "Cheapest", "first": "cheapest",
+            "h1": "The cheapest Commander precons",
+            "lede": "Every preconstructed Commander deck, ranked from the ones whose "
+                    "cards are <strong>worth the least as singles</strong>. Useful "
+                    "backwards: a cheap list is a cheap deck to rebuild, and a "
+                    "cheap deck to borrow ideas from.",
+            "meta": "Every preconstructed Commander deck ranked from the cheapest "
+                    "first, by what its cards cost as singles at the cheapest paper "
+                    "printing of each.",
+        },
+    },
+    {
+        "key": "played", "figure": "play_median", "drivers": "play_drivers",
+        "decimals": 0, "best": "asc", "cards": "Most played cards",
+        "noun": "median play rate", "more": "more played",
+        "means": "EDHREC ranks every card by how many Commander decks run it, and "
+                 "#1 is the most played card in the whole format. A deck's figure "
+                 "is the MEDIAN rank across its nonland cards, so #1200 means half "
+                 "this deck sits inside the format's twelve hundred most played "
+                 "cards. A SMALLER number is the deck built out of staples.",
+        "scale": "Measured today, precons run from a median of #843 at the played end out to #14,528 at the obscure one.",
+        "desc": {
+            "key": "played", "label": "Most played", "first": "most played",
+            "h1": "The most played Commander precons",
+            "lede": "Every preconstructed Commander deck, ranked by how much of it "
+                    "the format actually plays. <strong>The median EDHREC rank of "
+                    "its nonland cards</strong>, so the decks at the top are the "
+                    "ones built from cards everybody already runs.",
+            "meta": "Every preconstructed Commander deck ranked by how played its "
+                    "cards are, using the median EDHREC rank of its nonland cards. "
+                    "The precons built out of format staples.",
+        },
+        "asc": {
+            "key": "obscure", "label": "Least played", "first": "least played",
+            "h1": "The least played Commander precons",
+            "lede": "Every preconstructed Commander deck, ranked from the ones whose "
+                    "cards <strong>almost nobody else runs</strong>. The median "
+                    "EDHREC rank of its nonland cards, read from the far end: these "
+                    "decks are where the cards you have never seen live.",
+            "meta": "Every preconstructed Commander deck ranked from least played "
+                    "first, by the median EDHREC rank of its nonland cards. The "
+                    "precons full of cards nobody else runs.",
+        },
+    },
+    {
+        "key": "age", "figure": "age_mean", "drivers": "age_drivers",
+        "decimals": 1, "best": "desc", "cards": "Oldest cards",
+        "noun": "a card on average", "more": "older",
+        "means": "How long ago each card was FIRST printed, averaged across the "
+                 "deck. A reprint does not make an old card new, so a deck "
+                 "published last year and stuffed with reprints still reads old. "
+                 "The total underneath is every card's age added together, which "
+                 "is the memorable number, and the average is the one the ranking "
+                 "uses, because a sum quietly rewards the bigger deck for being "
+                 "bigger.",
+        "scale": "Measured today, precons run 20.7 years a card at the top down to 5.3 at the bottom.",
+        "desc": {
+            "key": "age", "label": "Oldest cards", "first": "oldest",
+            "h1": "The Commander precons with the oldest cards",
+            "lede": "Every preconstructed Commander deck, ranked by <strong>how far "
+                    "back its cards were first printed</strong>. Not when the deck "
+                    "came out: when the cards in it did, averaged across the list.",
+            "meta": "Every preconstructed Commander deck ranked by how old its cards "
+                    "are, measured from each card's first printing rather than from "
+                    "the date the deck shipped.",
+        },
+        "asc": {
+            "key": "new", "label": "Newest cards", "first": "newest",
+            "h1": "The Commander precons with the newest cards",
+            "lede": "Every preconstructed Commander deck, ranked from the ones built "
+                    "from <strong>cards the game printed most recently</strong>. "
+                    "Measured from each card's first printing, so a pile of "
+                    "reprints does not count as new.",
+            "meta": "Every preconstructed Commander deck ranked from the newest "
+                    "cards first, measured from each card's first printing rather "
+                    "than the date the deck shipped.",
+        },
+    },
 ]
+
+#the flat list the board's nav, its urls and the standings walk: one entry per
+#metric per direction, ten in all. built rather than typed so a metric cannot
+#gain a reading on one page and not the other, which is the drift the single
+#PRECON_SORTS list was there to prevent in the first place
+PRECON_SORTS = []
+for _m in PRECON_METRICS:
+    for _d in ("desc", "asc"):
+        PRECON_SORTS.append(dict(_m[_d], dir=_d, metric=_m,
+                                 figure=_m["figure"], drivers=_m["drivers"],
+                                 decimals=_m["decimals"], cards=_m["cards"],
+                                 means=_m["means"], scale=_m["scale"]))
+PRECON_SORT_BY_KEY = {s["key"]: s for s in PRECON_SORTS}
+#the default reading of each metric, which is what the detail pages open on and
+#what an unqualified link means
+PRECON_DEFAULT = PRECON_SORTS[0]
+
+
+def sort_column_order(sort):
+    #which way the COLUMN runs for this reading. the metric knows which
+    #direction of its own number is the flattering one, and the reading either
+    #wants that end or the other, so this is one xor rather than a table
+    best = sort["metric"]["best"]
+    return best if sort["dir"] == "desc" else ("asc" if best == "desc" else "desc")
+
+
+def read_precon_sort():
+    #an unknown sort falls back to originality rather than 404ing, same as
+    #every other url reader here
+    return PRECON_SORT_BY_KEY.get(request.args.get("sort", ""), PRECON_DEFAULT)
+
+
+def figure_units(key, cur):
+    #the figure's units. price needs the sign of whichever currency the toggle
+    #is showing, age needs a word or "12.4" means nothing, play rate needs the
+    #hash that says "rank" everywhere else on the site
+    return ({"price": CURRENCY_SIGNS[cur], "played": "#"}.get(key, ""),
+            " years" if key == "age" else "")
 
 #same shape as the seed cache: the board is identical for everyone and only
 #moves when the ingest reruns, so it is worth an hour of not asking.
@@ -2030,19 +2237,19 @@ PRECON_SORTS = [
 #once an hour, which is the whole reason this cache exists, but it does mean a
 #cold board is a visibly slow page rather than an imperceptibly slow one.
 #
-#keyed by depth AND currency. only the four in PRECON_DEPTHS and the three in
-#CURRENCY_SIGNS can ever get in, so twelve entries is the ceiling and the url
-#cannot grow this without bound
+#keyed by currency, and only the three in CURRENCY_SIGNS can ever get in, so
+#three entries is the ceiling and the url cannot grow this without bound. it
+#used to be keyed by depth too, and dropping that control took the cache from
+#twelve possible entries to three
 _precon_cache = {}
 
 
-def precon_board(frac=PRECON_TOP_FRAC, currency="usd"):
-    #keyed by currency as well as depth now, because the price total is a real
-    #sum in one currency rather than a number that can be converted afterwards:
-    #pounds are derived per CARD from whichever of the two prices that card
-    #has, so a pound total is not the dollar total times a rate
-    key = (frac, currency)
-    hit = _precon_cache.get(key)
+def precon_board(currency="usd"):
+    #keyed by currency because the price total is a real sum in ONE currency
+    #rather than a number that can be converted afterwards: pounds are derived
+    #per CARD from whichever of the two prices that card has, so a pound total
+    #is not the dollar total times a rate
+    hit = _precon_cache.get(currency)
     if hit and time.time() - hit["at"] < 3600:
         return hit["rows"]
     try:
@@ -2051,10 +2258,10 @@ def precon_board(frac=PRECON_TOP_FRAC, currency="usd"):
             #builds the pound expression out of the DAY'S rates, and a module
             #level string would freeze whatever they were at import
             sql = PRECON_SQL.replace("__PRICE__", price_col(currency))
-            rows = [dict(r) for r in conn.execute(sql, (frac,)).fetchall()]
+            rows = [dict(r) for r in conn.execute(sql, (PRECON_TOP_FRAC,)).fetchall()]
     except Exception:
         return hit["rows"] if hit else []
-    _precon_cache[key] = {"at": time.time(), "rows": rows}
+    _precon_cache[currency] = {"at": time.time(), "rows": rows}
     return rows
 
 
@@ -2075,19 +2282,13 @@ def precons():
     want = request.args.get("era", "all")
     era = next((e for e in PRECON_ERAS if e[0] == want), PRECON_ERAS[0])
     _, _, lo, hi = era
-    #an unknown sort falls back to originality rather than 404ing, same as
-    #every other url reader here
-    swant = request.args.get("sort", "original")
-    sort = next((s for s in PRECON_SORTS if s[0] == swant), PRECON_SORTS[0])
-    skey, driver_key, best = sort[2], sort[3], sort[6]
-    #how deep to read each deck. only the listed keys resolve, so the cache
-    #cannot be grown from the url
-    dwant = request.args.get("depth", "third")
-    depth = next((d for d in PRECON_DEPTHS if d[0] == dwant), PRECON_DEPTHS[0])
+    sort = read_precon_sort()
+    skey = sort["figure"]
+    order = sort_column_order(sort)
 
     cur = read_currency()
     rows = []
-    for r in precon_board(depth[2], cur):
+    for r in precon_board(cur):
         year = r["release_date"].year if r["release_date"] else 0
         if lo is not None and not (lo <= year <= hi):
             continue
@@ -2096,10 +2297,11 @@ def precons():
         if r.get(skey) is None:
             continue
         rows.append(dict(r, year=year, figure=float(r[skey]),
-                         cards=r.get(driver_key) or []))
-    #ascending when a SMALLER number is the better one, which so far is only
-    #play rate: rank 1 is the most played card in the format
-    rows.sort(key=lambda r: (r["figure"] if best == "asc" else -r["figure"], r["name"]))
+                         cards=r.get(sort["drivers"]) or []))
+    #ascending when the reading wants the SMALLER number first, which is now
+    #every metric read backwards plus "most played" read forwards: rank 1 is
+    #the most played card in the format
+    rows.sort(key=lambda r: (r["figure"] if order == "asc" else -r["figure"], r["name"]))
 
     #the bar under each score is relative to the cut on screen, not to the
     #whole board: inside one era the spread is narrower, and a bar that only
@@ -2113,142 +2315,125 @@ def precons():
             #the bar tracks the RANKING, not the raw number, so on an
             #ascending board the fullest bar is still the deck at the top
             share = ((r["figure"] - floor) / span) if span else 1.0
-            if best == "asc":
+            if order == "asc":
                 share = 1.0 - share
             #every bar keeps a visible stub, or the last row reads as a
             #missing value rather than as the least original deck
             r["fill"] = 8 + 92 * share if span else 100
+    prefix, suffix = figure_units(sort["metric"]["key"], cur)
     return render_template("precons.html", rows=rows, eras=PRECON_ERAS, era=era[0],
-                           sorts=PRECON_SORTS, sort=sort[0], sort_label=sort[4],
-                           decimals=sort[5], depths=PRECON_DEPTHS, depth=depth[0],
-                           depth_label=depth[1], cur=cur,
-                           #the figure's units. price needs the sign of
-                           #whichever currency the toggle is showing, age needs
-                           #a word or "12.4" means nothing, play rate needs the
-                           #hash that says "rank" everywhere else on the site
-                           prefix={"price": CURRENCY_SIGNS[cur], "played": "#"}.get(sort[0], ""),
-                           suffix=(" years" if sort[0] == "age" else ""))
+                           sorts=PRECON_SORTS, sort=sort, cur=cur,
+                           prefix=prefix, suffix=suffix)
 
 
-#the idf weight from line_weight() written in sql, so the deck queries below
-#can rank inside postgres instead of hauling every pair back here. same curve:
-#nothing is punished until a line is on more than 5 cards, then it falls off
-#gently. it MUST stay in step with line_weight, which is why the python one is
-#the doc comment and this is the transcription
-LINE_WEIGHT_SQL = ("CASE WHEN coalesce(s.count, 1) <= 5 THEN 1.0"
-                   " ELSE 1.0 / (1.0 + log(coalesce(s.count, 1) / 5.0)) END")
-
-#every card in one deck, each against the closest thing in the SAME deck. it
-#is cards.uniqueness with the universe swapped from all 31k cards to the other
-#99 here, which is a different and more useful question on a decklist: not
-#"has anyone printed this before" but "does anything else in MY deck do this".
-#
-#at ~100 cards this is ~250 lines, so the all-pairs the ingest has to do in
-#numpy overnight is a 250x250 join here, 160-215ms measured against railway on
-#the wordiest precons. that is the whole reason the lens can be a page and not
-#a batch job.
-#
-#the weights are why the pairings are readable. unweighted, every top pair was
-#two lands sharing "This land enters tapped." (438 cards) or two rocks sharing
-#a mana ability (831): technically the nearest neighbour, useless as "these do
-#the same job". weighting both sides by the line's rarity buries all of it
-#it takes a LIST OF IDS rather than a deck slug so the pasted-list path and
-#the precon pages run the exact same query. that is not tidiness: it means the
-#166 precon pages are a standing test of the code the paste box depends on
-DECK_PAIRS_SQL = """
-WITH dl AS (
-    SELECT l.id, l.oracle_id, l.line_text, l.""" + EMBED_COL + """ AS embedding,
-           """ + LINE_WEIGHT_SQL + """ AS w
-    FROM lines l
-    LEFT JOIN line_stats s ON s.line_text = l.line_text
-    WHERE l.oracle_id = ANY(%s::uuid[]) AND NOT l.whole AND l.""" + EMBED_COL + """ IS NOT NULL
-),
-scored AS (
-    SELECT DISTINCT ON (a.id) a.id, a.oracle_id, a.line_text, b.oracle_id AS partner,
-           1 - (a.embedding <=> b.embedding) AS raw,
-           (1 - (a.embedding <=> b.embedding)) * a.w * b.w AS weighted
-    FROM dl a JOIN dl b ON b.oracle_id <> a.oracle_id
-    ORDER BY a.id, (1 - (a.embedding <=> b.embedding)) * a.w * b.w DESC
-),
-per_card AS (
-    SELECT DISTINCT ON (oracle_id) oracle_id, line_text, partner, raw, weighted
-    FROM scored ORDER BY oracle_id, weighted DESC
-)
-SELECT c.name, c.type_line, c.uniqueness AS global_u, c.oracle_id,
-       p.line_text, p.weighted, pc.name AS partner_name
-FROM per_card p
-JOIN cards c ON c.oracle_id = p.oracle_id
-LEFT JOIN cards pc ON pc.oracle_id = p.partner
-ORDER BY p.weighted DESC
-"""
-
-#how close two cards have to sit before the page says they do the same job.
-#0.75 was picked by reading the pairings on a dozen decks: above it they are
-#things like Nekusar/Spiteful Visions and Fog Bank/Guard Gomazoa, below it
-#they start being two cards that merely share a rider. the site's own result
-#gate is 70, and this is deliberately STRICTER, because there the user judges
-#a list and here the page is making the claim itself
-DECK_PAIR_CUT = 0.75
-
-#how many cards the detail page lists per section. enough to read as evidence,
-#short enough that nobody scrolls a 100 row table looking for the point
+#how many cards a panel names as the evidence for its number. enough to read
+#as evidence, short enough that nobody scrolls a 100 row table looking for the
+#point. the rest of the deck is one click away behind "show them as cards"
 DECK_SECTION = 12
 
-_deck_cache = {}
+#what "the cards that made this number" means, per metric, as sql. every
+#predicate here is a TRANSCRIPTION of the matching CTE in PRECON_SQL and has to
+#stay one: a card the ranking did not count must never turn up in the evidence
+#for it, or the page is showing its working and the working is wrong.
+#
+#__PRICE__ is filled at query time from the day's rates, same as the board
+DECK_EVIDENCE = {
+    "original": {"where": "c.uniqueness IS NOT NULL AND c.type_line NOT LIKE '%%Land%%'",
+                 "order": "c.uniqueness DESC", "value": "c.uniqueness", "decimals": 2},
+    "salt": {"where": "c.salt IS NOT NULL" + (" AND NOT " + SALT_BASIC_SQL if SALT_SKIP_BASICS else ""),
+             "order": "c.salt DESC", "value": "c.salt", "decimals": 2},
+    "price": {"where": "__PRICE__ IS NOT NULL",
+              "order": "__PRICE__ DESC", "value": "__PRICE__", "decimals": 2},
+    "played": {"where": "c.edhrec_rank IS NOT NULL AND c.type_line NOT LIKE '%%Land%%'",
+               "order": "c.edhrec_rank", "value": "c.edhrec_rank", "decimals": 0},
+    "age": {"where": "c.released_at IS NOT NULL" + (" AND NOT " + SALT_BASIC_SQL if SALT_SKIP_BASICS else ""),
+            "order": "c.released_at", "value": "extract(epoch FROM (now() - c.released_at)) / 31557600.0",
+            "decimals": 1},
+}
 
 
-def lens_rows(oracle_ids):
-    #the lens over any pile of cards. no caching here: the precon path caches
-    #by slug below, and a pasted list is seen once and never again
-    if not oracle_ids:
-        return []
+def metric_cards(conn, oracle_ids, key, currency, limit=DECK_SECTION):
+    #the cards that made one of the five numbers, in the order that made it,
+    #carrying everything a card frame needs. the list reads as names by default
+    #and opens into pictures, so this asks for the pictures either way rather
+    #than running a second query when someone expands it
+    ev = DECK_EVIDENCE[key]
+    price = price_col(currency)
+    sql = """
+        SELECT c.oracle_id, c.name, c.type_line, c.mana_cost, c.layout,
+               c.image, c.image_back, c.scryfall_uri, c.edhrec_rank, c.salt,
+               c.price_usd, c.price_eur,
+               (""" + ev["value"].replace("__PRICE__", price) + """) AS value
+        FROM cards c
+        WHERE c.oracle_id = ANY(%s::uuid[]) AND (""" + ev["where"].replace("__PRICE__", price) + """)
+        ORDER BY """ + ev["order"].replace("__PRICE__", price) + """, c.name
+        LIMIT %s
+    """
     try:
-        with pool.connection() as conn:
-            return [dict(r) for r in conn.execute(DECK_PAIRS_SQL, ([str(o) for o in oracle_ids],)).fetchall()]
+        rows = conn.execute(sql, ([str(o) for o in oracle_ids], limit)).fetchall()
     except Exception:
         return []
+    prefix, suffix = figure_units(key, currency)
+    out = []
+    for r in rows:
+        c = dict(r)
+        c["sideways"] = sideways(c["layout"], c["type_line"])
+        c["flip"] = c["layout"] == "flip"
+        c["price_label"] = price_label(c, currency)
+        c["rank_label"] = rank_label(c["edhrec_rank"])
+        c["salt_label"] = "%.2f" % c["salt"] if c["salt"] is not None else ""
+        value = float(c["value"]) if c["value"] is not None else 0.0
+        #the card's own reading of the number the panel is about, printed the
+        #same way the deck's figure above it is, so the two are obviously the
+        #same measurement at two scales
+        c["figure"] = prefix + ("%.*f" % (ev["decimals"], value)) + suffix
+        out.append(c)
+    return out
 
 
-def deck_detail(slug):
-    #cached per deck for an hour, same as the board. the numbers only move
-    #when the ingest reruns or the model changes, and the query is far too
-    #heavy to pay for on every visit
-    hit = _deck_cache.get(slug)
+_deck_ids_cache = {}
+
+
+def precon_ids(slug):
+    #which cards a precon holds, cached for an hour like everything else about
+    #the board: it only moves when the ingest reruns, and five metric queries
+    #per page view should not each start by asking the same question
+    hit = _deck_ids_cache.get(slug)
     if hit and time.time() - hit["at"] < 3600:
-        return hit["rows"]
+        return hit["ids"]
     try:
         with pool.connection() as conn:
             ids = [r["oracle_id"] for r in
                    conn.execute("SELECT oracle_id FROM deck_cards WHERE deck_slug = %s", (slug,)).fetchall()]
     except Exception:
+        return hit["ids"] if hit else []
+    _deck_ids_cache[slug] = {"at": time.time(), "ids": ids}
+    return ids
+
+
+def deck_uniqueness(oracle_ids):
+    #every nonland card in the pile with its originality score, which is the
+    #one figure the pasted path has to work out for itself: the other four come
+    #back from deck_metrics as single numbers, and this one is an average over
+    #a SLICE of the deck, so the slice has to be picked here.
+    #
+    #the predicate matches PRECON_SQL's scored CTE exactly. it used to come off
+    #the all-pairs lens query, which additionally required a card to have rules
+    #LINES; that made no difference (uniqueness is derived from lines, so a card
+    #without any has none) but it did mean two different rules for one number
+    if not oracle_ids:
         return []
-    rows = lens_rows(ids)
-    _deck_cache[slug] = {"at": time.time(), "rows": rows}
-    return rows
-
-
-def lens_sections(cards):
-    #the two readings both pages show, from one query's rows. lands are left
-    #out for the same reason they are left out of the score: a mana base is
-    #not what makes a deck a deck, and left in they fill both lists with duals
-    #pairing with other duals
-    spells = [c for c in cards if "Land" not in (c["type_line"] or "")]
-    original = sorted(spells, key=lambda c: -(c["global_u"] or 0))[:DECK_SECTION]
-
-    #the pair list names both sides, so without the dedup the same partnership
-    #prints twice facing opposite ways (Nekusar/Spiteful, Spiteful/Nekusar)
-    seen, pairs = set(), []
-    for c in spells:
-        if c["weighted"] < DECK_PAIR_CUT:
-            break
-        key = frozenset((c["name"], c["partner_name"]))
-        if key in seen:
-            continue
-        seen.add(key)
-        pairs.append(c)
-        if len(pairs) >= DECK_SECTION:
-            break
-    return spells, original, pairs
+    try:
+        with pool.connection() as conn:
+            return [dict(r) for r in conn.execute("""
+                SELECT oracle_id, name, type_line, uniqueness AS global_u
+                FROM cards
+                WHERE oracle_id = ANY(%s::uuid[])
+                  AND uniqueness IS NOT NULL AND type_line NOT LIKE '%%Land%%'
+                ORDER BY uniqueness DESC
+            """, ([str(o) for o in oracle_ids],)).fetchall()]
+    except Exception:
+        return []
 
 
 def originality_of(cards, frac=PRECON_TOP_FRAC):
@@ -2262,9 +2447,7 @@ def originality_of(cards, frac=PRECON_TOP_FRAC):
     #different rule. only a card the ingest has never scored lands here, which
     #is a narrow window, but it is the one card that would drag a whole deck
     #down for the crime of being new
-    vals = sorted((c["global_u"] for c in cards
-                   if "Land" not in (c["type_line"] or "") and c["global_u"] is not None),
-                  reverse=True)
+    vals = sorted((c["global_u"] for c in cards if c["global_u"] is not None), reverse=True)
     if not vals:
         return 0.0
     keep = max(1, round(len(vals) * frac))
@@ -2272,86 +2455,102 @@ def originality_of(cards, frac=PRECON_TOP_FRAC):
     return sum(vals) / len(vals)
 
 
-#how many of the deck's salt sources the page names. the total is the headline
-#and this is what it is MADE of, which is the part anyone can act on
-SALT_SECTION = 10
-
-
-def salt_standing(total):
-    #how many precons this deck is SALTIER than, plus the population size, so
-    #the page can say it in words rather than printing a bare number. reads
-    #the one board rather than keeping a second cache of the same decks
-    totals = [r["salt"] for r in precon_board() if r["salt"] is not None]
-    if not totals:
-        return None
-    return {"saltier_than": sum(1 for t in totals if t < total), "total": len(totals)}
-
-
 def deck_salt(oracle_ids):
     #the salt tally: what this pile of cards is worth on edhrec's annoyance
-    #poll. its own query rather than a read off the lens rows, because the
-    #lens only sees cards with rules LINES and a basic land has none, so half
-    #a mana base would silently go missing from a total that claims to count
-    #everything.
-    #
-    #counted per DISTINCT card, not per copy. salt is how much a card annoys
-    #the table and nine Islands are not nine times the annoyance of one, and
-    #it is also the only way this can agree with the pasted path, which drops
-    #counts on the way in
+    #poll. counted per DISTINCT card, not per copy. salt is how much a card
+    #annoys the table and nine Islands are not nine times the annoyance of one,
+    #and it is also the only way this can agree with the board, which counts a
+    #precon the same way
     if not oracle_ids:
-        return 0.0, []
+        return 0.0
+    basic = (" AND NOT " + SALT_BASIC_SQL) if SALT_SKIP_BASICS else ""
     try:
         with pool.connection() as conn:
-            rows = conn.execute("""
-                SELECT name, salt, type_line FROM cards
-                WHERE oracle_id = ANY(%s::uuid[]) AND salt IS NOT NULL
-                ORDER BY salt DESC
-            """, ([str(o) for o in oracle_ids],)).fetchall()
+            row = conn.execute("""
+                SELECT sum(c.salt) AS total FROM cards c
+                WHERE c.oracle_id = ANY(%s::uuid[]) AND c.salt IS NOT NULL""" + basic,
+                               ([str(o) for o in oracle_ids],)).fetchone()
     except Exception:
-        return 0.0, []
-    if SALT_SKIP_BASICS:
-        rows = [r for r in rows if not is_basic_land(r["type_line"])]
-    total = sum(r["salt"] or 0 for r in rows)
-    return total, [dict(r) for r in rows[:SALT_SECTION]]
+        return 0.0
+    return float(row["total"]) if row and row["total"] is not None else 0.0
+
+
+def deck_panels(conn, oracle_ids, figures, board, cur, slug=None):
+    #one panel per metric, and the SAME five panels whether the deck came out
+    #of the precon table or out of somebody's paste box. that is the entire
+    #point of this being one function: /precons/<slug> and /deck/read are the
+    #same page about different decks, and two builders would slowly turn them
+    #into two different pages about the same thing.
+    #
+    #each panel is stated in its metric's flattering direction ("12th of 167
+    #most original") because the two readings of one number are the same
+    #standing counted from opposite ends, and printing both would be printing
+    #the same fact twice. the arrows walk the five, not the ten
+    panels = []
+    for m in PRECON_METRICS:
+        figure = figures.get(m["key"])
+        figure = None if figure is None else float(figure)
+        stand = deck_standing(board, m["figure"], m["best"], figure, slug=slug)
+        if stand is None:
+            continue
+        prefix, suffix = figure_units(m["key"], cur)
+        #always the "desc" reading, which is the CONCEPT's own top end (most
+        #original, saltiest, most played) rather than the column's. those two
+        #disagree on play rate, where the top of the concept is the smallest
+        #number, and reading the label off the column direction titled the
+        #panel "least played" on the deck that plays the most staples
+        panels.append(dict(stand, key=m["key"], label=m["desc"]["label"],
+                           reading=m["desc"]["first"], sort_key=m["desc"]["key"],
+                           figure=figure, decimals=m["decimals"],
+                           means=m["means"], scale=m["scale"], cards_label=m["cards"],
+                           noun=m["noun"], more=m["more"],
+                           prefix=prefix, suffix=suffix,
+                           cards=metric_cards(conn, oracle_ids, m["key"], cur),
+                           #the sum is the memorable fact and the mean is the
+                           #one the ranking can honestly use, so age prints
+                           #both and every other metric prints one
+                           total_years=figures.get("age_total") if m["key"] == "age" else None,
+                           age_cards=figures.get("age_cards") if m["key"] == "age" else None))
+    return panels
 
 
 @app.route("/precons/<slug>")
 def precon(slug):
-    #one deck read through the lens. this is the view a PASTED list will get
-    #too, which is the point of building it here first: the precons are 166
-    #worked examples of what the paste box does, and the template is the same
-    #either way
-    board = precon_board()
-    place = None
-    deck_row = None
-    for i, r in enumerate(board, 1):
-        if r["slug"] == slug:
-            place, deck_row = i, r
-            break
+    #one deck read through the lens, and the SAME view a pasted list gets. the
+    #precons are 166 worked examples of what the paste box does, which is what
+    #makes them a standing test of it rather than a second implementation
+    cur = read_currency()
+    board = precon_board(cur)
+    deck_row = next((r for r in board if r["slug"] == slug), None)
     if deck_row is None:
         abort(404)
 
-    spells, original, pairs = lens_sections(deck_detail(slug))
-    #the salt tally reads the WHOLE deck, not the lens rows: it counts lands,
-    #and a basic land has no rules lines to appear in the lens with
+    #which panel opens. it is the sort the visitor arrived on, so clicking a
+    #deck off the salt board lands on its salt standing rather than on a page
+    #about originality that never mentions why they clicked. a reversed reading
+    #(mild, cheap, obscure) opens its own metric's panel: they are one number.
+    #the arrival key is kept as well as the metric, so the way back is the
+    #board they were actually on rather than its other end
+    arrived = read_precon_sort()
+    opened = arrived["metric"]["key"]
+
+    ids = precon_ids(slug)
+    #every figure comes off the BOARD ROW rather than being added up again
+    #here. postgres already summed these as real, python would sum them as
+    #float64, and on a 62 card deck the two land about 7e-07 apart: nothing
+    #anywhere except against the deck's own entry in the board, where it
+    #decided whether the deck came out saltier than itself
+    figures = {"original": deck_row["originality"], "salt": deck_row["salt"],
+               "price": deck_row["price"], "played": deck_row["play_median"],
+               "age": deck_row["age_mean"], "age_total": deck_row["age_total"],
+               "age_cards": deck_row["age_cards"]}
     with pool.connection() as conn:
-        ids = [r["oracle_id"] for r in
-               conn.execute("SELECT oracle_id FROM deck_cards WHERE deck_slug = %s", (slug,)).fetchall()]
-    #the CARD LIST comes off that query, the TOTAL comes off the board row.
-    #adding it up again here added in python the same numbers postgres had
-    #already added as real, and sum(real) accumulates in float32 where python
-    #is float64, so on a 62 card deck the two land about 7e-07 apart. that is
-    #nothing anywhere except against the deck's OWN entry in the board, which
-    #is what salt_standing walks, and there it decided whether the deck came
-    #out saltier than itself
-    _, salt_cards = deck_salt(ids)
-    salt_total = deck_row["salt"] or 0.0
+        panels = deck_panels(conn, ids, figures, board, cur, slug=slug)
     year = deck_row["release_date"].year if deck_row["release_date"] else 0
-    return render_template("precon.html", deck=deck_row, place=place, total=len(board),
-                           year=year, original=original, pairs=pairs,
-                           counted=len(spells),
-                           salt_total=salt_total, salt_cards=salt_cards,
-                           salt_rank=salt_standing(salt_total))
+    return render_template("precon.html", deck=deck_row, year=year, panels=panels,
+                           opened=opened, back=arrived["key"], cur=cur, counted=len(ids),
+                           place=panels[0]["place"] if panels else 0,
+                           total=len(board))
 
 
 #----- the paste box: someone else's decklist, read through the same lens -----
@@ -2365,8 +2564,9 @@ def precon(slug):
 #bare form was the only one this ever saw, so every archidekt export with
 #categories switched on reported one unmatched card per section
 DECK_HEADERS = re.compile(r"^(deck|decklist|sideboard|commander|companion|maybeboard|"
-                          r"considering|tokens?|creatures?|lands?|instants?|sorceries|"
-                          r"artifacts?|enchantments?|planeswalkers?|battles?)\b[:\s]*$", re.I)
+                          r"considering|tokens?|creatures?|lands?|instants?|sorcer(?:y|ies)|"
+                          r"artifacts?|enchantments?|planeswalkers?|battles?|"
+                          r"ramp|removal|draw|utility|other)\b[:\s]*$", re.I)
 #"1 ", "1x ", "4x " at the front of a line
 DECK_COUNT = re.compile(r"^(\d+)\s*[xX]?\s+")
 #everything the exporters bolt on AFTER the name: (SET) 123, *F*, [Category]
@@ -2481,7 +2681,11 @@ def csv_to_lines(text):
         if raw.strip():
             head = raw
             break
-    if "," not in head:
+    #the cheap test first, on the header line alone. half the commander names
+    #in the game contain a comma, so "there is a comma in the first line" is
+    #true of ordinary decklists too, and without this every paste starting with
+    #a legendary creature would be run through a csv parse to learn nothing
+    if not any(c.strip().strip('"').lower() == "name" for c in head.split(",")):
         return None
     try:
         rows = list(csv.reader(io.StringIO(text)))
@@ -2638,33 +2842,41 @@ def deck_metrics(conn, oracle_ids, currency):
               AND NOT """ + basic + """) AS age_total,
           (SELECT count(*) FROM cards c
             WHERE c.oracle_id = ANY(%s::uuid[]) AND c.released_at IS NOT NULL
-              AND NOT """ + basic + """) AS age_cards,
-          (SELECT array_agg(x.name) FROM (SELECT c.name FROM cards c
-            WHERE c.oracle_id = ANY(%s::uuid[]) AND """ + price_col(currency) + """ IS NOT NULL
-            ORDER BY """ + price_col(currency) + """ DESC LIMIT 3) x) AS price_drivers,
-          (SELECT array_agg(x.name) FROM (SELECT c.name FROM cards c
-            WHERE c.oracle_id = ANY(%s::uuid[]) AND c.edhrec_rank IS NOT NULL
-              AND c.type_line NOT LIKE '%%Land%%'
-            ORDER BY c.edhrec_rank LIMIT 3) x) AS play_drivers,
-          (SELECT array_agg(x.name) FROM (SELECT c.name FROM cards c
-            WHERE c.oracle_id = ANY(%s::uuid[]) AND c.released_at IS NOT NULL
-              AND NOT """ + basic + """
-            ORDER BY c.released_at LIMIT 3) x) AS age_drivers
-    """, (ids, ids, ids, ids, ids, ids, ids, ids)).fetchone()
+              AND NOT """ + basic + """) AS age_cards
+    """, (ids, ids, ids, ids, ids)).fetchone()
     return dict(row) if row else {}
 
 
-def deck_standing(board, key, best, figure):
+def deck_standing(board, key, best, figure, slug=None):
     #where the deck lands on the board, and who it landed between.
     #
-    #"better" is the axis's own direction rather than bigger-is-better, which
+    #"better" is the metric's own direction rather than bigger-is-better, which
     #is the whole reason the board learned one: on play rate a SMALLER median
     #is more played, and a standing that got that backwards would tell someone
-    #their pile of staples was the most obscure deck in the format
+    #their pile of staples was the most obscure deck in the format.
+    #
+    #a precon passes its SLUG and is already a row here, so it is located
+    #rather than inserted. a pasted deck has no slug and gets dropped in at the
+    #position its figure earns, making the population one bigger. both come
+    #back in the same shape, because the two pages that read this are the same
+    #page and the only difference between them is which deck is being read
     if figure is None:
         return None
     rows = [r for r in board if r.get(key) is not None]
     rows.sort(key=lambda r: (float(r[key]) if best == "asc" else -float(r[key]), r["name"]))
+
+    if slug is not None:
+        at = next((i for i, r in enumerate(rows) if r["slug"] == slug), None)
+        if at is None:
+            return None
+        window = []
+        for i in range(max(0, at - DECK_WINDOW), min(len(rows), at + DECK_WINDOW + 1)):
+            r = rows[i]
+            window.append({"place": i + 1, "name": r["name"], "slug": r["slug"],
+                           "figure": float(r[key]), "you": i == at})
+        return {"place": at + 1, "beaten": len(rows) - at - 1,
+                "of": len(rows), "window": window}
+
     better = 0
     for r in rows:
         v = float(r[key])
@@ -2689,8 +2901,10 @@ def deck_standing(board, key, best, figure):
         #sitting above them
         window.append({"place": i + 2, "name": r["name"], "slug": r["slug"],
                        "figure": float(r[key]), "you": False})
+    #"of" counts the deck itself in, so the sentence reads 12th of 167 whether
+    #the deck was already on the board or has just been dropped onto it
     return {"place": better + 1, "beaten": len(rows) - better,
-            "total": len(rows), "window": window}
+            "of": len(rows) + 1, "window": window}
 
 
 def deck_hub(error=None, pasted="", url="", missing=None):
@@ -2701,6 +2915,48 @@ def deck_hub(error=None, pasted="", url="", missing=None):
     return render_template("deck.html", deck_count=len(board),
                            example=board[0] if board else None,
                            error=error, pasted=pasted, url=url, missing=missing)
+
+
+def deck_identity():
+    #what to call this deck. it rides the FORM, like the list itself, because
+    #there is no session to keep it in and that is the whole design.
+    #
+    #it has to be carried by every form on every page of the lens or the name
+    #is lost the moment you go back to change something: the importer knew the
+    #commander, the page after it printed the commander, and then the reading
+    #called the same deck "72 cards" because nothing had passed the name on
+    commander = " ".join(request.form.get("commander", "").split())[:200]
+    name = " ".join(request.form.get("name", "").split())[:200]
+    return (name or commander), commander
+
+
+def deck_leaders(conn, oracle_ids):
+    #every card in the list that could BE the commander: front face legendary
+    #creatures, the same test the search's "commanders only" filter uses. a
+    #commander deck holds one or two, so this is usually the answer rather than
+    #a list anyone has to search, and the picker falls back to the whole list
+    #when a pile of cards has no legend in it at all
+    try:
+        return [r["name"] for r in conn.execute("""
+            SELECT name FROM cards
+            WHERE oracle_id = ANY(%s::uuid[])
+              AND split_part(type_line, '//', 1) ILIKE %s
+              AND split_part(type_line, '//', 1) ILIKE %s
+            ORDER BY name
+        """, ([str(o) for o in oracle_ids], "%Legendary%", "%Creature%")).fetchall()]
+    except Exception:
+        return []
+
+
+def deck_names(conn, oracle_ids):
+    #every card in the list, for the picker to filter when the deck holds no
+    #legendary creature (a brew pasted without its commander, a cube, a pile)
+    try:
+        return [r["name"] for r in conn.execute(
+            "SELECT name FROM cards WHERE oracle_id = ANY(%s::uuid[]) ORDER BY name",
+            ([str(o) for o in oracle_ids],)).fetchall()]
+    except Exception:
+        return []
 
 
 #the three pages below are rendered from a POST and have no url of their own,
@@ -2727,43 +2983,63 @@ def deck_open():
     #list either way. the import path's whole job is turning a url into text
     text = request.form.get("list", "")
     url = request.form.get("url", "").strip()
-    commanders, deck_name = [], ""
+    #a name the page already knew, coming back round: the recent-decks list and
+    #the "read another deck" links all repost through here, and without this
+    #the second visit to the same list forgets what the deck was called
+    name, commander = deck_identity()
     if url:
-        deck_id = archidekt_id(url)
-        if not deck_id:
-            return deck_hub(error="That doesn't look like an Archidekt deck link. "
-                                  "It should look like archidekt.com/decks/1234567.", url=url)
+        site = import_site(url)
+        if not site:
+            return deck_hub(error="That doesn't look like an Archidekt or Moxfield deck "
+                                  "link. They look like archidekt.com/decks/1234567 and "
+                                  "moxfield.com/decks/aBcDeFgH.", url=url)
         if not import_allowed(import_token()):
             #one message for both lids on purpose. "you have imported a lot"
             #and "the site has imported a lot" are different facts but the same
             #instruction, and the paste box below answers either one
             return deck_hub(error="Too many deck imports just now, so we're giving "
-                                  "Archidekt a rest. Try again in a minute, or paste the "
+                                  "them a rest. Try again in a minute, or paste the "
                                   "list below and carry on.", url=url)
         try:
-            text, commanders, deck_name = archidekt_deck(deck_id)
+            text, found, deck_name = site["fetch"](site["id"])
         except Exception:
-            #deliberately one message for every failure mode. archidekt being
+            #deliberately one message for every failure mode. the site being
             #down, the deck being private and their api changing shape are the
             #same event to someone holding a link that did not work, and the
             #paste box underneath is the answer to all three
-            return deck_hub(error="Couldn't fetch that deck from Archidekt. It may be "
-                                  "private, or Archidekt may be having a moment. "
+            return deck_hub(error="Couldn't fetch that deck from " + site["name"] + ". It "
+                                  "may be private, or they may be having a moment. "
                                   "Pasting the list below always works.", url=url)
+        #the importer knows which card was flagged as the commander, which is
+        #the one thing a pasted list cannot say. it only PRESELECTS the picker
+        #though: the page still shows what it decided, so a wrong guess is one
+        #click to fix rather than a title nobody can change
+        commander = commander or (found[0] if found else "")
+        name = name or commander or deck_name
     if not text.strip():
-        return deck_hub(error="Paste a decklist, or give an Archidekt link.")
+        return deck_hub(error="Paste a decklist, or give an Archidekt or Moxfield link.")
 
     ids, missing = parse_decklist(text)
     if not ids:
         return deck_hub(error="None of those lines matched a card.",
                         pasted=text[:DECK_MAX_CHARS], url=url, missing=missing)
+    with pool.connection() as conn:
+        leaders = deck_leaders(conn, ids)
+        #a deck with exactly one legend in it has already answered the
+        #question, so it is filled in rather than asked. anything else gets the
+        #picker with the candidates in it
+        if not commander and len(leaders) == 1:
+            commander = leaders[0]
+        picker = leaders or deck_names(conn, ids)
+    name = name or commander
     #the two modes, offered rather than assumed. it costs a click and buys the
     #confirmation that the list arrived intact, which is the thing an IMPORT
     #most needs: a link that silently read 40 of your 100 cards is the failure
     #nobody notices until the numbers look wrong
     return render_template("deck_modes.html", pasted=text[:DECK_MAX_CHARS],
                            matched=len(ids), missing=missing,
-                           commanders=commanders, deck_name=deck_name,
+                           deck_name=name, commander=commander,
+                           leaders=leaders, picker=picker,
                            swap_axes=SWAP_AXES, swap_default=SWAP_DEFAULT)
 
 
@@ -2780,56 +3056,32 @@ def deck_read():
                         missing=missing, pasted=text[:DECK_MAX_CHARS])
 
     cur = read_currency()
-    cards = lens_rows(ids)
-    spells, original, pairs = lens_sections(cards)
+    name, commander = deck_identity()
+    scored = deck_uniqueness(ids)
 
     #the number only means something against the precons, which is what the
-    #whole calibration set was for. beaten counts how many it is MORE original
-    #than, so the sentence reads the way a person would say it. a list too
-    #short to compare fairly gets the sections and no ranking, rather than a
-    #placing that quietly comes from averaging six cards against a hundred
-    board = precon_board(currency=cur)
-    ranked = len(spells) >= DECK_MIN_FOR_RANK
-    score = originality_of(cards) if ranked else 0.0
-    #the tally counts the whole pasted list, lands included, off the ids
-    #rather than the lens rows for the same reason the precon page does
-    salt_total, salt_cards = deck_salt(ids)
+    #whole calibration set was for. a list too short to compare fairly gets no
+    #ranking at all, rather than a placing that quietly comes from averaging
+    #six cards against a hundred
+    board = precon_board(cur)
+    ranked = len(scored) >= DECK_MIN_FOR_RANK
 
-    #the five standings, built off the SAME PRECON_SORTS the board is built
-    #from. one list drives both pages, so a sort can never exist on the
-    #leaderboard and quietly not exist here, and the direction that decides
-    #"most played is the smallest number" is stated once
-    metrics = []
+    panels = []
     if ranked:
         with pool.connection() as conn:
             figures = deck_metrics(conn, ids, cur)
-        mine = {"original": score, "salt": salt_total, "price": figures.get("price"),
-                "played": figures.get("play_median"), "age": figures.get("age_mean")}
-        drivers = {"original": [c["name"] for c in original[:3]],
-                   "salt": [c["name"] for c in salt_cards[:3]],
-                   "price": figures.get("price_drivers") or [],
-                   "played": figures.get("play_drivers") or [],
-                   "age": figures.get("age_drivers") or []}
-        for key, label, fkey, dkey, dlabel, dp, best in PRECON_SORTS:
-            figure = mine.get(key)
-            figure = None if figure is None else float(figure)
-            stand = deck_standing(board, fkey, best, figure)
-            if stand is None:
-                continue
-            metrics.append(dict(stand, key=key, label=label, figure=figure,
-                                decimals=dp, drivers=drivers.get(key) or [],
-                                driver_label=dlabel,
-                                prefix={"price": CURRENCY_SIGNS[cur], "played": "#"}.get(key, ""),
-                                suffix=(" years" if key == "age" else ""),
-                                total_years=figures.get("age_total") if key == "age" else None,
-                                age_cards=figures.get("age_cards") if key == "age" else None))
+            figures["original"] = originality_of(scored)
+            figures["salt"] = deck_salt(ids)
+            figures["played"] = figures.get("play_median")
+            figures["age"] = figures.get("age_mean")
+            #the same builder the precon pages use, so the two readings cannot
+            #drift into being two different pages about the same measurement
+            panels = deck_panels(conn, ids, figures, board, cur)
 
-    return render_template("deck_read.html", original=original, pairs=pairs,
-                           counted=len(spells), matched=len(ids), missing=missing,
-                           score=score, total=len(board),
-                           ranked=ranked, min_cards=DECK_MIN_FOR_RANK,
-                           salt_total=salt_total, salt_cards=salt_cards,
-                           metrics=metrics, cur=cur,
+    return render_template("deck_read.html", panels=panels, opened=PRECON_METRICS[0]["key"],
+                           counted=len(scored), matched=len(ids), missing=missing,
+                           total=len(board), ranked=ranked, min_cards=DECK_MIN_FOR_RANK,
+                           cur=cur, deck_name=name, commander=commander,
                            #handed straight back so the swap tool can be reached
                            #from a reading without pasting twice. it rides the
                            #page rather than a session for the same reason as
@@ -2838,18 +3090,64 @@ def deck_read():
                            swap_default=SWAP_DEFAULT)
 
 
+@app.route("/deck/found", methods=["POST"])
+def deck_found():
+    #a line the parser could not match, matched by hand by the person holding
+    #the list. two things come out of that and both are worth having.
+    #
+    #they get the card, added to their own list right there rather than being
+    #told to go and edit the paste and start again. and WE get the pair: what
+    #they typed against what they meant. a line a human could resolve and the
+    #parser could not is a parser bug with a worked example already attached,
+    #which is exactly the shape the rest of the feedback queue is in.
+    #
+    #it goes through the same table and the same review page as every other
+    #report, so there is one queue rather than a second half-built one
+    body = request.get_json(silent=True) or {}
+    raw = " ".join(str(body.get("raw", "")).split())[:200]
+    want = " ".join(str(body.get("name", "")).split())[:200]
+    if not want:
+        return {"ok": False, "msg": "Pick a card first."}
+    card = find_card(want)
+    if card is None:
+        return {"ok": False, "msg": 'No card called "' + want + '", check the spelling?'}
+    try:
+        ip = visitor_token(client_ip())
+        with pool.connection() as conn:
+            #the same gentle lid the report bar has. there is no login, so this
+            #is all the abuse control there is, and a window of an hour means
+            #the token rotating at midnight only ever resets it
+            recent = conn.execute("""SELECT count(*) AS n FROM feedback
+                                     WHERE ip = %s AND ip <> ''
+                                       AND created_at > now() - interval '1 hour'""",
+                                  (ip,)).fetchone()["n"]
+            if recent < 40:
+                conn.execute("""INSERT INTO feedback (kind, anchor_id, anchor_name, reason, ip)
+                                VALUES ('deckline', %s, %s, %s, %s)""",
+                             (card["oracle_id"], card["name"], raw, ip))
+    except Exception:
+        #the card still goes into their list. logging it is our business, not
+        #theirs, and a full disk here must not cost them the reading
+        pass
+    return {"ok": True, "name": card["name"]}
+
+
 #----- importing a decklist from a url -----
 
-#archidekt only, deliberately. moxfield has restricted third party api use and
-#that needs checking before it goes on a label promising it works, so it is
-#absent rather than half done.
-#
-#archidekt publishes NO official api documentation and calls it open beta, so
-#this can change without warning. everything below is written for that: a
-#failure says so in words and the paste box is right there underneath, because
-#an importer that takes the page down with it when somebody else ships a
-#change is worse than no importer
+#archidekt and moxfield. NEITHER publishes a supported public api: archidekt
+#calls its own open beta and documents nothing, and moxfield asks third parties
+#to write in for access and to identify themselves in the User-Agent, which is
+#why ours names the site and links to it. so both of these can stop working
+#without warning, and everything below is written for that day: a failure says
+#so in words and the paste box is right there underneath, because an importer
+#that takes the page down with it when somebody else ships a change is worse
+#than no importer at all
 ARCHIDEKT_URL = re.compile(r"^https?://(?:www\.)?archidekt\.com/(?:decks|api/decks)/(\d{1,12})", re.I)
+#moxfield deck ids are a short opaque string rather than a number, and they
+#turn up as /decks/<id> on the site and /v2/decks/all/<id> on the api. the
+#character class is the allowlist that keeps this from becoming a path: no
+#slashes, no dots, no percent signs
+MOXFIELD_URL = re.compile(r"^https?://(?:www\.)?moxfield\.com/decks/([A-Za-z0-9_-]{1,40})", re.I)
 
 #a slow third party must not become a slow page, and a big response must not
 #become our memory problem. a 100 card deck's json runs about 400kb
@@ -2857,17 +3155,26 @@ DECK_IMPORT_TIMEOUT = 10
 DECK_IMPORT_MAX_BYTES = 8 * 1024 * 1024
 
 
-def archidekt_id(url):
-    #the deck id, as an integer, and nothing else.
+def import_site(url):
+    #which site this link belongs to and what its deck id is, or None.
     #
     #this is the whole security design and it is worth being explicit: the
     #user's url is NEVER fetched. an id is pulled out of it and OUR url is
     #built from that id, so there is no redirect to follow, no host to
     #revalidate and no way to point this at localhost or a cloud metadata
     #endpoint. a domain allowlist in front of a fetch of user input is the
-    #version of this that keeps being a vulnerability
-    m = ARCHIDEKT_URL.match((url or "").strip())
-    return m.group(1) if m else None
+    #version of this that keeps being a vulnerability.
+    #
+    #adding a second site changed nothing about that, which is the test a
+    #design like this has to pass: each pattern names one host and captures one
+    #id out of a character class that cannot hold a slash
+    url = (url or "").strip()
+    for pattern, name, fetch in ((ARCHIDEKT_URL, "Archidekt", archidekt_deck),
+                                 (MOXFIELD_URL, "Moxfield", moxfield_deck)):
+        m = pattern.match(url)
+        if m:
+            return {"id": m.group(1), "name": name, "fetch": fetch}
+    return None
 
 
 #the importer is the only thing on this site that makes an outbound request on
@@ -2945,23 +3252,63 @@ def import_token():
         return ""
 
 
-def archidekt_deck(deck_id):
-    #(decklist text, commander names, deck name), or raises.
-    #
-    #it hands back TEXT and lets parse_decklist do the matching, rather than
-    #resolving names to cards here. that parser is tested at 100% across 166
-    #decks and five export shapes, and a second matching path would be a
-    #second thing to get wrong and a second thing to keep in step. the
-    #importer's entire job is turning a url into the same thing a paste is
-    req = urllib.request.Request(
-        "https://archidekt.com/api/decks/%s/" % deck_id,
-        headers={"User-Agent": "Delvefall/1.0 (+https://delvefall.com)",
-                 "Accept": "application/json"})
+#the same identification on every outbound request, because moxfield asks
+#third parties to say who they are and archidekt has no opinion. one constant
+#so the two can never disagree about who is calling
+IMPORT_AGENT = "Delvefall/1.0 (+https://delvefall.com)"
+
+
+def import_json(url):
+    #one outbound GET, capped in time and in bytes, decoded as json. both
+    #importers go through here so neither can forget a lid
+    req = urllib.request.Request(url, headers={"User-Agent": IMPORT_AGENT,
+                                               "Accept": "application/json"})
     with urllib.request.urlopen(req, timeout=DECK_IMPORT_TIMEOUT) as r:
         raw = r.read(DECK_IMPORT_MAX_BYTES + 1)
     if len(raw) > DECK_IMPORT_MAX_BYTES:
         raise ValueError("deck too large")
-    data = json.loads(raw.decode("utf-8"))
+    return json.loads(raw.decode("utf-8"))
+
+
+def moxfield_deck(deck_id):
+    #(decklist text, commander names, deck name), same contract as archidekt's.
+    #
+    #moxfield splits the deck into named boards rather than tagging each card,
+    #so the commander is whatever sits in the "commanders" board and the
+    #maybeboard and sideboard are simply other boards this does not read. that
+    #is a cleaner shape than archidekt's categories and it means the two
+    #importers agree on what a deck IS without agreeing on anything else
+    data = import_json("https://api2.moxfield.com/v2/decks/all/%s" % deck_id)
+    boards = data.get("boards") or {}
+    lines, commanders = [], []
+    for board in ("commanders", "companions", "mainboard"):
+        cards = ((boards.get(board) or {}).get("cards") or {})
+        #a dict keyed by moxfield's own card id, so the values are what matter
+        for entry in list(cards.values())[:DECK_MAX_CARDS]:
+            name = ((entry.get("card") or {}).get("name") or "").strip()
+            if not name:
+                continue
+            if board == "commanders":
+                commanders.append(name)
+            try:
+                qty = max(1, int(entry.get("quantity") or 1))
+            except (TypeError, ValueError):
+                qty = 1
+            lines.append("%d %s" % (qty, name))
+    if not lines:
+        raise ValueError("no cards")
+    return "\n".join(lines[:DECK_MAX_CARDS]), commanders, (data.get("name") or "").strip()
+
+
+def archidekt_deck(deck_id):
+    #(decklist text, commander names, deck name), or raises.
+    #
+    #it hands back TEXT and lets parse_decklist do the matching, rather than
+    #resolving names to cards here. that parser is tested across every export
+    #shape these sites produce, and a second matching path would be a second
+    #thing to get wrong and a second thing to keep in step. the importer's
+    #entire job is turning a url into the same thing a paste is
+    data = import_json("https://archidekt.com/api/decks/%s/" % deck_id)
 
     lines, commanders = [], []
     for entry in (data.get("cards") or [])[:DECK_MAX_CARDS]:
@@ -3119,8 +3466,9 @@ SWAP_ANCHOR_FRAC = 0.9
 #lines is worth searching, this catches a candidate answering a rare line of
 #ours with a line of theirs that half the format shares.
 #
-#deliberately far below DECK_PAIR_CUT's 0.75. at that value it was not a
-#backstop but a second gate, and it removed every mana rock in the game from
+#deliberately low, and 0.75 is the value it was tried at first. at that value
+#it was not a backstop but a second gate, and it removed every mana rock in the
+#game from
 #"find me a less played Sol Ring", whose correct answers are all mana rocks
 #sharing one very common line. an exclusion that fires on the honest case is
 #worse than the bug it was added for.
@@ -3380,10 +3728,12 @@ def deck_swap():
         row = swap_card_json(c, cur)
         row["figure"] = swap_figure(c, field, cur) or ""
         queue.append(row)
+    name, commander = deck_identity()
     return render_template("deck_swap.html", queue=queue, deck_ids=[str(i) for i in ids],
                            colors=colors, axis=field, direction=direction,
                            goal=SWAP_AXES[(field, direction)]["goal"],
                            matched=len(ids), missing=missing, cur=cur,
+                           deck_name=name, commander=commander,
                            pasted=text[:DECK_MAX_CHARS])
 
 
@@ -3998,6 +4348,12 @@ def report_markdown(r, line_texts, n):
     #is emitted in that shape instead: the index the picked line actually has,
     #and which way the disagreement runs. the line index is what the eval reads,
     #and it is not stored on the report (the text is), so it is looked up here
+    #a decklist line the parser could not match. it is not an eval entry at
+    #all: nothing about the model went wrong, the line reader did, so it is
+    #emitted as what it is, a list of shapes parse_decklist should have read
+    if r["kind"] == "deckline":
+        return "    " + repr(r["reason"] or "") + "  # " + r["anchor_name"] + "  (" + day + ")\n"
+
     if r["kind"] == "tag":
         idx = "?"
         for i, t in enumerate(line_texts.get(r["anchor_id"], [])):
@@ -4071,6 +4427,7 @@ def admin():
     triplet_md = []
     pair_md = []
     tag_md = []
+    deck_md = []
     for r in rows:
         cards = [card_bit("anchor (searched)", r["anchor_id"], r["anchor_name"], None)]
         if r["expected_id"]:
@@ -4105,6 +4462,8 @@ def admin():
             accepted.append(view)
             if r["kind"] == "tag":
                 tag_md.append(report_markdown(r, line_texts, len(tag_md) + 1))
+            elif r["kind"] == "deckline":
+                deck_md.append(report_markdown(r, line_texts, len(deck_md) + 1))
             elif r["kind"] == "misplaced":
                 triplet_md.append(report_markdown(r, line_texts, len(triplet_md) + 1))
             else:
@@ -4112,7 +4471,7 @@ def admin():
 
     return render_template("admin.html", key=ADMIN_KEY, pending=pending, accepted=accepted,
                            triplet_md="\n".join(triplet_md), pair_md="\n".join(pair_md),
-                           tag_md="\n".join(tag_md), usage=usage)
+                           tag_md="\n".join(tag_md), deck_md="\n".join(deck_md), usage=usage)
 
 
 @app.route("/admin/act", methods=["POST"])
@@ -4201,6 +4560,18 @@ def sitemap():
            '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
     for page in ("", "unique", "deck", "precons", "guide", "privacy", "support"):
         out.append("<url><loc>" + root + page + "</loc>" + stamp + "</url>")
+    #every ranking of the board is its own page with its own title, heading and
+    #sentence, so every one of them is worth crawling: "the cheapest commander
+    #precons" and "the precons with the oldest cards" are different questions
+    #people type, and one page answering all ten answers none of them. the
+    #default sort is /precons above and is not repeated here, or google meets
+    #the same board at two addresses. the era cuts are deliberately absent: they
+    #canonicalise back to their sort, being a filter on one ranking rather than
+    #a ranking of their own. the keys are plain lowercase words from the
+    #constant, so nothing here needs escaping
+    for s in PRECON_SORTS:
+        if s["key"] != PRECON_DEFAULT["key"]:
+            out.append("<url><loc>" + root + "precons?sort=" + quote(s["key"]) + "</loc>" + stamp + "</url>")
     #one page per precon. they are server rendered and each one is about a
     #deck people search by name, so they are worth crawling. the slugs are
     #mtgjson filenames (letters, digits and underscores) so nothing here
@@ -4232,6 +4603,7 @@ def robots():
         #a pasted list is nobody's business and there is no url to index
         #anyway, the page is a post result. belt and braces with its noindex
         "Disallow: /deck/read",
+        "Disallow: /deck/found",
         "Sitemap: " + request.url_root + "sitemap.xml",
     ]) + "\n", mimetype="text/plain")
 

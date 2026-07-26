@@ -2,7 +2,7 @@
 
 {% block title %}The deck lens - Delvefall{% endblock %}
 
-{% block metadesc %}Paste a Commander decklist or import one from Archidekt: see which cards nothing else in Magic resembles, how salty the deck is, and get card-by-card swaps to make it cheaper, milder or less predictable.{% endblock %}
+{% block metadesc %}Paste a Commander decklist or import one from Archidekt or Moxfield: see how original, how salty, how expensive, how played and how old it is against every Commander precon, and get card-by-card swaps to move it.{% endblock %}
 
 {% block content %}
 <div class="guide deck-hub">
@@ -20,14 +20,14 @@
                error messages are worst: here each control checks exactly one
                shape and can say exactly what was wrong with it #}
             <form class="deck-import" action="/deck/open" method="post">
-                <label for="url">Import from Archidekt</label>
+                <label for="url">Import from Archidekt or Moxfield</label>
                 <div class="deck-import-row">
                     <input id="url" name="url" type="url" inputmode="url" spellcheck="false"
                            placeholder="https://archidekt.com/decks/1234567" value="{{ url or '' }}">
                     <button type="submit">Import</button>
                 </div>
-                <span class="deck-hub-note">Moxfield and the rest are coming. Until then the
-                paste box below takes their exports fine.</span>
+                <span class="deck-hub-note">The deck has to be public. Anywhere else, the
+                paste box below takes the export.</span>
             </form>
 
             <div class="deck-or"><span>or</span></div>
@@ -38,21 +38,17 @@
                     placeholder="1 Sol Ring&#10;1 Arcane Signet&#10;1 Nekusar, the Mindrazer&#10;...">{{ pasted or '' }}</textarea>
                 <div class="deck-paste-go">
                     <button type="submit">Read this deck</button>
-                    <span class="deck-hub-note">Exports from Moxfield, Archidekt, MTGO and a
-                    plain list of names all work.</span>
+                    <span class="deck-hub-note">Text, CSV or .dek, from Moxfield, Archidekt,
+                    MTGO, Arena or a plain list of names. All of them work.</span>
                 </div>
             </form>
 
-            {% if missing %}
-            <div class="deck-missing">
-                <strong>{{ missing|length }} line{{ '' if missing|length == 1 else 's' }} didn't match a card:</strong>
-                {{ missing|join(', ') }}
-            </div>
-            {% endif %}
+            {% if missing %}{% with reread = '/deck/open' %}{% include "_missing.html" %}{% endwith %}{% endif %}
 
             <p class="deck-hub-precons">Haven't got a list to hand?
             <a href="/precons">All {{ deck_count }} Commander precons, ranked</a> by how
-            original they are and by how much they annoy the table.</p>
+            original they are, how salty, how expensive, how played and how old, each one
+            readable from either end.</p>
         </div>
 
         {# the decks this browser has read before. it is localStorage, so it
@@ -69,13 +65,21 @@
 </div>
 
 {# the form the recent list posts through. one hidden form reused by every
-   entry, rather than a form per row #}
+   entry, rather than a form per row.
+
+   it carries the NAME as well as the list, and that is not cosmetic: without
+   it, reopening a deck from here landed on a page that had never heard of the
+   commander, retitled the deck "72 cards" and wrote that back into this list
+   as a second entry for a deck already in it #}
 <form id="deck-recent-form" action="/deck/open" method="post" hidden>
     <input type="hidden" name="list" id="deck-recent-list-field">
+    <input type="hidden" name="name" id="deck-recent-name-field">
+    <input type="hidden" name="commander" id="deck-recent-commander-field">
 </form>
 {% endblock %}
 
 {% block scripts %}
+{% include "_missing_js.html" %}
 <script>
 (function () {
     var KEY = "delvefall_recent_decks";
@@ -101,6 +105,12 @@
         btn.textContent = d.label || (d.count + " cards");
         btn.addEventListener("click", function () {
             document.getElementById("deck-recent-list-field").value = d.text;
+            /* the name goes back with the list. the commander is the name
+               without the "#2" a repeat picked up here, since the numbering
+               belongs to this list and not to the deck */
+            document.getElementById("deck-recent-name-field").value = d.label || "";
+            document.getElementById("deck-recent-commander-field").value =
+                (d.label || "").replace(/ #\d+$/, "");
             document.getElementById("deck-recent-form").submit();
         });
         li.appendChild(btn);

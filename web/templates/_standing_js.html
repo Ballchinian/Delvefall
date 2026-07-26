@@ -1,0 +1,54 @@
+<script>
+(function () {
+    /*
+        the standings, one at a time, with the arrows swapping between them.
+
+        every panel is already in the page: this hides four of them and shows
+        the fifth, rather than fetching anything. that is what keeps the page
+        readable with no script at all, which is also how a crawler meets all
+        five readings of a precon instead of one.
+
+        it hides ITSELF if it cannot work, so a page with one standing on it
+        never grows a pair of arrows that do nothing
+    */
+    var pager = document.getElementById("deck-pager");
+    var panels = Array.prototype.slice.call(document.querySelectorAll(".deck-metric"));
+    if (!pager || panels.length < 2) return;
+
+    var now = document.getElementById("deck-pager-now");
+    var at = 0;
+    /* which one the page was opened on: the sort the visitor clicked through
+       from, so landing here off the salt board opens on salt rather than on a
+       number nobody asked about */
+    var host = document.querySelector("[data-opened]");
+    var opened = host ? host.dataset.opened : "";
+    panels.forEach(function (s, i) { if (s.id === "metric-" + opened) at = i; });
+
+    function go(i, scroll) {
+        /* wraps, because five panels behind two arrows is a ring and a dead
+           arrow at either end is a control that looks broken */
+        at = (i + panels.length) % panels.length;
+        panels.forEach(function (s, n) { s.hidden = n !== at; });
+        now.textContent = panels[at].dataset.label;
+        if (scroll) pager.scrollIntoView({behavior: "smooth", block: "start"});
+    }
+
+    document.getElementById("deck-prev").addEventListener("click", function () { go(at - 1, true); });
+    document.getElementById("deck-next").addEventListener("click", function () { go(at + 1, true); });
+
+    /* the arrow keys walk them too, the same way they walk the suggestion
+       list, but never while somebody is typing in a box */
+    document.addEventListener("keydown", function (e) {
+        if (e.ctrlKey || e.metaKey || e.altKey) return;
+        var t = e.target;
+        if (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable) return;
+        if (e.key === "ArrowLeft") { go(at - 1, false); }
+        else if (e.key === "ArrowRight") { go(at + 1, false); }
+        else return;
+        e.preventDefault();
+    });
+
+    pager.hidden = false;
+    go(at, false);
+})();
+</script>

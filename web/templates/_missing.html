@@ -1,0 +1,40 @@
+{# the lines the parser could not read, and a way to fix each one on the spot.
+
+   telling somebody a card was dropped and leaving them to go and edit the
+   paste is the version where nobody bothers, and the reading quietly comes
+   from 71 cards instead of 72. so each line gets a lookup: find the card you
+   meant, and it goes into the list right here.
+
+   the pair it produces (what the export wrote against what it meant) is worth
+   as much as the fix: a line a person could resolve and the parser could not
+   is a parser bug that has already been diagnosed, and it lands in the same
+   review queue as every other report #}
+<div class="deck-missing" id="deck-missing">
+    <strong>{{ missing|length }} line{{ '' if missing|length == 1 else 's' }} didn't match a card:</strong>
+    <ul class="deck-missing-list">
+        {% for m in missing %}
+        <li class="deck-missing-row">
+            <span class="deck-missing-raw">{{ m }}</span>
+            <button type="button" class="deck-missing-try" data-raw="{{ m }}">Find it</button>
+            <span class="deck-missing-fix" hidden>
+                <input type="text" class="deck-missing-input" spellcheck="false"
+                       aria-label="what card was {{ m }}?" value="{{ m }}">
+                <span class="deck-missing-drop"></span>
+            </span>
+            <span class="deck-missing-said" role="status"></span>
+        </li>
+        {% endfor %}
+    </ul>
+    <span class="deck-missing-why">Anything the site doesn't hold (a token, a sticker, a
+    typo) is simply left out. If one of these is a real card, find it and it goes back into
+    the list.</span>
+    {# its own form, carrying its own copy of the list. that copy is one of the
+       fields the fix writes into, so pressing this reads the deck the user is
+       actually looking at, and the name travels with it like everywhere else #}
+    <form class="deck-missing-again" method="post" action="{{ reread or '/deck/read' }}" hidden>
+        <input type="hidden" name="list" value="{{ pasted or '' }}">
+        <input type="hidden" name="name" value="{{ deck_name or '' }}">
+        <input type="hidden" name="commander" value="{{ commander or '' }}">
+        <button type="submit">Read the deck again with them</button>
+    </form>
+</div>

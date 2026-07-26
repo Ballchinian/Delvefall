@@ -1,0 +1,113 @@
+{# the deck's five standings, and the SAME markup whether the deck came out of
+   the precon table or out of somebody's paste box. one partial rather than two
+   templates, for the reason _salt.html was one: the pages are the same page
+   about different decks, and two copies drift the first time only one of them
+   gets edited.
+
+   every panel is on the page. the arrows SHOW one at a time, they do not fetch
+   one at a time, so the page still reads top to bottom with no script running
+   and a crawler meets all five readings of a precon rather than one #}
+
+{% if panels %}
+<nav class="deck-pager" id="deck-pager" hidden aria-label="which standing">
+    <button type="button" class="deck-pager-arrow" id="deck-prev" aria-label="previous standing">&larr;</button>
+    <span class="deck-pager-now" id="deck-pager-now">{{ panels[0].label }}</span>
+    <button type="button" class="deck-pager-arrow" id="deck-next" aria-label="next standing">&rarr;</button>
+</nav>
+
+{% for p in panels %}
+<section class="deck-metric" id="metric-{{ p.key }}" data-label="{{ p.label }}">
+    {# the board link sits at the TOP and names the population, because
+       "the whole board" next to a page about YOUR deck reads as though your
+       deck is on it #}
+    <p class="deck-section-note deck-board-link"><a href="/precons?sort={{ p.sort_key }}">See all
+    {{ total }} Commander precons ranked by {{ p.reading }} &rarr;</a></p>
+
+    <div class="deck-standing">
+        <div class="deck-standing-place">
+            <span class="deck-standing-figure">{{ p.place }}</span>
+            <span class="deck-standing-of">of {{ p.of }}</span>
+        </div>
+        <div class="deck-standing-text">
+            {# the placing is the sentence and the score is the receipt. a bare
+               0.243 means nothing to anyone, which is the whole reason the
+               precon board had to exist before either of these pages could say
+               anything at all #}
+            <strong>{{ p.prefix }}{{ ('%.' ~ p.decimals ~ 'f')|format(p.figure) }}{{ p.suffix }} {{ p.noun }}.</strong>
+            {% if p.place == 1 %}
+                {{ p.more|capitalize }} than every Commander precon.
+            {% elif p.beaten == 0 %}
+                The bottom of all {{ p.of }} Commander precons for {{ p.noun }}.
+            {% else %}
+                {{ p.more|capitalize }} than {{ p.beaten }} of the {{ p.of }} Commander
+                precons.
+            {% endif %}
+            {% if p.total_years %}
+            <span class="deck-standing-extra">{{ '%.0f'|format(p.total_years) }} years all
+            told, across {{ p.age_cards }} cards.</span>
+            {% endif %}
+            <span class="deck-standing-extra deck-standing-means">{{ p.means }}</span>
+        </div>
+    </div>
+
+    {# the deck sitting on the board where it actually lands, with the decks
+       either side of it. a placing on its own is a number; the decks it landed
+       between are what make it a sentence #}
+    <ol class="deck-neighbours">
+        {% for n in p.window %}
+        <li class="deck-neighbour{{ ' is-you' if n.you }}">
+            <span class="deck-neighbour-place">{{ n.place }}</span>
+            <span class="deck-neighbour-name">
+                {%- if n.slug and not n.you %}<a href="/precons/{{ n.slug }}?sort={{ p.sort_key }}">{{ n.name }}</a>
+                {%- else %}{{ n.name }}{% endif -%}
+            </span>
+            <span class="deck-neighbour-figure">{{ p.prefix }}{{ ('%.' ~ p.decimals ~ 'f')|format(n.figure) }}{{ p.suffix }}</span>
+        </li>
+        {% endfor %}
+    </ol>
+
+    {% if p.cards %}
+    {# what the number is MADE of. names by default because a list of twelve
+       names is read in a glance and twelve pictures is a scroll, and the
+       pictures behind a fold for when the answer is "which one is that" #}
+    <h2>{{ p.cards_label }}</h2>
+    <ol class="deck-cards">
+        {% for c in p.cards %}
+        <li class="deck-card">
+            <a class="deck-card-name" href="/search?q={{ c.name | urlencode }}" data-card="{{ c.name }}">{{ c.name }}</a>
+            <span class="deck-card-score">{{ c.figure }}</span>
+        </li>
+        {% endfor %}
+    </ol>
+    <details class="deck-card-open">
+        <summary>Show them as cards</summary>
+        <div class="card-grid deck-card-grid">
+            {% for c in p.cards %}
+            <div class="result">
+                <div class="card-frame" data-sideways="{{ '1' if c.sideways else '' }}"
+                     data-flip="{{ '1' if c.flip else '' }}" data-back="{{ c.image_back or '' }}">
+                    <a href="/search?q={{ c.name | urlencode }}" data-card="{{ c.name }}"
+                       data-scryfall="{{ c.scryfall_uri }}"
+                       title="search {{ c.name }} here. ctrl-click to open it on scryfall">
+                        <img src="{{ c.image }}" alt="{{ c.name }}" width="488" height="680" loading="lazy">
+                    </a>
+                </div>
+                <div class="result-name">{{ c.name }} <span class="percent">{{ c.figure }}</span></div>
+                {# every card carries all three numbers, not just the one this
+                   panel ranks on, because "it is in here for its price, but
+                   what does it cost me in salt" is the next question #}
+                <div class="result-price">
+                    {% if c.price_label %}<span class="price-figure">{{ c.price_label }}</span>{% endif %}
+                    {% if c.rank_label %}<span class="result-rank"
+                        title="play rate: edhrec's rank for how often this card is played in commander, where #1 is the most played card in the format">{{ c.rank_label }}</span>{% endif %}
+                    {% if c.salt_label %}<span class="result-salt"
+                        title="salt {{ c.salt_label }} out of about 3, from edhrec's salt survey, where players vote on the cards they least enjoy facing"><i class="salt-mark" aria-hidden="true"></i>{{ c.salt_label }}</span>{% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </details>
+    {% endif %}
+</section>
+{% endfor %}
+{% endif %}

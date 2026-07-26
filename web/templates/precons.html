@@ -1,42 +1,90 @@
 {% extends "base.html" %}
 
-{% set salty = sort == 'salt' %}
+{% block title %}{{ sort.h1 }} - Delvefall{% endblock %}
 
-{% block title %}{{ 'The saltiest' if salty else 'The most original' }} Commander precons - Delvefall{% endblock %}
+{% block metadesc %}{{ sort.meta }}{% endblock %}
 
-{% block metadesc %}{% if salty %}Every preconstructed Commander deck ranked by how much its cards annoy people, from EDHREC's salt survey. See which precons are built on the cards players least enjoy facing.{% else %}Every preconstructed Commander deck ranked by how original its cards are, measured against every Magic card ever printed. See which precons play cards nothing else in the game resembles, and which are built from the format's usual suspects.{% endif %}{% endblock %}
+{# every ranking is its own page with its own question, so every ranking
+   declares itself canonical. the base template drops the query string, which
+   is right where the query string is a CONTROL, and here it is the content:
+   "the cheapest commander precons" is a different page from "the saltiest",
+   not the same page sorted differently.
+
+   the ERA cut still folds back to its ranking, because that IS a control: the
+   same board, narrowed. four eras times ten sorts is forty near-identical
+   pages competing with each other, which is the state this was fixed out of #}
+{% block canonical %}<link rel="canonical" href="{{ request.url_root.rstrip('/') ~ '/precons' }}{% if sort.key != 'original' %}?sort={{ sort.key }}{% endif %}">{% endblock %}
 
 {% block content %}
 <div class="guide precons">
     <p class="precon-back"><a href="/deck">&larr; The deck lens</a></p>
-    {% if salty %}
-    <h1>The saltiest Commander precons</h1>
-    <p>Every preconstructed Commander deck, ranked by how much its cards annoy people.
-    This is the one ranking here built on <strong>opinion rather than measurement</strong>:
-    it comes from <a href="https://edhrec.com/top/salt" target="_blank" rel="noopener">EDHREC's
-    salt survey</a>, where players vote on the cards they least enjoy facing.</p>
-    {% else %}
-    <h1>The most original Commander precons</h1>
-    <p>Every preconstructed Commander deck, ranked by how unusual its cards are. Not how
-    strong, not how expensive, and not how popular: <strong>how little the rest of Magic
-    looks like it</strong>. A card scores high here when nothing else in the game does what
-    it does.</p>
-    {% endif %}
+    <h1>{{ sort.h1 }}</h1>
+    <p>{{ sort.lede | safe }}</p>
 
     {% if not rows %}
     <p class="precon-empty">The deck list hasn't been built yet. It arrives with the next
     daily update.</p>
     {% else %}
 
-    {# the honest bit. a leaderboard that won't say what it measured is a
-       leaderboard nobody should believe, and both of these have an effect in
-       them that someone would spot and assume was being hidden #}
+    {# every control keeps the other, so picking one never silently throws the
+       other away. built as one query string per link rather than nested
+       conditionals #}
+    {% macro board_url(s, e) -%}
+    /precons{% set parts = [] %}
+    {%- if s != 'original' %}{% set _ = parts.append('sort=' ~ s) %}{% endif %}
+    {%- if e != 'all' %}{% set _ = parts.append('era=' ~ e) %}{% endif %}
+    {{- '?' ~ parts|join('&') if parts else '' -}}
+    {%- endmacro %}
+
+    {# ten readings of five numbers, the same ten the card search offers,
+       because cheapest and priciest are one number read from either end rather
+       than two things to measure. they are real links and each one is a real
+       page: that is what lets somebody searching for the oldest precons land
+       on the board already sorted that way #}
+    <nav class="precon-eras precon-sorts" aria-label="rank by">
+        {% for s in sorts %}
+            {% if s.key == sort.key %}
+                <span class="precon-era on" aria-current="true">{{ s.label }}</span>
+            {% else %}
+                <a class="precon-era" href="{{ board_url(s.key, era)|trim }}">{{ s.label }}</a>
+            {% endif %}
+        {% endfor %}
+    </nav>
+
+    <nav class="precon-eras" aria-label="filter by era">
+        {% for key, label, lo, hi in eras %}
+            {% if key == era %}
+                <span class="precon-era on" aria-current="true">{{ label }}</span>
+            {% else %}
+                <a class="precon-era" href="{{ board_url(sort.key, key)|trim }}">{{ label }}</a>
+            {% endif %}
+        {% endfor %}
+    </nav>
+
+    {# the honest bit, and it is about THIS number rather than about the idea of
+       measuring decks. a reader who meets "19.4 years" or "#1204" with no scale
+       cannot tell a good score from a bad one, and a leaderboard nobody can
+       read is a leaderboard nobody believes #}
     <details class="precon-method">
-        <summary>How this is measured, and what it doesn't measure</summary>
-        {% if salty %}
-        <p>Every card carries a salt score from EDHREC's annual survey, 0 to about 3. A
-        deck's score is the <strong>sum across its cards</strong>, so a deck is salty by
-        holding many mildly annoying cards or a few very annoying ones.</p>
+        <summary>What {{ sort.label|lower }} means here, and what it doesn't</summary>
+        <p>{{ sort.means }} {{ sort.scale }}</p>
+        {% if sort.metric.key == 'original' %}
+        <p><strong>It is not measuring how good or how expensive a deck is.</strong> Against
+        the decks' median EDHREC rank the correlation is r&nbsp;=&nbsp;-0.05, which is
+        nothing. Original and popular turn out to be unrelated, and both are on this board
+        as separate rankings for exactly that reason.</p>
+        <p><strong>It is partly measuring how recent a deck is</strong> (r&nbsp;=&nbsp;+0.46
+        against release year). Some of that is real: design space fills up, so a card from
+        2011 has had fifteen years of imitators, and being imitated is the opposite of being
+        unique. The ranking still separates decks inside a single era, which is what the
+        era buttons are for.</p>
+        <p><strong>Read from the top HALF of each deck's nonland cards</strong>, a share of
+        each deck rather than a fixed number, so a deck holding 53 nonland cards and one
+        holding 66 are judged on the same slice of themselves. Half rather than a third
+        because a third of a commander deck is mostly the mana base's neighbours and the
+        staples every deck brings, and reading deeper than half only pulls every deck toward
+        the same middle.</p>
+        {% elif sort.metric.key == 'salt' %}
         <p><strong>Basic lands are left out, and nothing else is.</strong> Not because the
         votes on them are wrong, but because counting them measures how a mana base was
         built rather than how a deck plays: counting one of each charged five colour decks
@@ -47,86 +95,61 @@
         <p><strong>Protest votes count.</strong> The scores are used exactly as voted.
         Filtering the ones that look unserious would mean overriding the poll with our own
         taste, and then it would stop measuring what it says it measures.</p>
-        {% else %}
-        <p>Every card carries an originality score: one minus how close its closest match
-        anywhere else in Magic gets. A deck's score is the average of its <strong>most
-        original {{ depth_label|lower }} of nonland cards</strong> &mdash; a share of each
-        deck rather than a fixed number, so a deck holding 53 nonland cards and one holding
-        66 are each judged on the same slice of themselves.</p>
-        <p><strong>Reading deeper does not make it more accurate.</strong> Precons differ
-        mostly in their unusual cards; the rest is the mana base and the removal package
-        everyone shares, so adding them pulls every deck toward the same middle. The spread
-        between first and last falls from 0.143 at a third to 0.103 using every card. The
-        ends of the board hardly move at all &mdash; the same deck is first, and the same
-        five are last, at every setting.</p>
-        <p><strong>It is not measuring how good or how expensive a deck is.</strong> Against
-        the decks' median EDHREC rank the correlation is r&nbsp;=&nbsp;-0.05, which is
-        nothing. Original and popular turn out to be unrelated.</p>
-        <p><strong>It is partly measuring how recent a deck is</strong> (r&nbsp;=&nbsp;+0.46
-        against release year). Some of that is real: design space fills up, so a card from
-        2011 has had fifteen years of imitators, and being imitated is the opposite of being
-        unique. The ranking still separates decks inside a single era, which is what the
-        era buttons are for.</p>
+        <p><strong>It is an opinion, not a measurement.</strong> Everything else on this
+        board is derived from what a card does or costs. This one is how a table feels
+        about facing it, from <a href="https://edhrec.com/top/salt" target="_blank"
+        rel="noopener">EDHREC's salt survey</a>, and no amount of reading rules text
+        produces it.</p>
+        {% elif sort.metric.key == 'price' %}
+        <p><strong>Basic lands DO count here</strong>, unlike the salt tally, and the two
+        are different kinds of number: salt is an opinion about a card and nine Islands are
+        not nine times the annoyance, where price is money and a deck's cost includes the
+        lands you have to own to play it.</p>
+        <p><strong>Prices are the cheapest paper printing in any finish</strong>, refreshed
+        from Scryfall daily. Digital printings, oversized promos and gold border world
+        championship cards don't count, since you can't sleeve those up.</p>
+        <p><strong>Euro totals read low.</strong> Scryfall's euro coverage is thinner than
+        its dollar coverage, and an unpriced card silently contributes nothing to a sum. The
+        ranking survives, because every deck is summed the same way and drops the same
+        cards, but the absolute euro figure understates what a deck is worth. Dollars are
+        the honest column.</p>
+        {% elif sort.metric.key == 'played' %}
+        <p><strong>The median, not the mean.</strong> EDHREC's rank is ordinal over the
+        whole format, so one card sitting at rank 31,000 drags a mean somewhere no card in
+        the deck actually is. The median says what a typical card in this deck is, which is
+        the question.</p>
+        <p><strong>Lands are left out</strong>, matching the originality convention: every
+        deck runs Command Tower and it says nothing about which deck this is.</p>
+        <p><strong>It is not a measure of power.</strong> Played and original are unrelated
+        by our own measurement (r&nbsp;=&nbsp;-0.05), and neither of them is strength. A
+        deck of staples is a deck of cards other people also bought.</p>
+        {% elif sort.metric.key == 'age' %}
+        <p><strong>Measured from the FIRST printing</strong>, so a reprint does not make an
+        old card new. A deck published last year and built from reprints reads old here,
+        which is the point: the question is how old the cards are, not how old the product
+        is.</p>
+        <p><strong>Basic lands are left out</strong>, same as the salt tally and for the
+        same reason: thirty Islands at three decades each is around 900 years that say
+        nothing about a deck.</p>
+        <p><strong>Ranked on the average, printed with the total.</strong> The total is the
+        memorable fact and the average is the only one a ranking can honestly use, because
+        precons hold anywhere from 53 to 66 nonland cards and a sum quietly rewards the
+        bigger deck for being bigger.</p>
         {% endif %}
     </details>
 
-    {# every control keeps the other two, so picking one never silently throws
-       away the others. built as one query string per link rather than three
-       nested conditionals #}
-    {% macro board_url(s, e, d) -%}
-    /precons{% set parts = [] %}
-    {%- if s != 'original' %}{% set _ = parts.append('sort=' ~ s) %}{% endif %}
-    {%- if e != 'all' %}{% set _ = parts.append('era=' ~ e) %}{% endif %}
-    {%- if d != 'third' %}{% set _ = parts.append('depth=' ~ d) %}{% endif %}
-    {{- '?' ~ parts|join('&') if parts else '' -}}
-    {%- endmacro %}
-
-    <nav class="precon-eras" aria-label="rank by">
-        {% for key, label, fkey, dkey, dlabel, dp, best in sorts %}
-            {% if key == sort %}
-                <span class="precon-era on" aria-current="true">{{ label }}</span>
-            {% else %}
-                <a class="precon-era" href="{{ board_url(key, era, depth)|trim }}">{{ label }}</a>
-            {% endif %}
-        {% endfor %}
-    </nav>
-
-    <nav class="precon-eras" aria-label="filter by era">
-        {% for key, label, lo, hi in eras %}
-            {% if key == era %}
-                <span class="precon-era on" aria-current="true">{{ label }}</span>
-            {% else %}
-                <a class="precon-era" href="{{ board_url(sort, key, depth)|trim }}">{{ label }}</a>
-            {% endif %}
-        {% endfor %}
-    </nav>
-
-    {# only meaningful while ranking by originality, which is the one score
-       built from a FRACTION of each deck. every other number here reads the
-       whole list, so there is no depth to read them at #}
-    {% if sort == 'original' %}
-    <nav class="precon-eras precon-depths" aria-label="how deep to read each deck">
-        <span class="precon-depth-label">Read:</span>
-        {% for key, label, value in depths %}
-            {% if key == depth %}
-                <span class="precon-era on" aria-current="true">{{ label }}</span>
-            {% else %}
-                <a class="precon-era" href="{{ board_url(sort, era, key)|trim }}">{{ label }}</a>
-            {% endif %}
-        {% endfor %}
-    </nav>
-    {% endif %}
-
     <p class="precon-count">{{ rows|length }} deck{{ '' if rows|length == 1 else 's' }},
-    {{ 'saltiest' if salty else 'most original' }} first. Collector's editions are folded
-    into the deck they reprint.</p>
+    {{ sort.first }} first. Collector's editions are folded into the deck they reprint.</p>
 
     <ol class="precon-board">
         {% for r in rows %}
         <li class="precon-row">
             <div class="precon-place">{{ r.place }}</div>
             <div class="precon-main">
-                <div class="precon-name"><a href="/precons/{{ r.slug }}">{{ r.name }}</a></div>
+                {# the deck keeps the ranking you clicked it from, so its page
+                   opens on the standing that made you click rather than on a
+                   number you never asked about #}
+                <div class="precon-name"><a href="/precons/{{ r.slug }}{% if sort.key != 'original' %}?sort={{ sort.key }}{% endif %}">{{ r.name }}</a></div>
                 <div class="precon-sub">
                     {% if r.leaders %}
                         {# the commander identifies a precon to a player far better
@@ -150,30 +173,43 @@
                 {% if r.cards %}
                 {# whichever number the board is sorted by, this is the cards
                    that made it, so the ranking can always be checked #}
-                <div class="precon-drivers"><span class="precon-drivers-label">{{ sort_label }}:</span>
+                <div class="precon-drivers"><span class="precon-drivers-label">{{ sort.cards }}:</span>
                     {% for d in r.cards %}<a href="/search?q={{ d | urlencode }}" data-card="{{ d }}">{{ d }}</a>{{ '' if loop.last else ', ' }}{% endfor %}
                 </div>
                 {% endif %}
             </div>
             <div class="precon-score">
-                <div class="precon-figure">{{ prefix }}{{ ('%.' ~ decimals ~ 'f')|format(r.figure) }}{{ suffix }}</div>
+                <div class="precon-figure">{{ prefix }}{{ ('%.' ~ sort.decimals ~ 'f')|format(r.figure) }}{{ suffix }}</div>
                 {# the vivid number, under the one the board actually sorts on.
                    the collective total is the fact people repeat ("this deck
                    is 900 years old"), and the AVERAGE is the only one a
                    ranking can honestly use, because precons hold anywhere from
                    53 to 66 nonland cards and a sum quietly rewards the bigger
                    deck for being bigger #}
-                {% if sort == 'age' and r.age_total %}
+                {% if sort.metric.key == 'age' and r.age_total %}
                 <div class="precon-subfigure" title="every card's age added together, across the {{ r.age_cards }} cards that aren't basic lands">{{ '%.0f'|format(r.age_total) }} years all told</div>
                 {% endif %}
                 {# the bar is the comparison, the number is the receipt. width is
                    relative to the decks currently on screen, which is why the
                    top row is always full and the bottom row always a stub #}
-                <div class="precon-bar{{ ' precon-bar-salt' if salty }}"><span style="width: {{ '%.1f'|format(r.fill) }}%"></span></div>
+                <div class="precon-bar precon-bar-{{ sort.metric.key }}"><span style="width: {{ '%.1f'|format(r.fill) }}%"></span></div>
             </div>
         </li>
         {% endfor %}
     </ol>
+
+    {# the other nine questions this same board answers, spelled out rather
+       than left as a row of buttons above. it is the honest internal linking
+       for a page that exists ten times: each one names what it ranks, so a
+       reader and a crawler meet the same list of things this data can say #}
+    <nav class="precon-also">
+        <h2>The same 166 decks, ranked another way</h2>
+        <ul>
+            {% for s in sorts %}{% if s.key != sort.key %}
+            <li><a href="{{ board_url(s.key, era)|trim }}">{{ s.h1 }}</a></li>
+            {% endif %}{% endfor %}
+        </ul>
+    </nav>
     {% endif %}
 </div>
 {% endblock %}

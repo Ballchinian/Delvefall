@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}What next - Delvefall{% endblock %}
+{% block title %}{{ deck_name or 'What next' }} - Delvefall{% endblock %}
 
 {# a pasted list is nobody's business, and there is no url to index anyway #}
 {% block head_extra %}<meta name="robots" content="noindex">{% endblock %}
@@ -9,38 +9,55 @@
 <div class="guide deck-hub deck-modes">
     <p class="precon-back"><a href="/deck">&larr; Use a different deck</a></p>
 
-    <h1>{{ deck_name or 'Your deck' }}</h1>
+    <h1 id="deck-title">{{ deck_name or 'Your deck' }}</h1>
 
     {# the receipt. it costs a click to show this and it buys the one thing an
        IMPORT most needs: proof the list arrived whole. a link that quietly
        read 40 of your 100 cards is the failure nobody notices until the
        numbers look wrong #}
-    <p class="deck-detail-sub">{{ matched }} card{{ '' if matched == 1 else 's' }} read in{% if commanders %},
-    led by {{ commanders|join(' and ') }}{% endif %}{% if missing %},
+    <p class="deck-detail-sub">{{ matched }} card{{ '' if matched == 1 else 's' }} read in{% if missing %},
     {{ missing|length }} not found{% endif %}.</p>
 
-    {% if missing %}
-    <div class="deck-missing">
-        <strong>Not found:</strong> {{ missing|join(', ') }}
-        <span class="deck-missing-why">Anything the site doesn't hold (a token, a
-        sticker, a typo) is simply left out.</span>
+    {% if missing %}{% with reread = '/deck/read' %}{% include "_missing.html" %}{% endwith %}{% endif %}
+
+    {# who leads it, which is the only thing that turns a pile of cards into a
+       deck with a name. a list has no way to say it (the parser is blind to
+       which board a card was in on purpose) and an import only sometimes does,
+       so the page asks, with the deck's own legends as the answers.
+
+       one legend in the list means the question is already answered and this
+       just shows the answer. the filter is there for the deck that runs six #}
+    <div class="deck-lead" id="deck-lead">
+        <label for="deck-lead-input">Who's the commander?</label>
+        <div class="deck-lead-row">
+            <input id="deck-lead-input" class="deck-lead-input" type="text" spellcheck="false"
+                   autocomplete="off" placeholder="Two letters is usually enough"
+                   value="{{ commander }}">
+            <button type="button" class="deck-lead-clear" id="deck-lead-clear">Clear</button>
+        </div>
+        <ul class="deck-lead-hits" id="deck-lead-hits"></ul>
+        <span class="deck-hub-note">Only used to name the deck, here and in this browser's
+        recent list. Nothing is sent anywhere or saved on our side.</span>
     </div>
-    {% endif %}
 
     <div class="deck-modes-pick">
         <form action="/deck/read" method="post" class="deck-mode">
             <input type="hidden" name="list" value="{{ pasted }}">
+            <input type="hidden" name="name" class="deck-name-field" value="{{ deck_name }}">
+            <input type="hidden" name="commander" class="deck-commander-field" value="{{ commander }}">
             <button type="submit">
                 <span class="deck-mode-title">Read it</span>
-                <span class="deck-mode-body">How original it is, how salty, what nothing
-                else in Magic resembles, and where it lands against every Commander
-                precon.</span>
+                <span class="deck-mode-body">How original it is, how salty, what it costs,
+                how played its cards are and how old, each one placed against every
+                Commander precon.</span>
                 <span class="deck-mode-go">See the reading &rarr;</span>
             </button>
         </form>
 
         <form action="/deck/swap" method="post" class="deck-mode">
             <input type="hidden" name="list" value="{{ pasted }}">
+            <input type="hidden" name="name" class="deck-name-field" value="{{ deck_name }}">
+            <input type="hidden" name="commander" class="deck-commander-field" value="{{ commander }}">
             <input type="hidden" name="axis" value="{{ swap_default[0] }}">
             <input type="hidden" name="dir" value="{{ swap_default[1] }}">
             <button type="submit">
@@ -53,21 +70,104 @@
     </div>
 </div>
 
+{# the deck's own legendary creatures, for the picker to filter. it is the
+   whole candidate list up front rather than a lookup per keystroke, because
+   the answer is one of about two cards and asking the server about a list we
+   already hold would be slower and no more correct #}
+<script id="deck-lead-data" type="application/json">{{ picker | tojson }}</script>
 <script id="deck-remember" type="application/json">{{ {
     'text': pasted,
-    'count': matched,
-    'label': (commanders | join(' & ')) or deck_name or ''
+    'count': matched
 } | tojson }}</script>
 {% endblock %}
 
 {% block scripts %}
+{% include "_missing_js.html" %}
 <script>
+(function () {
+    var input = document.getElementById("deck-lead-input");
+    var hits = document.getElementById("deck-lead-hits");
+    var title = document.getElementById("deck-title");
+    var dataEl = document.getElementById("deck-lead-data");
+    if (!input || !hits || !dataEl) return;
+    var names = JSON.parse(dataEl.textContent) || [];
+
+    function fields(cls) {
+        return Array.prototype.slice.call(document.querySelectorAll(cls));
+    }
+
+    /*
+        very loose on purpose: every typed character has to appear in the name,
+        in order, but not next to each other. "kr" finds Kratos, "gow" finds
+        Kratos, God of War, and a typo in the middle of a long name still
+        lands. a deck holds a handful of legends, so there is nothing here that
+        a stricter filter would be protecting against
+    */
+    function loose(name, q) {
+        var n = name.toLowerCase(), at = 0;
+        for (var i = 0; i < q.length; i++) {
+            at = n.indexOf(q[i], at);
+            if (at === -1) return false;
+            at++;
+        }
+        return true;
+    }
+
+    function pick(name) {
+        input.value = name;
+        fields(".deck-commander-field").forEach(function (f) { f.value = name; });
+        fields(".deck-name-field").forEach(function (f) { f.value = name; });
+        title.textContent = name;
+        draw();
+    }
+
+    function draw() {
+        var q = input.value.trim().toLowerCase();
+        hits.innerHTML = "";
+        /* the whole candidate list when the box is empty, so a deck with one
+           legend in it shows that legend rather than showing nothing until
+           somebody guesses what to type */
+        var show = names.filter(function (n) { return !q || loose(n, q); }).slice(0, 8);
+        if (show.length === 1 && show[0].toLowerCase() === q) return;
+        show.forEach(function (n) {
+            var li = document.createElement("li");
+            var b = document.createElement("button");
+            b.type = "button";
+            b.className = "deck-lead-hit";
+            b.textContent = n;
+            b.addEventListener("click", function () { pick(n); });
+            li.appendChild(b);
+            hits.appendChild(li);
+        });
+    }
+
+    input.addEventListener("input", function () {
+        /* a name typed rather than picked still names the deck: the picker is
+           a shortcut, not a gate */
+        var v = input.value.trim();
+        fields(".deck-commander-field").forEach(function (f) { f.value = v; });
+        fields(".deck-name-field").forEach(function (f) { f.value = v; });
+        title.textContent = v || "Your deck";
+        draw();
+    });
+    document.getElementById("deck-lead-clear").addEventListener("click", function () {
+        input.value = "";
+        input.dispatchEvent(new Event("input"));
+        input.focus();
+    });
+    draw();
+})();
+
 (function () {
     /*
         remember this deck in THIS BROWSER. the server has already forgotten
         it: /deck/open parsed the text, rendered this page and kept nothing,
         so the only copy that outlives the tab is the one written here, on the
-        user's own machine, where they can delete it from the hub
+        user's own machine, where they can delete it from the hub.
+
+        it runs on SUBMIT rather than on load, because what the deck is called
+        is not settled until the commander has been picked, and an entry
+        written on load would be the one that had to be corrected later
     */
     var el = document.getElementById("deck-remember");
     if (!el) return;
@@ -75,17 +175,40 @@
     if (!d.text) return;
     var KEY = "delvefall_recent_decks";
     var KEEP = 5;
-    try {
-        var decks = JSON.parse(localStorage.getItem(KEY)) || [];
-        /* same list twice is one entry, moved back to the front, rather than
-           a history that fills with the deck you keep re-reading */
-        decks = decks.filter(function (x) { return x.text !== d.text; });
-        decks.unshift({text: d.text, count: d.count, label: d.label, at: Date.now()});
-        localStorage.setItem(KEY, JSON.stringify(decks.slice(0, KEEP)));
-    } catch (e) {
-        /* private browsing, a full quota, or storage switched off. the site
-           works exactly the same without this, so it fails quietly */
+
+    function remember() {
+        var f = document.querySelector(".deck-name-field");
+        var label = f ? f.value.trim() : "";
+        try {
+            var decks = JSON.parse(localStorage.getItem(KEY)) || [];
+            /* the same list twice is one entry, moved back to the front,
+               rather than a history that fills with the deck you keep
+               rereading */
+            decks = decks.filter(function (x) { return x.text !== d.text; });
+            /* two different decks led by the same commander get numbered, the
+               way anybody would say it out loud: Kratos, God of War #2. the
+               number is found rather than stored, so deleting the first one
+               does not leave a #2 with no #1 in front of it */
+            var name = label;
+            if (name) {
+                var n = 1;
+                decks.forEach(function (x) {
+                    var m = /^(.*?)(?: #(\d+))?$/.exec(x.label || "");
+                    if (m && m[1] === name) n = Math.max(n, parseInt(m[2] || "1", 10)) + 1;
+                });
+                if (n > 1) name = name + " #" + n;
+            }
+            decks.unshift({text: d.text, count: d.count, label: name, at: Date.now()});
+            localStorage.setItem(KEY, JSON.stringify(decks.slice(0, KEEP)));
+        } catch (e) {
+            /* private browsing, a full quota, or storage switched off. the site
+               works exactly the same without this, so it fails quietly */
+        }
     }
+
+    document.querySelectorAll(".deck-mode").forEach(function (form) {
+        form.addEventListener("submit", remember);
+    });
 })();
 </script>
 {% endblock %}

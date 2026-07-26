@@ -1,0 +1,73 @@
+<script>
+(function () {
+    var box = document.getElementById("deck-missing");
+    if (!box) return;
+
+    /*
+        the list every form on this page is carrying. adding a card writes to
+        all of them at once, because the paste box, the two mode buttons and
+        the swap form each hold their own copy of the text: one field updated
+        and the others not is how you get a reading of a deck the user is no
+        longer looking at
+    */
+    function fields() {
+        return Array.prototype.slice.call(
+            document.querySelectorAll('input[name="list"], textarea[name="list"]'));
+    }
+
+    function addLine(name) {
+        fields().forEach(function (f) {
+            var v = f.value || "";
+            f.value = v + (v.slice(-1) === "\n" || !v ? "" : "\n") + "1 " + name;
+        });
+    }
+
+    box.addEventListener("click", function (e) {
+        var btn = e.target.closest(".deck-missing-try");
+        if (!btn) return;
+        var row = btn.closest(".deck-missing-row");
+        var fix = row.querySelector(".deck-missing-fix");
+        btn.hidden = true;
+        fix.hidden = false;
+        var input = row.querySelector(".deck-missing-input");
+        var drop = row.querySelector(".deck-missing-drop");
+        input.focus();
+        input.select();
+        /* the same autocomplete the search bar and the report box use, wired
+           the same way, so a card is found here exactly as it is found there */
+        wireSuggest(input, drop, function (name) {
+            input.value = name;
+            take(row, btn.dataset.raw, name);
+        });
+        /* typing the whole name and pressing enter works too. wireSuggest only
+           answers enter when one of its own rows is highlighted, and the
+           server resolves a typed name the same forgiving way the search bar
+           does, so there is nothing to be gained by insisting on the dropdown */
+        input.addEventListener("keydown", function (e) {
+            if (e.key !== "Enter" || drop.style.display === "block") return;
+            e.preventDefault();
+            take(row, btn.dataset.raw, input.value.trim());
+        });
+    });
+
+    function take(row, raw, name) {
+        var said = row.querySelector(".deck-missing-said");
+        said.textContent = "adding…";
+        fetch("/deck/found", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({raw: raw, name: name})
+        }).then(function (r) { return r.json(); }).then(function (j) {
+            if (!j.ok) { said.textContent = j.msg || "Couldn't find that one."; return; }
+            addLine(j.name);
+            row.classList.add("is-fixed");
+            row.querySelector(".deck-missing-fix").hidden = true;
+            said.textContent = "added " + j.name;
+            box.querySelector(".deck-missing-again").hidden = false;
+        }).catch(function () {
+            said.textContent = "Couldn't reach the card database. Try again in a moment.";
+        });
+    }
+
+})();
+</script>
