@@ -44,22 +44,27 @@ def same(what, a, b, where="between web/ and its source of truth"):
         problems.append(what + " drifted " + where)
 
 
+#every copy web/ carries lives in web/mirror.py, so this script has one file to
+#read rather than hunting through 4600 lines of routes. if a name moves out of
+#there, the path below has to move with it
+MIRROR = "web/mirror.py"
+
 #the line cleaner: it must clean exactly like the ingest did, or the line
 #picker can't find the lines shown on the page in the lines table. the helper
 #and the keyword list it leans on are checked too - clean_line's own ast would
 #look identical while either of those quietly said something different
-same("clean_line", func_dump("web/app.py", "clean_line"), func_dump("common/cards.py", "clean_line"))
-same("reminder_is_the_rule", func_dump("web/app.py", "reminder_is_the_rule"),
+same("clean_line", func_dump(MIRROR, "clean_line"), func_dump("common/cards.py", "clean_line"))
+same("reminder_is_the_rule", func_dump(MIRROR, "reminder_is_the_rule"),
      func_dump("common/cards.py", "reminder_is_the_rule"))
-same("REMINDER_KEYWORDS", assign_value("web/app.py", "REMINDER_KEYWORDS"),
+same("REMINDER_KEYWORDS", assign_value(MIRROR, "REMINDER_KEYWORDS"),
      assign_value("common/cards.py", "REMINDER_KEYWORDS"))
 
 #which column the vectors are read from. it gets interpolated into sql in both
 #places, so the allowlist that keeps it safe has to say the same thing in both
-same("embed_column", func_dump("web/app.py", "embed_column"),
+same("embed_column", func_dump(MIRROR, "embed_column"),
      func_dump("ingest/attribute.py", "embed_column"),
-     "between web/app.py and ingest/attribute.py")
-same("EMBED_COLUMNS", assign_value("web/app.py", "EMBED_COLUMNS"),
+     "between web/mirror.py and ingest/attribute.py")
+same("EMBED_COLUMNS", assign_value(MIRROR, "EMBED_COLUMNS"),
      assign_value("ingest/attribute.py", "EMBED_COLUMNS"))
 
 #the generated scryfall word catalogs the cleaner leans on
@@ -68,8 +73,8 @@ if read("web/prefix_words.py") != read("common/prefix_words.py"):
 
 #the calibration seeds (the database's meta copy wins at runtime, but the
 #seeds cover virgin databases and should agree too)
-same("CALIBRATION seed", assign_value("web/app.py", "CALIBRATION"), assign_value("common/concept.py", "CALIBRATION"))
-same("MECH_CALIBRATION seed", assign_value("web/app.py", "MECH_CALIBRATION"), assign_value("ingest/update.py", "MECH_CALIBRATION"))
+same("CALIBRATION seed", assign_value(MIRROR, "CALIBRATION"), assign_value("common/concept.py", "CALIBRATION"))
+same("MECH_CALIBRATION seed", assign_value(MIRROR, "MECH_CALIBRATION"), assign_value("ingest/update.py", "MECH_CALIBRATION"))
 
 #the report bakeoff scores pairs the way the site does, with its own copies
 #of the two scoring functions.
@@ -81,8 +86,8 @@ same("MECH_CALIBRATION seed", assign_value("web/app.py", "MECH_CALIBRATION"), as
 #must not read as a failure
 if os.path.exists(os.path.join(ROOT, "finetune", "exam_pairs.py")):
     for fn in ("line_weight", "mech_display"):
-        same(fn, func_dump("finetune/exam_pairs.py", fn), func_dump("web/app.py", fn),
-             "between finetune/exam_pairs.py and web/app.py")
+        same(fn, func_dump("finetune/exam_pairs.py", fn), func_dump(MIRROR, fn),
+             "between finetune/exam_pairs.py and web/mirror.py")
 else:
     #NOTE this branch PASSES. that is deliberate (the check workflow has no
     #finetune/ and a missing folder is not a drift), but it does mean renaming
