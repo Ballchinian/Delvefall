@@ -37,17 +37,42 @@ does not send your searches anywhere. And the tags are Tagger's work, not ours,
 which is why the concepts axis links back to them rather than pretending it
 invented the vocabulary.
 
+## How this folder is laid out
+
+Scripts sit at the top, named for what they do. Everything they read or write
+sits in a folder named for what it holds.
+
+| Folder | What is in it |
+| --- | --- |
+| `traindata/` | the generated training data and the test set the current model learns from |
+| `testing_list/` | the hand-marked files: `pairs.md`, `axis2.md`, `triplets.md`, `tag_review.md`. Scripts read these, people write them, and **nothing can rebuild them** |
+| `out/` | run output that is safe to delete. `bakeoff_results.csv` only |
+| `models/` | trained model folders, a gigabyte each. `train.py` saves here and the bake-offs load from here |
+| `legacy/` | the v1 era, frozen, with the same shape inside it |
+
+The split that matters is `testing_list/` against `out/`. Both look like results;
+only one of them is regenerable. A verdict in `tag_review.md` took someone an
+evening and no script can produce it a second time.
+
 ## What is published here, and what is not
 
-This README is the only file in this folder that ships. The scripts that mine
-the training data, the training data itself, the hand judged tag verdicts and
-the exams all stay local.
+Published: this README, `train.py`, `bakeoff_lines.py`, and the whole of
+`legacy/` including its training data. That is the v1 story end to end, and the
+site stopped serving that model on 2026-07-22.
+
+Local: everything about the model running now. The miners that build its
+training data, the data itself, the hand judged tag verdicts and the exams that
+score it.
 
 Not because the approach is a secret. It is described below in enough detail to
 argue with. It is that the data is the actual work: every exam question was
 verified card by card, every tag verdict was read and judged one at a time, and
 that judgement is the only part of this that nobody else has. Publishing the
 recipe is fine. Publishing the thing that took the evenings is not.
+
+The v1 data is out because that trade has already been paid: the model it built
+is retired, its story is worth telling in full, and it says nothing about how
+the live one learned.
 
 ## Step 1: build an exam before shopping
 

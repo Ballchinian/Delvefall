@@ -274,8 +274,9 @@ def main():
     for old in ("mtg-tuned-", "mtg-tagtuned-"):
         if stem.startswith(old):
             stem = stem[len(old):]
-    out_dir = os.path.join(HERE, ("mtg-tagtuned-" if args.objective == "tags"
-                                  else "mtg-tuned-") + stem)
+    out_dir = os.path.join(HERE, "models", ("mtg-tagtuned-" if args.objective == "tags"
+                                            else "mtg-tuned-") + stem)
+    os.makedirs(os.path.dirname(out_dir), exist_ok=True)
     loss_mnrl = MultipleNegativesRankingLoss(model)
     loss_contrastive = ContrastiveLoss(model)
     for name in train_sets:
@@ -327,7 +328,7 @@ def main():
     model.save_pretrained(out_dir)
     print("\nsaved to " + out_dir)
     if args.objective == "lines":
-        print("next: copy that folder into finetune/ on your machine, then add")
+        print("next: copy that folder into finetune/models/ on your machine, then add")
         print('  ("mtg-tuned", r"' + out_dir + '", ' + (('"' + prefix + '"') if prefix else "None") + "),")
         print("to MODELS in bakeoff_lines.py and rerun it for the real per-triplet exam.")
     else:

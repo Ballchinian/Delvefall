@@ -9,7 +9,7 @@
 #models download into the huggingface cache on first run (a few GB total).
 #a model that fails to load (gated repo, missing deps) gets skipped with a
 #note instead of killing the scoreboard. results also land in
-#finetune/bakeoff_results.csv with the raw similarity numbers.
+#finetune/out/bakeoff_results.csv with the raw similarity numbers.
 
 import os
 import sys
@@ -30,7 +30,7 @@ MODELS = [
     #the fine tune, trained by finetune/train.py on the generated data. it
     #learned with the sentence similarity prompt so it must always be used
     #with the same one
-    ("mtg-tuned EmbeddingGemma", os.path.join(os.path.dirname(os.path.abspath(__file__)), "mtg-tuned-embeddinggemma-300m"),
+    ("mtg-tuned EmbeddingGemma", os.path.join(os.path.dirname(os.path.abspath(__file__)), "models", "mtg-tuned-embeddinggemma-300m"),
      "task: sentence similarity | query: "),
 ]
 
@@ -256,7 +256,8 @@ def main():
         for num, name, best_pos, best_neg, ok in results:
             rows.append([label, num, name, round(best_pos, 4), round(best_neg, 4), "pass" if ok else "fail"])
 
-    out_path = os.path.join(os.path.dirname(__file__), "bakeoff_results.csv")
+    out_path = os.path.join(os.path.dirname(__file__), "out", "bakeoff_results.csv")
+    os.makedirs(os.path.dirname(out_path), exist_ok=True)
     with open(out_path, "w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
         w.writerow(["model", "triplet", "label", "best_match_sim", "best_not_sim", "result"])
