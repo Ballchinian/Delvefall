@@ -3,8 +3,10 @@
 #database and pgvector does the similarity math right where the data is, so
 #this process stays tiny and never touches torch
 
+import io
 import re
 import os
+import csv
 import math
 import time
 import uuid
@@ -2355,7 +2357,13 @@ def precon(slug):
 #----- the paste box: someone else's decklist, read through the same lens -----
 
 #lines that are structure rather than cards. exporters write these as section
-#headings and a decklist is not obliged to have any of them
+#headings and a decklist is not obliged to have any of them.
+#
+#tested against the line with its bracketed bits already taken off, not against
+#the raw line, because archidekt writes the section SIZE into the heading
+#("Commander (1)", "Creatures (30)") where moxfield and mtgo write it bare. the
+#bare form was the only one this ever saw, so every archidekt export with
+#categories switched on reported one unmatched card per section
 DECK_HEADERS = re.compile(r"^(deck|decklist|sideboard|commander|companion|maybeboard|"
                           r"considering|tokens?|creatures?|lands?|instants?|sorceries|"
                           r"artifacts?|enchantments?|planeswalkers?|battles?)\b[:\s]*$", re.I)
@@ -2367,6 +2375,24 @@ DECK_TRAILERS = re.compile(r"\s*(\([^)]*\)|\[[^\]]*\]|\*[^*]*\*|<[^>]*>)\s*")
 #blind: twelve real cards end in a digit (Pip-Boy 3000, Overseer of Vault 76),
 #so this is only tried after the whole name has failed to match
 DECK_TRAILING_NUM = re.compile(r"\s+\d+\s*$")
+#mtgo marks its sideboard per line rather than under a heading, so a .txt
+#straight out of the client carries "SB: 3 Swords to Plowshares"
+DECK_SIDEBOARD = re.compile(r"^SB:\s*", re.I)
+#deckstats hangs the category off the END of the line as "#!Ramp". no card name
+#contains a hash, so taking one off the tail cannot cost a match
+DECK_HASH_TAIL = re.compile(r"\s+#.*$")
+
+#the two exports that are not lists of lines at all. both are recognised by
+#their own first bytes rather than by a control the user has to set, because a
+#paste box that asks which exporter you used is a paste box with a wrong answer
+#in it
+#
+#mtgo's .dek is xml, one self closing element per card. read with a regex
+#rather than an xml parser on purpose: this is a hostile string from a text
+#box, and every stdlib xml parser has entity expansion behaviour worth not
+#thinking about. the two attributes are all this needs
+MTGO_DEK_CARD = re.compile(r"<Cards\b[^>]*?\bName=\"([^\"]+)\"", re.I)
+MTGO_DEK_QTY = re.compile(r"\bQuantity=\"(\d+)\"", re.I)
 
 #the cap on a pasted list. the pair query is all-pairs over the LINES of the
 #list, so cost climbs with the square: ~250 lines (a commander deck) measured
@@ -2440,10 +2466,71 @@ def name_index():
     return _name_index["map"]
 
 
+def csv_to_lines(text):
+    #archidekt and moxfield both offer a CSV export beside the text one, and it
+    #is a spreadsheet rather than a decklist: a header row naming the columns,
+    #then one row per card with the name somewhere in the middle. splitting on
+    #commas by hand cannot read it, because half the commander names in the
+    #game contain a comma and the exporters quote those fields.
+    #
+    #returns None when this is not a csv, so the caller falls through to the
+    #line parser untouched. the test is a header row that NAMES a name column,
+    #which no decklist line can accidentally look like
+    head = ""
+    for raw in text.splitlines():
+        if raw.strip():
+            head = raw
+            break
+    if "," not in head:
+        return None
+    try:
+        rows = list(csv.reader(io.StringIO(text)))
+    except csv.Error:
+        return None
+    if not rows:
+        return None
+    cols = [c.strip().lower() for c in rows[0]]
+    if "name" not in cols:
+        return None
+    at = cols.index("name")
+    #"quantity" is archidekt's word and "count" is moxfield's. neither is
+    #required: a csv with no count column is still a list of cards, and the
+    #lens drops counts on the way in anyway
+    qty_at = next((cols.index(c) for c in ("quantity", "count") if c in cols), None)
+    lines = []
+    for row in rows[1:]:
+        if len(row) <= at:
+            continue
+        name = row[at].strip()
+        if not name:
+            continue
+        qty = "1"
+        if qty_at is not None and len(row) > qty_at and row[qty_at].strip().isdigit():
+            qty = row[qty_at].strip()
+        lines.append(qty + " " + name)
+    return "\n".join(lines) if lines else None
+
+
+def dek_to_lines(text):
+    #mtgo's own .dek save file, which is xml. same contract as csv_to_lines:
+    #None means this was not one, and the line parser gets the text unchanged
+    if "<Cards" not in text:
+        return None
+    lines = []
+    for m in re.finditer(r"<Cards\b[^>]*>", text, re.I):
+        tag = m.group(0)
+        name = MTGO_DEK_CARD.match(tag)
+        if not name:
+            continue
+        qty = MTGO_DEK_QTY.search(tag)
+        lines.append((qty.group(1) if qty else "1") + " " + name.group(1))
+    return "\n".join(lines) if lines else None
+
+
 def parse_decklist(text):
-    #returns (matched oracle ids, names we could not find, how many lines were
-    #cards at all). deliberately blind to WHICH board a card is in: the lens
-    #reads the whole pile, and a commander deck has no sideboard anyway.
+    #returns (matched oracle ids, names we could not find). deliberately blind
+    #to WHICH board a card is in: the lens reads the whole pile, and a
+    #commander deck has no sideboard anyway.
     #
     #matching is EXACT on the normalised name, never fuzzy. find_card guesses
     #because a human is watching one result and can retype; here a wrong guess
@@ -2451,9 +2538,20 @@ def parse_decklist(text):
     idx = name_index()
     found, missing = [], []
     seen = set()
-    for raw in text[:DECK_MAX_CHARS].splitlines():
+    text = text[:DECK_MAX_CHARS]
+    #the two exports that arrive as a file rather than as a list get turned
+    #into one before anything else looks at them, so there is still exactly one
+    #line parser and it is the one that has been tested
+    text = csv_to_lines(text) or dek_to_lines(text) or text
+    for raw in text.splitlines():
         line = raw.strip()
-        if not line or line.startswith("//") or line.startswith("#") or DECK_HEADERS.match(line):
+        if not line or line.startswith("//") or line.startswith("#"):
+            continue
+        #mtgo writes its sideboard per line instead of under a heading, and
+        #deckstats writes the category onto the end of the line. both are
+        #wrapping paper around a name and a count
+        line = DECK_HASH_TAIL.sub("", DECK_SIDEBOARD.sub("", line)).strip()
+        if not line:
             continue
         #the line as typed and the line with a leading count taken off, in that
         #order. a number at the front is almost always a count and occasionally
@@ -2464,6 +2562,10 @@ def parse_decklist(text):
         #trying the untouched line first can only ADD matches: for it to hit,
         #a card has to really be named with digits in front
         whole = DECK_TRAILERS.sub(" ", line).strip()
+        #the heading test runs HERE rather than on the raw line, so a heading
+        #carrying its own count ("Commander (1)") is still a heading
+        if DECK_HEADERS.match(whole):
+            continue
         m = DECK_COUNT.match(line)
         counted = DECK_TRAILERS.sub(" ", line[m.end():]).strip() if m else ""
         tries = [t for t in (whole, counted) if t]
