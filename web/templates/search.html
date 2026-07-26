@@ -171,17 +171,24 @@
                screen and the script below rewrites them when the field
                changes. with no javascript they are simply correct on arrival,
                which is the state that matters since Apply is doing the work #}
+            {# the direction sits BEFORE the field, which reads backwards and is
+               deliberate. .filter-actions is a right hand cluster (margin-left:
+               auto), so it grows leftwards: with the direction second, picking a
+               sortable field made it appear BETWEEN the field and Apply and shoved
+               the field a whole control to the left, out from under the cursor
+               that had just used it. in front, it grows into the empty space on
+               the left and the field and Apply never move #}
             <span class="filter-actions">
-                <select name="sort" aria-label="sort results by">
-                    {% for key, spec in sort_fields.items() %}
-                    <option value="{{ key }}" {% if key == sort_field %}selected{% endif %}>{{ spec.label }}</option>
-                    {% endfor %}
-                </select>
                 {% set spec = sort_fields[sort_field] %}
                 <select name="dir" aria-label="which end first" class="sort-dir"
                     {% if not spec.asc %}hidden disabled{% endif %}>
                     <option value="asc" {% if sort_dir == 'asc' %}selected{% endif %}>{{ spec.asc[1] if spec.asc }}</option>
                     <option value="desc" {% if sort_dir == 'desc' %}selected{% endif %}>{{ spec.desc[1] if spec.desc }}</option>
+                </select>
+                <select name="sort" aria-label="sort results by">
+                    {% for key, spec in sort_fields.items() %}
+                    <option value="{{ key }}" {% if key == sort_field %}selected{% endif %}>{{ spec.label }}</option>
+                    {% endfor %}
                 </select>
                 <button type="submit">Apply</button>
             </span>
