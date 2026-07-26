@@ -79,12 +79,16 @@ same("MECH_CALIBRATION seed", assign_value("web/app.py", "MECH_CALIBRATION"), as
 #actually is. locally that is every time and the drift is still caught; in the
 #check workflow the folder is absent and there is nothing to compare, which
 #must not read as a failure
-if os.path.exists(os.path.join(ROOT, "finetune", "pairs_bakeoff.py")):
+if os.path.exists(os.path.join(ROOT, "finetune", "exam_pairs.py")):
     for fn in ("line_weight", "mech_display"):
-        same(fn, func_dump("finetune/pairs_bakeoff.py", fn), func_dump("web/app.py", fn),
-             "between finetune/pairs_bakeoff.py and web/app.py")
+        same(fn, func_dump("finetune/exam_pairs.py", fn), func_dump("web/app.py", fn),
+             "between finetune/exam_pairs.py and web/app.py")
 else:
-    print("no finetune/ here, skipping the pairs_bakeoff drift check")
+    #NOTE this branch PASSES. that is deliberate (the check workflow has no
+    #finetune/ and a missing folder is not a drift), but it does mean renaming
+    #or moving exam_pairs.py silently disables the guard rather than failing
+    #loudly, so the path above is one to update with the file
+    print("no finetune/ here, skipping the exam_pairs drift check")
 
 if problems:
     for p in problems:

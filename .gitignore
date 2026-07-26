@@ -14,8 +14,8 @@ finetune/*
 
 
 !finetune/train.py
-!finetune/bakeoff.py
-!finetune/tag_bakeoff.py
+!finetune/bakeoff_lines.py
+!finetune/bakeoff_tags.py
 !finetune/traindata/
 finetune/traindata/*
 !finetune/traindata/train_tags.jsonl

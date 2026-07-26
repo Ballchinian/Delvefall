@@ -1,18 +1,18 @@
 #which base model starts highest on the LINE -> TAG objective, before any
-#fine tuning. the original bakeoff.py asks a different question (26 triplets,
+#fine tuning. the original bakeoff_lines.py asks a different question (26 triplets,
 #does this line mean the same as that line) and picked EmbeddingGemma for it.
 #the objective has changed, so the choice of base should be re-measured rather
 #than inherited: a model that is good at paraphrase is not automatically good
 #at "what is this line about".
 #
 #run from the repo root, no database needed, everything comes out of traindata:
-#    python finetune/tag_bakeoff.py
+#    python finetune/bakeoff_tags.py
 #every model is scored on the same held out cards and the same tag pool as
-#finetune/tag_eval.py, so the numbers sit next to that harness's.
+#finetune/exam_tags.py, so the numbers sit next to that harness's.
 #
 #IT IS THE TEXT SCORER. lines are ranked against the WORDS of each tag
 #("slug: description"), which is exactly what training will optimise. that also
-#means these numbers are not comparable to tag_eval.py's headline, which
+#means these numbers are not comparable to exam_tags.py's headline, which
 #defaults to the centroid scorer: the fine tuned model in production has never
 #been taught what a tag slug says, so text retrieval would flatter a stock
 #model against it. compare bases with bases.
@@ -47,9 +47,9 @@ KS = (1, 5, 10)
 
 
 def load_pool():
-    #the trainable pool IS whatever train_tags.jsonl contains: gen_training.py
+    #the trainable pool IS whatever train_tags.jsonl contains: make_training.py
     #already applied the AUC and the review before writing it, so reading the
-    #file back needs neither tag_learnability.json nor gen_tag_review.py. that
+    #file back needs neither tag_learnability.json nor make_tagreview.py. that
     #keeps this runnable from three data files and two scripts, which matters
     #when the whole lot has to reach a colab box
     text = {}

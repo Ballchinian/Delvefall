@@ -18,8 +18,8 @@
 #under --objective tags the 26 bakeoff triplets stop being the target and
 #become a regression guard. the number that matters is recall @10 on the held
 #out cards, printed here during training and measured properly afterwards by
-#    python -m finetune.tag_eval
-#which is the real judge, the same way bakeoff.py is for the line objective.
+#    python -m finetune.exam_tags
+#which is the real judge, the same way bakeoff_lines.py is for the line objective.
 
 import os
 import sys
@@ -105,7 +105,7 @@ def main():
     ap = argparse.ArgumentParser()
     #the tuned line-to-line model, not a stock one. decided 2026-07-21: it is
     #already 768 dims so nothing downstream moves, it already knows tap from
-    #untap and the rest of the vocabulary bakeoff.py tests, and keeping that
+    #untap and the rest of the vocabulary bakeoff_lines.py tests, and keeping that
     #knowledge is what lets the guards detect the umbrella-tag problem rather
     #than just measuring a model relearning magic from scratch.
     #
@@ -158,7 +158,7 @@ def main():
         tag_pairs = load_tag_pairs()
         if not tag_pairs:
             print("no train_tags.jsonl. build it with:")
-            print("  python finetune/gen_training.py --tags-only")
+            print("  python finetune/make_training.py --tags-only")
             sys.exit(1)
         train_sets["tags"] = Dataset.from_dict({
             "anchor": [prefix + r["anchor"] for r in tag_pairs],
@@ -211,7 +211,7 @@ def main():
     #the 26 exam triplets, held out from all training data. under the line
     #objective this is the target; under the tag objective it is a REGRESSION
     #GUARD, there to catch the retrain forgetting what lines mean, not to be
-    #maximised. the real judge stays bakeoff.py either way
+    #maximised. the real judge stays bakeoff_lines.py either way
     ev_a, ev_p, ev_n = [], [], []
     for num, name, anchor, pos, neg in TRIPLETS:
         ev_a.append(prefix + clean_line(anchor[1], anchor[0]))
@@ -221,7 +221,7 @@ def main():
 
     #and the number that actually decides the retrain: given a held out line and
     #every trainable tag, are the right tags in its top ten? this is the ship
-    #bar in tag_eval.py, computed here so a run reports it as it goes rather
+    #bar in exam_tags.py, computed here so a run reports it as it goes rather
     #than only after the upload. the tag texts come out of the training file
     #so this needs no database
     tag_ir = None
@@ -318,7 +318,7 @@ def main():
     if args.objective == "lines":
         print("next: copy that folder into finetune/ on your machine, then add")
         print('  ("mtg-tuned", r"' + out_dir + '", ' + (('"' + prefix + '"') if prefix else "None") + "),")
-        print("to MODELS in bakeoff.py and rerun it for the real per-triplet exam.")
+        print("to MODELS in bakeoff_lines.py and rerun it for the real per-triplet exam.")
     else:
         print("next, in this order. do NOT swap EMBED_MODEL, that overwrites the live")
         print("vectors in place and they cannot be recovered without rerunning the old")
@@ -333,11 +333,11 @@ def main():
         print("       python -m ingest.backfill_embeddings --model <the new repo> --index")
         print("     this leaves lines.embedding exactly as the site is serving it")
         print("  3. the real judge, against the same column:")
-        print("       EMBED_COLUMN=embedding_v2 python -m finetune.tag_eval")
+        print("       EMBED_COLUMN=embedding_v2 python -m finetune.exam_tags")
         print("     ship bar is recall @10 at 95%. the model in production sits at 47.0%,")
         print("     and that is the CENTROID number, so compare like with like: the")
         print("     tags_cosine_recall@10 printed above is text retrieval and is not it")
-        print("  4. python finetune/bakeoff.py as a regression guard, NOT a target. a")
+        print("  4. python finetune/bakeoff_lines.py as a regression guard, NOT a target. a")
         print("     drop here is the umbrella tags teaching structure over meaning")
         print("  5. only if all that holds: EMBED_COLUMN=embedding_v2 on the web service")
         print("     to browse real searches. unset it to revert instantly")

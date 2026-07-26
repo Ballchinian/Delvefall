@@ -4561,7 +4561,7 @@ def report_markdown(r, line_texts, n):
         mode += ") - consider axis2.md"
 
     #a tag report is not a pairs.md entry at all. it belongs in the LABELS dict
-    #in finetune/attribution_eval.py, keyed by card name and LINE INDEX, so it
+    #in finetune/exam_attribution.py, keyed by card name and LINE INDEX, so it
     #is emitted in that shape instead: the index the picked line actually has,
     #and which way the disagreement runs. the line index is what the eval reads,
     #and it is not stored on the report (the text is), so it is looked up here

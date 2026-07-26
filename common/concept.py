@@ -21,7 +21,7 @@
 #  0.13 and below                shared-tag noise
 #the noise anchor is the only one not measured, its the old 0.10 scaled by
 #the shift the Bolt/Murder anchor took. provisional seed from 8 judged pairs
-#- refine as axis-2 reports accumulate, the exam in finetune/axis2_bakeoff.py
+#- refine as axis-2 reports accumulate, the exam in finetune/exam_concepts.py
 #keeps it honest
 CALIBRATION = [(0.0, 0), (0.13, 35), (0.26, 55), (0.45, 70), (0.59, 82), (0.68, 90), (1.0, 100)]
 MIN_CONCEPT = 80

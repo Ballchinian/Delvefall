@@ -4,7 +4,7 @@
 #candidate card's best matching line counts, same as the real engine.
 #
 #run from the repo root with any python that has sentence-transformers:
-#    python finetune/bakeoff.py
+#    python finetune/bakeoff_lines.py
 #
 #models download into the huggingface cache on first run (a few GB total).
 #a model that fails to load (gated repo, missing deps) gets skipped with a
