@@ -4,22 +4,20 @@
 //template renders, and leans on manaFill from cards.js, which base.html
 //loads above the scripts block. defer keeps that order: cards.js runs
 //while the page parses, this runs once it is parsed and before
-//DOMContentLoaded, so nothing it looks up is missing
+//DOMContentLoaded, so nothing it looks up is missing.
+//
+//a module now, for the el import. type="module" defers on its own, so the
+//tag no longer says defer and the order above is unchanged
+
+//a bare specifier, resolved by the import map base.html emits, so this
+//picks up dom.js at its content-hashed url rather than an unstamped one
+//that the year-long static cache would freeze
+import { el } from "dom";
 (function () {
     var dataEl = document.getElementById("swap-data");
     if (!dataEl) return;
     var D = JSON.parse(dataEl.textContent);
     if (!D.queue.length) return;
-
-    /* the same one-line builder search.html uses. it lives in both because
-       neither page owns it and cards.js is about card FRAMES, not markup */
-    function el(tag, cls, parent, text) {
-        var node = document.createElement(tag);
-        node.className = cls;
-        if (text !== undefined) node.textContent = text;
-        parent.appendChild(node);
-        return node;
-    }
 
     /* one card name, drawn the way every card name on this site is drawn: a
        link into delvefall, ctrl-click out to scryfall. the handler for that

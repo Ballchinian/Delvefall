@@ -291,6 +291,18 @@
            enhanceCardFrames themselves #}
         <script src="{{ static_url('cards.js') }}"></script>
 
+        {# how the module scripts below find the shared helpers, and the ONLY
+           reason this exists: static files are cached for a year, which is safe
+           only because static_url stamps a content hash onto every url the
+           templates emit. a plain `import "./dom.js"` would go out unstamped
+           and a fix to it would sit behind a year-old cache in every browser
+           that had already been here. the map puts the stamped url back in
+           front of the bare name, so imports cache-bust like everything else.
+           it has to come before the first module tag, which is this block #}
+        <script type="importmap">
+        {"imports": {"dom": "{{ static_url('js/dom.js') }}"}}
+        </script>
+
         {% block scripts %}{% endblock %}
 
     </body>

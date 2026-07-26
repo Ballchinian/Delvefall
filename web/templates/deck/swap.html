@@ -150,5 +150,5 @@
 /* the token -> svg map manaFill needs, same as the results and unique pages */
 window.MANA_URLS = {{ mana_urls() | tojson }};
 </script>
-<script src="{{ static_url('js/swap.js') }}" defer></script>
+<script type="module" src="{{ static_url('js/swap.js') }}"></script>
 {% endblock %}
