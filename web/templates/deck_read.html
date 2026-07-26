@@ -46,8 +46,7 @@
        cannot act on it is not there at all. originality has no swap axis, and
        the nearest thing to one ("cards fewer people play") read as the wrong
        button on the wrong panel, because that is what it was #}
-    {% set here = swaps.get(opened) %}
-    <div id="deck-change" {{ 'hidden' if not here }}>
+    <div id="deck-change" hidden>
         <h2>Change it</h2>
         <p class="deck-section-note">Walk the deck one card at a time, worst first, and swap
         what you want to. Nothing is saved and nothing changes until you copy the new list
@@ -57,9 +56,11 @@
             <input type="hidden" name="name" value="{{ deck_name }}">
             <input type="hidden" name="commander" value="{{ commander }}">
             <input type="hidden" name="seen" value="1">
-            <input type="hidden" name="axis" value="{{ (here or swaps.salt).axis }}">
-            <input type="hidden" name="dir" value="{{ (here or swaps.salt).dir }}">
-            <button type="submit">Make this deck {{ (here or swaps.salt).goal }}</button>
+            {# filled in by the pager: which axis this offers depends on which
+               standing is on screen and which end of it is being read #}
+            <input type="hidden" name="axis" value="{{ swaps.salt.axis }}">
+            <input type="hidden" name="dir" value="{{ swaps.salt.dir }}">
+            <button type="submit">Make this deck {{ swaps.salt.goal }}</button>
         </form>
     </div>
     <script id="deck-swap-axes" type="application/json">{{ swaps | tojson }}</script>

@@ -11,84 +11,103 @@
 {% if panels %}
 <nav class="deck-pager" id="deck-pager" hidden aria-label="which standing">
     <button type="button" class="deck-pager-arrow" id="deck-prev" aria-label="previous standing">&larr;</button>
-    <span class="deck-pager-now" id="deck-pager-now">{{ panels[0].label }}</span>
+    <span class="deck-pager-now" id="deck-pager-now">{{ panels[0].readings.desc.label }}</span>
     <button type="button" class="deck-pager-arrow" id="deck-next" aria-label="next standing">&rarr;</button>
 </nav>
 
 {% for p in panels %}
-<section class="deck-metric" id="metric-{{ p.key }}" data-label="{{ p.label }}">
-    {# the board link sits at the TOP and names the population, because
-       "the whole board" next to a page about YOUR deck reads as though your
-       deck is on it #}
-    <p class="deck-section-note deck-board-link"><a href="/precons?sort={{ p.sort_key }}">See all
-    {{ total }} Commander precons ranked by {{ p.reading }} &rarr;</a></p>
+<section class="deck-metric" id="metric-{{ p.key }}"
+         data-label="{{ p.readings.desc.label }}"
+         data-label-asc="{{ p.readings.asc.label }}">
+    {# which end of the number. it is one measurement with a switch on it, not
+       two measurements: the same figure counted from the other side of the
+       board. the same control the board carries, for the same reason #}
+    <nav class="precon-eras deck-ends" aria-label="which end">
+        <span class="precon-depth-label">From the:</span>
+        {% for d in ['desc', 'asc'] %}
+        <button type="button" class="precon-era deck-end{{ ' on' if d == 'desc' }}"
+                data-end="{{ d }}">{{ p.readings[d].label }}</button>
+        {% endfor %}
+    </nav>
 
-    <div class="deck-standing">
-        <div class="deck-standing-place">
-            <span class="deck-standing-figure">{{ p.place }}</span>
-            <span class="deck-standing-of">of {{ p.of }}</span>
+    {% for d in ['desc', 'asc'] %}
+    {% set r = p.readings[d] %}
+    <div class="deck-reading" data-end="{{ d }}" {{ 'hidden' if d == 'asc' }}>
+        {# the board link sits at the TOP and names the population, because
+           "the whole board" next to a page about YOUR deck reads as though your
+           deck is on it #}
+        <p class="deck-section-note deck-board-link"><a href="/precons?sort={{ r.sort_key }}">See all
+        {{ total }} Commander precons ranked by {{ r.reading }} &rarr;</a></p>
+
+        <div class="deck-standing">
+            <div class="deck-standing-place">
+                <span class="deck-standing-figure">{{ r.place }}</span>
+                <span class="deck-standing-of">of {{ r.of }}</span>
+            </div>
+            <div class="deck-standing-text">
+                {# the placing is the sentence and the score is the receipt. a
+                   bare 0.243 means nothing to anyone, which is the whole reason
+                   the precon board had to exist before either of these pages
+                   could say anything at all #}
+                <strong>{{ p.prefix }}{{ ('%.' ~ p.decimals ~ 'f')|format(p.figure) }}{{ p.suffix }} {{ p.noun }}.</strong>
+                {% if r.place == 1 %}
+                    {{ r.more|capitalize }} than every Commander precon.
+                {% elif r.beaten == 0 %}
+                    The far end of all {{ r.of }} Commander precons for {{ p.noun }}.
+                {% else %}
+                    {{ r.more|capitalize }} than {{ r.beaten }} of the {{ r.of }} Commander
+                    precons.
+                {% endif %}
+                {% if p.total_years %}
+                <span class="deck-standing-extra">{{ '%.0f'|format(p.total_years) }} years all
+                told, across {{ p.age_cards }} cards.</span>
+                {% endif %}
+                {# folded away. it is the same three sentences every time you
+                   meet this panel, and prose you have already read is just
+                   height between you and the deck #}
+                <details class="deck-standing-what">
+                    <summary>What {{ p.noun }} means here{% if is_new %}, and what is still
+                    settling{% endif %}</summary>
+                    <p>{{ p.means }}</p>
+                    {# only on a deck young enough for it to be true, and only
+                       saying what is still moving about THIS number #}
+                    {% if is_new %}<p><strong>Still settling.</strong> {{ p.settling }}</p>{% endif %}
+                </details>
+            </div>
         </div>
-        <div class="deck-standing-text">
-            {# the placing is the sentence and the score is the receipt. a bare
-               0.243 means nothing to anyone, which is the whole reason the
-               precon board had to exist before either of these pages could say
-               anything at all #}
-            <strong>{{ p.prefix }}{{ ('%.' ~ p.decimals ~ 'f')|format(p.figure) }}{{ p.suffix }} {{ p.noun }}.</strong>
-            {% if p.place == 1 %}
-                {{ p.more|capitalize }} than every Commander precon.
-            {% elif p.beaten == 0 %}
-                The bottom of all {{ p.of }} Commander precons for {{ p.noun }}.
-            {% else %}
-                {{ p.more|capitalize }} than {{ p.beaten }} of the {{ p.of }} Commander
-                precons.
-            {% endif %}
-            {% if p.total_years %}
-            <span class="deck-standing-extra">{{ '%.0f'|format(p.total_years) }} years all
-            told, across {{ p.age_cards }} cards.</span>
-            {% endif %}
-            {# folded away. it is the same three sentences every time you meet
-               this panel, and prose you have already read is just height
-               between you and the deck. open once, closed by default #}
-            <details class="deck-standing-what">
-                <summary>What {{ p.noun }} means here{% if is_new %}, and what is still
-                settling{% endif %}</summary>
-                <p>{{ p.means }}</p>
-                {# only on a deck young enough for it to be true, and only
-                   saying what is still moving about THIS number #}
-                {% if is_new %}<p><strong>Still settling.</strong> {{ p.settling }}</p>{% endif %}
-            </details>
-        </div>
+
+        {# the deck sitting on the board where it actually lands, with the decks
+           either side of it. a placing on its own is a number; the decks it
+           landed between are what make it a sentence #}
+        <ol class="deck-neighbours">
+            {% for n in r.window %}
+            <li class="deck-neighbour{{ ' is-you' if n.you }}">
+                <span class="deck-neighbour-place">{{ n.place }}</span>
+                <span class="deck-neighbour-name">
+                    {%- if n.slug and not n.you %}<a href="/precons/{{ n.slug }}?sort={{ r.sort_key }}">{{ n.name }}</a>
+                    {%- else %}{{ n.name }}{% endif -%}
+                </span>
+                <span class="deck-neighbour-figure">{{ p.prefix }}{{ ('%.' ~ p.decimals ~ 'f')|format(n.figure) }}{{ p.suffix }}</span>
+            </li>
+            {% endfor %}
+        </ol>
     </div>
+    {% endfor %}
 
     {# the currency control, on the money panel only. the figure above it is
        real money in one currency, and until now this page could print it
        without offering any way to change which #}
     {% if p.key == 'price' %}{% include "_currency.html" %}{% endif %}
 
-    {# the deck sitting on the board where it actually lands, with the decks
-       either side of it. a placing on its own is a number; the decks it landed
-       between are what make it a sentence #}
-    <ol class="deck-neighbours">
-        {% for n in p.window %}
-        <li class="deck-neighbour{{ ' is-you' if n.you }}">
-            <span class="deck-neighbour-place">{{ n.place }}</span>
-            <span class="deck-neighbour-name">
-                {%- if n.slug and not n.you %}<a href="/precons/{{ n.slug }}?sort={{ p.sort_key }}">{{ n.name }}</a>
-                {%- else %}{{ n.name }}{% endif -%}
-            </span>
-            <span class="deck-neighbour-figure">{{ p.prefix }}{{ ('%.' ~ p.decimals ~ 'f')|format(n.figure) }}{{ p.suffix }}</span>
-        </li>
-        {% endfor %}
-    </ol>
-
     {% if p.cards %}
-    {# what the number is MADE of. names by default because a list of twelve
-       names is read in a glance and twelve pictures is a scroll, and the
-       pictures behind a fold for when the answer is "which one is that" #}
-    <h2>{{ p.cards_label }}</h2>
-    <ol class="deck-cards">
-        {% for c in p.cards[:section] %}
-        <li class="deck-card">
+    {# what the number is MADE of, held ONCE and read from either end. the
+       flipped reading is these same cards backwards, so the browser reorders
+       rather than the page shipping a second copy of all five lists #}
+    <h2 class="deck-cards-head" data-label="{{ p.readings.desc.cards_label }}"
+        data-label-asc="{{ p.readings.asc.cards_label }}">{{ p.readings.desc.cards_label }}</h2>
+    <ol class="deck-cards" data-step="{{ section }}">
+        {% for c in p.cards %}
+        <li class="deck-card" data-i="{{ loop.index0 }}">
             <a class="deck-card-name" href="/search?q={{ c.name | urlencode }}" data-card="{{ c.name }}">{{ c.name }}</a>
             <span class="deck-card-score">{{ c.figure }}</span>
         </li>
@@ -97,12 +116,12 @@
     {# the pictures, and they keep going. the whole batch is in the page and
        the button reveals the next {{ section }}, so there is no round trip and
        nothing to fetch: /deck/read is a POST result with no url to ask again
-       at, and one query returning 48 rows costs what one returning 12 does #}
+       at, and one query returning 96 rows costs what one returning 12 does #}
     <details class="deck-card-open" data-step="{{ section }}">
         <summary>Show them as cards</summary>
         <div class="card-grid deck-card-grid">
             {% for c in p.cards %}
-            <div class="result{{ ' is-over' if loop.index0 >= section }}">
+            <div class="result" data-i="{{ loop.index0 }}">
                 <div class="card-frame" data-sideways="{{ '1' if c.sideways else '' }}"
                      data-flip="{{ '1' if c.flip else '' }}" data-back="{{ c.image_back or '' }}">
                     <a href="/search?q={{ c.name | urlencode }}" data-card="{{ c.name }}"
@@ -125,12 +144,10 @@
             </div>
             {% endfor %}
         </div>
-        {% if p.cards|length > section %}
         <div class="deck-card-more">
             <button type="button" class="deck-card-more-btn">Show more cards</button>
             <span class="deck-card-more-left"></span>
         </div>
-        {% endif %}
     </details>
     {% endif %}
 </section>

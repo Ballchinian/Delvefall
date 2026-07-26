@@ -3480,3 +3480,20 @@ body.home main {
 /* the row labels on the board's controls, now that there are four rows of
    them and each one needs saying what it does */
 .precon-sorts .precon-depth-label { margin-right: 2px; }
+
+/* which end of the number a standing is read from. drawn like the board's own
+   "from the" row, because it is the same control doing the same thing */
+.deck-ends { margin: 0 0 10px; }
+
+.deck-ends .deck-end {
+    font: inherit;
+    font-size: 13px;
+    cursor: pointer;
+}
+
+/* the flipped reading is the same cards backwards, so the browser reorders
+   the nodes rather than the page shipping a second copy of every list. that
+   is done in the dom rather than with css order, because the names list is a
+   multi-column layout and order does nothing inside one */
+.deck-cards .deck-card.is-over,
+.deck-card-grid .result.is-over { display: none; }

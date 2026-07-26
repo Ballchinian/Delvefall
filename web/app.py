@@ -2082,8 +2082,9 @@ PRECON_NEW_DAYS = 365
 PRECON_METRICS = [
     {
         "key": "original", "figure": "originality", "drivers": "drivers",
-        "label": "Originality", "swap": None,
-        #NO swap axis, deliberately, and this is the second time that call has
+        "label": "Originality",
+        #NO swap axis on EITHER reading, deliberately, and this is the second
+        #time that call has
         #been made. uniqueness is a contradiction as a sort (see the note in
         #TODO) so there is nothing here to move a deck along, and the nearest
         #honest thing, "cards fewer people play", was offered for about an hour
@@ -2093,7 +2094,7 @@ PRECON_METRICS = [
         #approximated, same as everywhere else on this site where the honest
         #answer to "can you do X" turned out to be no
         "decimals": 3, "best": "desc", "cards": "Most original cards",
-        "noun": "originality", "more": "more original",
+        "noun": "originality",
         "settling": "A new deck reads as MORE original than it will look in five years, and that is half real: design space fills up, so a card printed today has had nobody to copy it yet. The effect is measured at r = +0.46 against release year.",
         "means": "Every card scores from 0 to 1: one minus how close its nearest "
                  "match anywhere in Magic gets. A card at 0.30 has something out "
@@ -2103,6 +2104,8 @@ PRECON_METRICS = [
                  "never by holding more cards.",
         "desc": {
             "key": "original", "label": "Most original", "first": "most original",
+            "more": "more original", "swap": None,
+            "cards": "Most original cards",
             "h1": "The most original Commander precons",
             "lede": "Every preconstructed Commander deck, ranked by how unusual its "
                     "cards are. Not how strong, not how expensive, and not how "
@@ -2115,6 +2118,8 @@ PRECON_METRICS = [
         },
         "asc": {
             "key": "unoriginal", "label": "Least original", "first": "least original",
+            "more": "less original", "swap": None,
+            "cards": "Least original cards",
             "h1": "The least original Commander precons",
             "lede": "Every preconstructed Commander deck, ranked from the ones built "
                     "almost entirely out of <strong>cards the rest of the format "
@@ -2127,9 +2132,9 @@ PRECON_METRICS = [
     },
     {
         "key": "salt", "figure": "salt", "drivers": "salt_drivers",
-        "label": "Salt", "swap": ("salt", "desc"),
+        "label": "Salt",
         "decimals": 1, "best": "desc", "cards": "Saltiest cards",
-        "noun": "salt", "more": "saltier",
+        "noun": "salt",
         "settling": "A new deck reads MILDER than it is, and this is the biggest gap on the board. EDHREC's salt survey runs once a year, so cards printed since the last one have had no chance to be voted on: they average 0.06 salt against 0.29 for everything older, a fifth as much, on near-total coverage. The votes are not missing, they have not been cast yet. Read a new deck's salt as a floor.",
         "means": "Every card carries a salt score from EDHREC's annual survey, "
                  "running 0 to about 3: Stasis is 3.06, Rhystic Study 2.73, Mind "
@@ -2138,6 +2143,8 @@ PRECON_METRICS = [
                  "offenders or by holding a long tail of mildly irritating ones.",
         "desc": {
             "key": "salt", "label": "Saltiest", "first": "saltiest",
+            "more": "saltier", "swap": ("salt", "asc"),
+            "cards": "Saltiest cards",
             "h1": "The saltiest Commander precons",
             "lede": "Every preconstructed Commander deck, ranked by how much its "
                     "cards annoy people. This is the one ranking here built on "
@@ -2150,6 +2157,8 @@ PRECON_METRICS = [
         },
         "asc": {
             "key": "mild", "label": "Mildest", "first": "mildest",
+            "more": "milder", "swap": ("salt", "desc"),
+            "cards": "Mildest cards",
             "h1": "The mildest Commander precons",
             "lede": "Every preconstructed Commander deck, ranked from the ones "
                     "<strong>nobody minds losing to</strong>. Low salt is the good "
@@ -2162,16 +2171,21 @@ PRECON_METRICS = [
     },
     {
         "key": "price", "figure": "price", "drivers": "price_drivers",
-        "label": "Price", "swap": ("price", "desc"),
+        "label": "Price",
         "decimals": 2, "best": "desc", "cards": "Priciest cards",
-        "noun": "of cards", "more": "worth more",
+        "noun": "of cards",
         "settling": "A new deck's price is the one still moving. Singles find their level over months, and it does not run one way: release hype pushes up, the reprint glut of a freshly opened set pushes down. Today's figure is exactly that, today's.",
         "means": "The cheapest paper printing of every card in the deck, added "
                  "together. It is what the hundred cards cost to own as singles, "
                  "not what the sealed box sells for, which is why a deck with one "
-                 "reserved list card can sit above four decks of staples.",
+                 "reserved list card can sit above four decks of staples. Basic "
+                 "lands count toward the total and are left out of the card list "
+                 "below, because a column of thirty Islands is not what anyone "
+                 "means by a deck's cheapest cards.",
         "desc": {
             "key": "price", "label": "Most expensive", "first": "most expensive",
+            "more": "worth more", "swap": ("price", "asc"),
+            "cards": "Priciest cards",
             "h1": "The most expensive Commander precons",
             "lede": "Every preconstructed Commander deck, ranked by what its cards "
                     "are worth as singles. <strong>The cheapest paper printing of "
@@ -2182,6 +2196,8 @@ PRECON_METRICS = [
         },
         "asc": {
             "key": "cheap", "label": "Cheapest", "first": "cheapest",
+            "more": "worth less", "swap": ("price", "desc"),
+            "cards": "Cheapest cards",
             "h1": "The cheapest Commander precons",
             "lede": "Every preconstructed Commander deck, ranked from the ones whose "
                     "cards are <strong>worth the least as singles</strong>. Useful "
@@ -2194,9 +2210,9 @@ PRECON_METRICS = [
     },
     {
         "key": "played", "figure": "play_median", "drivers": "play_drivers",
-        "label": "Played cards", "swap": ("played", "desc"),
+        "label": "Played cards",
         "decimals": 0, "best": "asc", "cards": "Most played cards",
-        "noun": "median play rate", "more": "more played",
+        "noun": "median play rate",
         "settling": "A new deck reads as LESS played than it will be. EDHREC's rank counts how many decks run a card, and that accumulates: precons published in the last year average a median of #5216 against #4188 for the rest, which is mostly the format not having got round to them.",
         "means": "EDHREC ranks every card by how many Commander decks run it, and "
                  "#1 is the most played card in the whole format. A deck's figure "
@@ -2205,6 +2221,8 @@ PRECON_METRICS = [
                  "cards. A SMALLER number is the deck built out of staples.",
         "desc": {
             "key": "played", "label": "Most played cards", "first": "most played cards",
+            "more": "more played", "swap": ("played", "asc"),
+            "cards": "Most played cards",
             "h1": "The Commander precons with the most played cards",
             "lede": "Every preconstructed Commander deck, ranked by how much of it "
                     "the format actually plays. <strong>The median EDHREC rank of "
@@ -2216,6 +2234,8 @@ PRECON_METRICS = [
         },
         "asc": {
             "key": "obscure", "label": "Least played cards", "first": "least played cards",
+            "more": "less played", "swap": ("played", "desc"),
+            "cards": "Least played cards",
             "h1": "The Commander precons with the least played cards",
             "lede": "Every preconstructed Commander deck, ranked from the ones whose "
                     "cards <strong>almost nobody else runs</strong>. The median "
@@ -2228,9 +2248,9 @@ PRECON_METRICS = [
     },
     {
         "key": "age", "figure": "age_mean", "drivers": "age_drivers",
-        "label": "Card age", "swap": ("released", "asc"),
+        "label": "Card age",
         "decimals": 1, "best": "desc", "cards": "Oldest cards",
-        "noun": "a card on average", "more": "older",
+        "noun": "a card on average",
         "settling": "This is the one number a new deck does not distort, because being new is the thing it measures. It still climbs on its own: every figure here is counted from today, so the whole board ages a year every year.",
         "means": "How long ago each card was FIRST printed, averaged across the "
                  "deck. A reprint does not make an old card new, so a deck "
@@ -2241,6 +2261,8 @@ PRECON_METRICS = [
                  "bigger.",
         "desc": {
             "key": "age", "label": "Oldest cards", "first": "oldest",
+            "more": "older", "swap": ("released", "desc"),
+            "cards": "Oldest cards",
             "h1": "The Commander precons with the oldest cards",
             "lede": "Every preconstructed Commander deck, ranked by <strong>how far "
                     "back its cards were first printed</strong>. Not when the deck "
@@ -2251,6 +2273,8 @@ PRECON_METRICS = [
         },
         "asc": {
             "key": "new", "label": "Newest cards", "first": "newest",
+            "more": "newer", "swap": ("released", "asc"),
+            "cards": "Newest cards",
             "h1": "The Commander precons with the newest cards",
             "lede": "Every preconstructed Commander deck, ranked from the ones built "
                     "from <strong>cards the game printed most recently</strong>. "
@@ -2449,7 +2473,17 @@ DECK_EVIDENCE = {
                  "order": "c.uniqueness DESC", "value": "c.uniqueness", "decimals": 2},
     "salt": {"where": "c.salt IS NOT NULL" + (" AND NOT " + SALT_BASIC_SQL if SALT_SKIP_BASICS else ""),
              "order": "c.salt DESC", "value": "c.salt", "decimals": 2},
-    "price": {"where": "__PRICE__ IS NOT NULL",
+    #the one place the evidence deliberately does NOT match the ranking, and it
+    #is worth being explicit about. the price TOTAL counts basic lands, because
+    #a deck's cost includes the lands you have to own. the price LIST does not,
+    #because the list is read from both ends now and the cheap end of a
+    #commander deck is thirty Islands: a column of basics is not what anybody
+    #means by "the cheapest cards in this deck".
+    #
+    #an omission, never an addition. every card listed is one the total counted;
+    #it is the reverse that stops being true, which is the safe direction to
+    #break the rule in
+    "price": {"where": "__PRICE__ IS NOT NULL" + (" AND NOT " + SALT_BASIC_SQL if SALT_SKIP_BASICS else ""),
               "order": "__PRICE__ DESC", "value": "__PRICE__", "decimals": 2},
     "played": {"where": "c.edhrec_rank IS NOT NULL AND c.type_line NOT LIKE '%%Land%%'",
                "order": "c.edhrec_rank", "value": "c.edhrec_rank", "decimals": 0},
@@ -2463,7 +2497,15 @@ def metric_cards(conn, oracle_ids, key, currency, limit=DECK_EVIDENCE_MAX):
     #the cards that made one of the five numbers, in the order that made it,
     #carrying everything a card frame needs. the list reads as names by default
     #and opens into pictures, so this asks for the pictures either way rather
-    #than running a second query when someone expands it
+    #than running a second query when someone expands it.
+    #
+    #BOTH ENDS come back in ONE list, ordered from the top. the panels flip
+    #between "saltiest" and "mildest", and rendering a second list for the
+    #other end doubled a page that was already 388kb of html: the flipped
+    #reading is the same cards read backwards, so the page holds them once and
+    #the browser reorders. that is also why the cap is applied per END rather
+    #than to the query, and why a deck small enough for the two slices to
+    #overlap simply keeps everything
     ev = DECK_EVIDENCE[key]
     price = price_col(currency)
     sql = """
@@ -2477,9 +2519,16 @@ def metric_cards(conn, oracle_ids, key, currency, limit=DECK_EVIDENCE_MAX):
         LIMIT %s
     """
     try:
-        rows = conn.execute(sql, ([str(o) for o in oracle_ids], limit)).fetchall()
+        #twice the cap, because both ends are wanted and the slice below takes
+        #one from each. a deck shorter than that keeps every card it has
+        rows = conn.execute(sql, ([str(o) for o in oracle_ids], limit * 2)).fetchall()
     except Exception:
         return []
+    #the two ends, deduped by keeping the middle out. on a commander deck the
+    #slices usually overlap and this is the whole list, which is the cheap case
+    #and the useful one
+    if len(rows) > limit * 2:
+        rows = list(rows[:limit]) + list(rows[-limit:])
     prefix, suffix = figure_units(key, currency)
     out = []
     for r in rows:
@@ -2589,35 +2638,54 @@ def deck_panels(conn, oracle_ids, figures, board, cur, slug=None):
     #same page about different decks, and two builders would slowly turn them
     #into two different pages about the same thing.
     #
-    #each panel is stated in its metric's flattering direction ("12th of 167
-    #most original") because the two readings of one number are the same
-    #standing counted from opposite ends, and printing both would be printing
-    #the same fact twice. the arrows walk the five, not the ten
+    #each panel carries BOTH readings of its number and shows one. they are the
+    #same standing counted from opposite ends, so this is not two measurements,
+    #it is one with a switch on it, which is the same shape the board's "from
+    #the" control has and the same shape /search's sorts have.
+    #
+    #the CARDS are not duplicated for the second reading. they are the same
+    #cards read backwards, the page already runs to 388kb of html, and a second
+    #copy of five card lists is the version that stops loading on a phone. one
+    #list goes out, ordered from the top, and the browser reverses it
     panels = []
     for m in PRECON_METRICS:
         figure = figures.get(m["key"])
         figure = None if figure is None else float(figure)
-        stand = deck_standing(board, m["figure"], m["best"], figure, slug=slug)
-        if stand is None:
+        readings = {}
+        for d in ("desc", "asc"):
+            #"better" is the COLUMN direction, so the flipped reading walks the
+            #board the other way. it is the metric's own best for the top
+            #reading and the opposite for the bottom one, which is the one xor
+            #that keeps play rate from reading backwards
+            best = m["best"] if d == "desc" else ("asc" if m["best"] == "desc" else "desc")
+            stand = deck_standing(board, m["figure"], best, figure, slug=slug)
+            if stand is None:
+                break
+            r = m[d]
+            readings[d] = dict(stand, label=r["label"], reading=r["first"],
+                               sort_key=r["key"], more=r["more"],
+                               cards_label=r["cards"],
+                               #the offer is the axis pointing AWAY from the end
+                               #on screen. reading "saltiest" and being offered
+                               #"saltier" is the tool agreeing with you rather
+                               #than helping, which is what it used to do
+                               swap=({"axis": r["swap"][0], "dir": r["swap"][1],
+                                      "goal": SWAP_AXES[r["swap"]]["goal"]}
+                                     if r["swap"] else None))
+        if len(readings) != 2:
             continue
         prefix, suffix = figure_units(m["key"], cur)
-        #always the "desc" reading, which is the CONCEPT's own top end (most
-        #original, saltiest, most played) rather than the column's. those two
-        #disagree on play rate, where the top of the concept is the smallest
-        #number, and reading the label off the column direction titled the
-        #panel "least played" on the deck that plays the most staples
-        panels.append(dict(stand, key=m["key"], label=m["desc"]["label"],
-                           reading=m["desc"]["first"], sort_key=m["desc"]["key"],
-                           figure=figure, decimals=m["decimals"],
-                           means=m["means"], settling=m["settling"], cards_label=m["cards"],
-                           noun=m["noun"], more=m["more"],
-                           prefix=prefix, suffix=suffix,
-                           cards=metric_cards(conn, oracle_ids, m["key"], cur),
-                           #the sum is the memorable fact and the mean is the
-                           #one the ranking can honestly use, so age prints
-                           #both and every other metric prints one
-                           total_years=figures.get("age_total") if m["key"] == "age" else None,
-                           age_cards=figures.get("age_cards") if m["key"] == "age" else None))
+        panels.append({"key": m["key"], "readings": readings,
+                       "figure": figure, "decimals": m["decimals"],
+                       "means": m["means"], "settling": m["settling"],
+                       "cards_label": m["cards"], "noun": m["noun"],
+                       "prefix": prefix, "suffix": suffix,
+                       "cards": metric_cards(conn, oracle_ids, m["key"], cur),
+                       #the sum is the memorable fact and the mean is the one
+                       #the ranking can honestly use, so age prints both and
+                       #every other metric prints one
+                       "total_years": figures.get("age_total") if m["key"] == "age" else None,
+                       "age_cards": figures.get("age_cards") if m["key"] == "age" else None})
     return panels
 
 
@@ -3202,15 +3270,15 @@ def deck_read():
             #drift into being two different pages about the same measurement
             panels = deck_panels(conn, ids, figures, board, cur)
 
-    #what "change it" offers, per standing, so the button follows the panel on
-    #screen rather than always proposing the same move. the button always names
-    #the AXIS's own goal, never the panel's: originality is not a swappable
-    #axis (uniqueness is a contradiction as a sort, see the note in TODO), and
-    #the nearest honest thing to "make it more original" is "cards fewer people
-    #play", so that panel offers exactly that and says exactly that
-    swaps = {m["key"]: {"axis": m["swap"][0], "dir": m["swap"][1],
-                        "goal": SWAP_AXES[m["swap"]]["goal"]}
-             for m in PRECON_METRICS if m["swap"]}
+    #what "change it" offers, keyed by the READING on screen rather than by the
+    #metric: "most expensive" offers cheaper and "cheapest" offers pricier,
+    #because the useful move is always away from the end you are looking at.
+    #originality offers nothing either way and the panel hides the block
+    swaps = {}
+    for p in panels:
+        for d, r in p["readings"].items():
+            if r["swap"]:
+                swaps[r["sort_key"]] = r["swap"]
     return render_template("deck_read.html", panels=panels, opened=PRECON_METRICS[0]["key"],
                            counted=len(scored), matched=len(ids), missing=missing,
                            total=len(board), ranked=ranked, min_cards=DECK_MIN_FOR_RANK,

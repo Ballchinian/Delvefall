@@ -1,21 +1,109 @@
 <script>
 (function () {
     /*
-        the standings, one at a time, with the arrows swapping between them.
+        the standings. two controls, and they are independent: the arrows pick
+        WHICH number, the "from the" buttons pick WHICH END of it.
 
-        every panel is already in the page: this hides four of them and shows
-        the fifth, rather than fetching anything. that is what keeps the page
-        readable with no script at all, which is also how a crawler meets all
-        five readings of a precon instead of one.
-
-        it hides ITSELF if it cannot work, so a page with one standing on it
-        never grows a pair of arrows that do nothing
+        everything is already in the page. the arrows hide four panels and show
+        the fifth, and the end buttons swap which of two standings is visible
+        and reverse the card list in place. nothing is fetched, which is what
+        keeps the page readable with no script at all: a crawler meets all five
+        standings of a precon, and /deck/read has no url to fetch from anyway.
     */
     var pager = document.getElementById("deck-pager");
     var panels = Array.prototype.slice.call(document.querySelectorAll(".deck-metric"));
-    if (!pager || panels.length < 2) return;
+    if (!panels.length) return;
 
-    var now = document.getElementById("deck-pager-now");
+    var swapEl = document.getElementById("deck-swap-axes");
+    var swaps = swapEl ? JSON.parse(swapEl.textContent) : null;
+    var swapForm = document.getElementById("deck-swap-start");
+    var changeBox = document.getElementById("deck-change");
+
+    /* which end each panel is being read from, and how many of its cards are
+       on screen. both live here rather than in the dom so a panel keeps its
+       state while it is hidden behind another one */
+    var ends = {}, shown = {};
+
+    function lists(panel) {
+        return [panel.querySelector(".deck-cards"),
+                panel.querySelector(".deck-card-grid")].filter(Boolean);
+    }
+
+    /*
+        show the first N of the list as it reads from the active end.
+
+        the flipped reading is the SAME cards backwards, so this moves the
+        nodes rather than the page carrying a second copy of every list: five
+        duplicated card lists took a 388kb page to 750kb.
+
+        the reordering is done in the DOM and not with css order, because the
+        names list is a multi-column layout and order does nothing inside one.
+        appendChild moves a node it is already holding, so this is a reshuffle
+        rather than a rebuild and nothing is recreated or refetched
+    */
+    function paint(panel) {
+        var end = ends[panel.id], n = shown[panel.id];
+        lists(panel).forEach(function (box) {
+            var kids = Array.prototype.slice.call(box.children);
+            /* back to the order it was rendered in, then reversed if the far
+               end is the one being read. sorting by the index it was rendered
+               with means a flip and a flip back land exactly where they began */
+            kids.sort(function (a, b) { return (+a.dataset.i) - (+b.dataset.i); });
+            if (end === "asc") kids.reverse();
+            kids.forEach(function (el, rank) {
+                box.appendChild(el);
+                el.classList.toggle("is-over", rank >= n);
+            });
+        });
+        var more = panel.querySelector(".deck-card-more");
+        if (more) {
+            var grid = panel.querySelector(".deck-card-grid");
+            var left = (grid ? grid.children.length : 0) - n;
+            more.hidden = left <= 0;
+            var label = more.querySelector(".deck-card-more-left");
+            if (label) label.textContent = left > 0 ? left + " more" : "";
+        }
+    }
+
+    function setEnd(panel, end) {
+        ends[panel.id] = end;
+        panel.querySelectorAll(".deck-reading").forEach(function (r) {
+            r.hidden = r.dataset.end !== end;
+        });
+        panel.querySelectorAll(".deck-end").forEach(function (b) {
+            b.classList.toggle("on", b.dataset.end === end);
+        });
+        /* the heading over the evidence follows the end too: the cheapest
+           cards in a deck are not "the priciest cards" read upside down */
+        var head = panel.querySelector(".deck-cards-head");
+        if (head) head.textContent = end === "asc" ? head.dataset.labelAsc : head.dataset.label;
+        paint(panel);
+        offer();
+    }
+
+    /*
+        what "change it" proposes, off the reading on screen. it points AWAY
+        from the end being shown, because that is the useful direction:
+        "saltiest" offers to make the deck milder, "cheapest" offers pricier.
+        a reading with no axis (either end of originality) hides the block
+        rather than approximating one
+    */
+    function offer() {
+        if (!swaps || !swapForm || !changeBox) return;
+        var panel = panels[at];
+        var end = ends[panel.id] || "desc";
+        var reading = panel.querySelector('.deck-reading[data-end="' + end + '"]');
+        var link = reading ? reading.querySelector(".deck-board-link a") : null;
+        var sortKey = link ? (link.getAttribute("href").split("sort=")[1] || "") : "";
+        var s = swaps[sortKey];
+        changeBox.hidden = !s;
+        if (s) {
+            swapForm.elements.axis.value = s.axis;
+            swapForm.elements.dir.value = s.dir;
+            swapForm.querySelector("button").textContent = "Make this deck " + s.goal;
+        }
+    }
+
     var at = 0;
     var host = document.querySelector("[data-opened]");
     /* which one the page was opened on: the sort the visitor clicked through
@@ -24,96 +112,73 @@
     var opened = host ? host.dataset.opened : "";
     panels.forEach(function (s, i) { if (s.id === "metric-" + opened) at = i; });
 
-    /*
-        what "change it" offers, per standing, so the button follows the panel
-        on screen. it is on /deck/read only: a precon page has no deck of
-        yours to change
-    */
-    var swapEl = document.getElementById("deck-swap-axes");
-    var swaps = swapEl ? JSON.parse(swapEl.textContent) : null;
-    var swapForm = document.getElementById("deck-swap-start");
-
     function go(i) {
         /* wraps, because five panels behind two arrows is a ring and a dead
            arrow at either end is a control that looks broken */
         at = (i + panels.length) % panels.length;
         panels.forEach(function (s, n) { s.hidden = n !== at; });
-        now.textContent = panels[at].dataset.label;
-
+        var end = ends[panels[at].id] || "desc";
+        document.getElementById("deck-pager-now").textContent =
+            end === "asc" ? panels[at].dataset.labelAsc : panels[at].dataset.label;
         /*
             NOTHING here scrolls. it used to pull the pager to the top of the
-            viewport, which moved the page under a cursor that was resting on
-            an arrow, so pressing the same arrow twice needed the mouse moved
-            in between. the arrows are already on screen by definition, since
-            you just clicked one
+            viewport, which moved the page under a cursor resting on an arrow,
+            so pressing the same arrow twice needed the mouse moved in between.
+            the arrows are already on screen by definition, since you just
+            clicked one
         */
-        if (swaps && swapForm) {
-            var s = swaps[panels[at].id.replace("metric-", "")];
-            /* a standing with no swap axis hides the offer rather than showing
-               an approximation of it. originality is the only one, and "make
-               this deck less played" under a panel about originality reads as
-               the wrong button on the wrong panel */
-            var box = document.getElementById("deck-change");
-            if (box) box.hidden = !s;
-            if (s) {
-                swapForm.elements.axis.value = s.axis;
-                swapForm.elements.dir.value = s.dir;
-                swapForm.querySelector("button").textContent = "Make this deck " + s.goal;
-            }
-        }
+        offer();
     }
 
-    document.getElementById("deck-prev").addEventListener("click", function () { go(at - 1); });
-    document.getElementById("deck-next").addEventListener("click", function () { go(at + 1); });
+    /* set every panel up before any of them is shown, so flipping an end on
+       one and arrowing away and back finds it as it was left */
+    panels.forEach(function (panel) {
+        var namesBox = panel.querySelector(".deck-cards");
+        var step = (namesBox && parseInt(namesBox.dataset.step, 10)) || 12;
+        shown[panel.id] = step;
+        setEnd(panel, "desc");
 
-    /* the arrow keys walk them too, the same way they walk the suggestion
-       list, but never while somebody is typing in a box */
-    document.addEventListener("keydown", function (e) {
-        if (e.ctrlKey || e.metaKey || e.altKey) return;
-        var t = e.target;
-        if (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable) return;
-        if (e.key === "ArrowLeft") { go(at - 1); }
-        else if (e.key === "ArrowRight") { go(at + 1); }
-        else return;
-        e.preventDefault();
-    });
-
-    pager.hidden = false;
-    go(at);
-})();
-
-(function () {
-    /*
-        "show more cards". the whole batch is already in the page with
-        everything past the first twelve marked is-over, so this is a reveal
-        rather than a fetch: there is no url to fetch from on a pasted deck,
-        and one query that returned 48 rows cost what one returning 12 did.
-
-        the frames get wired as they appear. enhanceCardFrames marks what it
-        has already done, so calling it again is free
-    */
-    document.querySelectorAll(".deck-card-open").forEach(function (box) {
-        var btn = box.querySelector(".deck-card-more-btn");
-        if (!btn) return;
-        var left = box.querySelector(".deck-card-more-left");
-        var step = parseInt(box.dataset.step, 10) || 12;
-
-        function report() {
-            var hidden = box.querySelectorAll(".result.is-over").length;
-            if (!hidden) {
-                btn.parentNode.hidden = true;
-                return;
-            }
-            left.textContent = hidden + " more";
-        }
-
-        btn.addEventListener("click", function () {
-            var over = Array.prototype.slice.call(box.querySelectorAll(".result.is-over"));
-            over.slice(0, step).forEach(function (el) { el.classList.remove("is-over"); });
-            enhanceCardFrames(box);
-            report();
+        panel.querySelectorAll(".deck-end").forEach(function (btn) {
+            btn.addEventListener("click", function () {
+                /* back to the top of the list: twelve cards into the priciest
+                   end is not twelve cards into the cheapest one */
+                shown[panel.id] = step;
+                setEnd(panel, btn.dataset.end);
+                if (panel === panels[at]) {
+                    var end = ends[panel.id];
+                    document.getElementById("deck-pager-now").textContent =
+                        end === "asc" ? panel.dataset.labelAsc : panel.dataset.label;
+                }
+            });
         });
-        report();
+
+        var more = panel.querySelector(".deck-card-more-btn");
+        if (more) more.addEventListener("click", function () {
+            shown[panel.id] += step;
+            paint(panel);
+            /* the frames that just appeared need wiring. enhanceCardFrames
+               marks what it has already done, so calling it again is free */
+            enhanceCardFrames(panel);
+        });
     });
+
+    if (pager && panels.length > 1) {
+        document.getElementById("deck-prev").addEventListener("click", function () { go(at - 1); });
+        document.getElementById("deck-next").addEventListener("click", function () { go(at + 1); });
+
+        /* the arrow keys walk them too, the same way they walk the suggestion
+           list, but never while somebody is typing in a box */
+        document.addEventListener("keydown", function (e) {
+            if (e.ctrlKey || e.metaKey || e.altKey) return;
+            var t = e.target;
+            if (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable) return;
+            if (e.key === "ArrowLeft") { go(at - 1); }
+            else if (e.key === "ArrowRight") { go(at + 1); }
+            else return;
+            e.preventDefault();
+        });
+        pager.hidden = false;
+    }
+    go(at);
 })();
 </script>
