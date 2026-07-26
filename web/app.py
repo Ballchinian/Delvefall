@@ -2082,7 +2082,16 @@ PRECON_NEW_DAYS = 365
 PRECON_METRICS = [
     {
         "key": "original", "figure": "originality", "drivers": "drivers",
-        "label": "Originality", "swap": ("played", "asc"),
+        "label": "Originality", "swap": None,
+        #NO swap axis, deliberately, and this is the second time that call has
+        #been made. uniqueness is a contradiction as a sort (see the note in
+        #TODO) so there is nothing here to move a deck along, and the nearest
+        #honest thing, "cards fewer people play", was offered for about an hour
+        #and read as a non sequitur: a button saying "make this deck less
+        #played" under a panel about originality looks like the wrong button on
+        #the wrong panel, because it is. so the offer is absent here rather than
+        #approximated, same as everywhere else on this site where the honest
+        #answer to "can you do X" turned out to be no
         "decimals": 3, "best": "desc", "cards": "Most original cards",
         "noun": "originality", "more": "more original",
         "settling": "A new deck reads as MORE original than it will look in five years, and that is half real: design space fills up, so a card printed today has had nobody to copy it yet. The effect is measured at r = +0.46 against release year.",
@@ -3126,6 +3135,18 @@ def deck_open():
     if not ids:
         return deck_hub(error="None of those lines matched a card.",
                         pasted=text[:DECK_MAX_CHARS], url=url, missing=missing)
+    #what did not match is a ONE TIME question, asked when a deck arrives. a
+    #deck coming back round (out of this browser's recent list, or off a "back
+    #to this deck" link) has already been through it, and the answer was
+    #whatever the user did about it then. asking again on every visit turns a
+    #useful check into a nag about eleven lines they have already decided to
+    #live with.
+    #
+    #nothing was stored either way: a miss only ever becomes a row in the
+    #feedback table if the user actively resolves it (see /deck/found), so
+    #forgetting them here means forgetting them everywhere
+    if request.form.get("seen"):
+        missing = []
     with pool.connection() as conn:
         leaders = deck_leaders(conn, ids)
         #a deck with exactly one legend in it has already answered the
@@ -3188,7 +3209,8 @@ def deck_read():
     #the nearest honest thing to "make it more original" is "cards fewer people
     #play", so that panel offers exactly that and says exactly that
     swaps = {m["key"]: {"axis": m["swap"][0], "dir": m["swap"][1],
-                        "goal": SWAP_AXES[m["swap"]]["goal"]} for m in PRECON_METRICS}
+                        "goal": SWAP_AXES[m["swap"]]["goal"]}
+             for m in PRECON_METRICS if m["swap"]}
     return render_template("deck_read.html", panels=panels, opened=PRECON_METRICS[0]["key"],
                            counted=len(scored), matched=len(ids), missing=missing,
                            total=len(board), ranked=ranked, min_cards=DECK_MIN_FOR_RANK,

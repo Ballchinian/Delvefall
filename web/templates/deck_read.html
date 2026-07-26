@@ -15,6 +15,7 @@
         <input type="hidden" name="list" value="{{ pasted }}">
         <input type="hidden" name="name" value="{{ deck_name }}">
         <input type="hidden" name="commander" value="{{ commander }}">
+        <input type="hidden" name="seen" value="1">
         <button type="submit">&larr; Back to this deck</button>
         <a href="/deck">Read another deck</a>
     </form>
@@ -39,24 +40,28 @@
     {# the one place the lens stops describing and offers to act. it sits at
        the BOTTOM on purpose: the reading is what was asked for, and a tool
        that opens by offering to change your deck has stopped being a lens.
-       the list rides a hidden field so nobody pastes twice #}
-    <h2>Change it</h2>
-    <p class="deck-section-note">Walk the deck one card at a time, worst first, and swap
-    what you want to. Nothing is saved and nothing changes until you copy the new list out
-    at the end.</p>
-    {# the offer follows whichever standing is on screen, so reading the price
-       panel and pressing this makes the deck pricier rather than doing the one
-       thing this button used to always do. it names the AXIS's own goal, never
-       the panel's heading: originality is not a swappable axis, and the
-       nearest honest move for it is "cards fewer people play" #}
-    <form class="swap-start" id="deck-swap-start" method="post" action="/deck/swap">
-        <input type="hidden" name="list" value="{{ pasted }}">
-        <input type="hidden" name="name" value="{{ deck_name }}">
-        <input type="hidden" name="commander" value="{{ commander }}">
-        <input type="hidden" name="axis" value="{{ swaps[opened].axis }}">
-        <input type="hidden" name="dir" value="{{ swaps[opened].dir }}">
-        <button type="submit">Make this deck {{ swaps[opened].goal }}</button>
-    </form>
+       the list rides a hidden field so nobody pastes twice.
+
+       the offer FOLLOWS the standing on screen, and on the one standing it
+       cannot act on it is not there at all. originality has no swap axis, and
+       the nearest thing to one ("cards fewer people play") read as the wrong
+       button on the wrong panel, because that is what it was #}
+    {% set here = swaps.get(opened) %}
+    <div id="deck-change" {{ 'hidden' if not here }}>
+        <h2>Change it</h2>
+        <p class="deck-section-note">Walk the deck one card at a time, worst first, and swap
+        what you want to. Nothing is saved and nothing changes until you copy the new list
+        out at the end.</p>
+        <form class="swap-start" id="deck-swap-start" method="post" action="/deck/swap">
+            <input type="hidden" name="list" value="{{ pasted }}">
+            <input type="hidden" name="name" value="{{ deck_name }}">
+            <input type="hidden" name="commander" value="{{ commander }}">
+            <input type="hidden" name="seen" value="1">
+            <input type="hidden" name="axis" value="{{ (here or swaps.salt).axis }}">
+            <input type="hidden" name="dir" value="{{ (here or swaps.salt).dir }}">
+            <button type="submit">Make this deck {{ (here or swaps.salt).goal }}</button>
+        </form>
+    </div>
     <script id="deck-swap-axes" type="application/json">{{ swaps | tojson }}</script>
 
     <p class="deck-detail-foot">Read from {{ counted }} nonland cards. Lands are left out of

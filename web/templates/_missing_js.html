@@ -64,6 +64,19 @@
             row.querySelector(".deck-missing-fix").hidden = true;
             said.textContent = "added " + j.name;
             box.querySelector(".deck-missing-again").hidden = false;
+            /* the deck this browser is about to remember has just changed, so
+               the payload it will be remembered from changes with it. without
+               this, a card fixed here is in the reading and then gone the next
+               time the deck is opened out of the recent list, which is the one
+               place the fix most needs to have stuck */
+            var mem = document.getElementById("deck-remember");
+            if (mem) {
+                try {
+                    var m = JSON.parse(mem.textContent);
+                    m.count = (m.count || 0) + 1;
+                    mem.textContent = JSON.stringify(m);
+                } catch (e) {}
+            }
         }).catch(function () {
             said.textContent = "Couldn't reach the card database. Try again in a moment.";
         });

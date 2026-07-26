@@ -49,6 +49,12 @@
         */
         if (swaps && swapForm) {
             var s = swaps[panels[at].id.replace("metric-", "")];
+            /* a standing with no swap axis hides the offer rather than showing
+               an approximation of it. originality is the only one, and "make
+               this deck less played" under a panel about originality reads as
+               the wrong button on the wrong panel */
+            var box = document.getElementById("deck-change");
+            if (box) box.hidden = !s;
             if (s) {
                 swapForm.elements.axis.value = s.axis;
                 swapForm.elements.dir.value = s.dir;

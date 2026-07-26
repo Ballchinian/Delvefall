@@ -171,12 +171,18 @@
     */
     var el = document.getElementById("deck-remember");
     if (!el) return;
-    var d = JSON.parse(el.textContent);
-    if (!d.text) return;
     var KEY = "delvefall_recent_decks";
     var KEEP = 5;
 
     function remember() {
+        /* read at SUBMIT time, never at load. what the deck is called is not
+           settled until the commander has been picked, and what is IN it is
+           not settled until the unmatched lines have been dealt with, so a
+           snapshot taken on load is a snapshot of neither */
+        var d = JSON.parse(el.textContent);
+        var listField = document.querySelector('.deck-mode input[name="list"]');
+        var text = listField ? listField.value : d.text;
+        if (!text) return;
         var f = document.querySelector(".deck-name-field");
         var label = f ? f.value.trim() : "";
         try {
@@ -184,7 +190,7 @@
             /* the same list twice is one entry, moved back to the front,
                rather than a history that fills with the deck you keep
                rereading */
-            decks = decks.filter(function (x) { return x.text !== d.text; });
+            decks = decks.filter(function (x) { return x.text !== text; });
             /* two different decks led by the same commander get numbered, the
                way anybody would say it out loud: Kratos, God of War #2. the
                number is found rather than stored, so deleting the first one
@@ -198,7 +204,7 @@
                 });
                 if (n > 1) name = name + " #" + n;
             }
-            decks.unshift({text: d.text, count: d.count, label: name, at: Date.now()});
+            decks.unshift({text: text, count: d.count, label: name, at: Date.now()});
             localStorage.setItem(KEY, JSON.stringify(decks.slice(0, KEEP)));
         } catch (e) {
             /* private browsing, a full quota, or storage switched off. the site
