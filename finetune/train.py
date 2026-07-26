@@ -78,12 +78,23 @@ def load_tag_pairs():
     return out
 
 
+#the line objective's six training files live in legacy/traindata now, because
+#the site retrained on tags in july 2026 and they only feed --objective lines.
+#looked up in BOTH places rather than moved back, so the folder can say which
+#era a file belongs to without the trainer caring.
+#
+#the miss below is deliberately soft, and that is the trap worth knowing about:
+#a file this cannot find does not stop a run, it quietly trains on less. so a
+#file that MOVES has to be findable here or the next lines run produces a model
+#that looks fine and learned nothing
 def load_jsonl(name):
-    path = os.path.join(HERE, "traindata", name)
-    if not os.path.exists(path):
-        print("missing " + name + ", skipping it")
-        return []
-    return [json.loads(l) for l in open(path, encoding="utf-8")]
+    for folder in (os.path.join(HERE, "traindata"),
+                   os.path.join(HERE, "legacy", "traindata")):
+        path = os.path.join(folder, name)
+        if os.path.exists(path):
+            return [json.loads(l) for l in open(path, encoding="utf-8")]
+    print("missing " + name + ", skipping it")
+    return []
 
 
 def balance(rows):
