@@ -75,6 +75,13 @@
     <h3>missing reports, for finetune/pairs.md</h3>
     <div class="fb-export"><pre>{{ pair_md }}</pre></div>
     {% endif %}
+    {% if deck_md %}
+    {# not an eval file at all. these are decklist lines a person could read
+       and parse_decklist could not, each with the card it turned out to mean,
+       so the list is a to-do for the line reader rather than for the model #}
+    <h3>decklist lines the parser missed, for parse_decklist</h3>
+    <div class="fb-export"><pre>{{ deck_md }}</pre></div>
+    {% endif %}
     {% if tag_md %}
     {# these do not go in an md file at all: they belong in the LABELS dict in
        finetune/attribution_eval.py, which is the only exam testing which LINE
@@ -84,9 +91,12 @@
     {% endif %}
     {% for r in accepted %}
     <div class="fb-done-row">
-        {# a tag report has one card, not two: its second subject is a slug #}
-        <span>#{{ r.id }} · {{ r.kind }} · {{ r.cards[0].name }} -&gt;
-            {% if r.kind == 'tag' %}{{ r.tag }}{% else %}{{ r.cards[1].name }}{% endif %}</span>
+        {# a tag report has one card, not two: its second subject is a slug. a
+           deckline report has one card and a line of text somebody typed #}
+        <span>#{{ r.id }} · {{ r.kind }} ·
+            {% if r.kind == 'deckline' %}"{{ r.reason }}" -&gt; {{ r.cards[0].name }}
+            {%- else %}{{ r.cards[0].name }} -&gt;
+            {% if r.kind == 'tag' %}{{ r.tag }}{% else %}{{ r.cards[1].name }}{% endif %}{% endif %}</span>
         <form method="post" action="/admin/act?key={{ key }}">
             <input type="hidden" name="id" value="{{ r.id }}">
             <button name="action" value="archived" class="fb-quiet">copied, archive it</button>
