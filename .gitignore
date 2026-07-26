@@ -9,18 +9,25 @@ __pycache__/
 .env
 .claude/
 
+#finetune/ is local by default. the training data and the hand judged verdicts
+#are the actual work, not the recipe, so the current model's data never ships.
+#the rule is deny by default with named exceptions, so a new script is private
+#until someone decides otherwise rather than the other way around
 finetune/*
 !finetune/README.md
 
-
+#the trainer and the 26-triplet exam. the exam is the v1 artifact and the
+#trainer runs both objectives, so the legacy README below can still tell you
+#to run it. neither one carries any labelled data with it
 !finetune/train.py
 !finetune/bakeoff_lines.py
-!finetune/bakeoff_tags.py
-!finetune/traindata/
-finetune/traindata/*
-!finetune/traindata/train_tags.jsonl
-!finetune/traindata/train_tag_triplets.jsonl
-!finetune/traindata/tag_testset.jsonl
+
+#the v1 era in full: its training data, its scripts and the evidence they
+#produced. the site stopped serving that model on 2026-07-22, so publishing it
+#says how the model was ORIGINALLY trained without saying how the live one is.
+#allowing the folder is enough, because finetune/* above only matches one level
+#deep and nothing below excludes it again
+!finetune/legacy/
 
 #the bundle for the colab box
 delvefall-training.zip
