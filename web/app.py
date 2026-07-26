@@ -2019,7 +2019,15 @@ ORDER BY r.originality DESC, d.name
 #"means" is the sentence the page prints when it is showing this number, and it
 #has to say what the FIGURE means, not what the idea means. a reader who meets
 #"19.4 years" or "#1204" with no scale cannot tell a high score from a low one,
-#and a leaderboard nobody can read is a leaderboard nobody believes
+#and a leaderboard nobody can read is a leaderboard nobody believes.
+#
+#the SCALE that goes with it is deliberately not written down here. it was, for
+#an afternoon, and every one of the five numbers was already drifting: age is
+#now() minus a printing date so it grows daily, prices move daily, and the ends
+#of the board move whenever mtgjson publishes a precon the daily ingest then
+#picks up. a range typed into a constant is a claim with an expiry date on it,
+#so the page reads its own top and bottom row instead. that also makes it true
+#of the ERA cut on screen rather than of the whole board
 PRECON_METRICS = [
     {
         "key": "original", "figure": "originality", "drivers": "drivers",
@@ -2031,7 +2039,6 @@ PRECON_METRICS = [
                  "figure is the average across its most original half of nonland "
                  "cards, so it climbs by holding cards with less competition, "
                  "never by holding more cards.",
-        "scale": "Measured today, precons run 0.244 at the top down to 0.106 at the bottom, so the whole board lives inside a fifth of the scale.",
         "desc": {
             "key": "original", "label": "Most original", "first": "most original",
             "h1": "The most original Commander precons",
@@ -2065,7 +2072,6 @@ PRECON_METRICS = [
                  "Stone a flat 0. A deck's figure is those scores added up across "
                  "its cards, so a deck gets there either by holding a few famous "
                  "offenders or by holding a long tail of mildly irritating ones.",
-        "scale": "Measured today, precons run 37.7 at the top down to 9.3 at the bottom, so the saltiest precon is about four times the mildest.",
         "desc": {
             "key": "salt", "label": "Saltiest", "first": "saltiest",
             "h1": "The saltiest Commander precons",
@@ -2098,7 +2104,6 @@ PRECON_METRICS = [
                  "together. It is what the hundred cards cost to own as singles, "
                  "not what the sealed box sells for, which is why a deck with one "
                  "reserved list card can sit above four decks of staples.",
-        "scale": "Measured today in dollars, precons run about $304 at the top down to about $23 at the bottom.",
         "desc": {
             "key": "price", "label": "Most expensive", "first": "most expensive",
             "h1": "The most expensive Commander precons",
@@ -2130,7 +2135,6 @@ PRECON_METRICS = [
                  "is the MEDIAN rank across its nonland cards, so #1200 means half "
                  "this deck sits inside the format's twelve hundred most played "
                  "cards. A SMALLER number is the deck built out of staples.",
-        "scale": "Measured today, precons run from a median of #843 at the played end out to #14,528 at the obscure one.",
         "desc": {
             "key": "played", "label": "Most played", "first": "most played",
             "h1": "The most played Commander precons",
@@ -2165,7 +2169,6 @@ PRECON_METRICS = [
                  "is the memorable number, and the average is the one the ranking "
                  "uses, because a sum quietly rewards the bigger deck for being "
                  "bigger.",
-        "scale": "Measured today, precons run 20.7 years a card at the top down to 5.3 at the bottom.",
         "desc": {
             "key": "age", "label": "Oldest cards", "first": "oldest",
             "h1": "The Commander precons with the oldest cards",
@@ -2200,7 +2203,7 @@ for _m in PRECON_METRICS:
         PRECON_SORTS.append(dict(_m[_d], dir=_d, metric=_m,
                                  figure=_m["figure"], drivers=_m["drivers"],
                                  decimals=_m["decimals"], cards=_m["cards"],
-                                 means=_m["means"], scale=_m["scale"]))
+                                 means=_m["means"]))
 PRECON_SORT_BY_KEY = {s["key"]: s for s in PRECON_SORTS}
 #the default reading of each metric, which is what the detail pages open on and
 #what an unqualified link means
@@ -2321,8 +2324,12 @@ def precons():
             #missing value rather than as the least original deck
             r["fill"] = 8 + 92 * share if span else 100
     prefix, suffix = figure_units(sort["metric"]["key"], cur)
+    #the range this reading actually covers, read off the board rather than
+    #remembered. it is the first and last row on screen, so it follows the era
+    #cut and the currency toggle and it cannot go stale
+    span = {"top": rows[0]["figure"], "bottom": rows[-1]["figure"]} if rows else None
     return render_template("precons.html", rows=rows, eras=PRECON_ERAS, era=era[0],
-                           sorts=PRECON_SORTS, sort=sort, cur=cur,
+                           sorts=PRECON_SORTS, sort=sort, cur=cur, span=span,
                            prefix=prefix, suffix=suffix)
 
 
@@ -2502,7 +2509,7 @@ def deck_panels(conn, oracle_ids, figures, board, cur, slug=None):
         panels.append(dict(stand, key=m["key"], label=m["desc"]["label"],
                            reading=m["desc"]["first"], sort_key=m["desc"]["key"],
                            figure=figure, decimals=m["decimals"],
-                           means=m["means"], scale=m["scale"], cards_label=m["cards"],
+                           means=m["means"], cards_label=m["cards"],
                            noun=m["noun"], more=m["more"],
                            prefix=prefix, suffix=suffix,
                            cards=metric_cards(conn, oracle_ids, m["key"], cur),
