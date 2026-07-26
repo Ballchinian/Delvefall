@@ -3346,3 +3346,47 @@ body.home main {
 /* just the cards a swap session added, above the whole list. shorter box,
    because it is a handful of lines rather than a hundred */
 .swap-output-short { min-height: 0; }
+
+/* published inside the last year, so its salt, price and play rate have not
+   settled. the mark is quiet: it qualifies a placing, it does not shout about
+   the deck */
+.precon-new {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 0 6px;
+    border: 1px solid var(--teal);
+    border-radius: 999px;
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--teal);
+    cursor: help;
+}
+
+.precon-count-new { display: block; margin-top: 4px; }
+
+.precon-count-new .precon-new { cursor: default; }
+
+/* what is still moving about the number on screen. it sits under the
+   explanation and reads as a qualifier on it, not as a warning */
+.deck-standing-settling {
+    max-width: 62ch;
+    line-height: 1.5;
+    margin-top: 8px;
+}
+
+.deck-standing-settling strong { color: var(--gold); }
+
+/* the currency row sits with the sort and era rows and is drawn like them,
+   because it is the same kind of thing: a control over what the board shows */
+.precon-cur { margin-bottom: 10px; }
+
+/* the deck page's currency control is a form of submit buttons, because a
+   pasted list has no url to flip. drawn identically to the link version, or
+   the same control would look like two different things on two pages */
+.precon-cur button.precon-era {
+    font: inherit;
+    font-size: 13px;
+    cursor: pointer;
+}

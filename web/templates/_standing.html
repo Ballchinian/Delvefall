@@ -47,8 +47,20 @@
             told, across {{ p.age_cards }} cards.</span>
             {% endif %}
             <span class="deck-standing-extra deck-standing-means">{{ p.means }}</span>
+            {# only on a deck young enough for it to be true, and only saying
+               what is still moving about THIS number. a blanket disclaimer on
+               every deck is one nobody reads #}
+            {% if is_new %}
+            <span class="deck-standing-extra deck-standing-settling"><strong>Still
+            settling.</strong> {{ p.settling }}</span>
+            {% endif %}
         </div>
     </div>
+
+    {# the currency control, on the money panel only. the figure above it is
+       real money in one currency, and until now this page could print it
+       without offering any way to change which #}
+    {% if p.key == 'price' %}{% include "_currency.html" %}{% endif %}
 
     {# the deck sitting on the board where it actually lands, with the decks
        either side of it. a placing on its own is a number; the decks it landed

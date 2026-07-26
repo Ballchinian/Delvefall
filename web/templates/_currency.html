@@ -1,0 +1,42 @@
+{# the currency, changeable here rather than only on /search and /unique.
+
+   it was already REMEMBERED here (a year-long cookie, set by any request
+   carrying cur=, so flipping it anywhere flips it everywhere), and the board
+   has always rendered in whatever it said. what was missing was a way to
+   change it without going somewhere else first, which is the whole gap: this
+   page prints money and had no control over which money.
+
+   plain links, like the sort and era rows above it. flipping it sets the
+   cookie on the way back, so nothing downstream has to carry cur= in its url
+   and the addresses stay clean #}
+{% if cur_urls %}
+<nav class="precon-eras precon-cur" aria-label="currency">
+    <span class="precon-depth-label">Prices in:</span>
+    {% for code, label in cur_labels %}
+        {% if code == cur %}
+            <span class="precon-era on" aria-current="true">{{ label }}</span>
+        {% else %}
+            <a class="precon-era" rel="nofollow" href="{{ cur_urls[code] }}">{{ label }}</a>
+        {% endif %}
+    {% endfor %}
+</nav>
+{% elif cur_post %}
+{# the pasted deck reaches its page by POST and has no url to hang cur= off,
+   so the same control is a form that reposts the list. the currency rides the
+   ACTION rather than a field, because read_currency looks at the query string
+   and one reader for all four ways of arriving is the point #}
+<form class="precon-eras precon-cur" method="post" action="/deck/read" aria-label="currency">
+    <input type="hidden" name="list" value="{{ pasted }}">
+    <input type="hidden" name="name" value="{{ deck_name }}">
+    <input type="hidden" name="commander" value="{{ commander }}">
+    <span class="precon-depth-label">Prices in:</span>
+    {% for code, label in cur_labels %}
+        {% if code == cur %}
+            <span class="precon-era on" aria-current="true">{{ label }}</span>
+        {% else %}
+            <button class="precon-era" type="submit"
+                    formaction="/deck/read?cur={{ code }}">{{ label }}</button>
+        {% endif %}
+    {% endfor %}
+</form>
+{% endif %}

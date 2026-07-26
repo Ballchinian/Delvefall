@@ -17,7 +17,7 @@ import secrets
 import datetime
 import unicodedata
 import urllib.request
-from urllib.parse import quote
+from urllib.parse import quote, urlencode
 from concurrent.futures import ThreadPoolExecutor
 
 from flask import Flask, render_template, request, redirect, abort, make_response, url_for, Response
@@ -625,6 +625,11 @@ def salt_label(salt):
 
 CURRENCY_SIGNS = {"usd": "$", "eur": "€", "gbp": "£"}
 
+#the same three, spelled out, for any control that offers the choice rather
+#than just printing the sign. pounds carry the caveat in the label because
+#scryfall quotes dollars and euros only and ours is derived from both
+CURRENCY_LABELS = [("usd", "$ dollars"), ("eur", "€ euros"), ("gbp", "£ pounds (approx.)")]
+
 #pounds are derived, not sourced: scryfall prices in dollars and euros only,
 #so the gbp figure is each known price converted and averaged, and the ui
 #says approximate because it is. the rates are the ecb's daily reference
@@ -1029,11 +1034,35 @@ def read_currency():
 def remember_currency(resp):
     #any request that names a currency makes it the remembered one, so the
     #toggle sticks no matter which page it was flipped on (/search submits
-    #its form, /unique deals and trail-walks through fetch)
+    #its form, /unique deals and trail-walks through fetch, the precon board
+    #and the deck pages link it).
+    #
+    #a COOKIE rather than localStorage, and it has to be. every price on this
+    #site is rendered by the server: the precon board sums real money in sql,
+    #and the pound figure is derived PER CARD from whichever of the two prices
+    #that card carries, so it is not the dollar total times a rate and cannot
+    #be recomputed in the browser from what is on the page. localStorage never
+    #reaches the server, so the choice would arrive one render too late and the
+    #board would paint in dollars and then correct itself, or cost a round trip
+    #on every load. this is the one preference on the site the SERVER needs to
+    #know, which is why it is the one kept in a cookie rather than next to the
+    #seen cards and the recent decks
     cur = request.args.get("cur")
     if cur in CURRENCY_SIGNS:
         resp.set_cookie("cur", cur, max_age=60 * 60 * 24 * 365, samesite="Lax")
     return resp
+
+
+def currency_urls():
+    #this same page in each of the three currencies, for the toggle. built off
+    #the request's own args so a page does not have to know what its own url
+    #looks like, and so every other control on it survives the flip
+    out = {}
+    for code in CURRENCY_SIGNS:
+        args = request.args.to_dict(flat=True)
+        args["cur"] = code
+        out[code] = request.path + "?" + urlencode(args)
+    return out
 
 
 def read_blend():
@@ -2028,11 +2057,34 @@ ORDER BY r.originality DESC, d.name
 #picks up. a range typed into a constant is a claim with an expiry date on it,
 #so the page reads its own top and bottom row instead. that also makes it true
 #of the ERA cut on screen rather than of the whole board
+#how long a precon counts as new, and it is not a guess: EDHREC's salt survey
+#runs ONCE A YEAR, so a card printed since the last one has had no chance to be
+#voted on. that is the longest of the settling windows the numbers here depend
+#on, so it sets the mark for all of them.
+#
+#measured 2026-07-26 over the 166 precons, and this is a real effect rather
+#than a disclaimer for its own sake:
+#
+#  cards first printed inside a year   mean salt 0.059   (n=2568)
+#  cards older than that               mean salt 0.291   (n=28906)
+#
+#a FIFTH of the salt, on 98.5% coverage, so the votes are not missing, they
+#have not been cast. at deck level that is 18.7 salt against 23.4, and the
+#newest four precons run 11.0 to 15.4 against a board average of 23.4. play
+#rate does the same thing more gently (a median of #5216 against #4188) because
+#edhrec's rank counts decks built and that accumulates.
+#
+#prices move too, but NOT reliably in one direction: new precons average $76
+#against $88, so release hype and reprint gluts pull opposite ways and the
+#honest thing to say is that the figure is today's, not that it is high
+PRECON_NEW_DAYS = 365
+
 PRECON_METRICS = [
     {
         "key": "original", "figure": "originality", "drivers": "drivers",
         "decimals": 3, "best": "desc", "cards": "Most original cards",
         "noun": "originality", "more": "more original",
+        "settling": "A new deck reads as MORE original than it will look in five years, and that is half real: design space fills up, so a card printed today has had nobody to copy it yet. The effect is measured at r = +0.46 against release year.",
         "means": "Every card scores from 0 to 1: one minus how close its nearest "
                  "match anywhere in Magic gets. A card at 0.30 has something out "
                  "there 70% like it, a card at 0.05 has a near twin. A deck's "
@@ -2067,6 +2119,7 @@ PRECON_METRICS = [
         "key": "salt", "figure": "salt", "drivers": "salt_drivers",
         "decimals": 1, "best": "desc", "cards": "Saltiest cards",
         "noun": "salt", "more": "saltier",
+        "settling": "A new deck reads MILDER than it is, and this is the biggest gap on the board. EDHREC's salt survey runs once a year, so cards printed since the last one have had no chance to be voted on: they average 0.06 salt against 0.29 for everything older, a fifth as much, on near-total coverage. The votes are not missing, they have not been cast yet. Read a new deck's salt as a floor.",
         "means": "Every card carries a salt score from EDHREC's annual survey, "
                  "running 0 to about 3: Stasis is 3.06, Rhystic Study 2.73, Mind "
                  "Stone a flat 0. A deck's figure is those scores added up across "
@@ -2100,6 +2153,7 @@ PRECON_METRICS = [
         "key": "price", "figure": "price", "drivers": "price_drivers",
         "decimals": 2, "best": "desc", "cards": "Priciest cards",
         "noun": "of cards", "more": "worth more",
+        "settling": "A new deck's price is the one still moving. Singles find their level over months, and it does not run one way: release hype pushes up, the reprint glut of a freshly opened set pushes down. Today's figure is exactly that, today's.",
         "means": "The cheapest paper printing of every card in the deck, added "
                  "together. It is what the hundred cards cost to own as singles, "
                  "not what the sealed box sells for, which is why a deck with one "
@@ -2130,6 +2184,7 @@ PRECON_METRICS = [
         "key": "played", "figure": "play_median", "drivers": "play_drivers",
         "decimals": 0, "best": "asc", "cards": "Most played cards",
         "noun": "median play rate", "more": "more played",
+        "settling": "A new deck reads as LESS played than it will be. EDHREC's rank counts how many decks run a card, and that accumulates: precons published in the last year average a median of #5216 against #4188 for the rest, which is mostly the format not having got round to them.",
         "means": "EDHREC ranks every card by how many Commander decks run it, and "
                  "#1 is the most played card in the whole format. A deck's figure "
                  "is the MEDIAN rank across its nonland cards, so #1200 means half "
@@ -2162,6 +2217,7 @@ PRECON_METRICS = [
         "key": "age", "figure": "age_mean", "drivers": "age_drivers",
         "decimals": 1, "best": "desc", "cards": "Oldest cards",
         "noun": "a card on average", "more": "older",
+        "settling": "This is the one number a new deck does not distort, because being new is the thing it measures. It still climbs on its own: every figure here is counted from today, so the whole board ages a year every year.",
         "means": "How long ago each card was FIRST printed, averaged across the "
                  "deck. A reprint does not make an old card new, so a deck "
                  "published last year and stuffed with reprints still reads old. "
@@ -2203,7 +2259,7 @@ for _m in PRECON_METRICS:
         PRECON_SORTS.append(dict(_m[_d], dir=_d, metric=_m,
                                  figure=_m["figure"], drivers=_m["drivers"],
                                  decimals=_m["decimals"], cards=_m["cards"],
-                                 means=_m["means"]))
+                                 means=_m["means"], settling=_m["settling"]))
 PRECON_SORT_BY_KEY = {s["key"]: s for s in PRECON_SORTS}
 #the default reading of each metric, which is what the detail pages open on and
 #what an unqualified link means
@@ -2290,7 +2346,9 @@ def precons():
     order = sort_column_order(sort)
 
     cur = read_currency()
+    fresh = datetime.date.today() - datetime.timedelta(days=PRECON_NEW_DAYS)
     rows = []
+    new_here = 0
     for r in precon_board(cur):
         year = r["release_date"].year if r["release_date"] else 0
         if lo is not None and not (lo <= year <= hi):
@@ -2299,7 +2357,12 @@ def precons():
         #sorting None against floats would raise rather than degrade
         if r.get(skey) is None:
             continue
-        rows.append(dict(r, year=year, figure=float(r[skey]),
+        #new decks are marked, because three of the five numbers below are
+        #still settling on them and a reader deserves to know which rows those
+        #are before drawing a conclusion from where they landed
+        is_new = bool(r["release_date"] and r["release_date"] > fresh)
+        new_here += 1 if is_new else 0
+        rows.append(dict(r, year=year, figure=float(r[skey]), new=is_new,
                          cards=r.get(sort["drivers"]) or []))
     #ascending when the reading wants the SMALLER number first, which is now
     #every metric read backwards plus "most played" read forwards: rank 1 is
@@ -2330,6 +2393,8 @@ def precons():
     span = {"top": rows[0]["figure"], "bottom": rows[-1]["figure"]} if rows else None
     return render_template("precons.html", rows=rows, eras=PRECON_ERAS, era=era[0],
                            sorts=PRECON_SORTS, sort=sort, cur=cur, span=span,
+                           new_here=new_here, new_days=PRECON_NEW_DAYS,
+                           cur_urls=currency_urls(), cur_labels=CURRENCY_LABELS,
                            prefix=prefix, suffix=suffix)
 
 
@@ -2509,7 +2574,7 @@ def deck_panels(conn, oracle_ids, figures, board, cur, slug=None):
         panels.append(dict(stand, key=m["key"], label=m["desc"]["label"],
                            reading=m["desc"]["first"], sort_key=m["desc"]["key"],
                            figure=figure, decimals=m["decimals"],
-                           means=m["means"], cards_label=m["cards"],
+                           means=m["means"], settling=m["settling"], cards_label=m["cards"],
                            noun=m["noun"], more=m["more"],
                            prefix=prefix, suffix=suffix,
                            cards=metric_cards(conn, oracle_ids, m["key"], cur),
@@ -2554,8 +2619,13 @@ def precon(slug):
     with pool.connection() as conn:
         panels = deck_panels(conn, ids, figures, board, cur, slug=slug)
     year = deck_row["release_date"].year if deck_row["release_date"] else 0
+    #a deck still inside the settling window carries the note on every panel
+    #whose number is affected, rather than a blanket disclaimer nobody reads
+    is_new = bool(deck_row["release_date"] and deck_row["release_date"] >
+                  datetime.date.today() - datetime.timedelta(days=PRECON_NEW_DAYS))
     return render_template("precon.html", deck=deck_row, year=year, panels=panels,
-                           opened=opened, back=arrived["key"], cur=cur,
+                           opened=opened, back=arrived["key"], cur=cur, is_new=is_new,
+                           cur_urls=currency_urls(), cur_labels=CURRENCY_LABELS,
                            counted=len(ids), total=len(board))
 
 
@@ -3088,6 +3158,9 @@ def deck_read():
                            counted=len(scored), matched=len(ids), missing=missing,
                            total=len(board), ranked=ranked, min_cards=DECK_MIN_FOR_RANK,
                            cur=cur, deck_name=name, commander=commander,
+                           #the currency control here is a form rather than
+                           #links: this page has no url of its own to flip
+                           cur_post=True, cur_labels=CURRENCY_LABELS,
                            #handed straight back so the swap tool can be reached
                            #from a reading without pasting twice. it rides the
                            #page rather than a session for the same reason as

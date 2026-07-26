@@ -20,6 +20,8 @@
             &middot;
         {% endif %}
         <span class="precon-set">{{ deck.code }}{% if year %} {{ year }}{% endif %}</span>
+        {% if is_new %}<span class="precon-new"
+            title="published inside the last year, so its salt, price and play rate are all still settling">new</span>{% endif %}
         {% if deck.source %}
         &middot; <a class="precon-source" href="{{ deck.source }}" target="_blank" rel="noopener"
             aria-label="official decklist for {{ deck.name }} (opens in a new tab)">official decklist</a>

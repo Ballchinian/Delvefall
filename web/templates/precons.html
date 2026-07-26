@@ -61,6 +61,10 @@
         {% endfor %}
     </nav>
 
+    {# only where money is on screen. the other four rankings do not change
+       with it, and a control that does nothing is worse than no control #}
+    {% if sort.metric.key == 'price' %}{% include "_currency.html" %}{% endif %}
+
     {# the honest bit, and it is about THIS number rather than about the idea of
        measuring decks. a reader who meets "19.4 years" or "#1204" with no scale
        cannot tell a good score from a bad one, and a leaderboard nobody can
@@ -78,6 +82,12 @@
         at the top to
         <strong>{{ prefix }}{{ ('%.' ~ sort.decimals ~ 'f')|format(span.bottom) }}{{ suffix }}</strong>
         at the bottom.{% endif %}</p>
+        {# what is still moving, per number, because it is different per number.
+           salt is the big one and it is not a hedge: EDHREC's survey runs once
+           a year, so a card printed since the last one has had no chance to be
+           voted on and the deck holding it reads mild whether it is or not #}
+        <p><strong>On the newest decks this is still settling.</strong>
+        {{ sort.settling }}</p>
         {% if sort.metric.key == 'original' %}
         <p><strong>It is not measuring how good or how expensive a deck is.</strong> Against
         the decks' median EDHREC rank the correlation is r&nbsp;=&nbsp;-0.05, which is
@@ -149,7 +159,10 @@
     </details>
 
     <p class="precon-count">{{ rows|length }} deck{{ '' if rows|length == 1 else 's' }},
-    {{ sort.first }} first. Collector's editions are folded into the deck they reprint.</p>
+    {{ sort.first }} first. Collector's editions are folded into the deck they reprint.
+    {% if new_here %}<span class="precon-count-new">{{ new_here }} of them came out inside
+    the last year and are marked <span class="precon-new">new</span>: read those placings
+    with the note above in mind.</span>{% endif %}</p>
 
     <ol class="precon-board">
         {% for r in rows %}
@@ -171,6 +184,8 @@
                         &middot;
                     {% endif %}
                     <span class="precon-set">{{ r.code }}{% if r.year %} {{ r.year }}{% endif %}</span>
+                    {% if r.new %}<span class="precon-new"
+                        title="published inside the last year, so its salt, price and play rate are all still settling">new</span>{% endif %}
                     {% if r.source %}
                     {# wizards' own page for the list. for the older sets it is
                        that deck's page, for recent ones the set announcement
