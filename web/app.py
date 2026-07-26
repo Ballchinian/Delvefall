@@ -687,15 +687,16 @@ def price_in(c, currency):
 
 def price_label(c, currency):
     #the price string under a card, in whichever currency the toggle picked.
-    #empty when the card has no price there. dollars and euros print the
-    #stored number as is, pounds are computed so they get pinned to pennies
-    if currency == "gbp":
-        p = price_in(c, currency)
-        return "" if p is None else "£%.2f" % p
-    p = c["price_usd"] if currency == "usd" else c["price_eur"]
-    if p is None:
-        return ""
-    return CURRENCY_SIGNS[currency] + str(p)
+    #empty when the card has no price there.
+    #
+    #ALWAYS two decimal places. printing the stored number as it came back
+    #wrote "$0.2" for a twenty cent card, because that is what str() does to a
+    #Decimal that happens to end in a zero, and a money column where some rows
+    #have two digits and some have one reads as a bug in the number rather than
+    #a bug in the formatting. pounds were already pinned this way and the other
+    #two are now
+    p = price_in(c, currency)
+    return "" if p is None else CURRENCY_SIGNS[currency] + "%.2f" % p
 
 
 def sideways(layout, type_line):

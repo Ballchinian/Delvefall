@@ -189,20 +189,38 @@
             var decks = JSON.parse(localStorage.getItem(KEY)) || [];
             /* the same list twice is one entry, moved back to the front,
                rather than a history that fills with the deck you keep
-               rereading */
-            decks = decks.filter(function (x) { return x.text !== text; });
+               rereading. its OLD entry is found before it is removed, because
+               a deck coming back round keeps the name it was given: renumbering
+               it on every visit is how one deck became #2, then #4, then #6 */
+            var was = null;
+            decks = decks.filter(function (x) {
+                if (x.text === text) { was = x; return false; }
+                return true;
+            });
             /* two different decks led by the same commander get numbered, the
-               way anybody would say it out loud: Kratos, God of War #2. the
-               number is found rather than stored, so deleting the first one
-               does not leave a #2 with no #1 in front of it */
+               way anybody would say it out loud: Kratos, God of War #2.
+               the SMALLEST free number, found rather than stored, so deleting
+               the first one leaves the next paste taking its place instead of
+               a #2 with no #1 in front of it */
             var name = label;
             if (name) {
-                var n = 1;
-                decks.forEach(function (x) {
-                    var m = /^(.*?)(?: #(\d+))?$/.exec(x.label || "");
-                    if (m && m[1] === name) n = Math.max(n, parseInt(m[2] || "1", 10)) + 1;
-                });
-                if (n > 1) name = name + " #" + n;
+                var base = function (l) {
+                    var m = /^(.*?)(?: #(\d+))?$/.exec(l || "");
+                    return m ? {name: m[1], n: parseInt(m[2] || "1", 10)} : {name: "", n: 1};
+                };
+                /* it already had a name under this commander, so it keeps it */
+                if (was && base(was.label).name === name) {
+                    name = was.label;
+                } else {
+                    var used = {};
+                    decks.forEach(function (x) {
+                        var b = base(x.label);
+                        if (b.name === name) used[b.n] = true;
+                    });
+                    var n = 1;
+                    while (used[n]) n++;
+                    if (n > 1) name = name + " #" + n;
+                }
             }
             decks.unshift({text: text, count: d.count, label: name, at: Date.now()});
             localStorage.setItem(KEY, JSON.stringify(decks.slice(0, KEEP)));

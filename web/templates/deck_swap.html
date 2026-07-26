@@ -157,6 +157,19 @@ window.MANA_URLS = {{ mana_urls() | tojson }};
         return node;
     }
 
+    /* one card name, drawn the way every card name on this site is drawn: a
+       link into delvefall, ctrl-click out to scryfall. the handler for that
+       lives in base.html and keys off data-card, so anything carrying it gets
+       the behaviour without wiring anything up */
+    function cardLink(name, cls) {
+        var a = document.createElement("a");
+        a.className = cls;
+        a.href = "/search?q=" + encodeURIComponent(name);
+        a.dataset.card = name;
+        a.textContent = name;
+        return a;
+    }
+
     /*
         the deck grows and never shrinks. a card swapped IN has to be excluded
         from every later suggestion or the tool offers it twice, and a card
@@ -416,11 +429,13 @@ window.MANA_URLS = {{ mana_urls() | tojson }};
         swaps.forEach(function (s) {
             var li = document.createElement("li");
             li.className = "swap-made-row";
-            li.innerHTML = '<span class="swap-made-out"></span>'
-                         + '<span class="swap-made-arrow">→</span>'
-                         + '<span class="swap-made-in"></span>';
-            li.querySelector(".swap-made-out").textContent = s.out;
-            li.querySelector(".swap-made-in").textContent = s.in;
+            /* both names are LINKS, like every other card name on the site.
+               these are the cards a session's whole decision rests on and they
+               were the only ones on the page you could not click. data-card
+               gets them the same ctrl-click-to-scryfall the rest have */
+            li.appendChild(cardLink(s.out, "swap-made-out"));
+            el("span", "swap-made-arrow", li, "→");
+            li.appendChild(cardLink(s.in, "swap-made-in"));
             made.appendChild(li);
         });
         $("swap-summary").textContent = swaps.length

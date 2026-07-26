@@ -2109,7 +2109,20 @@ footer a { color: var(--teal); }
     font-size: 14px;
 }
 
-.swap-made-out { text-decoration: line-through; color: var(--muted); }
+/* both names are links now, so they need the link treatment without losing
+   what the row is saying: the one leaving stays struck through and quiet */
+.swap-made-out, .swap-made-in { text-decoration: none; }
+
+.swap-made-out {
+    text-decoration: line-through;
+    color: var(--muted);
+}
+
+.swap-made-in { color: var(--teal); }
+
+.swap-made-out:hover, .swap-made-in:hover { text-decoration: underline; }
+
+.swap-made-out:hover { text-decoration: underline line-through; }
 
 .swap-made-arrow { color: var(--muted); }
 
@@ -2178,6 +2191,10 @@ footer a { color: var(--teal); }
 .precon-eras {
     display: flex;
     flex-wrap: wrap;
+    /* the rows carry a text label now ("Rank by:", "From the:") next to pill
+       buttons that have their own padding. without this the label stretches
+       to the row's full height and its text sits at the top of it */
+    align-items: center;
     gap: 8px;
     margin: 18px 0 10px;
 }
@@ -3464,7 +3481,11 @@ body.home main {
     margin-bottom: 20px;
 }
 
-.swap-keep-going {
+/* qualified to beat ".swap-actions button", which is class+element and so
+   outranked a bare class no matter which was written later. it was setting
+   the near-white background under this button's white text, which is why the
+   label only appeared on hover */
+.swap-actions .swap-keep-going {
     background: var(--teal);
     border: none;
     border-radius: 3px;
@@ -3475,7 +3496,7 @@ body.home main {
     cursor: pointer;
 }
 
-.swap-keep-going:hover { background: var(--teal-hover); }
+.swap-actions .swap-keep-going:hover { background: var(--teal-hover); }
 
 /* the row labels on the board's controls, now that there are four rows of
    them and each one needs saying what it does */
