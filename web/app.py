@@ -8,6 +8,7 @@ import re
 import os
 import csv
 import math
+import mimetypes
 import time
 import uuid
 import json
@@ -37,6 +38,18 @@ from mirror import (REMINDER_KEYWORDS, reminder_is_the_rule, clean_line, line_we
 import visitors
 from visitors import client_ip, visitor_token, _utc_day
 from views.meta import bp as meta_bp
+
+#say what a .js file is rather than asking the machine we happen to be on.
+#python reads its mime table from the host: linux says text/javascript, but a
+#windows box reads the registry and plenty of them answer text/plain.
+#
+#that used to be survivable, because a classic <script> sniffs the body and
+#runs it regardless. it is NOT survivable now that the pages load
+#<script type="module">: module scripts are strictly mime checked per spec,
+#and a browser hard refuses text/plain with nothing rendered and one console
+#line to explain it. this made the site look broken on a windows dev box and
+#fine on railway, which is the worst shape a bug can take
+mimetypes.add_type("text/javascript", ".js")
 
 app = Flask(__name__)
 
