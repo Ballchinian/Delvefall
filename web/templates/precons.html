@@ -133,7 +133,7 @@
                            than the product name does, and it is a card, so it links
                            into the site like every other card name here #}
                         {% for leader in r.leaders %}
-                        <a href="/search?q={{ leader | urlencode }}">{{ leader }}</a>{{ '' if loop.last else ' / ' }}
+                        <a href="/search?q={{ leader | urlencode }}" data-card="{{ leader }}">{{ leader }}</a>{{ '' if loop.last else ' / ' }}
                         {% endfor %}
                         &middot;
                     {% endif %}
@@ -151,7 +151,7 @@
                 {# whichever number the board is sorted by, this is the cards
                    that made it, so the ranking can always be checked #}
                 <div class="precon-drivers"><span class="precon-drivers-label">{{ sort_label }}:</span>
-                    {% for d in r.cards %}<a href="/search?q={{ d | urlencode }}">{{ d }}</a>{{ '' if loop.last else ', ' }}{% endfor %}
+                    {% for d in r.cards %}<a href="/search?q={{ d | urlencode }}" data-card="{{ d }}">{{ d }}</a>{{ '' if loop.last else ', ' }}{% endfor %}
                 </div>
                 {% endif %}
             </div>

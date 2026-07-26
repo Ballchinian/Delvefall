@@ -20,13 +20,18 @@
     {% else %}{{ super() }}{% endif %}
 {% endblock %}
 
+{# one canonical per card: these results are reachable under any spelling,
+   filter and sort combination in the url, and google should fold them all
+   into this one address. the only page on the site whose query string is the
+   content rather than a control, so the only one that overrides the base
+   template's path-only default #}
+{% block canonical %}
+    {% if card %}<link rel="canonical" href="{{ request.url_root ~ 'search?q=' ~ (card.name | urlencode) }}">
+    {% else %}{{ super() }}{% endif %}
+{% endblock %}
+
 {% block head_extra %}
     {% if card %}
-    {# one canonical per card: these results are reachable under any
-       spelling, filter and sort combination in the url, and google should
-       fold them all into this one address #}
-    {% set canonical = request.url_root ~ 'search?q=' ~ (card.name | urlencode) %}
-    <link rel="canonical" href="{{ canonical }}">
     {# breadcrumbs: the one rich result type a card page honestly claims.
        google reads it and prints the snippet's url line as a trail,
        "Delvefall > card name". the last crumb is this page, so it names
@@ -54,11 +59,19 @@
             {# the 488x680 on every card img is scryfall's normal size, so
                the browser knows each picture's shape before it arrives (the
                css scales the width, height: auto keeps the ratio) #}
-            {# the searched card's picture opens it on scryfall, the same as
-               every result's does. it was the one card on the page that
-               didn't, which read as it being decoration rather than a card #}
+            {# the searched card follows the same rule as every other card
+               link, and it turns out to be the most useful one on the page.
+               /search?q= this card and NOTHING ELSE is the bare search, so
+               from a page carrying a sort, colours, price bounds and a salt
+               range, clicking the card you searched drops all of it and
+               starts the search over. it only looks like a link to the page
+               you are on when there is nothing to clear.
+               it is also this page's own canonical url, so the one internal
+               link the results grid does not already make is the one pointing
+               at the address the page declares #}
+            {% set narrowed = request.args|list|length > 1 %}
             <div class="card-frame" data-sideways="{{ '1' if card.sideways else '' }}" data-flip="{{ '1' if card.flip else '' }}" data-back="{{ card.image_back }}">
-                <a href="{{ card.scryfall_uri }}" target="_blank" rel="noopener" title="open {{ card.name }} on scryfall">
+                <a href="/search?q={{ card.name | urlencode }}" data-card="{{ card.name }}" data-scryfall="{{ card.scryfall_uri }}" title="{% if narrowed %}clear the filters and search {{ card.name }} on its own{% else %}search {{ card.name }} on its own{% endif %}. ctrl-click to open it on scryfall">
                     <img src="{{ card.image }}" alt="{{ card.name }}" width="488" height="680" fetchpriority="high">
                 </a>
             </div>
@@ -238,7 +251,7 @@
                 {# the ? in the picture's corner is the misplaced-card report,
                    it fades in with the rest of the hover overlay #}
                 <div class="card-frame" data-sideways="{{ '1' if r.sideways else '' }}" data-flip="{{ '1' if r.flip else '' }}" data-back="{{ r.image_back }}">
-                    <a href="{{ r.scryfall_uri }}" target="_blank" title="opens on scryfall. ctrl-click to search this card here instead">
+                    <a href="/search?q={{ r.name | urlencode }}" data-card="{{ r.name }}" data-scryfall="{{ r.scryfall_uri }}" title="search {{ r.name }} here. ctrl-click to open it on scryfall">
                         <img src="{{ r.image }}" alt="{{ r.name }}" width="488" height="680" loading="lazy">
                     </a>
                     <button class="report-flag" data-id="{{ r.oracle_id }}" data-name="{{ r.name }}" title="shouldn't be here? report this as a bad match">?</button>
@@ -418,9 +431,10 @@
             frame.dataset.flip = r.flip ? "1" : "";
             frame.dataset.back = r.image_back;
             var link = el("a", "", frame);
-            link.href = r.scryfall_uri;
-            link.target = "_blank";
-            link.title = "opens on scryfall. ctrl-click to search this card here instead";
+            link.href = "/search?q=" + encodeURIComponent(r.name);
+            link.dataset.card = r.name;
+            link.dataset.scryfall = r.scryfall_uri;
+            link.title = "search " + r.name + " here. ctrl-click to open it on scryfall";
             var img = el("img", "", link);
             img.src = r.image;
             img.alt = r.name;
@@ -768,19 +782,9 @@
             }
         });
 
-        /*
-            ctrl-click (cmd on mac) on a result's picture searches that card
-            here instead of opening scryfall, for hopping down a rabbit hole
-            without leaving the site. same delegated trick as the flags
-        */
-        document.querySelector(".card-grid").addEventListener("click", function(e) {
-            var link = e.target.closest(".card-frame a");
-            if (link && (e.ctrlKey || e.metaKey)) {
-                e.preventDefault();
-                var flag = link.closest(".result").querySelector(".report-flag");
-                window.location = "/search?q=" + encodeURIComponent(flag.dataset.name);
-            }
-        });
+        //the rabbit-hole hop that used to live here is the plain click now,
+        //and the ctrl-click that carried it belongs to the one card-link rule
+        //in base.html. nothing on this page has to know about either
 
         //the same name suggestions as the search bar, wired by the shared
         //helper in base.html, picking just fills the box in

@@ -3019,3 +3019,95 @@ body.home main {
        these are the floor, nothing here goes under 12 */
     .match-line, .more-lines, .concept-tags, .result-price { font-size: 13px; }
 }
+
+/* ---- the standing list under the unique dealer ----
+   a numbered list of the actual answer, server rendered. it is styled like
+   the precon board's cousin rather than reusing .deck-card, because those
+   rows are a two column glance at twelve names and this is a hundred names
+   each carrying the line that earned it the place */
+
+/* the same fold as the precon board's method note, so the site has one way of
+   saying "there is more here if you want it" rather than two */
+.unique-board-fold {
+    max-width: 860px;
+    margin: 40px auto 0;
+    padding: 10px 16px;
+    background: var(--wash);
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    font-size: 14px;
+}
+
+.unique-board-fold summary {
+    cursor: pointer;
+    color: var(--teal);
+    font-weight: 600;
+}
+
+.unique-board-note {
+    color: var(--muted);
+    font-size: 13.5px;
+    margin: 0 0 18px;
+}
+
+.unique-board {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.unique-row {
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    padding: 9px 0;
+    border-bottom: 1px solid var(--line);
+}
+
+/* tabular figures so the column of ranks stays a column, and a fixed width
+   so the names all start at the same place from 1 to 100 */
+.unique-rank {
+    flex: none;
+    width: 2.2em;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    font-size: 13px;
+    color: var(--muted);
+}
+
+.unique-body {
+    flex: 1;
+    min-width: 0;
+}
+
+.unique-name {
+    color: var(--teal);
+    text-decoration: none;
+}
+
+.unique-name:hover { text-decoration: underline; }
+
+/* the evidence, quieter than the name it belongs to. clamped because a
+   handful of these lines are a whole paragraph of rules text and the list
+   has to stay scannable */
+.unique-line-text {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    margin-top: 2px;
+    font-size: 12.5px;
+    color: var(--muted);
+}
+
+.unique-score {
+    flex: none;
+    font-variant-numeric: tabular-nums;
+    font-size: 13px;
+    color: var(--gold);
+}
+
+@media (max-width: 560px) {
+    .unique-rank { width: 1.8em; }
+    .unique-board-fold { margin-top: 28px; }
+}

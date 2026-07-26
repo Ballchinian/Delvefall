@@ -1765,9 +1765,50 @@ def guide():
     return render_template("guide.html", demo=demo)
 
 
+#how many cards the standing list under the dealer names. the dealer is the
+#page for a person and it is javascript, so a crawler reading /unique met a
+#title, one paragraph and an empty div: 213 words and not a single card name,
+#on the page whose entire subject is which cards are unique. /precons has been
+#server rendered from the start for this exact reason and it is the page that
+#ranks. a hundred is enough to be a real answer to the question and enough
+#internal links to matter, without turning the page into a table nobody reads
+UNIQUE_TOP = 100
+
+_unique_top = {"at": 0.0, "rows": []}
+
+
+def unique_top():
+    #cached an hour like the precon board, and for the same reason: the scores
+    #only move when the ingest reruns and the list is identical for everyone.
+    #
+    #pure rules-text uniqueness rather than the blend the dealer uses. the
+    #blend is a slider the visitor moves, and a page google reads once needs
+    #one fixed meaning. this is also the number the h1 makes a claim about
+    if _unique_top["rows"] and time.time() - _unique_top["at"] < 3600:
+        return _unique_top["rows"]
+    try:
+        with pool.connection() as conn:
+            rows = [dict(r) for r in conn.execute("""
+                SELECT name, uniqueness, unique_line
+                FROM cards
+                WHERE uniqueness IS NOT NULL AND coalesce(unique_line, '') <> ''
+                ORDER BY uniqueness DESC, name
+                LIMIT %s
+            """, (UNIQUE_TOP,)).fetchall()]
+    except Exception:
+        #whatever was there last stays, and the clock is not touched, so the
+        #next visitor tries again rather than being served an empty list for
+        #an hour
+        return _unique_top["rows"]
+    _unique_top["at"] = time.time()
+    _unique_top["rows"] = rows
+    return rows
+
+
 @app.route("/unique")
 def unique():
-    return render_template("unique.html", types=CARD_TYPES, blend=read_blend(), cur=read_currency())
+    return render_template("unique.html", types=CARD_TYPES, blend=read_blend(), cur=read_currency(),
+                           top=unique_top(), top_n=UNIQUE_TOP)
 
 
 @app.route("/privacy")
@@ -4036,22 +4077,40 @@ def sitemap():
             _sitemap_names["names"] = [r["name"] for r in conn.execute("SELECT name FROM cards ORDER BY name")]
         _sitemap_names["made"] = now
     root = request.url_root
+    #one date for every url, and it is the day the ingest last finished rather
+    #than today. a sitemap that swears all 31k pages changed this morning is a
+    #sitemap google stops believing, and it is not even true: a card page only
+    #moves when the scores behind it are recomputed. meta carries that date
+    #already, so nothing new has to be stored to say it honestly
+    #the date is checked into shape rather than escaped, because escape()
+    #hands back Markup and "<lastmod>" + Markup escapes the LEFT side, which
+    #would put &lt;lastmod&gt; in the file. a yyyy-mm-dd that matches this
+    #pattern has no xml special characters in it by definition
+    stamp = ""
+    try:
+        with pool.connection() as conn:
+            row = conn.execute("SELECT value FROM meta WHERE key = 'scryfall_updated_at'").fetchone()
+        day = (row["value"] or "")[:10] if row else ""
+        if re.fullmatch(r"\d{4}-\d{2}-\d{2}", day):
+            stamp = "<lastmod>" + day + "</lastmod>"
+    except Exception:
+        pass
     out = ['<?xml version="1.0" encoding="UTF-8"?>',
            '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
     for page in ("", "unique", "deck", "precons", "guide", "privacy", "support"):
-        out.append("<url><loc>" + root + page + "</loc></url>")
+        out.append("<url><loc>" + root + page + "</loc>" + stamp + "</url>")
     #one page per precon. they are server rendered and each one is about a
     #deck people search by name, so they are worth crawling. the slugs are
     #mtgjson filenames (letters, digits and underscores) so nothing here
     #needs escaping, but quote() runs anyway rather than trusting that
     for r in precon_board():
-        out.append("<url><loc>" + root + "precons/" + quote(r["slug"]) + "</loc></url>")
+        out.append("<url><loc>" + root + "precons/" + quote(r["slug"]) + "</loc>" + stamp + "</url>")
     for name in _sitemap_names["names"]:
         #quote() with its defaults mirrors the urlencode filter building the
         #canonicals in search.html, so these are the urls the pages declare.
         #it also percent-encodes every xml-special character, & included, so
         #the raw name never needs xml escaping
-        out.append("<url><loc>" + root + "search?q=" + quote(name) + "</loc></url>")
+        out.append("<url><loc>" + root + "search?q=" + quote(name) + "</loc>" + stamp + "</url>")
     out.append("</urlset>")
     #text/xml instead of application/xml so flask-compress gzips it. the
     #protocol caps one sitemap at 50k urls, the card pool sits well under

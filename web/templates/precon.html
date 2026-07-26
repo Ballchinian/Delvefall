@@ -11,7 +11,7 @@
     <h1>{{ deck.name }}</h1>
     <p class="deck-detail-sub">
         {% if deck.leaders %}
-            {% for leader in deck.leaders %}<a href="/search?q={{ leader | urlencode }}">{{ leader }}</a>{{ '' if loop.last else ' / ' }}{% endfor %}
+            {% for leader in deck.leaders %}<a href="/search?q={{ leader | urlencode }}" data-card="{{ leader }}">{{ leader }}</a>{{ '' if loop.last else ' / ' }}{% endfor %}
             &middot;
         {% endif %}
         <span class="precon-set">{{ deck.code }}{% if year %} {{ year }}{% endif %}</span>
@@ -58,7 +58,7 @@
     <ol class="deck-cards">
         {% for c in original %}
         <li class="deck-card">
-            <a class="deck-card-name" href="/search?q={{ c.name | urlencode }}">{{ c.name }}</a>
+            <a class="deck-card-name" href="/search?q={{ c.name | urlencode }}" data-card="{{ c.name }}">{{ c.name }}</a>
             <span class="deck-card-score">{{ '%.2f'|format(c.global_u or 0) }}</span>
         </li>
         {% endfor %}
@@ -78,9 +78,9 @@
         {% for c in pairs %}
         <li class="deck-pair">
             <span class="deck-pair-cards">
-                <a href="/search?q={{ c.name | urlencode }}">{{ c.name }}</a>
+                <a href="/search?q={{ c.name | urlencode }}" data-card="{{ c.name }}">{{ c.name }}</a>
                 <span class="deck-pair-join">&amp;</span>
-                <a href="/search?q={{ c.partner_name | urlencode }}">{{ c.partner_name }}</a>
+                <a href="/search?q={{ c.partner_name | urlencode }}" data-card="{{ c.partner_name }}">{{ c.partner_name }}</a>
             </span>
             {% if c.line_text %}<span class="deck-pair-line">{{ c.line_text }}</span>{% endif %}
         </li>

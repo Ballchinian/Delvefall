@@ -31,6 +31,15 @@
         <link rel="icon" type="image/png" href="{{ static_url('DelvefallLogo.png') }}">
         {# trying out the ink and paper skin, swap back to style.css for the old look #}
         <link rel="stylesheet" href="{{ static_url('style-ink.css') }}">
+        {# every page declares one canonical url or none of them do, which was
+           the state before this: /precons carries a sort, an era and a depth,
+           so the same board is reachable at 32 addresses and google was free
+           to treat them as 32 thin pages competing with each other.
+           the default is the path with the query string dropped, which is
+           right wherever the query string is a CONTROL rather than the
+           content. search.html is the one page where the query string IS the
+           content, so it overrides this with the card's own address #}
+        {% block canonical %}<link rel="canonical" href="{{ request.url_root.rstrip('/') ~ request.path }}">{% endblock %}
         {% block head_extra %}{% endblock %}
     </head>
     <body class="{% block bodyclass %}{% endblock %}">
@@ -233,6 +242,46 @@
             e.preventDefault();
             searchInput.focus();
             searchInput.select();
+        });
+
+        /*
+            one rule for every link to a card on this site, picture or name: a
+            plain click goes further INTO delvefall, ctrl (cmd on a mac) opens
+            that card on scryfall in a new tab.
+
+            the pictures used to run the other way round and it cost two
+            things. every card picture was an outbound link, so pages spent
+            their ranking signal on scryfall instead of on this site's own
+            card pages, which are the pages worth finding. and the ctrl-click
+            that hopped you here was hijacked into a SAME TAB navigation,
+            which is the one thing ctrl-click does not mean anywhere else on
+            the web. inverted, both stop fighting: the common move is the
+            plain one, and ctrl-click opens a new tab like it always does.
+
+            delegated on the document so it covers the links rendered with the
+            page and the ones the dealer, load more and the swap queue build
+            later, without every one of them remembering to wire it up
+        */
+        function scryfallSearch(name) {
+            //an exact-name search rather than the card's own permalink, so a
+            //link only needs the name it is already printing and no query has
+            //to carry a second url. scryfall sends a single result straight
+            //to the card
+            return "https://scryfall.com/search?q=" + encodeURIComponent('!"' + name + '"');
+        }
+
+        document.addEventListener("click", function(e) {
+            if (!e.ctrlKey && !e.metaKey) {
+                return;
+            }
+            var link = e.target.closest("a[data-card]");
+            if (!link) {
+                return;
+            }
+            e.preventDefault();
+            //noopener because this is someone else's page in a tab we opened
+            window.open(link.dataset.scryfall || scryfallSearch(link.dataset.card),
+                        "_blank", "noopener");
         });
         </script>
 

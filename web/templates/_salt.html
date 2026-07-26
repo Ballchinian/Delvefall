@@ -40,7 +40,7 @@ rules text tells you how a table feels about a card.</p>
 <ol class="deck-cards">
     {% for c in salt_cards %}
     <li class="deck-card">
-        <a class="deck-card-name" href="/search?q={{ c.name | urlencode }}">{{ c.name }}</a>
+        <a class="deck-card-name" href="/search?q={{ c.name | urlencode }}" data-card="{{ c.name }}">{{ c.name }}</a>
         <span class="deck-card-score">{{ '%.2f'|format(c.salt or 0) }}</span>
     </li>
     {% endfor %}

@@ -15,11 +15,8 @@
 {% block metadesc %}The weirdest, most unusual Magic cards, dealt one at a time: MTG cards whose abilities nothing else in the game comes close to.{% endblock %}
 
 {# /unique takes filters and a currency in the query string, so the same page
-   is reachable at a dozen urls. one canonical folds them together, exactly
-   like a card page's #}
-{% block head_extra %}
-<link rel="canonical" href="{{ request.url_root ~ 'unique' }}">
-{% endblock %}
+   is reachable at a dozen urls. the canonical that folds them together is the
+   base template's default now, since every page needed the same rule #}
 
 {% block content %}
     {# the h1 carries the query, not the nav label. "Unique cards" is what the
@@ -66,6 +63,48 @@
     <div class="unique-reset-wrap">
         <button id="unique-reset">Start over</button>
     </div>
+
+    {# the standing list, server rendered, and the reason it exists is worth
+       writing down: the dealer above is javascript, so a crawler reading this
+       page met a title, one paragraph and an empty div. 213 words and not one
+       card name, on the page whose whole subject is which cards are unique.
+       /precons has been server rendered from the start and it is the page that
+       gets found.
+       it earns its place for a reader too. the h1 asks a question the dealer
+       answers one card at a time and in a different order for everyone, which
+       is the right toy and the wrong way to see the actual answer #}
+    {% if top %}
+    {# CLOSED by default, and the reason is that the dealer already answers
+       this question better. an open list of the hundred most unique cards
+       sitting under a machine whose whole job is handing you unique cards
+       makes the machine look pointless, and the page is the machine.
+       it is still here because a crawler read this page as a title, one
+       paragraph and an empty div: 213 words on the page about which cards are
+       unique. collapsed costs nothing for that, since google gives content
+       inside a details full weight under mobile-first indexing as long as it
+       is in the html rather than fetched on open, and this is rendered with
+       the page. one url keeps one ranking signal too, where a second page for
+       the list would have split it against this one #}
+    <details class="unique-board-fold">
+        <summary>See the {{ top_n }} most unique cards in Magic</summary>
+        <p class="unique-board-note">Ranked by how far away the closest thing to each one
+        sits, measured against every card ever printed. The line under a name is the one
+        nothing else in Magic comes near. The dealer above walks this same list, one card
+        at a time and in its own order for everyone who opens it.</p>
+        <ol class="unique-board">
+            {% for c in top %}
+            <li class="unique-row">
+                <span class="unique-rank">{{ loop.index }}</span>
+                <span class="unique-body">
+                    <a class="unique-name" href="/search?q={{ c.name | urlencode }}" data-card="{{ c.name }}">{{ c.name }}</a>
+                    {% if c.unique_line %}<span class="unique-line-text">{{ c.unique_line }}</span>{% endif %}
+                </span>
+                <span class="unique-score">{{ '%.2f'|format(c.uniqueness or 0) }}</span>
+            </li>
+            {% endfor %}
+        </ol>
+    </details>
+    {% endif %}
 {% endblock %}
 
 {% block scripts %}
@@ -119,10 +158,11 @@ function render(c) {
     frame.dataset.flip = c.flip ? "1" : "";
     frame.dataset.back = c.image_back || "";
     var link = document.createElement("a");
-    link.href = c.scryfall_uri;
-    link.target = "_blank";
-    link.title = "opens on scryfall. ctrl-click to search this card here instead";
+    link.href = "/search?q=" + encodeURIComponent(c.name);
+    link.title = "search " + c.name + " here. ctrl-click to open it on scryfall";
     link.dataset.name = c.name;
+    link.dataset.card = c.name;
+    link.dataset.scryfall = c.scryfall_uri;
     var img = document.createElement("img");
     img.src = c.image;
     img.alt = c.name;
@@ -227,18 +267,8 @@ function showAt(i) {
         });
 }
 
-/*
-    ctrl-click (cmd on mac) on the dealt card's picture searches it here
-    instead of opening scryfall, the same rabbit-hole hop the results page
-    offers. delegated on the box so it survives every repaint
-*/
-cardBox.addEventListener("click", function(e) {
-    var link = e.target.closest(".card-frame a");
-    if (link && (e.ctrlKey || e.metaKey)) {
-        e.preventDefault();
-        window.location = "/search?q=" + encodeURIComponent(link.dataset.name);
-    }
-});
+//searching the dealt card here is the plain click now, and the ctrl-click out
+//to scryfall belongs to the one card-link rule in base.html
 
 backBtn.onclick = function() { if (pos > 0) { showAt(pos - 1); } };
 fwdBtn.onclick = function() { if (pos < seen.length - 1) { showAt(pos + 1); } };

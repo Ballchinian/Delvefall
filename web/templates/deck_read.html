@@ -58,7 +58,7 @@
                 {% endif %}
                 {% if m.drivers %}
                 <span class="deck-standing-extra">{{ m.driver_label }}:
-                {% for d in m.drivers %}<a href="/search?q={{ d | urlencode }}">{{ d }}</a>{{ '' if loop.last else ', ' }}{% endfor %}</span>
+                {% for d in m.drivers %}<a href="/search?q={{ d | urlencode }}" data-card="{{ d }}">{{ d }}</a>{{ '' if loop.last else ', ' }}{% endfor %}</span>
                 {% endif %}
             </div>
         </div>
@@ -98,7 +98,7 @@
     <ol class="deck-cards">
         {% for c in original %}
         <li class="deck-card">
-            <a class="deck-card-name" href="/search?q={{ c.name | urlencode }}">{{ c.name }}</a>
+            <a class="deck-card-name" href="/search?q={{ c.name | urlencode }}" data-card="{{ c.name }}">{{ c.name }}</a>
             <span class="deck-card-score">{{ '%.2f'|format(c.global_u or 0) }}</span>
         </li>
         {% endfor %}
@@ -115,9 +115,9 @@
         {% for c in pairs %}
         <li class="deck-pair">
             <span class="deck-pair-cards">
-                <a href="/search?q={{ c.name | urlencode }}">{{ c.name }}</a>
+                <a href="/search?q={{ c.name | urlencode }}" data-card="{{ c.name }}">{{ c.name }}</a>
                 <span class="deck-pair-join">&amp;</span>
-                <a href="/search?q={{ c.partner_name | urlencode }}">{{ c.partner_name }}</a>
+                <a href="/search?q={{ c.partner_name | urlencode }}" data-card="{{ c.partner_name }}">{{ c.partner_name }}</a>
             </span>
             {% if c.line_text %}<span class="deck-pair-line">{{ c.line_text }}</span>{% endif %}
         </li>

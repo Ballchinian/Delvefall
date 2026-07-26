@@ -42,8 +42,8 @@
 }
 </script>
 {# the home page is reachable with and without a trailing slash, and any
-   tracking parameter a shared link picks up makes another url of it #}
-<link rel="canonical" href="{{ request.url_root }}">
+   tracking parameter a shared link picks up makes another url of it. the
+   canonical that folds those together is the base template's default now #}
 {% endblock %}
 
 {# no header strip here, the hero below IS the search. the logo up top would
@@ -79,9 +79,13 @@
             <div id="suggestions"></div>
         </form>
 
-        {# the row future buttons slot into, one <a> each #}
+        {# the row future buttons slot into, one <a> each. this page hides the
+           header, so this row is the whole of its navigation and anything
+           missing from it is missing from the landing page entirely, which is
+           where the lens had been sitting. same order as the header's links #}
         <div class="home-buttons">
             <a href="/unique">Unique Cards</a>
+            <a href="/deck">Deck lens</a>
             <a href="/guide">How it works</a>
             <a href="https://discord.gg/kfjYbRYKbg" target="_blank" rel="noopener" aria-label="Discord (opens in a new tab)">Discord</a>
         </div>
