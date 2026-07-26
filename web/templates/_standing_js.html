@@ -17,24 +17,48 @@
 
     var now = document.getElementById("deck-pager-now");
     var at = 0;
+    var host = document.querySelector("[data-opened]");
     /* which one the page was opened on: the sort the visitor clicked through
        from, so landing here off the salt board opens on salt rather than on a
        number nobody asked about */
-    var host = document.querySelector("[data-opened]");
     var opened = host ? host.dataset.opened : "";
     panels.forEach(function (s, i) { if (s.id === "metric-" + opened) at = i; });
 
-    function go(i, scroll) {
+    /*
+        what "change it" offers, per standing, so the button follows the panel
+        on screen. it is on /deck/read only: a precon page has no deck of
+        yours to change
+    */
+    var swapEl = document.getElementById("deck-swap-axes");
+    var swaps = swapEl ? JSON.parse(swapEl.textContent) : null;
+    var swapForm = document.getElementById("deck-swap-start");
+
+    function go(i) {
         /* wraps, because five panels behind two arrows is a ring and a dead
            arrow at either end is a control that looks broken */
         at = (i + panels.length) % panels.length;
         panels.forEach(function (s, n) { s.hidden = n !== at; });
         now.textContent = panels[at].dataset.label;
-        if (scroll) pager.scrollIntoView({behavior: "smooth", block: "start"});
+
+        /*
+            NOTHING here scrolls. it used to pull the pager to the top of the
+            viewport, which moved the page under a cursor that was resting on
+            an arrow, so pressing the same arrow twice needed the mouse moved
+            in between. the arrows are already on screen by definition, since
+            you just clicked one
+        */
+        if (swaps && swapForm) {
+            var s = swaps[panels[at].id.replace("metric-", "")];
+            if (s) {
+                swapForm.elements.axis.value = s.axis;
+                swapForm.elements.dir.value = s.dir;
+                swapForm.querySelector("button").textContent = "Make this deck " + s.goal;
+            }
+        }
     }
 
-    document.getElementById("deck-prev").addEventListener("click", function () { go(at - 1, true); });
-    document.getElementById("deck-next").addEventListener("click", function () { go(at + 1, true); });
+    document.getElementById("deck-prev").addEventListener("click", function () { go(at - 1); });
+    document.getElementById("deck-next").addEventListener("click", function () { go(at + 1); });
 
     /* the arrow keys walk them too, the same way they walk the suggestion
        list, but never while somebody is typing in a box */
@@ -42,13 +66,48 @@
         if (e.ctrlKey || e.metaKey || e.altKey) return;
         var t = e.target;
         if (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable) return;
-        if (e.key === "ArrowLeft") { go(at - 1, false); }
-        else if (e.key === "ArrowRight") { go(at + 1, false); }
+        if (e.key === "ArrowLeft") { go(at - 1); }
+        else if (e.key === "ArrowRight") { go(at + 1); }
         else return;
         e.preventDefault();
     });
 
     pager.hidden = false;
-    go(at, false);
+    go(at);
+})();
+
+(function () {
+    /*
+        "show more cards". the whole batch is already in the page with
+        everything past the first twelve marked is-over, so this is a reveal
+        rather than a fetch: there is no url to fetch from on a pasted deck,
+        and one query that returned 48 rows cost what one returning 12 did.
+
+        the frames get wired as they appear. enhanceCardFrames marks what it
+        has already done, so calling it again is free
+    */
+    document.querySelectorAll(".deck-card-open").forEach(function (box) {
+        var btn = box.querySelector(".deck-card-more-btn");
+        if (!btn) return;
+        var left = box.querySelector(".deck-card-more-left");
+        var step = parseInt(box.dataset.step, 10) || 12;
+
+        function report() {
+            var hidden = box.querySelectorAll(".result.is-over").length;
+            if (!hidden) {
+                btn.parentNode.hidden = true;
+                return;
+            }
+            left.textContent = hidden + " more";
+        }
+
+        btn.addEventListener("click", function () {
+            var over = Array.prototype.slice.call(box.querySelectorAll(".result.is-over"));
+            over.slice(0, step).forEach(function (el) { el.classList.remove("is-over"); });
+            enhanceCardFrames(box);
+            report();
+        });
+        report();
+    });
 })();
 </script>

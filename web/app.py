@@ -2082,6 +2082,7 @@ PRECON_NEW_DAYS = 365
 PRECON_METRICS = [
     {
         "key": "original", "figure": "originality", "drivers": "drivers",
+        "label": "Originality", "swap": ("played", "asc"),
         "decimals": 3, "best": "desc", "cards": "Most original cards",
         "noun": "originality", "more": "more original",
         "settling": "A new deck reads as MORE original than it will look in five years, and that is half real: design space fills up, so a card printed today has had nobody to copy it yet. The effect is measured at r = +0.46 against release year.",
@@ -2117,6 +2118,7 @@ PRECON_METRICS = [
     },
     {
         "key": "salt", "figure": "salt", "drivers": "salt_drivers",
+        "label": "Salt", "swap": ("salt", "desc"),
         "decimals": 1, "best": "desc", "cards": "Saltiest cards",
         "noun": "salt", "more": "saltier",
         "settling": "A new deck reads MILDER than it is, and this is the biggest gap on the board. EDHREC's salt survey runs once a year, so cards printed since the last one have had no chance to be voted on: they average 0.06 salt against 0.29 for everything older, a fifth as much, on near-total coverage. The votes are not missing, they have not been cast yet. Read a new deck's salt as a floor.",
@@ -2151,6 +2153,7 @@ PRECON_METRICS = [
     },
     {
         "key": "price", "figure": "price", "drivers": "price_drivers",
+        "label": "Price", "swap": ("price", "desc"),
         "decimals": 2, "best": "desc", "cards": "Priciest cards",
         "noun": "of cards", "more": "worth more",
         "settling": "A new deck's price is the one still moving. Singles find their level over months, and it does not run one way: release hype pushes up, the reprint glut of a freshly opened set pushes down. Today's figure is exactly that, today's.",
@@ -2182,6 +2185,7 @@ PRECON_METRICS = [
     },
     {
         "key": "played", "figure": "play_median", "drivers": "play_drivers",
+        "label": "Played cards", "swap": ("played", "desc"),
         "decimals": 0, "best": "asc", "cards": "Most played cards",
         "noun": "median play rate", "more": "more played",
         "settling": "A new deck reads as LESS played than it will be. EDHREC's rank counts how many decks run a card, and that accumulates: precons published in the last year average a median of #5216 against #4188 for the rest, which is mostly the format not having got round to them.",
@@ -2191,8 +2195,8 @@ PRECON_METRICS = [
                  "this deck sits inside the format's twelve hundred most played "
                  "cards. A SMALLER number is the deck built out of staples.",
         "desc": {
-            "key": "played", "label": "Most played", "first": "most played",
-            "h1": "The most played Commander precons",
+            "key": "played", "label": "Most played cards", "first": "most played cards",
+            "h1": "The Commander precons with the most played cards",
             "lede": "Every preconstructed Commander deck, ranked by how much of it "
                     "the format actually plays. <strong>The median EDHREC rank of "
                     "its nonland cards</strong>, so the decks at the top are the "
@@ -2202,8 +2206,8 @@ PRECON_METRICS = [
                     "The precons built out of format staples.",
         },
         "asc": {
-            "key": "obscure", "label": "Least played", "first": "least played",
-            "h1": "The least played Commander precons",
+            "key": "obscure", "label": "Least played cards", "first": "least played cards",
+            "h1": "The Commander precons with the least played cards",
             "lede": "Every preconstructed Commander deck, ranked from the ones whose "
                     "cards <strong>almost nobody else runs</strong>. The median "
                     "EDHREC rank of its nonland cards, read from the far end: these "
@@ -2215,6 +2219,7 @@ PRECON_METRICS = [
     },
     {
         "key": "age", "figure": "age_mean", "drivers": "age_drivers",
+        "label": "Card age", "swap": ("released", "asc"),
         "decimals": 1, "best": "desc", "cards": "Oldest cards",
         "noun": "a card on average", "more": "older",
         "settling": "This is the one number a new deck does not distort, because being new is the thing it measures. It still climbs on its own: every figure here is counted from today, so the whole board ages a year every year.",
@@ -2346,6 +2351,11 @@ def precons():
     order = sort_column_order(sort)
 
     cur = read_currency()
+    #the settling window can be taken off the board entirely. it is a view
+    #control like the era cut, not a different measurement: the decks are still
+    #new and their numbers are still unsettled, this just stops them standing
+    #between decks whose numbers have finished moving
+    hide_new = request.args.get("new") == "hide"
     fresh = datetime.date.today() - datetime.timedelta(days=PRECON_NEW_DAYS)
     rows = []
     new_here = 0
@@ -2362,6 +2372,8 @@ def precons():
         #are before drawing a conclusion from where they landed
         is_new = bool(r["release_date"] and r["release_date"] > fresh)
         new_here += 1 if is_new else 0
+        if is_new and hide_new:
+            continue
         rows.append(dict(r, year=year, figure=float(r[skey]), new=is_new,
                          cards=r.get(sort["drivers"]) or []))
     #ascending when the reading wants the SMALLER number first, which is now
@@ -2393,6 +2405,7 @@ def precons():
     span = {"top": rows[0]["figure"], "bottom": rows[-1]["figure"]} if rows else None
     return render_template("precons.html", rows=rows, eras=PRECON_ERAS, era=era[0],
                            sorts=PRECON_SORTS, sort=sort, cur=cur, span=span,
+                           metrics=PRECON_METRICS, hide_new=hide_new,
                            new_here=new_here, new_days=PRECON_NEW_DAYS,
                            cur_urls=currency_urls(), cur_labels=CURRENCY_LABELS,
                            prefix=prefix, suffix=suffix)
@@ -2400,8 +2413,21 @@ def precons():
 
 #how many cards a panel names as the evidence for its number. enough to read
 #as evidence, short enough that nobody scrolls a 100 row table looking for the
-#point. the rest of the deck is one click away behind "show them as cards"
+#point.
 DECK_SECTION = 12
+
+#and how far the pictures go when somebody opens them and keeps asking. the
+#tool is working, so there is no reason to stop them at twelve: "load more"
+#reveals another DECK_SECTION until this runs out.
+#
+#48 is about half a commander deck, which is where every one of these lists
+#stops meaning anything anyway. originality only scores the top half, salt and
+#age drop basic lands, play rate drops all lands, so by this depth the rows are
+#the cards every deck shares. the whole batch is fetched with the page and
+#revealed by the button rather than fetched on click: /deck/read is a POST
+#result with no url to ask again at, and one query that returns 48 rows costs
+#the same as one that returns 12
+DECK_EVIDENCE_MAX = 48
 
 #what "the cards that made this number" means, per metric, as sql. every
 #predicate here is a TRANSCRIPTION of the matching CTE in PRECON_SQL and has to
@@ -2424,7 +2450,7 @@ DECK_EVIDENCE = {
 }
 
 
-def metric_cards(conn, oracle_ids, key, currency, limit=DECK_SECTION):
+def metric_cards(conn, oracle_ids, key, currency, limit=DECK_EVIDENCE_MAX):
     #the cards that made one of the five numbers, in the order that made it,
     #carrying everything a card frame needs. the list reads as names by default
     #and opens into pictures, so this asks for the pictures either way rather
@@ -2626,6 +2652,7 @@ def precon(slug):
     return render_template("precon.html", deck=deck_row, year=year, panels=panels,
                            opened=opened, back=arrived["key"], cur=cur, is_new=is_new,
                            cur_urls=currency_urls(), cur_labels=CURRENCY_LABELS,
+                           section=DECK_SECTION,
                            counted=len(ids), total=len(board))
 
 
@@ -3154,10 +3181,19 @@ def deck_read():
             #drift into being two different pages about the same measurement
             panels = deck_panels(conn, ids, figures, board, cur)
 
+    #what "change it" offers, per standing, so the button follows the panel on
+    #screen rather than always proposing the same move. the button always names
+    #the AXIS's own goal, never the panel's: originality is not a swappable
+    #axis (uniqueness is a contradiction as a sort, see the note in TODO), and
+    #the nearest honest thing to "make it more original" is "cards fewer people
+    #play", so that panel offers exactly that and says exactly that
+    swaps = {m["key"]: {"axis": m["swap"][0], "dir": m["swap"][1],
+                        "goal": SWAP_AXES[m["swap"]]["goal"]} for m in PRECON_METRICS}
     return render_template("deck_read.html", panels=panels, opened=PRECON_METRICS[0]["key"],
                            counted=len(scored), matched=len(ids), missing=missing,
                            total=len(board), ranked=ranked, min_cards=DECK_MIN_FOR_RANK,
-                           cur=cur, deck_name=name, commander=commander,
+                           cur=cur, deck_name=name, commander=commander, swaps=swaps,
+                           section=DECK_SECTION,
                            #the currency control here is a form rather than
                            #links: this page has no url of its own to flip
                            cur_post=True, cur_labels=CURRENCY_LABELS,
@@ -3515,10 +3551,21 @@ def swap_column(field, currency):
 #answer, after the blend slider, the uniqueness bar and the search threshold
 SWAP_GATE = 80
 
-#how many cards the queue considers. the whole deck is not worth scanning:
-#on any axis only the tail is worth acting on, and a hundred nearest neighbour
-#walks to tell someone their Islands are fine is a lot of database for nothing
+#how many cards the queue offers BEFORE asking whether to keep going. it used
+#to be how many it offered full stop, and stopping a working tool at twelve was
+#the wrong call: somebody who has walked twelve cards and wants a thirteenth is
+#exactly the person this is for.
+#
+#so it is a batch now, not a lid. the page holds SWAP_DEEP cards in queue order
+#and reveals them a batch at a time, which costs one extra column of json and
+#no extra database work: the candidates for a card are still fetched only when
+#the user actually reaches it
 SWAP_QUEUE = 12
+
+#the real end of the queue. the whole deck is still not worth scanning, because
+#on any axis only the tail is worth acting on, but 48 is deep enough that
+#nobody reaches it by accident and shallow enough that the json stays small
+SWAP_DEEP = 48
 
 #how many replacements are offered per card. enough to choose from, few enough
 #to read without scrolling, and past about six the tail is padding anyway
@@ -3578,7 +3625,7 @@ def swap_queue(cards, field, direction):
     #list on the strength of the protest votes they carry
     rows = [c for c in rows if not is_basic_land(c.get("type_line") or "")]
     rows.sort(key=lambda c: c[key], reverse=(axis["better"] == "lower"))
-    return rows[:SWAP_QUEUE]
+    return rows[:SWAP_DEEP]
 
 
 def swap_card_json(c, currency, anchor=None):
@@ -3812,7 +3859,7 @@ def deck_swap():
                            colors=colors, axis=field, direction=direction,
                            goal=SWAP_AXES[(field, direction)]["goal"],
                            matched=len(ids), missing=missing, cur=cur,
-                           deck_name=name, commander=commander,
+                           deck_name=name, commander=commander, batch=SWAP_QUEUE,
                            pasted=text[:DECK_MAX_CHARS])
 
 

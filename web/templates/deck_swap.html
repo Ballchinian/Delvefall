@@ -23,9 +23,9 @@
        discovered rather than predicted: promising twelve and delivering four
        is the version that reads as broken #}
     <p class="deck-detail-sub">
-        <span id="swap-progress">0</span> of {{ queue|length }} checked so far have
-        somewhere to go, worst first. Nothing is saved, and nothing changes until you copy
-        the list out at the end.</p>
+        <span id="swap-progress">0</span> of <span id="swap-checked">{{ batch }}</span>
+        checked so far have somewhere to go, worst first. Nothing is saved, and nothing
+        changes until you copy the list out at the end.</p>
 
     {% if not queue %}
     <p class="deck-section-note deck-unranked">Nothing in this list can be moved that way.
@@ -43,6 +43,15 @@
         </div>
         <div class="swap-out-card" id="swap-out-card"></div>
 
+        {# skipping lives UP HERE, next to the card it is about, not under a
+           grid of twelve pictures. somebody walking the queue looking for one
+           particular card is pressing this over and over, and making them
+           scroll past the suggestions each time to reach it is the version
+           that gets abandoned halfway #}
+        <div class="swap-actions swap-actions-top">
+            <button type="button" class="swap-skip" id="swap-skip">Keep it, next card</button>
+        </div>
+
         <p class="deck-section-note" id="swap-note">Looking for replacements&hellip;</p>
 
         {# the same grid the results page uses, so a replacement is read the
@@ -50,10 +59,6 @@
            salt, and the line that matched. every figure carries its verdict
            against the card leaving, which is the only question being asked #}
         <div class="card-grid swap-grid" id="swap-options"></div>
-
-        <div class="swap-actions">
-            <button type="button" class="swap-skip" id="swap-skip">Keep it, next card</button>
-        </div>
     </div>
 
     {# the cards that were passed over for having nothing above the bar. named
@@ -70,6 +75,15 @@
     {# what has been decided so far, and the only thing on this page that
        persists past the last card. it is the deliverable: without a list you
        can paste back into moxfield the whole session evaporates #}
+    {# the queue is deeper than one session of it. the tool is working, so
+       there is no reason to stop somebody at twelve #}
+    <div class="swap-actions swap-more" id="swap-more" hidden>
+        <button type="button" class="swap-keep-going" id="swap-keep-going">Check
+        <span id="swap-more-left"></span> more cards</button>
+        <span class="deck-section-note">Further down the queue, so each one is a smaller
+        improvement than the last.</span>
+    </div>
+
     <div id="swap-done" hidden>
         <h2>Your swaps</h2>
         <ul class="swap-made" id="swap-made"></ul>
@@ -116,6 +130,7 @@
     'axis': axis,
     'dir': direction,
     'goal': goal,
+    'batch': batch,
     'text': pasted
 } | tojson }}</script>
 {% endblock %}
@@ -150,6 +165,19 @@ window.MANA_URLS = {{ mana_urls() | tojson }};
     var deck = D.deck.slice();
     var at = 0;
     var swaps = [];
+
+    /*
+        how far into the queue this session has agreed to go. it used to be the
+        whole queue and the queue used to be twelve cards, which stopped a
+        working tool for no reason: somebody who has walked twelve and wants a
+        thirteenth is exactly who this is for.
+
+        so the queue is deep and the SESSION is the batch. reaching the end
+        offers the next batch rather than finishing, and the count in the
+        header says what has been checked rather than promising a total that
+        was never the real end of the list
+    */
+    var limit = Math.min(D.batch, D.queue.length);
 
     /*
         every card's replacements once they have been asked for. undefined
@@ -208,7 +236,7 @@ window.MANA_URLS = {{ mana_urls() | tojson }};
 
     function prefetch() {
         var n = 0;
-        for (var i = at + 1; i < D.queue.length && n < LOOKAHEAD; i++) {
+        for (var i = at + 1; i < limit && n < LOOKAHEAD; i++) {
             if (cache[D.queue[i].oracle_id] === undefined) { load(i); n++; }
         }
     }
@@ -217,12 +245,12 @@ window.MANA_URLS = {{ mana_urls() | tojson }};
         /* walk past anything already known to have nowhere to go. the skip is
            silent here because those cards are named together at the end, and
            stopping on each one to say "nothing" would be twelve dead ends */
-        while (at < D.queue.length) {
+        while (at < limit) {
             var known = cache[D.queue[at].oracle_id];
             if (Array.isArray(known) && !known.length) { at++; continue; }
             break;
         }
-        if (at >= D.queue.length) return finish();
+        if (at >= limit) return finish();
 
         var card = D.queue[at];
         $("swap-out-figure").textContent = card.figure;
@@ -345,7 +373,28 @@ window.MANA_URLS = {{ mana_urls() | tojson }};
 
     skipBtn.addEventListener("click", function () { at++; show(); });
 
+    /* another batch. everything decided so far stays decided: the swaps list,
+       the cards nothing could replace and the growing deck are all untouched,
+       so this genuinely continues the session rather than restarting it */
+    $("swap-keep-going").addEventListener("click", function () {
+        limit = Math.min(limit + D.batch, D.queue.length);
+        $("swap-checked").textContent = limit;
+        $("swap-more").hidden = true;
+        $("swap-done").hidden = true;
+        $("swap-live").hidden = false;
+        show();
+    });
+
     function finish() {
+        /* the end of a BATCH, not necessarily the end of the queue. if the
+           deck has more cards worth looking at, say so and offer them rather
+           than closing the session on a number that was only ever a batch
+           size. the extra cards cost nothing until they are reached: their
+           candidates are still fetched one card at a time */
+        if (limit < D.queue.length) {
+            $("swap-more-left").textContent = Math.min(D.batch, D.queue.length - limit);
+            $("swap-more").hidden = false;
+        }
         $("swap-live").hidden = true;
         var done = $("swap-done");
         done.hidden = false;

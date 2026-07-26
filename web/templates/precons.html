@@ -29,36 +29,66 @@
     {# every control keeps the other, so picking one never silently throws the
        other away. built as one query string per link rather than nested
        conditionals #}
-    {% macro board_url(s, e) -%}
+    {% macro board_url(s, e, n) -%}
     /precons{% set parts = [] %}
     {%- if s != 'original' %}{% set _ = parts.append('sort=' ~ s) %}{% endif %}
     {%- if e != 'all' %}{% set _ = parts.append('era=' ~ e) %}{% endif %}
+    {%- if n %}{% set _ = parts.append('new=hide') %}{% endif %}
     {{- '?' ~ parts|join('&') if parts else '' -}}
     {%- endmacro %}
 
-    {# ten readings of five numbers, the same ten the card search offers,
-       because cheapest and priciest are one number read from either end rather
-       than two things to measure. they are real links and each one is a real
-       page: that is what lets somebody searching for the oldest precons land
-       on the board already sorted that way #}
+    {# WHAT is measured, then WHICH END of it. it was ten buttons in one row,
+       which is the same five numbers listed twice: "most expensive" and
+       "cheapest" are one sum read from either end, not two things to choose
+       between. /search splits its sorts the same way and for the same reason.
+
+       the urls stay ten, because each end really is its own page with its own
+       title and its own question, and that is what lets someone searching for
+       the cheapest precons land here already sorted. only the CONTROL folded #}
     <nav class="precon-eras precon-sorts" aria-label="rank by">
-        {% for s in sorts %}
-            {% if s.key == sort.key %}
-                <span class="precon-era on" aria-current="true">{{ s.label }}</span>
+        <span class="precon-depth-label">Rank by:</span>
+        {% for m in metrics %}
+            {% set to = m[sort.dir] if m.key != sort.metric.key else m[sort.dir] %}
+            {% if m.key == sort.metric.key %}
+                <span class="precon-era on" aria-current="true">{{ m.label }}</span>
             {% else %}
-                <a class="precon-era" href="{{ board_url(s.key, era)|trim }}">{{ s.label }}</a>
+                {# keeps the direction you were reading in, so switching from
+                   cheapest to salt gives you mildest rather than saltiest #}
+                <a class="precon-era" href="{{ board_url(to.key, era, hide_new)|trim }}">{{ m.label }}</a>
+            {% endif %}
+        {% endfor %}
+    </nav>
+
+    <nav class="precon-eras" aria-label="which end">
+        <span class="precon-depth-label">From the:</span>
+        {% for d in ['desc', 'asc'] %}
+            {% set reading = sort.metric[d] %}
+            {% if d == sort.dir %}
+                <span class="precon-era on" aria-current="true">{{ reading.label }}</span>
+            {% else %}
+                <a class="precon-era" href="{{ board_url(reading.key, era, hide_new)|trim }}">{{ reading.label }}</a>
             {% endif %}
         {% endfor %}
     </nav>
 
     <nav class="precon-eras" aria-label="filter by era">
+        <span class="precon-depth-label">Era:</span>
         {% for key, label, lo, hi in eras %}
             {% if key == era %}
                 <span class="precon-era on" aria-current="true">{{ label }}</span>
             {% else %}
-                <a class="precon-era" href="{{ board_url(sort.key, key)|trim }}">{{ label }}</a>
+                <a class="precon-era" href="{{ board_url(sort.key, key, hide_new)|trim }}">{{ label }}</a>
             {% endif %}
         {% endfor %}
+        {# the settling window, on or off. it is a view control like the era
+           cut rather than a different measurement: those decks are still new,
+           this just stops them standing between decks whose numbers have
+           stopped moving #}
+        {% if new_here or hide_new %}
+        <a class="precon-era{{ ' on' if hide_new }}" rel="nofollow"
+           href="{{ board_url(sort.key, era, not hide_new)|trim }}"
+           title="decks published inside the last year have not had their salt voted on, their prices settle, or their play rate accumulate, so where they land is partly an artefact of being new rather than a fact about the deck">{{ 'Showing settled decks only' if hide_new else 'Hide the new ones' }}</a>
+        {% endif %}
     </nav>
 
     {# only where money is on screen. the other four rankings do not change
@@ -160,9 +190,11 @@
 
     <p class="precon-count">{{ rows|length }} deck{{ '' if rows|length == 1 else 's' }},
     {{ sort.first }} first. Collector's editions are folded into the deck they reprint.
-    {% if new_here %}<span class="precon-count-new">{{ new_here }} of them came out inside
-    the last year and are marked <span class="precon-new">new</span>: read those placings
-    with the note above in mind.</span>{% endif %}</p>
+    {% if hide_new %}<span class="precon-count-new">{{ new_here }} published inside the last
+    year are hidden, because their salt, price and play rate are all still
+    settling.</span>{% elif new_here %}<span class="precon-count-new">{{ new_here }} of them
+    came out inside the last year and are marked <span class="precon-new">new</span> &mdash;
+    read those placings with the note above in mind.</span>{% endif %}</p>
 
     <ol class="precon-board">
         {% for r in rows %}

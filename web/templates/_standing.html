@@ -46,14 +46,17 @@
             <span class="deck-standing-extra">{{ '%.0f'|format(p.total_years) }} years all
             told, across {{ p.age_cards }} cards.</span>
             {% endif %}
-            <span class="deck-standing-extra deck-standing-means">{{ p.means }}</span>
-            {# only on a deck young enough for it to be true, and only saying
-               what is still moving about THIS number. a blanket disclaimer on
-               every deck is one nobody reads #}
-            {% if is_new %}
-            <span class="deck-standing-extra deck-standing-settling"><strong>Still
-            settling.</strong> {{ p.settling }}</span>
-            {% endif %}
+            {# folded away. it is the same three sentences every time you meet
+               this panel, and prose you have already read is just height
+               between you and the deck. open once, closed by default #}
+            <details class="deck-standing-what">
+                <summary>What {{ p.noun }} means here{% if is_new %}, and what is still
+                settling{% endif %}</summary>
+                <p>{{ p.means }}</p>
+                {# only on a deck young enough for it to be true, and only
+                   saying what is still moving about THIS number #}
+                {% if is_new %}<p><strong>Still settling.</strong> {{ p.settling }}</p>{% endif %}
+            </details>
         </div>
     </div>
 
@@ -84,18 +87,22 @@
        pictures behind a fold for when the answer is "which one is that" #}
     <h2>{{ p.cards_label }}</h2>
     <ol class="deck-cards">
-        {% for c in p.cards %}
+        {% for c in p.cards[:section] %}
         <li class="deck-card">
             <a class="deck-card-name" href="/search?q={{ c.name | urlencode }}" data-card="{{ c.name }}">{{ c.name }}</a>
             <span class="deck-card-score">{{ c.figure }}</span>
         </li>
         {% endfor %}
     </ol>
-    <details class="deck-card-open">
+    {# the pictures, and they keep going. the whole batch is in the page and
+       the button reveals the next {{ section }}, so there is no round trip and
+       nothing to fetch: /deck/read is a POST result with no url to ask again
+       at, and one query returning 48 rows costs what one returning 12 does #}
+    <details class="deck-card-open" data-step="{{ section }}">
         <summary>Show them as cards</summary>
         <div class="card-grid deck-card-grid">
             {% for c in p.cards %}
-            <div class="result">
+            <div class="result{{ ' is-over' if loop.index0 >= section }}">
                 <div class="card-frame" data-sideways="{{ '1' if c.sideways else '' }}"
                      data-flip="{{ '1' if c.flip else '' }}" data-back="{{ c.image_back or '' }}">
                     <a href="/search?q={{ c.name | urlencode }}" data-card="{{ c.name }}"
@@ -118,6 +125,12 @@
             </div>
             {% endfor %}
         </div>
+        {% if p.cards|length > section %}
+        <div class="deck-card-more">
+            <button type="button" class="deck-card-more-btn">Show more cards</button>
+            <span class="deck-card-more-left"></span>
+        </div>
+        {% endif %}
     </details>
     {% endif %}
 </section>

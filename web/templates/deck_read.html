@@ -20,10 +20,11 @@
     </form>
 
     <h1>{{ deck_name or 'Your deck' }}</h1>
-    <p class="deck-detail-sub">{{ matched }} card{{ '' if matched == 1 else 's' }} matched{% if missing %},
-    {{ missing|length }} not found{% endif %}.</p>
-
-    {% if missing %}{% include "_missing.html" %}{% endif %}
+    {# what did not match is settled on the page BEFORE this one and does not
+       follow the deck here. by now the question has been answered one way or
+       the other, and carrying the list of misses into the reading just puts a
+       list of things that are not in the deck above the deck #}
+    <p class="deck-detail-sub">{{ matched }} card{{ '' if matched == 1 else 's' }} read.</p>
 
     {% if ranked and panels %}
     {% include "_standing.html" %}
@@ -43,14 +44,20 @@
     <p class="deck-section-note">Walk the deck one card at a time, worst first, and swap
     what you want to. Nothing is saved and nothing changes until you copy the new list out
     at the end.</p>
-    <form class="swap-start" method="post" action="/deck/swap">
+    {# the offer follows whichever standing is on screen, so reading the price
+       panel and pressing this makes the deck pricier rather than doing the one
+       thing this button used to always do. it names the AXIS's own goal, never
+       the panel's heading: originality is not a swappable axis, and the
+       nearest honest move for it is "cards fewer people play" #}
+    <form class="swap-start" id="deck-swap-start" method="post" action="/deck/swap">
         <input type="hidden" name="list" value="{{ pasted }}">
         <input type="hidden" name="name" value="{{ deck_name }}">
         <input type="hidden" name="commander" value="{{ commander }}">
-        <input type="hidden" name="axis" value="{{ swap_default[0] }}">
-        <input type="hidden" name="dir" value="{{ swap_default[1] }}">
-        <button type="submit">Make this deck {{ swap_axes[swap_default]['goal'] }}</button>
+        <input type="hidden" name="axis" value="{{ swaps[opened].axis }}">
+        <input type="hidden" name="dir" value="{{ swaps[opened].dir }}">
+        <button type="submit">Make this deck {{ swaps[opened].goal }}</button>
     </form>
+    <script id="deck-swap-axes" type="application/json">{{ swaps | tojson }}</script>
 
     <p class="deck-detail-foot">Read from {{ counted }} nonland cards. Lands are left out of
     the originality and age figures for the same reason: a mana base is not what makes a
@@ -69,5 +76,4 @@
 
 {% block scripts %}
 {% include "_standing_js.html" %}
-{% include "_missing_js.html" %}
 {% endblock %}
