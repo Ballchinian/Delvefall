@@ -84,24 +84,65 @@ import { el, cardLink, swapPair, fitText, resultCard } from "dom";
     var trail = [];
 
     /*
+        what the two pickers on the card leaving have been told, for the card on
+        screen only. picking a line or switching a tag off is a statement about
+        THIS card ("replace this ability, not that one"), so it means nothing on
+        the next one and is cleared when the queue moves.
+
+        the same three names /search puts in its url, because they end up in the
+        same two functions on the server
+    */
+    var picks = {lines: [], notags: [], yestags: []};
+
+    function clearPicks() {
+        picks = {lines: [], notags: [], yestags: []};
+    }
+
+    /* the cache key is the card PLUS what the pickers were told, so narrowing
+       to one line asks a genuinely new question rather than being handed the
+       whole card's answer back out of the cache */
+    function keyFor(card) {
+        return card.oracle_id + "|" + picks.lines.join(",") + "|" +
+            picks.notags.join(",") + "|" + picks.yestags.join(",");
+    }
+
+    /* the panel above the suggestions, and the answer to "which of this card's
+       abilities am I actually replacing". it arrives as HTML the server
+       rendered from the same partial /search draws its searched card with, so
+       there is one description of this panel and not two */
+    var panels = {};
+
+    /*
         ask for one card's replacements, once. the result is cached whichever
         way it comes back, so walking forwards and the look-ahead never ask
         the same question twice, and an empty answer is remembered as an
         answer rather than retried forever
     */
-    function load(i) {
+    function load(i, force) {
         var card = D.queue[i];
-        if (!card || cache[card.oracle_id] !== undefined) return Promise.resolve();
-        cache[card.oracle_id] = "pending";
+        if (!card) return Promise.resolve();
+        var key = i === at ? keyFor(card) : card.oracle_id + "|||";
+        if (!force && cache[key] !== undefined) return Promise.resolve();
+        cache[key] = "pending";
         return fetch("/deck/swap/cards", {
             method: "POST",
             headers: {"Content-Type": "application/json"},
             body: JSON.stringify({card: card.oracle_id, deck: deck, colors: D.colors,
-                                  axis: D.axis, dir: D.dir})
+                                  axis: D.axis, dir: D.dir,
+                                  /* only for the card on screen: the look-ahead
+                                     is fetching the UNPICKED answer, which is
+                                     what the next card opens on */
+                                  lines: i === at ? picks.lines : [],
+                                  notags: i === at ? picks.notags : [],
+                                  yestags: i === at ? picks.yestags : []})
         }).then(function (r) { return r.json(); }).then(function (j) {
             var cards = j.cards || [];
-            cache[card.oracle_id] = cards;
-            if (!cards.length) {
+            cache[key] = cards;
+            if (j.panel) panels[key] = j.panel;
+            /* a card with nowhere to go is named at the end, but only when the
+               PLAIN question got no answer: narrowing to one line and finding
+               nothing is the user's own filter, not a fact about the card */
+            if (!cards.length && key === card.oracle_id + "|||" && nothing.indexOf(card) === -1) {
                 nothing.push(card);
             }
             /* the answer may have arrived for the card being looked at, in
@@ -109,7 +150,7 @@ import { el, cardLink, swapPair, fitText, resultCard } from "dom";
             if (i === at) show();
         }).catch(function () {
             /* leave it uncached so moving on and coming back can retry */
-            delete cache[card.oracle_id];
+            delete cache[key];
             if (i === at) note.textContent = "Could not reach the card database. Try again in a moment.";
         });
     }
@@ -117,16 +158,17 @@ import { el, cardLink, swapPair, fitText, resultCard } from "dom";
     function prefetch() {
         var n = 0;
         for (var i = at + 1; i < limit && n < LOOKAHEAD; i++) {
-            if (cache[D.queue[i].oracle_id] === undefined) { load(i); n++; }
+            if (cache[D.queue[i].oracle_id + "|||"] === undefined) { load(i); n++; }
         }
     }
 
     function show() {
         /* walk past anything already known to have nowhere to go. the skip is
            silent here because those cards are named together at the end, and
-           stopping on each one to say "nothing" would be twelve dead ends */
+           stopping on each one to say "nothing" would be twelve dead ends.
+           judged on the PLAIN answer, since that is what the queue moves on */
         while (at < limit) {
-            var known = cache[D.queue[at].oracle_id];
+            var known = cache[D.queue[at].oracle_id + "|||"];
             if (Array.isArray(known) && !known.length) { at++; continue; }
             break;
         }
@@ -141,13 +183,25 @@ import { el, cardLink, swapPair, fitText, resultCard } from "dom";
         if (backBtn) backBtn.hidden = !trail.length;
 
         var card = D.queue[at];
+        var key = keyFor(card);
         var out = $("swap-out-card");
-        out.innerHTML = "";
-        out.appendChild(build(card));
-        enhanceCardFrames(out);
         options.innerHTML = "";
 
-        var got = cache[card.oracle_id];
+        /* the panel, with its rules lines and its tag chips. it is the same one
+           /search puts above its results, so the tool that PROPOSES a card no
+           longer gives you less say over the match than the one that lists
+           them. until the first answer lands there is nothing to draw it from,
+           so the plain picture stands in */
+        if (panels[key]) {
+            out.innerHTML = panels[key];
+            wirePanel(out);
+        } else if (!out.querySelector(".searched-card")) {
+            out.innerHTML = "";
+            out.appendChild(build(card));
+        }
+        enhanceCardFrames(out);
+
+        var got = cache[key];
         if (Array.isArray(got)) {
             render(got);
         } else {
@@ -155,6 +209,46 @@ import { el, cardLink, swapPair, fitText, resultCard } from "dom";
             load(at);
         }
         prefetch();
+    }
+
+    /*
+        the panel's two pickers, doing on this page what a reload does on
+        /search. the markup is identical, so the classes and the four chip
+        states are the ones the css already knows; only what a click MEANS
+        differs, because there is no url here to put the answer in.
+
+        a click re-asks for this card's replacements with the narrower question
+        attached, which is the same round trip the page already makes per card
+    */
+    function wirePanel(root) {
+        root.querySelectorAll(".oracle-line").forEach(function (line) {
+            line.onclick = function () {
+                var idx = line.dataset.idx;
+                var i = picks.lines.indexOf(idx);
+                if (i === -1) picks.lines.push(idx); else picks.lines.splice(i, 1);
+                repick();
+            };
+        });
+        /* four states, and clicking one means the obvious opposite of whichever
+           it is in. notags is "ignore this", yestags is "the line picker guessed
+           wrong, put it back": two lists because they answer two questions */
+        root.querySelectorAll(".tag-chip").forEach(function (chip) {
+            chip.onclick = function () {
+                var state = chip.dataset.state;
+                var key = (state === "aside" || state === "kept") ? "yestags" : "notags";
+                var list = picks[key];
+                var i = list.indexOf(chip.dataset.tag);
+                if (i === -1) list.push(chip.dataset.tag); else list.splice(i, 1);
+                repick();
+            };
+        });
+    }
+
+    function repick() {
+        note.textContent = "Looking for replacements…";
+        options.innerHTML = "";
+        if (moreBtn) moreBtn.hidden = true;
+        load(at, true).then(function () { show(); });
     }
 
     /*
@@ -283,7 +377,7 @@ import { el, cardLink, swapPair, fitText, resultCard } from "dom";
     }
 
     if (moreBtn) moreBtn.addEventListener("click", function () {
-        var got = cache[D.queue[at].oracle_id];
+        var got = cache[keyFor(D.queue[at])];
         if (!Array.isArray(got)) return;
         shown = Math.min(shown + D.offer, got.length);
         paintOptions(got);
@@ -298,6 +392,7 @@ import { el, cardLink, swapPair, fitText, resultCard } from "dom";
         deck.push(c.oracle_id);
         trail.push({at: at, took: true});
         at++;
+        clearPicks();
         paintDeck();
         show();
     }
@@ -323,6 +418,7 @@ import { el, cardLink, swapPair, fitText, resultCard } from "dom";
             if (at_in > -1) deck.splice(at_in, 1);
         }
         at = step.at;
+        clearPicks();
         /* the review is only up once a batch has run out, and going back means
            the walk is live again */
         $("swap-done").hidden = true;
@@ -362,6 +458,7 @@ import { el, cardLink, swapPair, fitText, resultCard } from "dom";
     skipBtn.addEventListener("click", function () {
         trail.push({at: at, took: false});
         at++;
+        clearPicks();
         show();
     });
     if (backBtn) backBtn.addEventListener("click", back);

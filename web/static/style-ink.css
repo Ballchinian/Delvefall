@@ -289,6 +289,16 @@ main {
 
 .searched-info h1 { margin: 4px 0 2px 0; }
 
+/* the same slot as that h1, on a page that already has one. /deck/swap's
+   heading is "Making X less salty", and a second h1 underneath would be two
+   headings both claiming to name the page */
+.searched-name {
+    font-family: var(--serif);
+    font-weight: 600;
+    font-size: 22px;
+    margin: 4px 0 2px 0;
+}
+
 .mana {
     font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     font-size: 15px;
@@ -2152,10 +2162,22 @@ footer a { color: var(--teal); }
    searched card on /search and the dealt card on /unique. it was 200, the old
    grid floor, which is under the 220px the four figures need, so this was the
    one card on the page whose row wrapped while the twelve below it did not */
+/* the CAP is on the bare card, not on the box, because the box holds the full
+   searched-card panel now: picture on the left, rules lines and tag chips on
+   the right, the same one /search puts above its results. capping the box at
+   300 squashed that whole column into a ribbon.
+   the bare card is what stands in for the panel until the first answer lands
+   (the panel is rendered by the server alongside the suggestions), and it keeps
+   the 300px every singular card on the site is drawn at */
 .swap-out-card {
-    max-width: 300px;
     margin-bottom: 6px;
 }
+
+.swap-out-card > .result { max-width: 300px; }
+
+/* the panel's own top padding is for a page that opens with it. here it sits
+   under the "OUT" label, which has already done that spacing */
+.swap-out-card .searched-card { padding-top: 0; }
 
 /* the word "Out" carries the whole frame: this is the card leaving, and
    everything under it is what could take the slot */

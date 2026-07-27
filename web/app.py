@@ -1723,6 +1723,9 @@ def search():
     #sitting there as a control that changes nothing
     with pool.connection() as conn:
         chips = anchor_chips(conn, card["oracle_id"], dropped, picked, forced) if blend > 0 and LINE_TAGS else []
+    #anchorcard.html reads these names, and /deck/swap builds the same set out
+    #of anchor_panel(). they are passed explicitly rather than through it here
+    #because this route already had every one of them in hand
 
     results, has_more, next_band = find_similar(card["oracle_id"], picked, filters, min_pct, sort,
                                                 blend=BLEND_WEIGHTS[blend], currency=filters["cur"],
@@ -3897,7 +3900,31 @@ def swap_figure(card, field, currency="usd"):
     return None if v is None else "salt %.2f" % float(v)
 
 
-def swap_candidates(conn, card, deck_ids, colors, field, direction, currency="usd"):
+def anchor_panel(conn, card, currency, picked=(), dropped=(), forced=(), mode="search"):
+    #everything partials/anchorcard.html needs, built once for both the pages
+    #that draw it. /search renders it into the page; /deck/swap/cards renders it
+    #to a string and the browser drops it in, because the card it is about
+    #changes as the queue is walked.
+    #
+    #the card dict is MUTATED with its display figures the same way /search does
+    #it, so the two cannot print a price one way here and another way there
+    card = dict(card)
+    card["sideways"] = sideways(card.get("layout"), card.get("type_line"))
+    card["flip"] = card.get("layout") == "flip"
+    card["price"] = price_label(card, currency)
+    card["rank"] = rank_label(card["edhrec_rank"])
+    card["salt_text"] = salt_label(card["salt"])
+    card["age"] = age_label(card["released_at"])
+    card_lines, picked = build_lines(card, picked)
+    chips = anchor_chips(conn, card["oracle_id"], dropped, picked, forced) if LINE_TAGS else []
+    return {"card": card, "card_lines": card_lines, "picked_count": len(picked),
+            "tag_chips": chips, "line_tags_on": LINE_TAGS, "mode": mode,
+            "dropped_count": sum(1 for c in chips if c["state"] == "off"),
+            "aside_count": sum(1 for c in chips if c["state"] == "aside")}
+
+
+def swap_candidates(conn, card, deck_ids, colors, field, direction, currency="usd",
+                    picked=(), dropped=(), forced=()):
     #what could take this card's slot. one nearest neighbour walk per line of
     #the outgoing card, exactly as /search does, with the deck's own
     #constraints folded into the WHERE so the LIMIT bites after them rather
@@ -3927,8 +3954,17 @@ def swap_candidates(conn, card, deck_ids, colors, field, direction, currency="us
     #one common line and nothing else, so its defining line IS the common one
     #and mana rocks are the honest answer. an absolute cut threw all of them
     #out and returned nothing at all, which is worse than the bug it fixed
-    top_w = max(line_weight(ql["count"]) for ql in qlines)
-    qlines = [ql for ql in qlines if line_weight(ql["count"]) >= SWAP_ANCHOR_FRAC * top_w]
+    #a line the USER picked wins outright, and the anchoring below is skipped
+    #for it. the fraction exists to guess which line makes this card this card;
+    #somebody who has clicked a line has answered that question themselves, and
+    #re-narrowing their pick would be the tool overruling the control it just
+    #offered. this is the same precedence /search gives a picked line
+    chosen = [ql for ql in qlines if ql["line_text"] in picked] if picked else []
+    if chosen:
+        qlines = chosen
+    else:
+        top_w = max(line_weight(ql["count"]) for ql in qlines)
+        qlines = [ql for ql in qlines if line_weight(ql["count"]) >= SWAP_ANCHOR_FRAC * top_w]
 
     where = ""
     params = []
@@ -4016,13 +4052,15 @@ def swap_candidates(conn, card, deck_ids, colors, field, direction, currency="us
     #the gate anyway (no line means mech 0, so a 50/50 blend caps it at 50
     #against a bar of 75), so the rule and the arithmetic agree.
     #
-    #no dropped, picked or forced tags: this page has no tag picker, so the
-    #anchor is the whole card, which is what anchor_vector does with empty sets
+    #the tag picker's answers ride in exactly as they do on /search: dropped
+    #tags are ones the user switched off, forced are ones the line picker set
+    #aside and they put back, and picking a line narrows the vector to what
+    #that line is about
     concept_raw = {}
     shared = {}
     ids = list(pairs_by_card)
     if SWAP_BLEND > 0 and ids:
-        atags, aweights, anorm = anchor_vector(conn, card["oracle_id"], ())
+        atags, aweights, anorm = anchor_vector(conn, card["oracle_id"], dropped, picked, forced)
         if atags and anorm:
             for r in conn.execute("""
                 WITH anchor AS (
@@ -4198,24 +4236,55 @@ def deck_swap_cards():
     colors = body.get("colors")
     if colors is not None:
         colors = "".join(ch for ch in str(colors).upper() if ch in "WUBRG")
+    #the two pickers' answers, in the same shapes /search reads off its url.
+    #lines arrive as INDEXES, exactly like ?lines=0,2 does, so the browser never
+    #has to send a rules line back to us and build_lines stays the one place
+    #that turns an index into the text the tables are keyed on
+    picked_idx = set()
+    for x in (body.get("lines") or [])[:40]:
+        if str(x).strip().lstrip("-").isdigit():
+            picked_idx.add(int(str(x).strip()))
+
+    def tags(key):
+        v = body.get(key)
+        return [str(x)[:120] for x in v][:60] if isinstance(v, list) else []
+    dropped, forced = tags("notags"), tags("yestags")
+
     cur = read_currency()
     with pool.connection() as conn:
         #aliased c because price_col hands back a c-qualified column name, so
-        #every query that reads a price has to call the table the same thing
+        #every query that reads a price has to call the table the same thing.
         #price_usd and price_eur come along because price_in reads the raw
         #columns: this row is the ANCHOR every candidate's verdict is measured
-        #against, so it has to answer the same questions a candidate does
-        row = conn.execute("SELECT c.oracle_id, c.name, c.type_line, c.cmc, c.edhrec_rank, "
-                           "c.released_at, c.salt, c.price_usd, c.price_eur, " + price_col(cur) +
+        #against, so it has to answer the same questions a candidate does.
+        #
+        #the full CARD_FIELDS rather than the seven numbers it used to take,
+        #because the panel above the suggestions is now the same one /search
+        #draws and that wants the oracle text, the art and the layout
+        row = conn.execute("SELECT " + ", ".join("c." + f for f in CARD_FIELDS.split(", ")) +
+                           ", c.cmc, " + price_col(cur) +
                            " AS price FROM cards c WHERE c.oracle_id = %s",
                            (oid,)).fetchone()
         if row is None:
             abort(404)
-        cards = swap_candidates(conn, dict(row), deck_ids, colors, field, direction,
-                                currency=cur)
+        card = dict(row)
+        panel = anchor_panel(conn, card, cur, picked_idx, dropped, forced, mode="swap")
+        #the TEXTS the picker resolved to, which is what the line table is keyed
+        #on. build_lines already did that work inside anchor_panel, so reading
+        #it back here beats doing it twice and risking two answers
+        picked = [l["text"] for l in panel["card_lines"] if l["selected"]]
+        picked = [clean_line(t, card["name"]) for t in picked]
+        cards = swap_candidates(conn, card, deck_ids, colors, field, direction,
+                                currency=cur, picked=picked, dropped=dropped, forced=forced)
     #an empty list is a real answer here, not a miss, so it comes back as one
-    #rather than as an error the page has to interpret
-    return {"cards": cards, "gate": SWAP_GATE, "axis": field, "dir": direction}
+    #rather than as an error the page has to interpret.
+    #
+    #the panel rides back as RENDERED HTML rather than as data the browser
+    #rebuilds. that is what keeps partials/anchorcard.html the only description
+    #of this card anywhere: a json shape plus a javascript builder would be a
+    #second one, and the two would drift the first time only one was edited
+    return {"cards": cards, "gate": SWAP_GATE, "axis": field, "dir": direction,
+            "panel": render_template("partials/anchorcard.html", **panel)}
 
 
 def card_json(c, currency):

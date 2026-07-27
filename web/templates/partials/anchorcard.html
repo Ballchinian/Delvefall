@@ -1,0 +1,125 @@
+{# the card a page is ABOUT, with the two pickers that narrow what it searches
+   for: its rules text as clickable lines, and its community tags as chips.
+
+   /search draws it for the card you looked up, /deck/swap draws it for the card
+   the queue is currently offering to replace. one file, because they are the
+   same question asked twice ("what about this card am I matching on?") and
+   because the swap tool having its own thinner version of it was the whole
+   complaint: the tool that PROPOSES a card gave you less control over the match
+   than the tool that just lists them.
+
+   `mode` is 'search' or 'swap', and only three things turn on it. the swap page
+   is a POST result with no url, so:
+     - the picture is not a link that clears filters, because there are none
+     - the pickers do not reload, they refetch (see swap.js)
+     - the "a tag on the wrong line?" report is absent, because /feedback keys
+       off a query string this page does not have
+   everything else is identical markup, which is the point of it being one file #}
+{% set mode = mode | default('search') %}
+<div class="searched-card">
+    {# fetchpriority: this picture is the biggest thing above the fold, it
+       shouldn't queue behind twenty result thumbnails #}
+    {# the 488x680 on every card img is scryfall's normal size, so the browser
+       knows each picture's shape before it arrives (the css scales the width,
+       height: auto keeps the ratio) #}
+    <div class="card-frame" data-sideways="{{ '1' if card.sideways else '' }}" data-flip="{{ '1' if card.flip else '' }}" data-back="{{ card.image_back }}">
+        {% if mode == 'search' %}
+        {# the searched card follows the same rule as every other card link, and
+           it turns out to be the most useful one on the page. /search?q= this
+           card and NOTHING ELSE is the bare search, so from a page carrying a
+           sort, colours, price bounds and a salt range, clicking the card you
+           searched drops all of it and starts the search over. it only looks
+           like a link to the page you are on when there is nothing to clear.
+           it is also this page's own canonical url, so the one internal link
+           the results grid does not already make is the one pointing at the
+           address the page declares #}
+        {% set narrowed = request.args|list|length > 1 %}
+        <a href="/search?q={{ card.name | urlencode }}" data-card="{{ card.name }}" data-scryfall="{{ card.scryfall_uri }}" title="{% if narrowed %}clear the filters and search {{ card.name }} on its own{% else %}search {{ card.name }} on its own{% endif %}. ctrl-click to open it on scryfall">
+            <img src="{{ card.image }}" alt="{{ card.name }}" width="488" height="680" fetchpriority="high">
+        </a>
+        {% else %}
+        {# on the swap page the link goes OUT to the card's own page rather than
+           reloading the tool, since coming back would cost the session #}
+        <a href="/search?q={{ card.name | urlencode }}" data-card="{{ card.name }}" data-scryfall="{{ card.scryfall_uri }}" title="search {{ card.name }} here. ctrl-click to open it on scryfall">
+            <img src="{{ card.image }}" alt="{{ card.name }}" width="488" height="680" loading="lazy">
+        </a>
+        {% endif %}
+    </div>
+    <div class="searched-info">
+        {# an h1 on /search, where it IS the page's heading. the swap page has
+           its own h1 ("Making X less salty") and a second one would be two
+           headings claiming the page #}
+        {% if mode == 'search' %}
+        <h1>{{ card.name }} <span class="mana">{{ card.mana_cost | mana }}</span></h1>
+        {% else %}
+        <p class="searched-name">{{ card.name }} <span class="mana">{{ card.mana_cost | mana }}</span></p>
+        {% endif %}
+        <p class="type-line">{{ card.type_line }}</p>
+        {# this card's own four figures. every result carries an arrow measured
+           against these, so the thing being compared to has to be on the page.
+           age was the one missing: the results grew an age arrow and there was
+           nothing up here for it to point back at #}
+        {% if card.price or card.rank or card.salt_text or card.age %}
+        <p class="anchor-figures">
+            {% if card.price %}<span class="anchor-price" title="the cheapest paper printing of {{ card.name }} in any finish, from scryfall. digital, oversized and gold border versions don't count. every price arrow below is measured against this number">{{ card.price }}</span>{% endif %}
+            {% if card.rank %}<span class="result-rank" title="play rate: edhrec's rank for how often this card is played in commander, where #1 is the most played card in the format. every play-rate arrow below is measured against this number">{{ card.rank }}</span>{% endif %}
+            {% if card.salt_text %}<span class="result-salt" title="salt {{ card.salt_text }} out of about 3, from edhrec's salt survey, where players vote on the cards they least enjoy facing. this is the one number here that is an opinion rather than a measurement. every salt mark below is measured against this one"><i class="salt-mark" aria-hidden="true"></i>{{ card.salt_text }}</span>{% endif %}
+            {% if card.age %}<span class="result-age" title="card age: how long ago {{ card.name }} was first printed, so a reprint does not make an old card new. every age arrow below is measured against this number">{{ card.age }}</span>{% endif %}
+            <span class="anchor-note">what the arrows below compare against</span>
+        </p>
+        {% endif %}
+        <div class="oracle">
+            {% for line in card_lines %}
+            {% if line.searchable %}
+            <div class="oracle-line{% if line.selected %} picked{% endif %}" data-idx="{{ line.idx }}">{{ line.text | mana }}</div>
+            {% else %}
+            <div class="oracle-plain">{{ line.text | mana }}</div>
+            {% endif %}
+            {% endfor %}
+        </div>
+        <p class="line-hint">
+            {% if picked_count %}
+            {% if mode == 'swap' %}replacing {{ 'this line' if picked_count == 1 else 'these lines' }}
+            only{% else %}searching {{ 'this line' if picked_count == 1 else 'these lines' }} only{% endif %}{% if line_tags_on %}, on both scores{% endif %}. click to toggle
+            {% else %}
+            every line here is clickable: {% if mode == 'swap' %}replace{% else %}search{% endif %}
+            one ability on its own, or a few together
+            {% endif %}
+        </p>
+        {# the concepts side's half of the picker: the community tags this card
+           was given, with picking a line narrowing them to that one ability.
+           LINE_TAGS=0 is the kill switch, and with it off the route hands back
+           no chips at all so everything below falls away with them, hint
+           included. the concepts SCORE is not gated either way, you just cannot
+           hand-tune which tags it uses #}
+        {% if tag_chips %}
+        <div class="tag-picker">
+            {% for chip in tag_chips %}
+            <button type="button" class="tag-chip{% if chip.state != 'on' %} {{ chip.state }}{% endif %}" data-tag="{{ chip.tag }}"
+                    data-state="{{ chip.state }}" title="{{ chip.description or chip.tag }}">{{ chip.tag }}</button>
+            {% endfor %}
+        </div>
+        <p class="line-hint">
+            {% if aside_count %}
+            concepts: the faded tags aren't what your highlighted {{ 'line' if picked_count == 1 else 'lines' }}
+            {{ 'is' if picked_count == 1 else 'are' }} about, so the concepts side is ignoring them.
+            <strong>this is a guess and it gets things wrong</strong>, so click one to put it back
+            {% elif dropped_count %}
+            concepts: the crossed out tags are switched off, the concepts side is ignoring them
+            {% elif line_tags_on %}
+            concepts: the concepts score searches these community tags. highlight a line above to
+            narrow them to that ability, or click one to switch it off
+            {% else %}
+            concepts: the concepts score searches these community tags. click one to switch it off
+            {% endif %}
+            {# the report only makes sense once a line is picked: with no pick
+               every tag is on, and "this tag is wrong for the whole card" is a
+               complaint for tagger rather than for us. absent on the swap page,
+               which has no query string for /feedback to key off #}
+            {% if picked_count and line_tags_on and mode == 'search' %}
+             <a href="#" id="report-tag" class="report-open">a tag on the wrong line?</a>
+            {% endif %}
+        </p>
+        {% endif %}
+    </div>
+</div>
