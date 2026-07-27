@@ -300,7 +300,10 @@
            front of the bare name, so imports cache-bust like everything else.
            it has to come before the first module tag, which is this block #}
         <script type="importmap">
-        {"imports": {"dom": "{{ static_url('js/dom.js') }}"}}
+        {"imports": {
+            "dom": "{{ static_url('js/dom.js') }}",
+            "decks": "{{ static_url('js/decks.js') }}"
+        }}
         </script>
 
         {% block scripts %}{% endblock %}

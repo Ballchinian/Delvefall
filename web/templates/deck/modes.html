@@ -27,17 +27,36 @@
 
        one legend in the list means the question is already answered and this
        just shows the answer. the filter is there for the deck that runs six #}
+    {# two questions, and they ARE two questions. this used to be one box
+       labelled "who's the commander?" whose answer silently became the deck's
+       name as well, so a deck could not be called anything else and the one
+       control was answering something it never asked.
+
+       the commander box is laid out like the card search in the header,
+       because that is what it is: type a bit of a name, pick from what drops
+       down. it filters the deck's own legends rather than asking the server,
+       since the answer is one of about two cards we already hold #}
     <div class="deck-lead" id="deck-lead">
         <label for="deck-lead-input">Who's the commander?</label>
-        <div class="deck-lead-row">
-            <input id="deck-lead-input" class="deck-lead-input" type="text" spellcheck="false"
+        <div class="deck-lead-search">
+            <input id="deck-lead-input" type="text" spellcheck="false"
                    autocomplete="off" placeholder="Two letters is usually enough"
                    value="{{ commander }}">
             <button type="button" class="deck-lead-clear" id="deck-lead-clear">Clear</button>
+            <div class="deck-lead-hits" id="deck-lead-hits"></div>
         </div>
-        <ul class="deck-lead-hits" id="deck-lead-hits"></ul>
-        <span class="deck-hub-note">Only used to name the deck, here and in this browser's
-        recent list. Nothing is sent anywhere or saved on our side.</span>
+        <span class="deck-hub-note">Names the deck unless you give it one below, and only
+        in this browser. Nothing is sent anywhere or saved on our side.</span>
+
+        {# optional, and empty by default. a deck called after its commander is
+           right nearly every time, so this is the escape hatch for the person
+           running three Krenko decks rather than a question everybody answers #}
+        <label for="deck-name-input" class="deck-lead-second">Call it something else</label>
+        <div class="deck-lead-search">
+            <input id="deck-name-input" type="text" spellcheck="false" autocomplete="off"
+                   placeholder="{{ commander or 'Named after the commander' }}"
+                   value="{{ deck_name if deck_name != commander else '' }}">
+        </div>
     </div>
 
     <div class="deck-modes-pick">
@@ -121,185 +140,5 @@
 
 {% block scripts %}
 {% include "partials/missing_js.html" %}
-<script>
-(function () {
-    var input = document.getElementById("deck-lead-input");
-    var hits = document.getElementById("deck-lead-hits");
-    var title = document.getElementById("deck-title");
-    var dataEl = document.getElementById("deck-lead-data");
-    if (!input || !hits || !dataEl) return;
-    var names = JSON.parse(dataEl.textContent) || [];
-
-    function fields(cls) {
-        return Array.prototype.slice.call(document.querySelectorAll(cls));
-    }
-
-    /*
-        very loose on purpose: every typed character has to appear in the name,
-        in order, but not next to each other. "kr" finds Kratos, "gow" finds
-        Kratos, God of War, and a typo in the middle of a long name still
-        lands. a deck holds a handful of legends, so there is nothing here that
-        a stricter filter would be protecting against
-    */
-    function loose(name, q) {
-        var n = name.toLowerCase(), at = 0;
-        for (var i = 0; i < q.length; i++) {
-            at = n.indexOf(q[i], at);
-            if (at === -1) return false;
-            at++;
-        }
-        return true;
-    }
-
-    function pick(name) {
-        input.value = name;
-        fields(".deck-commander-field").forEach(function (f) { f.value = name; });
-        fields(".deck-name-field").forEach(function (f) { f.value = name; });
-        title.textContent = name;
-        draw();
-    }
-
-    function draw() {
-        var q = input.value.trim().toLowerCase();
-        hits.innerHTML = "";
-        /* the whole candidate list when the box is empty, so a deck with one
-           legend in it shows that legend rather than showing nothing until
-           somebody guesses what to type */
-        var show = names.filter(function (n) { return !q || loose(n, q); }).slice(0, 8);
-        if (show.length === 1 && show[0].toLowerCase() === q) return;
-        show.forEach(function (n) {
-            var li = document.createElement("li");
-            var b = document.createElement("button");
-            b.type = "button";
-            b.className = "deck-lead-hit";
-            b.textContent = n;
-            b.addEventListener("click", function () { pick(n); });
-            li.appendChild(b);
-            hits.appendChild(li);
-        });
-    }
-
-    input.addEventListener("input", function () {
-        /* a name typed rather than picked still names the deck: the picker is
-           a shortcut, not a gate */
-        var v = input.value.trim();
-        fields(".deck-commander-field").forEach(function (f) { f.value = v; });
-        fields(".deck-name-field").forEach(function (f) { f.value = v; });
-        title.textContent = v || "Your deck";
-        draw();
-    });
-    document.getElementById("deck-lead-clear").addEventListener("click", function () {
-        input.value = "";
-        input.dispatchEvent(new Event("input"));
-        input.focus();
-    });
-    draw();
-})();
-
-(function () {
-    /*
-        remember this deck in THIS BROWSER. the server has already forgotten
-        it: /deck/open parsed the text, rendered this page and kept nothing,
-        so the only copy that outlives the tab is the one written here, on the
-        user's own machine, where they can delete it from the hub.
-
-        it runs on SUBMIT rather than on load, because what the deck is called
-        is not settled until the commander has been picked, and an entry
-        written on load would be the one that had to be corrected later
-    */
-    var el = document.getElementById("deck-remember");
-    if (!el) return;
-    var KEY = "delvefall_recent_decks";
-    /* ten rather than five. a decklist is about 2kb against localStorage's ~5mb
-       budget, so the cap was never about space: it is about how long a list
-       stays scannable, and with an x and a rename on every row the shelf is
-       something you keep rather than something that happens to you */
-    var KEEP = 10;
-
-    function remember() {
-        /* read at SUBMIT time, never at load. what the deck is called is not
-           settled until the commander has been picked, and what is IN it is
-           not settled until the unmatched lines have been dealt with, so a
-           snapshot taken on load is a snapshot of neither */
-        var d = JSON.parse(el.textContent);
-        var listField = document.querySelector('.deck-mode input[name="list"]');
-        var text = listField ? listField.value : d.text;
-        if (!text) return;
-        /*
-            which deck this IS, as against what is currently in it. a deck off
-            the shelf carries the list it was first imported as, and that is
-            what the shelf is keyed on: reopening a deck after a swap session
-            hands back the swapped list, and keying on that would file the same
-            deck a second time as "#2" every time it was picked up.
-
-            a fresh paste or import has no origin, so it is keyed on itself.
-        */
-        var key = d.origin || text;
-        var f = document.querySelector(".deck-name-field");
-        var label = f ? f.value.trim() : "";
-        try {
-            var decks = JSON.parse(localStorage.getItem(KEY)) || [];
-            /* the same list twice is one entry, moved back to the front,
-               rather than a history that fills with the deck you keep
-               rereading. its OLD entry is found before it is removed, because
-               a deck coming back round keeps the name it was given: renumbering
-               it on every visit is how one deck became #2, then #4, then #6 */
-            var was = null;
-            decks = decks.filter(function (x) {
-                if (x.text === key) { was = x; return false; }
-                return true;
-            });
-            /* two different decks led by the same commander get numbered, the
-               way anybody would say it out loud: Kratos, God of War #2.
-               the SMALLEST free number, found rather than stored, so deleting
-               the first one leaves the next paste taking its place instead of
-               a #2 with no #1 in front of it */
-            var name = label;
-            if (name) {
-                var base = function (l) {
-                    var m = /^(.*?)(?: #(\d+))?$/.exec(l || "");
-                    return m ? {name: m[1], n: parseInt(m[2] || "1", 10)} : {name: "", n: 1};
-                };
-                /* it already had a name under this commander, so it keeps it */
-                if (was && base(was.label).name === name) {
-                    name = was.label;
-                } else {
-                    var used = {};
-                    decks.forEach(function (x) {
-                        var b = base(x.label);
-                        if (b.name === name) used[b.n] = true;
-                    });
-                    var n = 1;
-                    while (used[n]) n++;
-                    if (n > 1) name = name + " #" + n;
-                }
-            }
-            /* the entry is keyed on the origin and remembers where the deck has
-               actually got to, so a row can offer both: the deck as imported,
-               and the deck as it stands. whatever a swap session left behind
-               rides along untouched, because picking a deck back up is not
-               what should undo the work done to it */
-            var entry = {text: key, count: d.count, label: name, at: Date.now()};
-            if (was) {
-                ["swaps", "goal", "added", "newList"].forEach(function (k) {
-                    if (was[k]) entry[k] = was[k];
-                });
-            }
-            /* it arrived as a list that is not the one it was imported as, so
-               that IS where it has got to, and it replaces whatever the last
-               session recorded */
-            if (key !== text) entry.newList = text;
-            decks.unshift(entry);
-            localStorage.setItem(KEY, JSON.stringify(decks.slice(0, KEEP)));
-        } catch (e) {
-            /* private browsing, a full quota, or storage switched off. the site
-               works exactly the same without this, so it fails quietly */
-        }
-    }
-
-    document.querySelectorAll(".deck-mode").forEach(function (form) {
-        form.addEventListener("submit", remember);
-    });
-})();
-</script>
+<script type="module" src="{{ static_url('js/modes.js') }}"></script>
 {% endblock %}
