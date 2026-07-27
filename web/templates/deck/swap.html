@@ -94,6 +94,12 @@
 
         <p class="deck-section-note" id="swap-note">Looking for replacements&hellip;</p>
 
+        {# the same report bar /search carries, and the suggestions are the thing
+           on this site most worth arguing with: proposing a card for somebody's
+           deck is a stronger claim than listing similar cards. "missing" is not
+           offered here, see the partial for why #}
+        {% with mode = 'swap' %}{% include "partials/reportbar.html" %}{% endwith %}
+
         {# the same grid the results page uses, so a replacement is read the
            way every other card on the site is read: picture, price, play rate,
            salt, and the line that matched. every figure carries its verdict
@@ -171,22 +177,10 @@
     </div>
     {% endif %}
 
-    {# the rest of the deck, on hand the whole way through rather than only at
-       the end. deciding whether to cut a card means knowing what else is in
-       there, and the only way to look used to be the back button, which threw
-       the session away to answer a question about it.
-
-       it sits OUTSIDE the finished block on purpose: the moment it is wanted is
-       while a card is on screen being judged, not after everything is decided.
-       the script keeps it current as swaps are made, so it is the deck as it
-       STANDS and not the list as it arrived #}
-    {% if cards %}
-    <div class="swap-deck-all">
-        {% with cards_summary = 'View the whole deck' %}
-        {% include "partials/deckcards.html" %}
-        {% endwith %}
-    </div>
-    {% endif %}
+    {# the whole deck as a fold lived here for one afternoon and is OUT: this
+       page is about one card at a time, and a hundred pictures of the deck you
+       already know is not what you came to it for. /deck/view is the page that
+       shows a deck #}
 </div>
 
 {# the deck the page is holding. it lives here rather than on the server
@@ -213,7 +207,4 @@
 window.MANA_URLS = {{ mana_urls() | tojson }};
 </script>
 <script type="module" src="{{ static_url('js/swap.js') }}"></script>
-{# the whole-deck fold at the foot batches exactly like the one on /deck/view,
-   because it IS the one on /deck/view #}
-<script src="{{ static_url('js/cardfold.js') }}" defer></script>
 {% endblock %}

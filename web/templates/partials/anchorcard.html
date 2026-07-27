@@ -114,9 +114,8 @@
             {% endif %}
             {# the report only makes sense once a line is picked: with no pick
                every tag is on, and "this tag is wrong for the whole card" is a
-               complaint for tagger rather than for us. absent on the swap page,
-               which has no query string for /feedback to key off #}
-            {% if picked_count and line_tags_on and mode == 'search' %}
+               complaint for tagger rather than for us #}
+            {% if picked_count and line_tags_on %}
              <a href="#" id="report-tag" class="report-open">a tag on the wrong line?</a>
             {% endif %}
         </p>

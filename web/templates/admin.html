@@ -46,6 +46,14 @@
             {% elif r.tag_was == 'aside' %}the picker SET IT ASIDE, user says the line IS about it
             {% else %}direction unrecorded{% endif %}</div>
         {% endif %}
+        {# which page it was filed from. absent means /search, which is where
+           nearly all of them come from and was the only source until the swap
+           tool got a report bar #}
+        {% if r.source == 'swap' %}
+        <div class="fb-meta"><strong>from the swap tool</strong> - the site PROPOSED this card
+            as a replacement, so a complaint here is a stronger negative than the same words
+            about a search result</div>
+        {% endif %}
         {% if r.reason %}<div class="fb-meta">reason: "{{ r.reason }}"</div>{% endif %}
         {% if r.picked %}<div class="fb-meta">picked lines: {{ r.picked }}</div>{% endif %}
         <div class="fb-meta">filters: {{ r.filters }}</div>

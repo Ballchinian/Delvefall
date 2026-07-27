@@ -13,6 +13,7 @@
 //picks up dom.js at its content-hashed url rather than an unstamped one
 //that the year-long static cache would freeze
 import { el, cardLink, swapPair, fitText, resultCard } from "dom";
+import { wireReports } from "report";
 (function () {
     var dataEl = document.getElementById("swap-data");
     if (!dataEl) return;
@@ -96,6 +97,13 @@ import { el, cardLink, swapPair, fitText, resultCard } from "dom";
 
     function clearPicks() {
         picks = {lines: [], notags: [], yestags: []};
+    }
+
+    /* has the user narrowed anything on the card in front of them. it is the
+       difference between "nothing in the game does this" and "nothing does this
+       ONCE YOU SAID that", and those two deserve opposite behaviour */
+    function picked() {
+        return !!(picks.lines.length || picks.notags.length || picks.yestags.length);
     }
 
     /* the cache key is the card PLUS what the pickers were told, so narrowing
@@ -242,6 +250,17 @@ import { el, cardLink, swapPair, fitText, resultCard } from "dom";
                 repick();
             };
         });
+        /* the panel is redrawn whenever the card or the picks change, so its
+           link and the report's tag list are rewired every time rather than
+           once at load: the old ones went out of the dom with the old panel */
+        if (reports) {
+            reports.fillTags(root);
+            var link = root.querySelector("#report-tag");
+            if (link) link.onclick = function (e) {
+                e.preventDefault();
+                reports.open("tag", null);
+            };
+        }
     }
 
     function repick() {
@@ -263,67 +282,36 @@ import { el, cardLink, swapPair, fitText, resultCard } from "dom";
         absence is why the card leaving carries no arrows: a card compared
         against itself has nothing to say
     */
-    /* NO report flag, and that is the one thing on a search result this page
-       deliberately does not draw. the flag posts to /feedback with the query
-       string of the page it was pressed on, and this page is a POST result with
-       no query string to send: the button would render and do nothing, which is
-       worse than not offering it. wiring it properly means deciding what a
-       report against a SUGGESTION even means, which is its own question */
+    /* the flag is on the SUGGESTIONS and not on the card leaving. a report says
+       "this is a bad match for that", so the card being matched against has
+       nothing to flag: it is the question, not an answer to it */
     function build(c, anchorName) {
-        return resultCard(c, anchorName);
+        return resultCard(c, anchorName, {flag: !!anchorName});
     }
 
     /*
-        the whole-deck fold at the foot, kept as the deck STANDS rather than as
-        the list arrived. without this it would quietly become a picture of the
-        deck you started with, which is the one thing it must not be while the
-        page is busy changing that deck.
+        reports, off the same bar and the same code /search uses.
 
-        it MUTATES the tile in place instead of replacing the node. cardfold.js
-        grabbed this grid's children once to batch them, so swapping nodes in
-        and out would leave it holding elements no longer on the page and the
-        "load 20 more" count would drift away from what is drawn.
-
-        every tile's original markup is kept the first time through, so this can
-        redraw from the top on every change: taking a swap, putting one back and
-        stepping backwards all land here and all get the same answer, rather
-        than three paths that have to agree
+        the query string is BUILT rather than read, because this page is a POST
+        result and has no url of its own. it carries exactly what /feedback
+        already knows how to read: which card is being matched against, which of
+        its lines are picked, and which tags are switched off. so the server
+        needed no new shape for this, only a note saying where it came from
     */
-    var deckGrid = document.querySelector(".swap-deck-all .deck-card-grid");
-    var deckTiles = null;
-
-    function paintDeck() {
-        if (!deckGrid) return;
-        if (!deckTiles) {
-            deckTiles = {};
-            Array.prototype.forEach.call(deckGrid.children, function (tile) {
-                deckTiles[tile.dataset.oid] = tile.innerHTML;
-            });
+    var reports = wireReports({
+        grid: options,
+        query: function () {
+            var p = new URLSearchParams();
+            p.set("q", D.queue[at].name);
+            if (picks.lines.length) p.set("lines", picks.lines.join(","));
+            if (picks.notags.length) p.set("notags", picks.notags.join(","));
+            if (picks.yestags.length) p.set("yestags", picks.yestags.join(","));
+            //so a report can be read back knowing it was made about a proposed
+            //replacement rather than about a search result
+            p.set("from", "swap");
+            return p.toString();
         }
-        var byOut = {};
-        swaps.forEach(function (s) { byOut[s.out.oracle_id] = s; });
-        Array.prototype.forEach.call(deckGrid.children, function (tile) {
-            var oid = tile.dataset.oid;
-            var s = byOut[oid];
-            tile.classList.toggle("is-swapped", !!s);
-            if (!s) {
-                /* back to the card the server drew, which is what a put-back
-                   has to leave behind */
-                if (tile.innerHTML !== deckTiles[oid]) tile.innerHTML = deckTiles[oid];
-                return;
-            }
-            /* the card that took the slot, drawn by the same builder the
-               suggestions were, with no anchor: this is the deck as it stands,
-               not a comparison, so it carries figures and no verdicts */
-            tile.innerHTML = "";
-            var card = build(s["in"]);
-            while (card.firstChild) tile.appendChild(card.firstChild);
-            /* which card used to be here. a tile that silently became a
-               different card is a deck list nobody can check against their own */
-            el("div", "swap-deck-was", tile, "in for " + s.out.name);
-        });
-        enhanceCardFrames(deckGrid);
-    }
+    });
 
     /*
         the suggestions, revealed a batch at a time out of the whole answer the
@@ -368,9 +356,24 @@ import { el, cardLink, swapPair, fitText, resultCard } from "dom";
 
     function render(cards) {
         options.innerHTML = "";
-        /* an empty list never reaches here: show() walks past those before
-           drawing anything, and they are named in the passed-over section */
-        if (!cards.length) { at++; return show(); }
+        if (!cards.length) {
+            /*
+                nothing to offer, and WHY decides what happens next.
+
+                the card's own answer being empty is a fact about the card, so
+                the queue moves on and it gets named at the end. an answer
+                emptied by the PICKERS is the user's own doing, and moving them
+                off the card they are working on for it would be the page
+                undoing their click: they narrowed to one ability, got nothing,
+                and want to widen it again. so it says so and stays put, which
+                is what /search does with a filter that matches nothing
+            */
+            if (!picked()) { at++; return show(); }
+            note.textContent = "Nothing matches with those lines and tags. "
+                + "Widen it above, or keep the card you have.";
+            if (moreBtn) moreBtn.hidden = true;
+            return;
+        }
         note.textContent = "Pick one to swap it in, or keep the card you have.";
         shown = D.offer;
         paintOptions(cards);
@@ -393,7 +396,6 @@ import { el, cardLink, swapPair, fitText, resultCard } from "dom";
         trail.push({at: at, took: true});
         at++;
         clearPicks();
-        paintDeck();
         show();
     }
 
@@ -424,7 +426,6 @@ import { el, cardLink, swapPair, fitText, resultCard } from "dom";
         $("swap-done").hidden = true;
         $("swap-batch-note").hidden = true;
         $("swap-live").hidden = false;
-        paintDeck();
         show();
     }
 
@@ -451,7 +452,6 @@ import { el, cardLink, swapPair, fitText, resultCard } from "dom";
                 break;
             }
         }
-        paintDeck();
         finish();
     }
 
@@ -668,12 +668,13 @@ import { el, cardLink, swapPair, fitText, resultCard } from "dom";
                            the arithmetic to whoever is looking. only the card
                            coming IN carries them, because the one going out is
                            what they were measured against */
-                        return {name: c.name, image: c.image, image_back: c.image_back || "",
+                        return {oracle_id: c.oracle_id, name: c.name, image: c.image,
+                                image_back: c.image_back || "",
                                 sideways: !!c.sideways, flip: !!c.flip,
                                 scryfall_uri: c.scryfall_uri, price: c.price,
-                                rank: c.rank, salt: c.salt,
+                                rank: c.rank, salt: c.salt, age: c.age,
                                 price_vs: c.price_vs || "", rank_vs: c.rank_vs || "",
-                                salt_vs: c.salt_vs || ""};
+                                salt_vs: c.salt_vs || "", age_vs: c.age_vs || ""};
                     };
                     return {out: keep(s.out), "in": keep(s["in"])};
                 });

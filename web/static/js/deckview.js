@@ -77,6 +77,42 @@ import { el, cardLink, pairCard, swapPair, fitText } from "dom";
         $("deck-changed").hidden = false;
     }
 
+    /*
+        a card this deck GAINED, marked where it sits in the deck grid.
+
+        deliberately just a star and a tooltip. the swap tool briefly redrew
+        these tiles as full result cards, with the match percent, the verdicts
+        and the matched line on them, and that was the wrong trade: one tile in
+        a hundred wearing four extra rows is the grid shouting about the least
+        interesting thing on it, and "what changed" already has its own section
+        directly above with the pairs in it. this is a footnote, so it reads
+        like one.
+
+        matched on the card id where the shelf has one and on the NAME where it
+        does not: entries written before the id was stored are still on people's
+        shelves, and a deck that silently stops marking its swaps is worse than
+        one matched slightly loosely. names in a deck grid are unique anyway,
+        since it draws the distinct cards
+    */
+    function markSwapped(swaps) {
+        var grid = document.querySelector(".deck-card-fold .deck-card-grid");
+        if (!grid || !swaps.length) return;
+        var byOid = {}, byName = {};
+        swaps.forEach(function (s) {
+            if (s["in"].oracle_id) byOid[s["in"].oracle_id] = s.out.name;
+            byName[s["in"].name] = s.out.name;
+        });
+        Array.prototype.forEach.call(grid.children, function (tile) {
+            var name = tile.querySelector(".card-name");
+            if (!name) return;
+            var was = byOid[tile.dataset.oid] || byName[name.textContent];
+            if (!was) return;
+            el("span", "deck-card-swapped", name.parentNode, "*").title =
+                "swapped in for " + was;
+        });
+    }
+    markSwapped(swaps);
+
     if (entry.added) {
         $("deck-added").value = entry.added;
         $("deck-added-box").hidden = false;

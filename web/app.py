@@ -4181,12 +4181,6 @@ def deck_swap():
     with pool.connection() as conn:
         cards = deck_swappable(conn, ids, cur)
         colors = deck_colors(conn, ids)
-        #the whole deck, for the fold at the foot of the page. deciding whether
-        #to cut a card means knowing what else is in there, and until now the
-        #only way to look was the back button. the same partial /deck/view and
-        #the precon pages draw, off the same function, so a deck being walked
-        #and a deck being read show the same grid
-        all_cards = deck_cards(conn, ids, cur)
     #flattened here rather than picked apart in the template: the page hands
     #the whole queue to the browser as json, and building that out of five
     #jinja map() filters was a second place for the field names to drift
@@ -4209,7 +4203,7 @@ def deck_swap():
                            goal=SWAP_AXES[(field, direction)]["goal"],
                            matched=len(ids), missing=missing, cur=cur,
                            deck_name=name, commander=commander, batch=SWAP_QUEUE,
-                           cards=all_cards, section=DECK_SECTION, offer=SWAP_OFFER,
+                           offer=SWAP_OFFER,
                            pasted=text[:DECK_MAX_CHARS],
                            #the shelf key, so a finished session writes itself
                            #onto the deck it belongs to rather than looking for
@@ -4581,6 +4575,15 @@ def feedback():
         #scale marker: reports from before 2026-07-15 stored raw-cosine
         #percents, everything after stores calibrated display percents
         snap["cal"] = 1
+        #WHICH PAGE the report was made from, because the same complaint means
+        #different things depending on where it was made. "this is a bad match"
+        #on /search is about the ranking; the same words on the swap tool are
+        #about a card the site actively PROPOSED for somebody's deck, which is a
+        #stronger claim and a more useful negative. an unknown value is dropped
+        #rather than stored, so the field can never hold whatever was in the url
+        src = request.args.get("from", "")
+        if src in ("swap",):
+            snap["from"] = src
 
         if kind == "missing":
             expected_name = str(body.get("expected", "")).strip()[:200]
@@ -4833,11 +4836,19 @@ def admin():
         #the direction was recorded at report time, because the attribution it
         #describes can be rebuilt before anyone reviews it
         tag_was = ""
-        if r["kind"] == "tag":
-            try:
-                tag_was = json.loads(r["filters"] or "{}").get("tag_was", "")
-            except ValueError:
-                tag_was = ""
+        #WHERE it was reported from, on its own line rather than left buried in
+        #the filters json. a bad match on /search is a complaint about the
+        #ranking; the same words from the swap tool are about a card the site
+        #actively proposed for somebody's deck, which is the stronger claim and
+        #the more useful negative, so a reviewer should not have to go looking
+        source = ""
+        try:
+            snap = json.loads(r["filters"] or "{}")
+            if r["kind"] == "tag":
+                tag_was = snap.get("tag_was", "")
+            source = snap.get("from", "")
+        except ValueError:
+            pass
         view = {
             "id": r["id"], "kind": r["kind"], "cards": cards, "reason": r["reason"],
             "created": r["created_at"].strftime("%Y-%m-%d %H:%M"),
@@ -4849,7 +4860,7 @@ def admin():
             #ip, printed under the word "token"
             "filters": r["filters"], "model": r["embed_model"],
             "ip": (r["ip"] or "")[:12] if len(r["ip"] or "") == 64 else "",
-            "tag": r["tag"], "tag_was": tag_was,
+            "tag": r["tag"], "tag_was": tag_was, "source": source,
         }
         if r["status"] == "pending":
             pending.append(view)

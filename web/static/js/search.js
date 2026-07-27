@@ -13,6 +13,7 @@
 //the same names the body already used
 
 import { el, resultCard } from "dom";
+import { wireReports } from "report";
 
 //the searched card's own figures, so results added by load more can
 //name what their arrows are measured against, exactly like the
@@ -288,82 +289,18 @@ document.querySelectorAll(".tag-chip").forEach(function(el) {
 });
 
 /*
-    the report bar. two ways in: the "expected a card that isn't here?"
-    link opens it as a missing-card report (name the card, plus anything
-    extra you want to add), and the little flag under any result opens it
-    as a misplaced-card report with that card marked in red (just say why
-    it's a bad match, nobody has to know a better card off the top of
-    their head). the server answers with a human sentence either way,
-    including "your filters are hiding that card, here's which one" for
-    missing reports that aren't really the matcher's fault
+    the report bar, from report.js, which /deck/swap now uses too. what stays
+    here is what is specific to THIS page: its three entry points, and the fact
+    that the query string /feedback is judged against is simply this page's own
 */
-var reportBar = document.getElementById("report-bar");
-var reportTitle = document.getElementById("report-title");
-var reportPick = document.getElementById("report-pick");
-var reportInput = document.getElementById("report-input");
-var reportReason = document.getElementById("report-reason");
-var reportMsg = document.getElementById("report-msg");
-var reportSuggest = document.getElementById("report-suggest");
-var reportTagPick = document.getElementById("report-tag-pick");
-var reportKind = "";
-var flagged = null;  //{id, name, el} of the card a misplaced report is about
-
-function openReportBar(kind, flag) {
-    if (flagged) {
-        flagged.el.classList.remove("flagged");
-    }
-    reportKind = kind;
-    flagged = flag || null;
-    if (kind == "tag") {
-        reportTitle.textContent = "Which tag is on the wrong line? Whether it should be there or shouldn't is worked out from where it sits now, so just pick it.";
-        reportReason.placeholder = "(optional) which line does it really belong to?";
-    } else if (flagged) {
-        flagged.el.classList.add("flagged");
-        reportTitle.textContent = 'You flagged "' + flagged.name + '" as a bad match. Please put a small description about why it\'s bad.';
-        reportReason.placeholder = "why is it a bad match?";
-    } else {
-        reportTitle.textContent = "Which card should be here? It gets checked against your filters first, and only real gaps reach the log.";
-        reportReason.placeholder = "(optional) anything else worth knowing?";
-    }
-    //three shapes: missing names a card, misplaced only explains, tag
-    //picks from the card's own tags
-    reportPick.hidden = (kind != "missing");
-    if (reportTagPick) {
-        reportTagPick.hidden = (kind != "tag");
-    }
-    reportBar.hidden = false;
-    reportMsg.hidden = true;
-    reportInput.value = "";
-    reportReason.value = "";
-    reportBar.scrollIntoView({behavior: "smooth", block: "nearest"});
-    if (kind == "missing") {
-        reportInput.focus();
-    } else if (kind == "tag" && reportTagPick) {
-        reportTagPick.focus();
-    } else {
-        reportReason.focus();
-    }
-}
-
-function closeReportBar() {
-    if (flagged) {
-        flagged.el.classList.remove("flagged");
-    }
-    flagged = null;
-    reportKind = "";
-    reportBar.hidden = true;
-    reportSuggest.style.display = "none";
-}
-
-function showReportMsg(text, good) {
-    reportMsg.textContent = text;
-    reportMsg.className = good ? "good" : "bad";
-    reportMsg.hidden = false;
-}
+var reports = wireReports({
+    query: function () { return new URLSearchParams(window.location.search).toString(); },
+    grid: document.querySelector(".card-grid")
+});
 
 document.getElementById("report-missing").onclick = function(e) {
     e.preventDefault();
-    openReportBar("missing", null);
+    reports.open("missing", null);
 };
 
 //only rendered when a line is picked, so it is absent most of the time
@@ -371,22 +308,9 @@ var reportTagLink = document.getElementById("report-tag");
 if (reportTagLink) {
     reportTagLink.onclick = function(e) {
         e.preventDefault();
-        openReportBar("tag", null);
+        reports.open("tag", null);
     };
 }
-
-document.getElementById("report-cancel").onclick = closeReportBar;
-
-/*
-    one listener on the grid covers every flag, including the ones load
-    more adds later
-*/
-document.querySelector(".card-grid").addEventListener("click", function(e) {
-    var flagBtn = e.target.closest(".report-flag");
-    if (flagBtn) {
-        openReportBar("misplaced", {id: flagBtn.dataset.id, name: flagBtn.dataset.name, el: flagBtn.closest(".result")});
-    }
-});
 
 //the rabbit-hole hop that used to live here is the plain click now,
 //and the ctrl-click that carried it belongs to the one card-link rule
@@ -394,43 +318,8 @@ document.querySelector(".card-grid").addEventListener("click", function(e) {
 
 //the same name suggestions as the search bar, wired by the shared
 //helper in base.html, picking just fills the box in
-wireSuggest(reportInput, reportSuggest, function(name) {
-    reportInput.value = name;
-});
-
-document.getElementById("report-send").onclick = function() {
-    var body = {kind: reportKind, reason: reportReason.value.trim()};
-    if (reportKind == "misplaced") {
-        if (!body.reason) {
-            showReportMsg("Say a few words about why it's a bad match first.", false);
-            return;
-        }
-        body.got_id = flagged.id;
-    } else if (reportKind == "tag") {
-        //no reason required: the disagreement is the report, and which
-        //way it runs is read off the attribution rather than typed
-        body.tag = reportTagPick ? reportTagPick.value : "";
-        if (!body.tag) {
-            showReportMsg("Pick which tag looks wrong first.", false);
-            return;
-        }
-    } else {
-        body.expected = reportInput.value.trim();
-        if (!body.expected) {
-            showReportMsg("Type a card name first.", false);
-            return;
-        }
-    }
-    //the page's whole query string rides along, like the load more button
-    fetch("/feedback?" + new URLSearchParams(window.location.search).toString(), {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify(body)
-    })
-        .then(function(r) { return r.json(); })
-        .then(function(data) { showReportMsg(data.msg, data.ok); })
-        .catch(function() { showReportMsg("Something went wrong sending that, sorry.", false); });
-};
+wireSuggest(document.getElementById("report-input"), document.getElementById("report-suggest"),
+    function(name) { document.getElementById("report-input").value = name; });
 
 /*
     remember this search so the home page can float it as a recent card.
