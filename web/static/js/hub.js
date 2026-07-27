@@ -3,7 +3,7 @@
 //templates/deck/hub.html, which had no jinja in it at all, so this is a
 //straight relocation minus its own copy of el
 
-import { el } from "dom";
+import { el, cardLink, pairCard, swapPair } from "dom";
 
 (function () {
     var KEY = "delvefall_recent_decks";
@@ -39,36 +39,6 @@ import { el } from "dom";
         document.getElementById("deck-recent-commander-field").value =
             (d.label || "").replace(/ #\d+$/, "");
         document.getElementById("deck-recent-form").submit();
-    }
-
-    /* one card in a swap pair. the same shape the swap tool draws, because it
-       is the same card being shown for the same reason */
-    function pairCard(c) {
-        var div = document.createElement("div");
-        div.className = "result";
-        var frame = el("div", "card-frame", div);
-        frame.dataset.sideways = c.sideways ? "1" : "";
-        frame.dataset.flip = c.flip ? "1" : "";
-        frame.dataset.back = c.image_back || "";
-        var a = el("a", "", frame);
-        a.href = "/search?q=" + encodeURIComponent(c.name);
-        a.dataset.card = c.name;
-        if (c.scryfall_uri) a.dataset.scryfall = c.scryfall_uri;
-        a.title = "search " + c.name + " here. ctrl-click to open it on scryfall";
-        var img = el("img", "", a);
-        img.src = c.image;
-        img.alt = c.name;
-        img.width = 488;
-        img.height = 680;
-        img.loading = "lazy";
-        el("div", "result-name", div, c.name);
-        if (c.price || c.rank || c.salt) {
-            var row = el("div", "result-price", div);
-            if (c.price) el("span", "price-figure", row, c.price);
-            if (c.rank) el("span", "result-rank", row, c.rank);
-            if (c.salt) el("span", "result-salt", row, c.salt);
-        }
-        return div;
     }
 
     function copyBox(parent, heading, note, value, label) {
@@ -111,13 +81,9 @@ import { el } from "dom";
         var made = el("ul", "swap-made", box);
         swaps.forEach(function (s) {
             var li = el("li", "swap-made-row", made);
-            var out = el("a", "swap-made-out", li, s.out.name);
-            out.href = "/search?q=" + encodeURIComponent(s.out.name);
-            out.dataset.card = s.out.name;
+            cardLink(s.out.name, "swap-made-out", li);
             el("span", "swap-made-arrow", li, "→");
-            var into = el("a", "swap-made-in", li, s["in"].name);
-            into.href = "/search?q=" + encodeURIComponent(s["in"].name);
-            into.dataset.card = s["in"].name;
+            cardLink(s["in"].name, "swap-made-in", li);
         });
 
         var pics = el("details", "deck-card-open", box);
@@ -125,14 +91,7 @@ import { el } from "dom";
         el("summary", "", pics, "Show the swaps as cards");
         var pairs = el("div", "swap-pairs", pics);
         swaps.forEach(function (s) {
-            var row = el("div", "swap-pair", pairs);
-            var left = el("div", "swap-pair-side swap-pair-out", row);
-            el("span", "swap-pair-label", left, "Out");
-            left.appendChild(pairCard(s.out));
-            el("div", "swap-pair-arrow", row, "→");
-            var right = el("div", "swap-pair-side swap-pair-in", row);
-            el("span", "swap-pair-label", right, "In");
-            right.appendChild(pairCard(s["in"]));
+            swapPair(pairs, s, pairCard);
         });
         /* the frames only exist once the details has been built, and
            enhanceCardFrames marks what it has done, so this is safe to call

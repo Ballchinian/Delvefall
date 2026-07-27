@@ -9,7 +9,7 @@
 //it reads the shelf and never writes to it. reaching this page is not an event
 //in a deck's history, so nothing about it belongs in the record
 
-import { el } from "dom";
+import { el, cardLink, pairCard, swapPair } from "dom";
 
 (function () {
     var dataEl = document.getElementById("deck-view-data");
@@ -49,44 +49,6 @@ import { el } from "dom";
 
     if (!entry) return;
 
-    /* one card in a swap pair, the same shape the swap tool and the hub draw.
-       three copies of this now, which is one too many: it wants to join el in
-       the shared module the next time any of them is touched */
-    function pairCard(c) {
-        var div = document.createElement("div");
-        div.className = "result";
-        var frame = el("div", "card-frame", div);
-        frame.dataset.sideways = c.sideways ? "1" : "";
-        frame.dataset.flip = c.flip ? "1" : "";
-        frame.dataset.back = c.image_back || "";
-        var a = el("a", "", frame);
-        a.href = "/search?q=" + encodeURIComponent(c.name);
-        a.dataset.card = c.name;
-        if (c.scryfall_uri) a.dataset.scryfall = c.scryfall_uri;
-        a.title = "search " + c.name + " here. ctrl-click to open it on scryfall";
-        var img = el("img", "", a);
-        img.src = c.image;
-        img.alt = c.name;
-        img.width = 488;
-        img.height = 680;
-        img.loading = "lazy";
-        el("div", "result-name", div, c.name);
-        if (c.price || c.rank || c.salt) {
-            var row = el("div", "result-price", div);
-            if (c.price) el("span", "price-figure", row, c.price);
-            if (c.rank) el("span", "result-rank", row, c.rank);
-            if (c.salt) el("span", "result-salt", row, c.salt);
-        }
-        return div;
-    }
-
-    function cardLink(name, cls, parent) {
-        var a = el("a", cls, parent, name);
-        a.href = "/search?q=" + encodeURIComponent(name);
-        a.dataset.card = name;
-        return a;
-    }
-
     var swaps = entry.swaps || [];
     if (swaps.length) {
         $("deck-changed-note").textContent =
@@ -101,14 +63,7 @@ import { el } from "dom";
             el("span", "swap-made-arrow", li, "→");
             cardLink(s["in"].name, "swap-made-in", li);
 
-            var row = el("div", "swap-pair", pairs);
-            var left = el("div", "swap-pair-side swap-pair-out", row);
-            el("span", "swap-pair-label", left, "Out");
-            left.appendChild(pairCard(s.out));
-            el("div", "swap-pair-arrow", row, "→");
-            var right = el("div", "swap-pair-side swap-pair-in", row);
-            el("span", "swap-pair-label", right, "In");
-            right.appendChild(pairCard(s["in"]));
+            swapPair(pairs, s, pairCard);
         });
         /* the frames only exist once the fold has been built, and
            enhanceCardFrames marks what it has done, so opening and closing it

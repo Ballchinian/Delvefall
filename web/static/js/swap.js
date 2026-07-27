@@ -12,7 +12,7 @@
 //a bare specifier, resolved by the import map base.html emits, so this
 //picks up dom.js at its content-hashed url rather than an unstamped one
 //that the year-long static cache would freeze
-import { el } from "dom";
+import { el, cardLink, swapPair } from "dom";
 (function () {
     var dataEl = document.getElementById("swap-data");
     if (!dataEl) return;
@@ -23,15 +23,6 @@ import { el } from "dom";
        link into delvefall, ctrl-click out to scryfall. the handler for that
        lives in base.html and keys off data-card, so anything carrying it gets
        the behaviour without wiring anything up */
-    function cardLink(name, cls) {
-        var a = document.createElement("a");
-        a.className = cls;
-        a.href = "/search?q=" + encodeURIComponent(name);
-        a.dataset.card = name;
-        a.textContent = name;
-        return a;
-    }
-
     /*
         the deck grows and never shrinks. a card swapped IN has to be excluded
         from every later suggestion or the tool offers it twice, and a card
@@ -393,17 +384,10 @@ import { el } from "dom";
         pairs.innerHTML = "";
         $("swap-pairs-box").hidden = !swaps.length;
         swaps.forEach(function (s, i) {
-            var row = el("div", "swap-pair", pairs);
-
-            var left = el("div", "swap-pair-side swap-pair-out", row);
-            el("span", "swap-pair-label", left, "Out");
-            left.appendChild(build(s.out));
-
-            el("div", "swap-pair-arrow", row, "→");
-
-            var right = el("div", "swap-pair-side swap-pair-in", row);
-            el("span", "swap-pair-label", right, "In");
-            right.appendChild(build(s["in"]));
+            /* build, not pairCard: a card being weighed against another
+               carries its match percent and its verdicts, which is the whole
+               question a swap asks and is this page's alone */
+            var row = swapPair(pairs, s, build);
 
             var back = el("button", "swap-undo", row, "Put " + s.out.name + " back");
             back.type = "button";
