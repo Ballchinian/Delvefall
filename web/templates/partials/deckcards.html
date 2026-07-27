@@ -38,8 +38,10 @@
     <summary>{{ cards_summary or 'View every card image' }}
         <span class="deck-card-total">{{ cards|length }} cards</span></summary>
     <div class="card-grid deck-card-grid" data-step="{{ section }}">
+        {# the id is here for the swap page, which walks these tiles and rewrites
+           the ones whose card has been replaced. every other page ignores it #}
         {% for c in cards %}
-        <div class="result{% if loop.index0 >= section %} is-over{% endif %}">
+        <div class="result{% if loop.index0 >= section %} is-over{% endif %}" data-oid="{{ c.oracle_id }}">
             <div class="card-frame" data-sideways="{{ '1' if c.sideways else '' }}" data-flip="{{ '1' if c.flip else '' }}" data-back="{{ c.image_back }}">
                 <a href="/search?q={{ c.name | urlencode }}" data-card="{{ c.name }}" data-scryfall="{{ c.scryfall_uri }}" title="search {{ c.name }} here. ctrl-click to open it on scryfall">
                     <img src="{{ c.image }}" alt="{{ c.name }}" width="488" height="680" loading="lazy">

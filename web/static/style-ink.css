@@ -2237,6 +2237,28 @@ footer a { color: var(--teal); }
 
 .swap-again { color: var(--teal); font-size: 14px; }
 
+/* the whole deck, on hand while a card is being judged rather than only after
+   the session. it follows the working area, so it needs a gap or it reads as
+   one more thing that just happened */
+.swap-deck-all { margin-top: 26px; }
+
+/* a slot this session has changed. the tile now draws the card that took it,
+   so the mark is what stops the grid reading as a deck that always looked this
+   way: it is the one place on the page showing a deck that does not exist
+   anywhere yet */
+.swap-deck-all .result.is-swapped {
+    background: var(--wash);
+    box-shadow: 0 0 0 1px var(--line);
+    border-radius: 3px;
+}
+
+.swap-deck-was {
+    margin-top: 4px;
+    font-size: 12px;
+    color: var(--muted);
+    font-style: italic;
+}
+
 .swap-made {
     list-style: none;
     margin: 0 0 10px;
@@ -3275,12 +3297,20 @@ body.home main {
 
 .deck-card-open summary::marker { color: var(--muted); }
 
+/* the gap between a fold's label and what it opened, and it belongs HERE
+   rather than on the thing inside. it used to sit on .deck-card-grid, so a fold
+   holding anything else (the swap pairs, the passed-over cards) opened with its
+   pictures jammed against the summary. on the summary, every fold on the site
+   gets the same gap by construction and a new one cannot be born wrong.
+   [open] because a shut fold is just the summary, and spacing under a label
+   with nothing under it is a gap between two unrelated things */
+.deck-card-open[open] > summary { margin-bottom: 12px; }
+
 /* the expanded pictures break OUT of the 860px reading column to the width
    the results grid gets. inside it, auto-fill landed on four columns at
    exactly the 200px minimum, 12% narrower than a result card and right at the
    point where the name and the three figures under it stop being readable */
 .deck-card-grid {
-    margin-top: 12px;
     width: min(968px, 100vw - 32px);
     margin-left: calc((100% - min(968px, 100vw - 32px)) / 2);
 }
@@ -3448,11 +3478,11 @@ body.home main {
 
 .deck-lead .deck-hub-note { display: block; margin-top: 8px; }
 
-/* the shelf is about to number this deck. a NOTE and not an alert, because
-   nothing has gone wrong and the box that fixes it is directly above: the hub's
-   rename has to interrupt, since by then the deck is already filed */
-.deck-lead-renamed {
-    margin: 10px 0 0;
+/* the shelf numbered this deck on the way in, said under the heading it applies
+   to. a NOTE and not an alert: nothing went wrong, the deck is saved, and the
+   name is fixable from the hub whenever they get round to it */
+.deck-renamed {
+    margin: 0 0 12px;
     padding: 8px 11px;
     border-left: 3px solid var(--gold);
     background: var(--wash);

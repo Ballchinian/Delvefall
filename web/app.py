@@ -4030,6 +4030,12 @@ def deck_swap():
     with pool.connection() as conn:
         cards = deck_swappable(conn, ids, cur)
         colors = deck_colors(conn, ids)
+        #the whole deck, for the fold at the foot of the page. deciding whether
+        #to cut a card means knowing what else is in there, and until now the
+        #only way to look was the back button. the same partial /deck/view and
+        #the precon pages draw, off the same function, so a deck being walked
+        #and a deck being read show the same grid
+        all_cards = deck_cards(conn, ids, cur)
     #flattened here rather than picked apart in the template: the page hands
     #the whole queue to the browser as json, and building that out of five
     #jinja map() filters was a second place for the field names to drift
@@ -4052,6 +4058,7 @@ def deck_swap():
                            goal=SWAP_AXES[(field, direction)]["goal"],
                            matched=len(ids), missing=missing, cur=cur,
                            deck_name=name, commander=commander, batch=SWAP_QUEUE,
+                           cards=all_cards, section=DECK_SECTION,
                            pasted=text[:DECK_MAX_CHARS],
                            #the shelf key, so a finished session writes itself
                            #onto the deck it belongs to rather than looking for

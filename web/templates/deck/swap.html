@@ -25,6 +25,7 @@
     </form>
 
     <h1>Making {{ deck_name or 'this deck' }} {{ goal }}</h1>
+    {% include "partials/renamed.html" %}
     {# where you are, and how far there is to go. it used to count how many of
        the checked cards had somewhere to go, which is a fact about the tool
        rather than about the deck: what somebody walking a queue wants to know
@@ -76,8 +77,16 @@
            particular card is pressing this over and over, and making them
            scroll past the suggestions each time to reach it is the version
            that gets abandoned halfway #}
+        {# the walk runs both ways. one misplaced click on a suggestion used to
+           be final until the end of the batch, which is a hard thing to live
+           with in a tool whose whole shape is one card at a time.
+
+           back is SECOND and hidden until there is somewhere to go, so the
+           control people press constantly stays where it was and does not shift
+           under the cursor the first time a decision gets made #}
         <div class="swap-actions swap-actions-top">
             <button type="button" class="swap-skip" id="swap-skip">Keep it, next card</button>
+            <button type="button" class="swap-back" id="swap-back" hidden>&larr; Back a card</button>
         </div>
 
         <p class="deck-section-note" id="swap-note">Looking for replacements&hellip;</p>
@@ -152,6 +161,23 @@
         </div>
     </div>
     {% endif %}
+
+    {# the rest of the deck, on hand the whole way through rather than only at
+       the end. deciding whether to cut a card means knowing what else is in
+       there, and the only way to look used to be the back button, which threw
+       the session away to answer a question about it.
+
+       it sits OUTSIDE the finished block on purpose: the moment it is wanted is
+       while a card is on screen being judged, not after everything is decided.
+       the script keeps it current as swaps are made, so it is the deck as it
+       STANDS and not the list as it arrived #}
+    {% if cards %}
+    <div class="swap-deck-all">
+        {% with cards_summary = 'View the whole deck' %}
+        {% include "partials/deckcards.html" %}
+        {% endwith %}
+    </div>
+    {% endif %}
 </div>
 
 {# the deck the page is holding. it lives here rather than on the server
@@ -177,4 +203,7 @@
 window.MANA_URLS = {{ mana_urls() | tojson }};
 </script>
 <script type="module" src="{{ static_url('js/swap.js') }}"></script>
+{# the whole-deck fold at the foot batches exactly like the one on /deck/view,
+   because it IS the one on /deck/view #}
+<script src="{{ static_url('js/cardfold.js') }}" defer></script>
 {% endblock %}

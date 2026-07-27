@@ -1,0 +1,9 @@
+{# the shelf renamed this deck on the way in. included on all three pages a
+   naming can land on, so wherever you went next is where you find out.
+
+   the element AND its script travel together, because a banner with nothing to
+   fill it is worse than no banner: one include is the whole feature and there
+   is no second edit to forget. the script is a module, so it defers on its own
+   and runs after this element is parsed regardless of where the include sits #}
+<p class="deck-renamed" id="deck-renamed" hidden></p>
+<script type="module" src="{{ static_url('js/renamed.js') }}"></script>

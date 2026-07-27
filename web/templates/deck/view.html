@@ -19,6 +19,7 @@
     </form>
 
     <h1>{{ deck_name or 'Your deck' }}</h1>
+    {% include "partials/renamed.html" %}
     <p class="deck-detail-sub">{{ matched }} card{{ '' if matched == 1 else 's' }},
     every one of them below.</p>
 

@@ -64,7 +64,24 @@ import { el, cardLink, swapPair, fitText } from "dom";
 
     var $ = function (id) { return document.getElementById(id); };
     var options = $("swap-options"), note = $("swap-note");
-    var skipBtn = $("swap-skip");
+    var skipBtn = $("swap-skip"), backBtn = $("swap-back");
+
+    /*
+        every decision this session has made, in the order it made them, so the
+        walk runs backwards as well as forwards.
+
+        it exists because the queue used to be a one way door: one misplaced
+        click on "Swap this in" and the only way to reconsider was to reach the
+        end of the batch and hunt the pair down in the review. a card at a time
+        is the whole shape of this tool, so moving between them has to be
+        symmetric.
+
+        each entry is the index it was made AT, which is not the same as at-1
+        when it lands: show() steps silently over cards nothing could replace,
+        so walking back by subtraction would stop on dead ends the forward walk
+        deliberately hid
+    */
+    var trail = [];
 
     /*
         ask for one card's replacements, once. the result is cached whichever
@@ -119,6 +136,9 @@ import { el, cardLink, swapPair, fitText } from "dom";
            stepped over the dead ends above, so this is the card being looked
            at and not the card the loop started from */
         $("swap-at").textContent = at + 1;
+        /* nothing decided yet means nowhere to go back to, and a control that
+           cannot do anything is worse than one that is not there */
+        if (backBtn) backBtn.hidden = !trail.length;
 
         var card = D.queue[at];
         $("swap-out-figure").textContent = card.figure;
@@ -222,6 +242,58 @@ import { el, cardLink, swapPair, fitText } from "dom";
         return div;
     }
 
+    /*
+        the whole-deck fold at the foot, kept as the deck STANDS rather than as
+        the list arrived. without this it would quietly become a picture of the
+        deck you started with, which is the one thing it must not be while the
+        page is busy changing that deck.
+
+        it MUTATES the tile in place instead of replacing the node. cardfold.js
+        grabbed this grid's children once to batch them, so swapping nodes in
+        and out would leave it holding elements no longer on the page and the
+        "load 20 more" count would drift away from what is drawn.
+
+        every tile's original markup is kept the first time through, so this can
+        redraw from the top on every change: taking a swap, putting one back and
+        stepping backwards all land here and all get the same answer, rather
+        than three paths that have to agree
+    */
+    var deckGrid = document.querySelector(".swap-deck-all .deck-card-grid");
+    var deckTiles = null;
+
+    function paintDeck() {
+        if (!deckGrid) return;
+        if (!deckTiles) {
+            deckTiles = {};
+            Array.prototype.forEach.call(deckGrid.children, function (tile) {
+                deckTiles[tile.dataset.oid] = tile.innerHTML;
+            });
+        }
+        var byOut = {};
+        swaps.forEach(function (s) { byOut[s.out.oracle_id] = s; });
+        Array.prototype.forEach.call(deckGrid.children, function (tile) {
+            var oid = tile.dataset.oid;
+            var s = byOut[oid];
+            tile.classList.toggle("is-swapped", !!s);
+            if (!s) {
+                /* back to the card the server drew, which is what a put-back
+                   has to leave behind */
+                if (tile.innerHTML !== deckTiles[oid]) tile.innerHTML = deckTiles[oid];
+                return;
+            }
+            /* the card that took the slot, drawn by the same builder the
+               suggestions were, with no anchor: this is the deck as it stands,
+               not a comparison, so it carries figures and no verdicts */
+            tile.innerHTML = "";
+            var card = build(s["in"]);
+            while (card.firstChild) tile.appendChild(card.firstChild);
+            /* which card used to be here. a tile that silently became a
+               different card is a deck list nobody can check against their own */
+            el("div", "swap-deck-was", tile, "in for " + s.out.name);
+        });
+        enhanceCardFrames(deckGrid);
+    }
+
     function render(cards) {
         options.innerHTML = "";
         /* an empty list never reaches here: show() walks past those before
@@ -249,7 +321,39 @@ import { el, cardLink, swapPair, fitText } from "dom";
            screen by then and there is no url to ask about it again */
         swaps.push({out: D.queue[at], in: c, match: c.match});
         deck.push(c.oracle_id);
+        trail.push({at: at, took: true});
         at++;
+        paintDeck();
+        show();
+    }
+
+    /*
+        one step back up the trail, undoing whatever was decided there.
+
+        a swap is unwound completely: the card that came in leaves the deck
+        list, so it can be offered again, and the pair stops existing. that is
+        the same thing "put it back" does in the review at the end, and it has
+        to be, or the same decision could be undone two ways with two results.
+
+        the card that went OUT is not requeued, because it never left the queue:
+        the trail holds the index it was at, so going back simply stands on it
+        again with nothing decided
+    */
+    function back() {
+        if (!trail.length) return;
+        var step = trail.pop();
+        if (step.took) {
+            var s = swaps.pop();
+            var at_in = deck.indexOf(s["in"].oracle_id);
+            if (at_in > -1) deck.splice(at_in, 1);
+        }
+        at = step.at;
+        /* the review is only up once a batch has run out, and going back means
+           the walk is live again */
+        $("swap-done").hidden = true;
+        $("swap-batch-note").hidden = true;
+        $("swap-live").hidden = false;
+        paintDeck();
         show();
     }
 
@@ -265,10 +369,27 @@ import { el, cardLink, swapPair, fitText } from "dom";
         var at_in = deck.indexOf(s["in"].oracle_id);
         if (at_in > -1) deck.splice(at_in, 1);
         swaps.splice(i, 1);
+        /* the trail records the DECISION, so undoing one from the review has to
+           take its step with it or going back afterwards would try to unwind a
+           swap that is no longer there. matched on the card it was made at,
+           never on position: the review's order and the trail's are the same
+           today and nothing enforces that */
+        for (var t = 0; t < trail.length; t++) {
+            if (trail[t].took && D.queue[trail[t].at] === s.out) {
+                trail[t].took = false;
+                break;
+            }
+        }
+        paintDeck();
         finish();
     }
 
-    skipBtn.addEventListener("click", function () { at++; show(); });
+    skipBtn.addEventListener("click", function () {
+        trail.push({at: at, took: false});
+        at++;
+        show();
+    });
+    if (backBtn) backBtn.addEventListener("click", back);
 
     /* another batch. everything decided so far stays decided: the swaps list,
        the cards nothing could replace and the growing deck are all untouched,

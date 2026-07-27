@@ -58,14 +58,6 @@
                    placeholder="{{ commander or 'Named after the commander' }}"
                    value="{{ deck_name if deck_name != commander else '' }}">
         </div>
-
-        {# said BEFORE it happens, not after. this browser already holding a
-           deck of this name means the one you are about to save gets numbered,
-           and the shelf used to do that silently: you named a deck, pressed a
-           mode, and found it filed as "#2" on a page you might never go back
-           to. the hub's rename alerts about the same rule, so the only moment
-           it was invisible was the first one #}
-        <p class="deck-lead-renamed" id="deck-lead-renamed" hidden></p>
     </div>
 
     {# three rows separated by rules, not three bordered cards side by side.

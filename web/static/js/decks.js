@@ -17,6 +17,34 @@ export var KEY = "delvefall_recent_decks";
 //you keep rather than something that happens to you
 export var KEEP = 10;
 
+//a one-shot note from the page that renamed a deck to the page it lands on.
+//
+//the shelf numbers a clashing name at SUBMIT time, and submitting navigates, so
+//there is no moment on the naming page where the answer is both known and still
+//on screen. predicting it there instead was tried and pulled: it fired on decks
+//that turned out not to clash, and a warning about something that has not
+//happened is one nobody can check. this reports what the shelf ACTUALLY did.
+//
+//sessionStorage rather than localStorage: it is about one hop, and a note that
+//outlived the tab would greet somebody days later about a deck they had
+//forgotten renaming
+export var RENAMED = "delvefall_renamed";
+
+export function noteRename(was, now) {
+    try { sessionStorage.setItem(RENAMED, JSON.stringify({was: was, now: now})); }
+    catch (e) {}
+}
+
+//read AND delete, so it shows once. a refresh of the page it landed on is not a
+//second rename and should not say it was
+export function takeRename() {
+    try {
+        var raw = sessionStorage.getItem(RENAMED);
+        sessionStorage.removeItem(RENAMED);
+        return raw ? JSON.parse(raw) : null;
+    } catch (e) { return null; }
+}
+
 export function read() {
     try { return JSON.parse(localStorage.getItem(KEY)) || []; }
     catch (e) { return []; }

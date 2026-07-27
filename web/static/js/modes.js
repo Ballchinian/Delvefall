@@ -10,29 +10,16 @@
 //the shelf and its naming rule live in decks.js, shared with the hub, because a
 //rule enforced in one of the two places that name a deck is not a rule
 
-import { read, write, uniqueName } from "decks";
+import { read, write, uniqueName, baseName, noteRename } from "decks";
 
 (function () {
     var input = document.getElementById("deck-lead-input");
     var hits = document.getElementById("deck-lead-hits");
     var nameInput = document.getElementById("deck-name-input");
     var title = document.getElementById("deck-title");
-    var renamed = document.getElementById("deck-lead-renamed");
     var dataEl = document.getElementById("deck-lead-data");
-    var remember = document.getElementById("deck-remember");
     if (!input || !hits || !dataEl) return;
     var names = JSON.parse(dataEl.textContent) || [];
-
-    /* which shelf entry this deck is. the same key the writer below uses, and
-       it has to be the same one or this warns about a clash the save will not
-       actually hit: a deck off the shelf is keyed on the list it was imported
-       as, not on wherever it has got to since */
-    function key() {
-        if (!remember) return "";
-        var d = JSON.parse(remember.textContent);
-        var field = document.querySelector('.deck-mode input[name="list"]');
-        return d.origin || (field ? field.value : d.text);
-    }
 
     function fields(cls) {
         return Array.prototype.slice.call(document.querySelectorAll(cls));
@@ -46,30 +33,12 @@ import { read, write, uniqueName } from "decks";
         return typed || input.value.trim();
     }
 
-    /* the shelf will not let two decks share a name, so say which name this one
-       is about to get while there is still a box open to change it in. the
-       numbering itself happens on submit, in remember() below, off the same
-       uniqueName call, so what this predicts is what actually lands */
-    function warn() {
-        if (!renamed) return;
-        var want = label();
-        var got = uniqueName(want, read(), key());
-        var clash = want && got && got !== want.trim();
-        renamed.hidden = !clash;
-        if (clash) {
-            renamed.textContent = "You already have a deck called " + want.trim()
-                + ", so this one will be saved as " + got + ". Give it another name above "
-                + "if that isn't what you want.";
-        }
-    }
-
     function sync() {
         var lead = input.value.trim();
         fields(".deck-commander-field").forEach(function (f) { f.value = lead; });
         fields(".deck-name-field").forEach(function (f) { f.value = label(); });
         if (title) title.textContent = label() || "Your deck";
         if (nameInput) nameInput.placeholder = lead || "Named after the commander";
-        warn();
     }
 
     /*
@@ -199,6 +168,14 @@ import { read, write, uniqueName } from "decks";
         var name = wanted;
         if (was && was.label && wanted === was.label) name = was.label;
         else name = uniqueName(wanted, decks, key);
+
+        /* it got NUMBERED, so say so on the page this is about to land on.
+           checked off the number rather than off "the name changed", because
+           uniqueName also tidies a "#2" somebody typed themselves down to the
+           bare name, and that is not a clash and not worth a word */
+        if (name && wanted && name !== wanted && baseName(name).n > 1) {
+            noteRename(baseName(name).name, name);
+        }
 
         /* the entry is keyed on the origin and remembers where the deck has
            actually got to, so a row can offer both: the deck as imported,

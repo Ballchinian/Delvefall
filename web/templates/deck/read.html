@@ -23,6 +23,7 @@
     </form>
 
     <h1>{{ deck_name or 'Your deck' }}</h1>
+    {% include "partials/renamed.html" %}
     {# what did not match is settled on the page BEFORE this one and does not
        follow the deck here. by now the question has been answered one way or
        the other, and carrying the list of misses into the reading just puts a
