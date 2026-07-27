@@ -149,6 +149,36 @@
     anything else is tagged like it. The arrows walk back through everything
     you've been dealt, across visits.</p>
 
+    <h2 id="decks">The deck lens</h2>
+    <p><a href="/deck">Paste a decklist or import one</a> from Archidekt or Moxfield and the
+    same reading gets applied to a whole deck: how original it is, how salty, what it costs,
+    how played its cards are and how old, each one placed against every Commander precon.
+    Placing a deck needs at least {{ deck_min }} nonland cards, because the score averages
+    the top half of the list and a shorter one would be averaging fewer numbers than every
+    deck it was being compared with. Shorter lists are still read, they just aren't ranked.</p>
+
+    <p><strong>Change it</strong> walks the deck one card at a time, worst first, and offers
+    replacements for each. The count at the top says which card you are on and how many this
+    session is showing you, so "Card 3 of 12" means there are twelve to walk and you are on
+    the third. That total is the cards on offer now, not the whole deck: the queue is deeper
+    than one session of it, and reaching the end offers you the next batch rather than
+    pretending twelve was the real end of the list.</p>
+
+    <p>Some cards are stepped over on the way through. If nothing in the game does a card's
+    job and moves the deck the right way, there is no honest swap to offer, so it is passed
+    over rather than swapped for something worse. Those cards are named together at the end
+    under <strong>Nothing close enough</strong>, where you can click any of them or show them
+    as cards, because "nothing else does this" is a real finding about a card and worth
+    being able to argue with.</p>
+
+    <p>Decks you have read are kept in your own browser and nowhere else. Nothing about a
+    deck reaches the server beyond the request that reads it, so the list on the deck page
+    lives in this browser's storage, which is why it is not waiting for you on another
+    machine and why there is no account to make. Each saved deck can be reopened, renamed,
+    dropped, or opened to see and export its cards. Reopening a deck you have swapped picks
+    up where you left it rather than handing back the list you first imported, and the deck
+    as it arrived is kept alongside so the two can always be compared.</p>
+
     <h2>Where this is going</h2>
     <p>Delvefall is a small site with a long to-do list. Roughly what is coming, in the
     order it is likely to arrive:</p>

@@ -42,9 +42,9 @@
            and the direction is the bit that decides what the label becomes #}
         {% if r.kind == 'tag' %}
         <div class="fb-meta"><strong>tag: {{ r.tag }}</strong>
-            {% if r.tag_was == 'kept' %}&mdash; the picker KEPT it on the picked line, user says it does not belong
-            {% elif r.tag_was == 'aside' %}&mdash; the picker SET IT ASIDE, user says the line IS about it
-            {% else %}&mdash; direction unrecorded{% endif %}</div>
+            {% if r.tag_was == 'kept' %}the picker KEPT it on the picked line, user says it does not belong
+            {% elif r.tag_was == 'aside' %}the picker SET IT ASIDE, user says the line IS about it
+            {% else %}direction unrecorded{% endif %}</div>
         {% endif %}
         {% if r.reason %}<div class="fb-meta">reason: "{{ r.reason }}"</div>{% endif %}
         {% if r.picked %}<div class="fb-meta">picked lines: {{ r.picked }}</div>{% endif %}
