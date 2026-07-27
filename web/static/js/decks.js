@@ -39,9 +39,11 @@ export function baseName(label) {
 
 //`want`, numbered if this shelf already has a deck of that name.
 //
-//the SMALLEST free number, found rather than stored, so deleting the first
-//"Goblins" leaves the next one taking the bare name instead of a #2 with no #1
-//in front of it.
+//ONE PAST THE HIGHEST, not the smallest free number. the shelf is newest first,
+//so a number has to climb with recency or it reads backwards: taking the free
+//#1 while a #2 sat below meant the newest deck wore the lowest number and the
+//list counted upwards as it got older. dedupe closes any gap this leaves on the
+//next visit to the hub, so "#2 and #3 with no #1" is a state that tidies itself.
 //
 //`mine` is the entry being named, by its text key, and is skipped: a deck
 //keeping the name it already has must not be numbered against itself.
@@ -58,29 +60,34 @@ export function uniqueName(want, decks, mine) {
     //name, it does not decide how somebody capitalises their own deck
     var wanted = baseName(want).name;
     var key = wanted.toLowerCase();
-    var used = {};
+    var top = 0;
     decks.forEach(function (d) {
         if (mine !== undefined && d.text === mine) return;
         var b = baseName(d.label);
-        if (b.name.toLowerCase() === key) used[b.n] = true;
+        if (b.name.toLowerCase() === key && b.n > top) top = b.n;
     });
-    var n = 1;
-    while (used[n]) n++;
-    return n > 1 ? wanted + " #" + n : wanted;
+    return top ? wanted + " #" + (top + 1) : wanted;
 }
 
 //every deck on the shelf given a name nothing else on it has.
 //
 //shelves written before the rule existed can hold two decks called the same
 //thing, and a rule that only applies to new decks leaves those there forever.
-//this runs on load, keeps the FIRST of any clash as it is and numbers the rest,
-//so nobody loses a deck and nobody has to be asked about it.
+//this runs on load, keeps the OLDEST of any clash unnumbered and numbers the
+//rest, so nobody loses a deck and nobody has to be asked about it.
+//
+//OLDEST, and that is the whole reason for the reverse below. the shelf is
+//newest first, so numbering down the array handed the bare name to the deck
+//that arrived LAST and pushed "#2" onto the one that had been there for weeks.
+//uniqueName numbers the arrival, not the resident, and the two have to agree:
+//#2 is the later deck, which on a newest-first shelf is the one ABOVE, so the
+//numbers count down the list the way a reader expects them to.
 //
 //it returns null when there was nothing to do, which is the usual case and
 //saves writing the whole shelf back on every page view
 export function dedupe(decks) {
     var seen = {}, changed = false;
-    var out = decks.map(function (d) {
+    var out = decks.slice().reverse().map(function (d) {
         var b = baseName(d.label);
         if (!b.name) return d;
         var key = b.name.toLowerCase();
@@ -89,6 +96,6 @@ export function dedupe(decks) {
         if (want === d.label) return d;
         changed = true;
         return Object.assign({}, d, {label: want});
-    });
+    }).reverse();
     return changed ? out : null;
 }
