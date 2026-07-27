@@ -272,11 +272,24 @@ import { el } from "dom";
     /* another batch. everything decided so far stays decided: the swaps list,
        the cards nothing could replace and the growing deck are all untouched,
        so this genuinely continues the session rather than restarting it */
+    /* where the batch about to run started, and what had been decided by then.
+       finish() compares against these to say what the batch turned up, which is
+       the difference between "that did nothing" and "that checked twelve cards
+       and none of them had anywhere to go" */
+    var batchFrom = null;
+    var batchSwaps = 0;
+
     $("swap-keep-going").addEventListener("click", function () {
+        batchFrom = limit;
+        batchSwaps = swaps.length;
         limit = Math.min(limit + D.batch, D.queue.length);
         $("swap-checked").textContent = limit;
         $("swap-more").hidden = true;
         $("swap-done").hidden = true;
+        $("swap-batch-note").hidden = true;
+        /* rebuilt by finish() from the full list, so leaving it up during the
+           batch would show a stale answer next to live cards */
+        $("swap-nothing").hidden = true;
         $("swap-live").hidden = false;
         show();
     });
@@ -297,6 +310,29 @@ import { el } from "dom";
         if (limit < D.queue.length) {
             $("swap-more-left").textContent = Math.min(D.batch, D.queue.length - limit);
             $("swap-more").hidden = false;
+        }
+
+        /* say what the batch just did. a batch that found nothing puts the page
+           back exactly where it was, so without a word here the button reads as
+           broken: it is the one outcome the screen cannot show by itself */
+        if (batchFrom !== null) {
+            var walked = limit - batchFrom;
+            var got = swaps.length - batchSwaps;
+            var note = $("swap-batch-note");
+            if (!got) {
+                note.textContent = "Checked " + walked + " more card"
+                    + (walked === 1 ? "" : "s") + ". Nothing in the game does what any of "
+                    + "them do and moves the deck " + D.goal + ", so there was nothing to "
+                    + "offer. They are listed below."
+                    + (limit < D.queue.length ? " There are more further down the queue."
+                                              : "");
+            } else {
+                note.textContent = "Checked " + walked + " more card"
+                    + (walked === 1 ? "" : "s") + " and found " + got + " swap"
+                    + (got === 1 ? "" : "s") + ".";
+            }
+            note.hidden = false;
+            batchFrom = null;
         }
         $("swap-live").hidden = true;
         var done = $("swap-done");

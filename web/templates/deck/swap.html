@@ -44,6 +44,12 @@
         improvement than the last.</span>
     </div>
 
+    {# what the last batch actually turned up. without this, a batch where every
+       card had nowhere to go ended exactly where it started: same screen, same
+       button, same number on it, and no way to tell the difference between that
+       and a button that did nothing at all #}
+    <p class="deck-section-note" id="swap-batch-note" hidden></p>
+
     {% if not queue %}
     <p class="deck-section-note deck-unranked">Nothing in this list can be moved that way.
     Either every card is already {{ goal }}, or the cards that aren't have no rules text to
