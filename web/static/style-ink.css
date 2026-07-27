@@ -1751,25 +1751,40 @@ footer a { color: var(--teal); }
     margin: 20px 0 8px;
 }
 
+/* the CARD is the form, not the button inside it. it used to be the button,
+   which meant anything that was not the button could only sit outside the
+   border: the swap axis picker read as a stray control floating under three
+   cards rather than as part of the one it belongs to. a select cannot go
+   inside a submit button either, because opening it would submit */
+.deck-mode {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    background: var(--panel);
+    padding: 18px 20px;
+}
+
+.deck-mode:hover {
+    background: var(--wash);
+    border-color: var(--teal);
+}
+
 .deck-mode button {
     display: flex;
     flex-direction: column;
     gap: 6px;
     width: 100%;
-    height: 100%;
-    padding: 18px 20px;
-    border: 1px solid var(--line);
-    border-radius: 3px;
-    background: var(--panel);
+    /* fills the card so the whole thing is still one click, and so the go line
+       sits on the bottom edge however tall the neighbouring cards make it */
+    flex: 1;
+    padding: 0;
+    border: 0;
+    background: none;
     font: inherit;
     color: var(--text);
     text-align: left;
     cursor: pointer;
-}
-
-.deck-mode button:hover {
-    background: var(--wash);
-    border-color: var(--teal);
 }
 
 .deck-mode-title {
@@ -3629,11 +3644,20 @@ body.home main {
     font-size: 20px;
 }
 
+/* straight into the lens from a precon. it follows a grid of a hundred card
+   pictures, so without the gap it reads as the last row of them */
+.deck-precon-lens {
+    margin: 28px 0 24px;
+    max-width: 520px;
+}
+
 /* the swap axis picker, under the Change it button rather than inside it: a
    select inside a submit button is a select you cannot open without submitting */
 .deck-mode-axis {
     display: block;
-    margin-top: 10px;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--line);
     font-size: 13px;
     color: var(--muted);
 }
@@ -3674,31 +3698,3 @@ body.home main {
     .swap-pair-arrow { justify-self: start; transform: rotate(90deg); }
 }
 
-/* a finished swap session, opened under the deck it belongs to. it is a row
-   in the same list rather than a page of its own, because none of this ever
-   reached the server and there is no url for it to live at */
-.deck-recent-panel {
-    padding: 12px 0 14px;
-    border-bottom: 1px solid var(--line);
-}
-
-.deck-recent-panel-head {
-    font-size: 14px;
-    margin: 14px 0 4px;
-}
-
-.deck-recent-panel .swap-output {
-    width: 100%;
-    margin-top: 6px;
-}
-
-/* the panel lives in a narrow sidebar, so its card pairs stack rather than
-   trying to hold three columns in 210px */
-.deck-recent-panel .swap-pair {
-    grid-template-columns: minmax(0, 1fr);
-}
-
-.deck-recent-panel .swap-pair-arrow {
-    justify-self: start;
-    transform: rotate(90deg);
-}

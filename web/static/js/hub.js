@@ -3,7 +3,7 @@
 //templates/deck/hub.html, which had no jinja in it at all, so this is a
 //straight relocation minus its own copy of el
 
-import { el, cardLink, pairCard, swapPair } from "dom";
+import { el } from "dom";
 
 (function () {
     var KEY = "delvefall_recent_decks";
@@ -41,88 +41,6 @@ import { el, cardLink, pairCard, swapPair } from "dom";
         document.getElementById("deck-recent-form").submit();
     }
 
-    function copyBox(parent, heading, note, value, label) {
-        el("h3", "deck-recent-panel-head", parent, heading);
-        el("p", "deck-hub-note", parent, note);
-        var ta = el("textarea", "swap-output swap-output-short", parent);
-        ta.readOnly = true;
-        ta.rows = 6;
-        ta.value = value || "";
-        var actions = el("div", "swap-actions", parent);
-        var btn = el("button", "swap-copy", actions, label);
-        btn.type = "button";
-        btn.addEventListener("click", function () {
-            ta.select();
-            navigator.clipboard.writeText(ta.value).then(function () {
-                btn.textContent = "Copied";
-            }).catch(function () { btn.textContent = "Press Ctrl+C"; });
-        });
-    }
-
-    /*
-        what a swap session left behind, opened under its own deck.
-
-        it is rendered HERE rather than on a page of its own because there is
-        no page of its own to render: none of this ever reached the server, so
-        there is nothing for a url to point at. the panel is the honest shape
-        for data that only exists on this machine
-    */
-    function panel(d) {
-        var box = document.createElement("li");
-        box.className = "deck-recent-panel";
-        var swaps = d.swaps || [];
-
-        el("p", "deck-hub-note", box, swaps.length
-           ? swaps.length + " swap" + (swaps.length === 1 ? "" : "s")
-             + (d.goal ? ", making it " + d.goal : "") + "."
-           : "Nothing has been changed in this deck yet, so what is below is the "
-             + "list exactly as it came in.");
-
-        var made = el("ul", "swap-made", box);
-        swaps.forEach(function (s) {
-            var li = el("li", "swap-made-row", made);
-            cardLink(s.out.name, "swap-made-out", li);
-            el("span", "swap-made-arrow", li, "→");
-            cardLink(s["in"].name, "swap-made-in", li);
-        });
-
-        var pics = el("details", "deck-card-open", box);
-        pics.hidden = !swaps.length;
-        el("summary", "", pics, "Show the swaps as cards");
-        var pairs = el("div", "swap-pairs", pics);
-        swaps.forEach(function (s) {
-            swapPair(pairs, s, pairCard);
-        });
-        /* the frames only exist once the details has been built, and
-           enhanceCardFrames marks what it has done, so this is safe to call
-           on a panel that may be opened and closed repeatedly */
-        pics.addEventListener("toggle", function () {
-            if (pics.open) enhanceCardFrames(pics);
-        });
-
-        if (d.added) {
-            copyBox(box, "Just the new cards",
-                    "The cards this session added, on their own. Paste these in rather than "
-                    + "reimporting the whole deck and losing the categories you have set up.",
-                    d.added, "Copy the new cards");
-        }
-        if (d.newList) {
-            copyBox(box, "The whole new list",
-                    "Your original list with the swaps applied. This is what reopening "
-                    + "this deck picks up from.", d.newList, "Copy the list");
-        }
-        /* always last, and always there. checking that an import arrived whole
-           is the other reason to open a deck, and until now the only way to do
-           it was to reopen the deck and count the cards on the reading */
-        copyBox(box, d.newList ? "The list as imported" : "The list",
-                d.newList
-                    ? "Before any swaps, kept so a session can always be compared "
-                      + "against where the deck started."
-                    : "Every line this deck was read from, to check it arrived whole.",
-                d.text, "Copy the original");
-        return box;
-    }
-
     /*
         the list, drawn from scratch each time it changes. rebuilding rather
         than patching rows is the right trade at ten entries: one path that is
@@ -147,24 +65,6 @@ import { el, cardLink, pairCard, swapPair } from "dom";
                and the two lists to paste back. only offered on a deck that has
                been through the swap tool, because on any other one the panel
                would open onto nothing */
-            {
-                var view = el("button", "deck-recent-tool", tools, "⇱");
-                view.type = "button";
-                view.title = (d.swaps && d.swaps.length)
-                    ? "view and export this deck and the " + d.swaps.length + " swap"
-                      + (d.swaps.length === 1 ? "" : "s") + " saved for it"
-                    : "view and export the cards in this deck";
-                view.setAttribute("aria-label", "view and export " + (d.label || "this deck"));
-                view.addEventListener("click", function () {
-                    var open = li.nextElementSibling;
-                    if (open && open.classList.contains("deck-recent-panel")) {
-                        open.remove();
-                        return;
-                    }
-                    li.after(panel(d));
-                });
-            }
-
             /* renaming is what makes this a shelf rather than a history. a
                deck called "Kratos, God of War #2" is the site's guess, and the
                person who built it knows whether it is the budget one */

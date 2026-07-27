@@ -43,10 +43,9 @@
        to see what is in one of these, which sent every visitor who wanted that
        away from a page that already had the cards to hand #}
     {% if cards %}
-    <h2 id="cards">The cards</h2>
-    <p class="deck-section-note">Every card in the deck. Click any of them to search it
-    here, or ctrl-click to open it on Scryfall.</p>
+    {% with cards_summary = 'Every card in the deck' %}
     {% include "partials/deckcards.html" %}
+    {% endwith %}
 
     {# straight into the lens, with the commander already known. it posts the
        deck's own list to the same front door a paste goes through, so this
@@ -74,4 +73,5 @@
 
 {% block scripts %}
 <script src="{{ static_url('js/standing.js') }}" defer></script>
+<script src="{{ static_url('js/cardfold.js') }}" defer></script>
 {% endblock %}

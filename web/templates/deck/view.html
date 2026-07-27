@@ -61,8 +61,9 @@
         </div>
     </details>
 
-    <h2>The cards</h2>
+    {% with cards_summary = 'Every card in the deck' %}
     {% include "partials/deckcards.html" %}
+    {% endwith %}
 
     {# the other two modes, offered from here rather than making somebody go
        back a page to reach them. this page is where you land to check a deck
@@ -110,4 +111,5 @@
 window.MANA_URLS = {{ mana_urls() | tojson }};
 </script>
 <script type="module" src="{{ static_url('js/deckview.js') }}"></script>
+<script src="{{ static_url('js/cardfold.js') }}" defer></script>
 {% endblock %}
