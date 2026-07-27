@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "partials/deckways.html" as ways %}
 
 {% block title %}{{ deck_name or 'Your deck' }}, card by card - Delvefall{% endblock %}
 
@@ -68,30 +69,16 @@
 
     {# the other two modes, offered from here rather than making somebody go
        back a page to reach them. this page is where you land to check a deck
-       arrived, and "it did, now read it" is the next thing you want #}
+       arrived, and "it did, now compare it" is the next thing you want #}
     <div class="deck-modes-pick deck-modes-after">
-        <form action="/deck/read" method="post" class="deck-mode">
-            <input type="hidden" name="list" value="{{ pasted }}">
-            <input type="hidden" name="origin" value="{{ origin }}">
-            <input type="hidden" name="name" value="{{ deck_name }}">
-            <input type="hidden" name="commander" value="{{ commander }}">
-            <input type="hidden" name="seen" value="1">
-            <button type="submit">
-                <span class="deck-mode-title">Read it</span>
-                <span class="deck-mode-go">See the reading &rarr;</span>
-            </button>
-        </form>
-        <form action="/deck/swap" method="post" class="deck-mode">
-            <input type="hidden" name="list" value="{{ pasted }}">
-            <input type="hidden" name="origin" value="{{ origin }}">
-            <input type="hidden" name="name" value="{{ deck_name }}">
-            <input type="hidden" name="commander" value="{{ commander }}">
-            <input type="hidden" name="seen" value="1">
-            <button type="submit">
-                <span class="deck-mode-title">Change it</span>
-                <span class="deck-mode-go">Walk it card by card &rarr;</span>
-            </button>
-        </form>
+        {{ ways.way("/deck/read", "Compare it", "See the reading", pasted,
+                    body="How original it is, how salty, what it costs, how played its
+                          cards are and how old, against every Commander precon.",
+                    name=deck_name, commander=commander, origin=origin) }}
+        {{ ways.way("/deck/swap", "Change it", "Walk it card by card", pasted,
+                    body="Walk the deck a card at a time, worst first, and swap what you
+                          want to.",
+                    name=deck_name, commander=commander, origin=origin) }}
     </div>
 
     <p class="deck-detail-foot">Nothing here was saved. The list above is the one this

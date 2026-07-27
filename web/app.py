@@ -1185,6 +1185,12 @@ def rank_verdict(rank, anchor):
 SALT_BAND = 0.1
 SALT_MUCH_GAP = 0.4
 
+#a year, because a year is the unit two cards are contemporary in: four sets a
+#year means a six month gap says nothing about whether a card is from the same
+#era as the one you searched. no MUCH gap to go with it, since there is no
+#colour on this one to earn (see below)
+AGE_BAND_DAYS = 365.25
+
 
 def salt_verdict(salt, anchor):
     #which side of the searched card this one sits on for annoyance, in the
@@ -1204,6 +1210,25 @@ def salt_verdict(salt, anchor):
     if diff < 0:
         return "much-milder" if much else "milder"
     return "much-saltier" if much else "saltier"
+
+
+def age_verdict(released, anchor):
+    #which side of the searched card this one was printed. it is the fourth
+    #arrow and it took the longest to arrive, because the row had no age figure
+    #for an arrow to sit on until one was added.
+    #
+    #TWO states where the other three have four. price and salt each have a
+    #better end, so a big move there earns colour; older is not better than
+    #newer any more than more-played is better than less, so this returns a
+    #direction and nothing else. same call the play rate arrow already makes,
+    #and the rule the guide now states: colour means one end is better
+    if anchor is None or released is None:
+        return ""
+    diff = (anchor - released).days
+    if abs(diff) < AGE_BAND_DAYS:
+        return ""
+    #the anchor is the LATER date, so this card was printed first
+    return "older" if diff > 0 else "newer"
 
 
 #everything under the cut used to be one undivided pile that the sorts ran
@@ -1233,7 +1258,7 @@ def band_words(step):
 
 def find_similar(oracle_id, picked, filters, min_pct, sort, offset=0, how_many=20, band=None, blend=0.0,
                  currency="usd", dropped=(), forced=(), anchor_price=None, anchor_rank=None,
-                 anchor_salt=None):
+                 anchor_salt=None, anchor_released=None):
     #every candidate card keeps all its matching line pairs now instead of
     #just the best one, so results can show "+2 more matching lines".
     #
@@ -1569,13 +1594,15 @@ def find_similar(oracle_id, picked, filters, min_pct, sort, offset=0, how_many=2
         else:
             percent = mech_pct
         price = price_label(c, currency)
-        #the two little arrows: which side of the searched card this result
-        #sits on for money and for how much the format plays it. a comparison
-        #is the one thing these numbers honestly support on their own, and
-        #both tooltips name the card being compared against
+        #the four little arrows: which side of the searched card this result
+        #sits on for money, for how much the format plays it, for annoyance and
+        #for when it was printed. a comparison is the one thing these numbers
+        #honestly support on their own, and every tooltip names the card being
+        #compared against
         price_vs = price_verdict(price_in(c, currency), anchor_price)
         rank_vs = rank_verdict(c["edhrec_rank"], anchor_rank)
         salt_vs = salt_verdict(c["salt"], anchor_salt)
+        age_vs = age_verdict(c["released_at"], anchor_released)
         #a match that lives on the back face shows that side first, so the
         #line printed under the card is on the picture the user is looking
         #at (the ulvenwald lesson). the front face keeps the flip button
@@ -1610,10 +1637,11 @@ def find_similar(oracle_id, picked, filters, min_pct, sort, offset=0, how_many=2
             "rank_vs": rank_vs,
             "salt": salt_label(c["salt"]),
             "salt_vs": salt_vs,
-            #no verdict against the searched card, unlike the three above it.
-            #older and newer are not better and worse, and the site does not
-            #spend an arrow on a difference it cannot call
+            #an arrow like the three above it, but never a colour: older and
+            #newer are not better and worse, so there is a direction to point
+            #and no verdict to spend green or red on
             "age": age_label(c["released_at"]),
+            "age_vs": age_vs,
             "more_count": len(more),
             "more_text": "\n".join(more),
         })
@@ -1676,8 +1704,12 @@ def search():
     card["rank"] = rank_label(card["edhrec_rank"])
     #under its own key, NOT over card["salt"]: the raw number is what every
     #result is compared against below, and price and rank each keep their
-    #source column for the same reason
+    #source column for the same reason. age is the same shape again, over
+    #released_at, and it was the one figure the anchor did not print: every
+    #result now carries an age arrow, so the thing being compared to has to
+    #be on the page like the other three are
     card["salt_text"] = salt_label(card["salt"])
+    card["age"] = age_label(card["released_at"])
     blend = read_blend()
     min_pct = tier_cut(blend)
     sort = read_sort()
@@ -1697,7 +1729,8 @@ def search():
                                                 dropped=dropped, forced=forced,
                                                 anchor_price=price_in(card, filters["cur"]),
                                                 anchor_rank=card["edhrec_rank"],
-                                                anchor_salt=card["salt"])
+                                                anchor_salt=card["salt"],
+                                                anchor_released=card["released_at"])
     resp = make_response(render_template("search.html", query=query, card=card, card_lines=card_lines,
                                          picked_count=len(picked), results=results, has_more=has_more,
                                          next_band=next_band, min_pct=min_pct, errors=filters["errors"],
@@ -2029,13 +2062,12 @@ PRECON_METRICS = [
         #answer to "can you do X" turned out to be no
         "decimals": 3, "best": "desc", "cards": "Most original cards",
         "noun": "originality",
-        "settling": "A new deck reads as MORE original than it will look in five years, and that is half real: design space fills up, so a card printed today has had nobody to copy it yet. The effect is measured at r = +0.46 against release year.",
-        "means": "Every card scores from 0 to 1: one minus how close its nearest "
-                 "match anywhere in Magic gets. A card at 0.30 has something out "
-                 "there 70% like it, a card at 0.05 has a near twin. A deck's "
-                 "figure is the average across its most original half of nonland "
-                 "cards, so it climbs by holding cards with less competition, "
-                 "never by holding more cards.",
+        "settling": "A new deck reads as more original than it will look in five years, and that is half real: design space fills up, so a card printed today has had nobody to copy it yet.",
+        "means": "Every card scores 0 to 1: one minus how close its nearest match "
+                 "anywhere in Magic gets, so 0.30 means something out there is 70% "
+                 "like it. A deck's figure is the average across its most original "
+                 "half of nonland cards, so it climbs by holding cards with less "
+                 "competition, never by holding more cards.",
         "desc": {
             "key": "original", "label": "Most original", "first": "most original",
             "more": "more original", "swap": None,
@@ -2069,12 +2101,13 @@ PRECON_METRICS = [
         "label": "Salt",
         "decimals": 1, "best": "desc", "cards": "Saltiest cards",
         "noun": "salt",
-        "settling": "A new deck reads MILDER than it is, and this is the biggest gap on the board. EDHREC's salt survey runs once a year, so cards printed since the last one have had no chance to be voted on: they average 0.06 salt against 0.29 for everything older, a fifth as much, on near-total coverage. The votes are not missing, they have not been cast yet. Read a new deck's salt as a floor.",
-        "means": "Every card carries a salt score from EDHREC's annual survey, "
-                 "running 0 to about 3: Stasis is 3.06, Rhystic Study 2.73, Mind "
-                 "Stone a flat 0. A deck's figure is those scores added up across "
-                 "its cards, so a deck gets there either by holding a few famous "
-                 "offenders or by holding a long tail of mildly irritating ones.",
+        "settling": "A new deck reads milder than it is, and this is the biggest gap on the board. EDHREC's survey runs once a year, so cards printed since the last one have had no chance to be voted on: they average 0.06 salt against 0.29 for everything older. Read a new deck's salt as a floor.",
+        "means": "EDHREC's annual survey asks players which cards they least enjoy "
+                 "facing, scoring each 0 to about 3: Stasis is 3.06, Rhystic Study "
+                 "2.73, Mind Stone a flat 0. A deck's figure is those scores added "
+                 "up, so it gets there either through a few famous offenders or a "
+                 "long tail of mildly irritating ones. The one number here that is "
+                 "an opinion rather than a measurement.",
         "desc": {
             "key": "salt", "label": "Saltiest", "first": "saltiest",
             "more": "saltier", "swap": ("salt", "asc"),
@@ -2108,14 +2141,13 @@ PRECON_METRICS = [
         "label": "Price",
         "decimals": 2, "best": "desc", "cards": "Priciest cards",
         "noun": "of cards",
-        "settling": "A new deck's price is the one still moving. Singles find their level over months, and it does not run one way: release hype pushes up, the reprint glut of a freshly opened set pushes down. Today's figure is exactly that, today's.",
-        "means": "The cheapest paper printing of every card in the deck, added "
-                 "together. It is what the hundred cards cost to own as singles, "
-                 "not what the sealed box sells for, which is why a deck with one "
-                 "reserved list card can sit above four decks of staples. Basic "
-                 "lands count toward the total and are left out of the card list "
-                 "below, because a column of thirty Islands is not what anyone "
-                 "means by a deck's cheapest cards.",
+        "settling": "A new deck's price is the one still moving, and it does not run one way: release hype pushes up, the reprint glut of a freshly opened set pushes down. Today's figure is exactly that, today's.",
+        "means": "The cheapest paper printing of every card, added together: what "
+                 "the hundred cards cost to own as singles, not what the sealed box "
+                 "sells for. That is why one reserved list card can put a deck above "
+                 "four decks of staples. Basic lands count toward the total but are "
+                 "left out of the card list below, since thirty Islands are not what "
+                 "anyone means by a deck's cheapest cards.",
         "desc": {
             "key": "price", "label": "Most expensive", "first": "most expensive",
             "more": "worth more", "swap": ("price", "asc"),
@@ -2151,12 +2183,12 @@ PRECON_METRICS = [
         "label": "Play rate",
         "decimals": 0, "best": "asc", "cards": "Most played cards",
         "noun": "median play rate",
-        "settling": "A new deck reads as LESS played than it will be. EDHREC's rank counts how many decks run a card, and that accumulates: precons published in the last year average a median of #5216 against #4188 for the rest, which is mostly the format not having got round to them.",
-        "means": "EDHREC ranks every card by how many Commander decks run it, and "
-                 "#1 is the most played card in the whole format. A deck's figure "
-                 "is the MEDIAN rank across its nonland cards, so #1200 means half "
-                 "this deck sits inside the format's twelve hundred most played "
-                 "cards. A SMALLER number is the deck built out of staples.",
+        "settling": "A new deck reads as less played than it will be. EDHREC's rank counts how many decks run a card, and that accumulates: precons from the last year average a median of #5216 against #4188 for the rest, mostly the format not having got round to them.",
+        "means": "EDHREC ranks every card by how many Commander decks run it, #1 "
+                 "being the most played in the format. A deck's figure is the median "
+                 "rank across its nonland cards, so #1200 means half this deck sits "
+                 "inside the format's twelve hundred most played cards. A smaller "
+                 "number is the deck built out of staples.",
         "desc": {
             "key": "played", "label": "Most played cards", "first": "most played cards",
             "more": "more played", "swap": ("played", "asc"),
@@ -2190,13 +2222,12 @@ PRECON_METRICS = [
         "decimals": 1, "best": "desc", "cards": "Oldest cards",
         "noun": "a card on average",
         "settling": "This is the one number a new deck does not distort, because being new is the thing it measures. It still climbs on its own: every figure here is counted from today, so the whole board ages a year every year.",
-        "means": "How long ago each card was FIRST printed, averaged across the "
-                 "deck. A reprint does not make an old card new, so a deck "
-                 "published last year and stuffed with reprints still reads old. "
-                 "The total underneath is every card's age added together, which "
-                 "is the memorable number, and the average is the one the ranking "
-                 "uses, because a sum quietly rewards the bigger deck for being "
-                 "bigger.",
+        "means": "How long ago each card was first printed, averaged across the "
+                 "deck. A reprint does not make an old card new, so a deck published "
+                 "last year and stuffed with reprints still reads old. The total "
+                 "underneath is every card's age added together; the ranking uses "
+                 "the average, because a sum quietly rewards the bigger deck for "
+                 "being bigger.",
         "desc": {
             "key": "age", "label": "Oldest cards", "first": "oldest",
             "more": "older", "swap": ("released", "desc"),
@@ -4210,7 +4241,8 @@ def more():
                                                 dropped=read_dropped(), forced=read_forced(),
                                                 anchor_price=price_in(card, filters["cur"]),
                                                 anchor_rank=card["edhrec_rank"],
-                                                anchor_salt=card["salt"])
+                                                anchor_salt=card["salt"],
+                                                anchor_released=card["released_at"])
     return {"results": results, "has_more": has_more, "next_band": next_band}
 
 

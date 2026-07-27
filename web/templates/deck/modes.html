@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "partials/deckways.html" as ways %}
 
 {% block title %}{{ deck_name or 'What next' }} - Delvefall{% endblock %}
 
@@ -57,72 +58,61 @@
                    placeholder="{{ commander or 'Named after the commander' }}"
                    value="{{ deck_name if deck_name != commander else '' }}">
         </div>
+
+        {# said BEFORE it happens, not after. this browser already holding a
+           deck of this name means the one you are about to save gets numbered,
+           and the shelf used to do that silently: you named a deck, pressed a
+           mode, and found it filed as "#2" on a page you might never go back
+           to. the hub's rename alerts about the same rule, so the only moment
+           it was invisible was the first one #}
+        <p class="deck-lead-renamed" id="deck-lead-renamed" hidden></p>
     </div>
 
+    {# three rows separated by rules, not three bordered cards side by side.
+       every field on them rides the shared macro, so a mode cannot quietly stop
+       carrying the deck's name the way "read another deck" once did.
+
+       seen is deliberately EMPTY here: the unmatched lines are settled on this
+       page, and /deck/view asks about them again if it has not been told #}
     <div class="deck-modes-pick">
-        {# the third mode, and the one an IMPORT wants first: it answers "did
-           all of it arrive" rather than answering it sideways through a figure.
-           listed first for that reason, since checking the deck is what comes
-           before deciding anything about it #}
-        <form action="/deck/view" method="post" class="deck-mode">
-            <input type="hidden" name="list" value="{{ pasted }}">
-            <input type="hidden" name="origin" value="{{ origin }}">
-            <input type="hidden" name="name" class="deck-name-field" value="{{ deck_name }}">
-            <input type="hidden" name="commander" class="deck-commander-field" value="{{ commander }}">
-            <button type="submit">
-                <span class="deck-mode-title">View it</span>
-                <span class="deck-mode-body">Every card in the deck, as cards, with the
-                list to copy and whatever has been changed since it was imported.</span>
-                <span class="deck-mode-go">See the cards &rarr;</span>
-            </button>
-        </form>
+        {# the mode an IMPORT wants first: it answers "did all of it arrive"
+           rather than answering it sideways through a figure, and checking the
+           deck is what comes before deciding anything about it #}
+        {{ ways.way("/deck/view", "View it", "See the cards", pasted,
+                    body="Every card in the deck, as cards, with the list to copy and
+                          whatever has been changed since it was imported.",
+                    name=deck_name, commander=commander, origin=origin, seen='') }}
 
-        <form action="/deck/read" method="post" class="deck-mode">
-            <input type="hidden" name="list" value="{{ pasted }}">
-            {# rides both modes so the shelf still knows which deck this is
-               after the swap tool has finished with it. see /deck/open #}
-            <input type="hidden" name="origin" value="{{ origin }}">
-            <input type="hidden" name="name" class="deck-name-field" value="{{ deck_name }}">
-            <input type="hidden" name="commander" class="deck-commander-field" value="{{ commander }}">
-            <button type="submit">
-                <span class="deck-mode-title">Read it</span>
-                <span class="deck-mode-body">How original it is, how salty, what it costs,
-                how played its cards are and how old, each one placed against every
-                Commander precon.</span>
-                <span class="deck-mode-go">See the reading &rarr;</span>
-            </button>
-        </form>
+        {# COMPARE, not "read". "read it" next to "view it" was two words for
+           looking at something, and the difference between them (one shows you
+           the cards, one places the deck against 166 precons) was carried
+           entirely by the sentence underneath #}
+        {{ ways.way("/deck/read", "Compare it", "See the reading", pasted,
+                    body="How original it is, how salty, what it costs, how played its
+                          cards are and how old, each one placed against every Commander
+                          precon.",
+                    name=deck_name, commander=commander, origin=origin, seen='') }}
 
-        <form action="/deck/swap" method="post" class="deck-mode">
-            <input type="hidden" name="list" value="{{ pasted }}">
-            {# rides both modes so the shelf still knows which deck this is
-               after the swap tool has finished with it. see /deck/open #}
-            <input type="hidden" name="origin" value="{{ origin }}">
-            <input type="hidden" name="name" class="deck-name-field" value="{{ deck_name }}">
-            <input type="hidden" name="commander" class="deck-commander-field" value="{{ commander }}">
-            <button type="submit">
-                <span class="deck-mode-title">Change it</span>
-                <span class="deck-mode-body">Walk the deck a card at a time, worst first,
-                and swap what you want to. Ends with a list you can paste back.</span>
-                <span class="deck-mode-go">Walk it card by card &rarr;</span>
-            </button>
-            {# which way to push the deck. one control and not two, because the
-               choice is one choice: "cheaper" names a field and a direction
-               together, and a pair of dropdowns would let somebody ask for
-               price sorted newest, which means nothing.
+        {# which way to push the deck. one control and not two, because the
+           choice is one choice: "cheaper" names a field and a direction
+           together, and a pair of dropdowns would let somebody ask for price
+           sorted newest, which means nothing.
 
-               it sits UNDER the button rather than above it so the mode reads
-               as a mode first. the tool did this one way for months and the
-               machinery was always generic over all eight #}
-            <label class="deck-mode-axis">Make it
-                <select name="goal" aria-label="which way to change the deck">
-                    {% for pair, spec in swap_axes.items() %}
-                    <option value="{{ pair[0] }}:{{ pair[1] }}"
-                        {% if pair == swap_default %}selected{% endif %}>{{ spec.goal }}</option>
-                    {% endfor %}
-                </select>
-            </label>
-        </form>
+           it sits UNDER the button rather than above it so the mode reads as a
+           mode first, which is why this one is called rather than rendered #}
+        {% call ways.way("/deck/swap", "Change it", "Walk it card by card", pasted,
+                         body="Walk the deck a card at a time, worst first, and swap what
+                               you want to. Ends with a list you can paste back.",
+                         name=deck_name, commander=commander, origin=origin, seen='') %}
+        <label class="deck-mode-axis">Make it
+            <select name="goal" aria-label="which way to change the deck">
+                {% for pair, spec in swap_axes.items() %}
+                <option value="{{ pair[0] }}:{{ pair[1] }}"
+                    {% if pair == swap_default %}selected{% endif %}>{{ spec.goal }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        {% endcall %}
     </div>
 </div>
 

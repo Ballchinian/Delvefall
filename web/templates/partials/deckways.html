@@ -1,0 +1,33 @@
+{# where you can go from here, as one row per destination.
+
+   four pages offer these and they were four copies of the same eight lines of
+   markup: /deck/open lists all three modes, /deck/view and /deck/read offer the
+   ones you did not pick, and /precons/<slug> hands its own list to the lens.
+   every one of them is a POST carrying the same five fields, because a deck has
+   no url and travels in the form.
+
+   the WORDING stays with the caller. "view the card list" really is the same
+   offer on a precon page as on your own deck and reads identically, but
+   "change it" and "run it through the deck lens" are different offers, so the
+   macro owns the shape and the page owns the sentence.
+
+   {% call %} it to hang a control off the row, which the swap axis picker
+   needs: a select cannot live inside the submit button, since opening it would
+   submit the form #}
+{% macro way(action, title, go, pasted, body='', name='', commander='', origin='', seen='1') %}
+<form action="{{ action }}" method="post" class="deck-mode">
+    <input type="hidden" name="list" value="{{ pasted }}">
+    {# which shelf entry this deck is, as against what is currently in it, so a
+       deck that has been swapped is still the deck it started as #}
+    <input type="hidden" name="origin" value="{{ origin }}">
+    <input type="hidden" name="name" class="deck-name-field" value="{{ name }}">
+    <input type="hidden" name="commander" class="deck-commander-field" value="{{ commander }}">
+    {% if seen %}<input type="hidden" name="seen" value="{{ seen }}">{% endif %}
+    <button type="submit">
+        <span class="deck-mode-title">{{ title }}</span>
+        {% if body %}<span class="deck-mode-body">{{ body }}</span>{% endif %}
+        <span class="deck-mode-go">{{ go }} &rarr;</span>
+    </button>
+    {% if caller %}{{ caller() }}{% endif %}
+</form>
+{% endmacro %}

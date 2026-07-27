@@ -738,6 +738,15 @@ h2 {
     white-space: nowrap;
 }
 
+/* the same weight as the other three arrows, and never a colour, exactly like
+   the play rate one: older is not better than newer, so there is a direction
+   here and no verdict. that is the whole rule for colour on this row, and the
+   guide now says it out loud */
+.age-vs {
+    margin-left: 2px;
+    font-weight: 700;
+}
+
 /* WHICH figure is the foreground follows the sort: the one you sorted by takes
    the ink, the other four sit back in grey. that is ALL a sort changes, and it
    is now the same rule in all five directions rather than a default of "price,
@@ -1818,42 +1827,47 @@ footer a { color: var(--teal); }
     text-decoration: underline;
 }
 
-/* the two modes, offered as equals. neither is the default and neither is
-   the small print: reading and changing are two different visits */
+/* the modes, offered as equals. neither is the default and neither is the
+   small print: reading and changing are two different visits.
+   STACKED ROWS SEPARATED BY RULES, not a grid of bordered cards. three cards
+   side by side squeezed every description into a 260px column and made the
+   page a set of competing boxes, when what it is is a short list of things you
+   could do next. the rules are the same device the results page uses */
 .deck-modes-pick {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-    gap: 14px;
-    margin: 20px 0 8px;
+    margin: 4px 0 8px;
+    border-top: 1px solid var(--line);
 }
 
-/* the CARD is the form, not the button inside it. it used to be the button,
+/* the same rows at the FOOT of a page rather than as the page itself. on
+   /deck/read and a precon page they follow a full reading, so they need a gap
+   above them or they read as one more row of whatever was there */
+.deck-modes-after { margin-top: 30px; }
+
+/* the ROW is the form, not the button inside it. it used to be the button,
    which meant anything that was not the button could only sit outside the
-   border: the swap axis picker read as a stray control floating under three
+   rule: the swap axis picker read as a stray control floating under three
    cards rather than as part of the one it belongs to. a select cannot go
    inside a submit button either, because opening it would submit */
 .deck-mode {
     display: flex;
     flex-direction: column;
-    border: 1px solid var(--line);
-    border-radius: 3px;
-    background: var(--panel);
-    padding: 18px 20px;
+    border-bottom: 1px solid var(--line);
+    /* the wash bleeds past the reading column so a hovered row reads as a
+       band across the page rather than as a box that just appeared */
+    padding: 15px 12px;
+    margin: 0 -12px;
 }
 
-.deck-mode:hover {
-    background: var(--wash);
-    border-color: var(--teal);
-}
+.deck-mode:hover { background: var(--wash); }
 
+/* title and body on the left, the go line on the right and vertically centred
+   against both. one row per thing you could do, which is what a list is */
 .deck-mode button {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: 3px 20px;
     width: 100%;
-    /* fills the card so the whole thing is still one click, and so the go line
-       sits on the bottom edge however tall the neighbouring cards make it */
-    flex: 1;
     padding: 0;
     border: 0;
     background: none;
@@ -1864,22 +1878,41 @@ footer a { color: var(--teal); }
 }
 
 .deck-mode-title {
+    grid-column: 1;
     font-family: var(--serif);
     font-weight: 600;
-    font-size: 19px;
+    font-size: 18px;
 }
 
 .deck-mode-body {
+    grid-column: 1;
     font-size: 13.5px;
     color: var(--muted);
     line-height: 1.5;
 }
 
 .deck-mode-go {
-    margin-top: auto;
-    padding-top: 6px;
+    grid-column: 2;
+    grid-row: 1 / -1;
     font-size: 13.5px;
+    white-space: nowrap;
     color: var(--teal);
+}
+
+.deck-mode:hover .deck-mode-go { text-decoration: underline; }
+
+/* under about a phone the go line has nowhere to sit beside the text, so it
+   drops under it and the row reads top to bottom like everything else */
+@media (max-width: 560px) {
+    .deck-mode button {
+        grid-template-columns: 1fr;
+    }
+
+    .deck-mode-go {
+        grid-column: 1;
+        grid-row: auto;
+        padding-top: 4px;
+    }
 }
 
 .deck-missing-why { display: block; margin-top: 4px; }
@@ -2254,21 +2287,6 @@ footer a { color: var(--teal); }
     border-radius: 2px;
     background: #fffef9;
     resize: vertical;
-}
-
-/* the entry point at the foot of a reading. one button, and it says what it
-   will do rather than naming the feature */
-.swap-start { margin: 10px 0 4px; }
-
-.swap-start button {
-    padding: 8px 18px;
-    border: 0;
-    border-radius: 3px;
-    background: var(--teal);
-    color: #fff;
-    font: inherit;
-    font-size: 15px;
-    cursor: pointer;
 }
 
 .precon-back {
@@ -3349,13 +3367,14 @@ body.home main {
 
 /* asked after the list rather than before it, because until the list is read
    there is nothing to offer as an answer. a commander deck holds one or two
-   legends, so this is usually a confirmation rather than a search */
+   legends, so this is usually a confirmation rather than a search.
+   a RULE above it, not a box around it. this page is a sequence of questions
+   and a tinted panel round one of them read as a warning rather than as a
+   step: same call the results page made when its parts stopped being cards */
 .deck-lead {
-    margin: 18px 0 6px;
-    padding: 12px 14px;
-    background: var(--wash);
-    border: 1px solid var(--line);
-    border-radius: 3px;
+    margin: 22px 0 0;
+    padding: 18px 0 4px;
+    border-top: 1px solid var(--line);
 }
 
 .deck-lead label {
@@ -3414,29 +3433,6 @@ body.home main {
     color: var(--muted);
 }
 
-.deck-lead-row {
-    display: flex;
-    gap: 8px;
-    align-items: center;
-}
-
-.deck-lead-input {
-    flex: 1;
-    min-width: 0;
-    font: inherit;
-    font-size: 14px;
-    padding: 6px 9px;
-    border: 1px solid var(--line-strong);
-    border-radius: 2px;
-    background: var(--panel);
-    color: var(--text);
-}
-
-.deck-lead-input:focus {
-    outline: none;
-    border-color: var(--teal);
-}
-
 .deck-lead-clear {
     background: none;
     border: 1px solid var(--line-strong);
@@ -3450,29 +3446,20 @@ body.home main {
 
 .deck-lead-clear:hover { background: var(--wash); }
 
-.deck-lead-hits {
-    list-style: none;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    margin: 8px 0 0;
-    padding: 0;
-}
-
-.deck-lead-hit {
-    background: var(--panel);
-    border: 1px solid var(--line-strong);
-    border-radius: 999px;
-    padding: 3px 11px;
-    font: inherit;
-    font-size: 13px;
-    color: var(--teal);
-    cursor: pointer;
-}
-
-.deck-lead-hit:hover { background: var(--teal); color: #fff; border-color: var(--teal); }
-
 .deck-lead .deck-hub-note { display: block; margin-top: 8px; }
+
+/* the shelf is about to number this deck. a NOTE and not an alert, because
+   nothing has gone wrong and the box that fixes it is directly above: the hub's
+   rename has to interrupt, since by then the deck is already filed */
+.deck-lead-renamed {
+    margin: 10px 0 0;
+    padding: 8px 11px;
+    border-left: 3px solid var(--gold);
+    background: var(--wash);
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--text);
+}
 
 /* ---- going back without losing the deck ---- */
 
@@ -3792,20 +3779,13 @@ body.home main {
     font-size: 20px;
 }
 
-/* straight into the lens from a precon. it follows a grid of a hundred card
-   pictures, so without the gap it reads as the last row of them */
-.deck-precon-lens {
-    margin: 28px 0 24px;
-    max-width: 520px;
-}
-
 /* the swap axis picker, under the Change it button rather than inside it: a
-   select inside a submit button is a select you cannot open without submitting */
+   select inside a submit button is a select you cannot open without submitting.
+   no rule over it any more, since the row it belongs to already has one under
+   it and two hairlines that close together read as an empty row */
 .deck-mode-axis {
     display: block;
-    margin-top: 12px;
-    padding-top: 12px;
-    border-top: 1px solid var(--line);
+    margin-top: 10px;
     font-size: 13px;
     color: var(--muted);
 }

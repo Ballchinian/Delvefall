@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "partials/deckways.html" as ways %}
 
 {% block title %}{{ deck.name }} through the deck lens - Delvefall{% endblock %}
 
@@ -39,22 +40,27 @@
        opens into its own pictures, so a second grid of the same cards was the
        page saying "view every card image" six times #}
     {% if cards %}
-    {# straight into the lens, with the commander already known. it posts the
-       deck's own list to the same front door a paste goes through, so this
-       lands on the shelf as a deck like any other and can be swapped from
-       there. no new path, just this one pointed at it #}
-    <form class="deck-mode deck-precon-lens" action="/deck/open" method="post">
-        <input type="hidden" name="list" value="{{ decklist }}">
-        <input type="hidden" name="name" value="{{ deck.name }}">
-        <input type="hidden" name="commander" value="{{ deck.leaders[0] if deck.leaders else '' }}">
-        <input type="hidden" name="seen" value="1">
-        <button type="submit">
-            <span class="deck-mode-title">Run it through the deck lens</span>
-            <span class="deck-mode-body">Saves it to this browser as your own deck, so you
-            can read it, change it card by card, and keep what you change.</span>
-            <span class="deck-mode-go">Open it as a deck &rarr;</span>
-        </button>
-    </form>
+    {# where you go from here, and the same two rows /deck/read carries: one on
+       into the deck, one at the cards. the wording is this page's own, because
+       "run it through the lens" and "change it" are different offers, but
+       "view it" reads identically on a precon and on your own deck and is the
+       same macro call with the same fields.
+
+       both post the deck's own list to the same front doors a paste goes
+       through, so a precon lands on the shelf as a deck like any other. no new
+       paths, just these ones pointed at it #}
+    <div class="deck-modes-pick deck-modes-after">
+        {{ ways.way("/deck/open", "Run it through the deck lens", "Open it as a deck",
+                    decklist,
+                    body="Saves it to this browser as your own deck, so you can compare it,
+                          change it card by card, and keep what you change.",
+                    name=deck.name,
+                    commander=(deck.leaders[0] if deck.leaders else '')) }}
+        {{ ways.way("/deck/view", "View it", "See the cards", decklist,
+                    body="Every card in the deck, as cards, with the list to copy.",
+                    name=deck.name,
+                    commander=(deck.leaders[0] if deck.leaders else '')) }}
+    </div>
     {% endif %}
 
     <p class="deck-detail-foot">Every ranking here is against the other

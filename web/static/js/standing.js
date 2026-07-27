@@ -20,8 +20,10 @@
 
     var swapEl = document.getElementById("deck-swap-axes");
     var swaps = swapEl ? JSON.parse(swapEl.textContent) : null;
+    /* the offer is one ROW among the ways on from this page now, rather than a
+       section of its own under them, so the form IS the thing that hides */
     var swapForm = document.getElementById("deck-swap-start");
-    var changeBox = document.getElementById("deck-change");
+    var swapGoal = document.getElementById("deck-swap-goal");
 
     /* which end each panel is being read from, and how many of its cards are
        on screen. both live here rather than in the dom so a panel keeps its
@@ -93,18 +95,21 @@
         rather than approximating one
     */
     function offer() {
-        if (!swaps || !swapForm || !changeBox) return;
+        if (!swaps || !swapForm) return;
         var panel = panels[at];
         var end = ends[panel.id] || "desc";
         var reading = panel.querySelector('.deck-reading[data-end="' + end + '"]');
         var link = reading ? reading.querySelector(".deck-board-link a") : null;
         var sortKey = link ? (link.getAttribute("href").split("sort=")[1] || "") : "";
         var s = swaps[sortKey];
-        changeBox.hidden = !s;
+        swapForm.hidden = !s;
         if (s) {
             swapForm.elements.axis.value = s.axis;
             swapForm.elements.dir.value = s.dir;
-            swapForm.querySelector("button").textContent = "Make this deck " + s.goal;
+            /* the GO LINE only. rewriting the whole button's textContent would
+               take the title and the description out with it, since they are
+               spans inside it now */
+            if (swapGoal) swapGoal.textContent = "Make this deck " + s.goal + " →";
         }
     }
 

@@ -78,15 +78,17 @@
             <div class="searched-info">
                 <h1>{{ card.name }} <span class="mana">{{ card.mana_cost | mana }}</span></h1>
                 <p class="type-line">{{ card.type_line }}</p>
-                {# the searched card's own price and rank. every result carries
-                   an arrow measured against these two numbers, and until now
-                   the thing being compared to was the one thing not on the
-                   page #}
-                {% if card.price or card.rank or card.salt_text %}
+                {# the searched card's own four figures. every result carries an
+                   arrow measured against these, so the thing being compared to
+                   has to be on the page. age was the one missing: the results
+                   grew an age arrow and there was nothing up here for it to
+                   point back at #}
+                {% if card.price or card.rank or card.salt_text or card.age %}
                 <p class="anchor-figures">
                     {% if card.price %}<span class="anchor-price" title="the cheapest paper printing of {{ card.name }} in any finish, from scryfall. digital, oversized and gold border versions don't count. every price arrow below is measured against this number">{{ card.price }}</span>{% endif %}
                     {% if card.rank %}<span class="result-rank" title="play rate: edhrec's rank for how often this card is played in commander, where #1 is the most played card in the format. every play-rate arrow below is measured against this number">{{ card.rank }}</span>{% endif %}
                     {% if card.salt_text %}<span class="result-salt" title="salt {{ card.salt_text }} out of about 3, from edhrec's salt survey, where players vote on the cards they least enjoy facing. this is the one number here that is an opinion rather than a measurement. every salt mark below is measured against this one"><i class="salt-mark" aria-hidden="true"></i>{{ card.salt_text }}</span>{% endif %}
+                    {% if card.age %}<span class="result-age" title="card age: how long ago {{ card.name }} was first printed, so a reprint does not make an old card new. every age arrow below is measured against this number">{{ card.age }}</span>{% endif %}
                     <span class="anchor-note">what the arrows below compare against</span>
                 </p>
                 {% endif %}
@@ -266,7 +268,7 @@
                     <button class="report-flag" data-id="{{ r.oracle_id }}" data-name="{{ r.name }}" title="shouldn't be here? report this as a bad match">?</button>
                 </div>
                 <div class="result-name"><span class="card-name" title="{{ r.name }}">{{ r.name }}</span><span class="percent{% if r.concept_only %} concept{% endif %}"{% if r.blended %} title="rules text {{ r.mech_pct }}%, concepts {{ r.concept_pct }}%, evenly blended"{% endif %}>{{ r.percent }}%</span></div>
-                {% if r.price or r.rank or r.salt or r.age %}<div class="result-price"><span class="price-figure {{ r.price_vs }}"{% if r.price_vs %} title="{{ r.price_vs.replace('-', ' ') }} than {{ card.name }} at {{ card.price }}"{% endif %}>{{ r.price }}{% if r.price_vs %}<span class="price-vs">{{ '↓' if 'cheaper' in r.price_vs else '↑' }}</span>{% endif %}</span>{% if r.rank %}<span class="result-rank" title="play rate: edhrec's rank for how often this card is played in commander, where #1 is the most played card in the format">{{ r.rank }}{% if r.rank_vs %}<span class="rank-vs" title="{{ 'more' if r.rank_vs == 'more-played' else 'less' }} played than {{ card.name }} at {{ card.rank }}">{{ '↑' if r.rank_vs == 'more-played' else '↓' }}</span>{% endif %}</span>{% endif %}{% if r.salt %}<span class="result-salt {{ r.salt_vs }}"{% if r.salt_vs %} title="{{ r.salt_vs.replace('-', ' ').replace('milder', 'less salty') }} than {{ card.name }} at {{ card.salt_text }}"{% else %} title="salt {{ r.salt }} out of about 3, from edhrec's salt survey, where players vote on the cards they least enjoy facing"{% endif %}><i class="salt-mark" aria-hidden="true"></i>{{ r.salt }}{% if r.salt_vs %}<span class="salt-vs">{{ '↓' if 'milder' in r.salt_vs else '↑' }}</span>{% endif %}</span>{% endif %}{% if r.age %}<span class="result-age" title="card age: how long ago this card was first printed, counted from its earliest printing, so a reprint does not make an old card new">{{ r.age }}</span>{% endif %}</div>{% endif %}
+                {% if r.price or r.rank or r.salt or r.age %}<div class="result-price"><span class="price-figure {{ r.price_vs }}"{% if r.price_vs %} title="{{ r.price_vs.replace('-', ' ') }} than {{ card.name }} at {{ card.price }}"{% endif %}>{{ r.price }}{% if r.price_vs %}<span class="price-vs">{{ '↓' if 'cheaper' in r.price_vs else '↑' }}</span>{% endif %}</span>{% if r.rank %}<span class="result-rank" title="play rate: edhrec's rank for how often this card is played in commander, where #1 is the most played card in the format">{{ r.rank }}{% if r.rank_vs %}<span class="rank-vs" title="{{ 'more' if r.rank_vs == 'more-played' else 'less' }} played than {{ card.name }} at {{ card.rank }}">{{ '↑' if r.rank_vs == 'more-played' else '↓' }}</span>{% endif %}</span>{% endif %}{% if r.salt %}<span class="result-salt {{ r.salt_vs }}"{% if r.salt_vs %} title="{{ r.salt_vs.replace('-', ' ').replace('milder', 'less salty') }} than {{ card.name }} at {{ card.salt_text }}"{% else %} title="salt {{ r.salt }} out of about 3, from edhrec's salt survey, where players vote on the cards they least enjoy facing"{% endif %}><i class="salt-mark" aria-hidden="true"></i>{{ r.salt }}{% if r.salt_vs %}<span class="salt-vs">{{ '↓' if 'milder' in r.salt_vs else '↑' }}</span>{% endif %}</span>{% endif %}{% if r.age %}<span class="result-age"{% if r.age_vs %} title="{{ r.age_vs }} than {{ card.name }} at {{ card.age }}"{% else %} title="card age: how long ago this card was first printed, counted from its earliest printing, so a reprint does not make an old card new"{% endif %}>{{ r.age }}{% if r.age_vs %}<span class="age-vs">{{ '↑' if r.age_vs == 'older' else '↓' }}</span>{% endif %}</span>{% endif %}</div>{% endif %}
                 {% if r.their_line %}
                 <div class="match-line" title="matches your card's line: {{ r.our_line }}{% if r.matched_back %} (printed on the back face, shown here){% endif %}">"{{ r.their_line | mana }}"</div>
                 {% endif %}
@@ -304,7 +306,7 @@
         //the searched card's own figures, so results added by load more can
         //name what their arrows are measured against, exactly like the
         //server-rendered ones do
-        window.ANCHOR = {price: {{ (card.price or 'no listed price') | tojson }}, rank: {{ (card.rank or 'unranked') | tojson }}, salt: {{ (card.salt_text or 'no salt score') | tojson }}};
+        window.ANCHOR = {price: {{ (card.price or 'no listed price') | tojson }}, rank: {{ (card.rank or 'unranked') | tojson }}, salt: {{ (card.salt_text or 'no salt score') | tojson }}, age: {{ (card.age or 'no printing date') | tojson }}};
         window.SORT_DIRS = {{ sort_fields | tojson }};
         //the canonical name find_card landed on, not the typo that was typed,
         //so the recent list clicks back through to an exact match

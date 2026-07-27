@@ -27,18 +27,19 @@ var ANCHOR = window.ANCHOR;
     is worse than a control that looks patient
 */
 /*
-    reordering is not researching. changing the sort is the one
-    reload that should leave the weaker matches you had opened where
-    they are: you are asking for the same cards in a different order.
-    everything else that submits this form (Apply, the filters, enter
-    in the query box) is a NEW search and starts you back at the
-    strong matches.
+    changing the sort used to CARRY the weaker matches you had opened
+    across the reload, on the reasoning that reordering is not
+    researching. it is out, 2026-07-27: it was the only reload on the
+    site that did not start clean, so how deep you were depended on
+    which control you had touched last, and there was nothing on
+    screen saying so. every reload now puts you back at the strong
+    matches, which is what a plain refresh and Apply already did.
 
-    the depth rides sessionStorage rather than the url, and is eaten
-    on the way in. that is what keeps a plain refresh from restoring
-    it too: by then the note has already been read and thrown away
+    that also took a sessionStorage key and a replay loop with it, and
+    the loop was the fiddliest thing on this page: it walked the load
+    more button on its own, N fetches deep, and had a step ceiling to
+    stop a doctored value spinning it
 */
-var KEEP_BAND = "delvefall_keep_band";
 
 /*
     the two sort controls. the direction's wording belongs to whatever
@@ -57,11 +58,6 @@ var sortSel = document.querySelector('.filter-bar select[name="sort"]');
 var dirSel = document.querySelector('.filter-bar select[name="dir"]');
 
 function applySort(el) {
-    if (band !== null) {
-        try {
-            sessionStorage.setItem(KEEP_BAND, band);
-        } catch (e) {}
-    }
     el.form.requestSubmit();
 }
 
@@ -198,12 +194,19 @@ function buildResult(r) {
                     "survey, where players vote on the cards they least enjoy facing";
             }
         }
-        //no arrow, unlike the three before it. older and newer are not better
-        //and worse, so there is no verdict here to point either way
+        //an arrow like the three before it, but never a colour: older and
+        //newer are not better and worse, so there is a direction to point
+        //and no verdict to spend green or red on
         if (r.age) {
-            el("span", "result-age", price, r.age).title = "card age: how long ago this " +
-                "card was first printed, counted from its earliest printing, so a reprint " +
-                "does not make an old card new";
+            var age = el("span", "result-age", price, r.age);
+            if (r.age_vs) {
+                age.title = r.age_vs + " than " + cardName + " at " + ANCHOR.age;
+                el("span", "age-vs", age, r.age_vs == "older" ? "↑" : "↓");
+            } else {
+                age.title = "card age: how long ago this card was first printed, " +
+                    "counted from its earliest printing, so a reprint does not make " +
+                    "an old card new";
+            }
         }
     }
     if (r.their_line) {
@@ -238,11 +241,9 @@ function buildResult(r) {
 /*
     how deep into the weaker matches you have gone lives only in this
     variable, deliberately: it is not in the url and does not ride the
-    filter form, so applying a filter and reloading the page both put
-    you back at the strong matches. carrying it across an apply was
-    tried and felt wrong, because changing a filter is the moment you
-    want to see what the NEW search turned up, not to be handed the
-    same depth of weak results you were digging through before
+    filter form, so every reload puts you back at the strong matches.
+    the sort was the one exception and it is gone, so there is now one
+    rule with nothing carved out of it
 */
 var offset = 20;
 var band = null;     //null is the strong tier, a number is that band
@@ -308,39 +309,6 @@ if (btn) {
         offset = 0;
     }
     btn.onclick = loadNext;
-
-    /*
-        put back the depth a sort change left behind. the note is
-        read once and deleted immediately, so this fires for the
-        reload the sort caused and for nothing after it: refresh that
-        same page and there is nothing left to read.
-
-        it walks down using the button's own path, so the restored
-        cards come back in the NEW sort order, which is the whole
-        point of having kept them. the step ceiling is a stop against
-        a nonsense value, not a limit anyone reaches
-    */
-    var keep = null;
-    try {
-        keep = sessionStorage.getItem(KEEP_BAND);
-        sessionStorage.removeItem(KEEP_BAND);
-    } catch (e) {}
-    if (keep !== null && keep !== "") {
-        var steps = 0;
-        (function walk() {
-            if (!btn.isConnected || steps++ > 40) {
-                return;
-            }
-            if (band !== null && band <= Number(keep)) {
-                return;
-            }
-            loadNext().then(function(data) {
-                if (data) {
-                    walk();
-                }
-            });
-        })();
-    }
 }
 
 /*

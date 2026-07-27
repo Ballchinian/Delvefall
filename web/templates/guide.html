@@ -2,7 +2,7 @@
 
 {% block title %}How it works - Delvefall{% endblock %}
 
-{% block metadesc %}How Delvefall works: type a Magic card name and get the similar cards, no search syntax required. What every number on a result means, the optional filter syntax, and where the site is going.{% endblock %}
+{% block metadesc %}How Delvefall works: type a Magic card name and get the similar cards, no search syntax required. What every number on a result means, and the optional filter syntax.{% endblock %}
 
 {% block content %}
 <div class="guide">
@@ -31,25 +31,32 @@
                 <button class="report-flag guide-static">?</button>
                 <button class="guide-info guide-info-flag" aria-label="what the flag does"
                     data-title="The report flag"
-                    data-body="Think a card doesn't belong in your results? Hover its picture, click the flag and say why in your own words. Nobody has to name a better card. Reports become test cases the matcher is graded against before an update ships, so a bad match you flag is one the next version has to answer for.">i</button>
+                    data-body="Hover a card, click the flag, say why in your own words. You don't have to name a better card. Reports become test cases the matcher has to pass before the next update ships.">i</button>
                 <div class="card-overlay guide-static-overlay">
                     <button>&#8644; transform</button>
                 </div>
                 <button class="guide-info guide-info-overlay" aria-label="what the transform control does"
                     data-title="Two-faced cards"
-                    data-body="Cards with more than one face get a control over the art, which appears when you hover the picture. Double-faced cards like this one get transform for the back, battles and split cards get rotate, and kamigawa flip cards get flip. If a match was found on the back face, that side is shown first, so the line printed under the card is on the picture you are looking at.">i</button>
+                    data-body="Cards with more than one face get a control over the art when you hover the picture: transform, rotate or flip, depending on the card. If the match was found on the back face, that side is shown first, so the line quoted under the card is on the picture you are looking at.">i</button>
             </div>
             <div class="result-name"><span class="card-name" title="{{ demo.name }}">{{ demo.name }}</span>
                 <span class="percent">82% 
                     <button class="guide-info" aria-label="what the percent means"
                         data-title="How close the match is"
-                        data-body="70 or higher means a real match. The number is the average of both scores, rules text and concepts, and the list is always ordered by the number you can see. Hover it on a real result and the tooltip breaks it back into its two halves.">i</button>
+                        data-body="70 or higher is a real match. It is the average of the two scores, rules text and concepts, and the list is always ordered by the number you can see. Hover it on a real result to break it back into its halves.">i</button>
                 </span> 
             </div>
-            <div class="result-price"><span class="price-figure much-cheaper">$0.25<span class="price-vs">&darr;</span></span><span class="result-rank">#412<span class="rank-vs">&uarr;</span></span><span class="result-salt much-saltier"><i class="salt-mark" aria-hidden="true"></i>1.32<span class="salt-vs">&uarr;</span></span><span class="result-age">13.6 years</span>
-                <button class="guide-info" aria-label="what the price, play rate, salt and card age mean"
-                    data-title="Price, play rate, salt, card age, and the arrows"
-                    data-body="The price is the cheapest paper printing in any finish (digital, oversized and gold border versions don't count), from scryfall. The # is play rate, edhrec's rank for how often a card is played in commander, where #1 is the most played card in the format. The shaker is salt, from edhrec's survey of the cards players least enjoy facing, running 0 to about 3. Card age is how long ago the card was FIRST printed, so a reprint does not make an old card new. Every card carries all four whatever you sort by, and the one you sorted by is the one in black: sorting changes which number the eye lands on and nothing else about the card. Every arrow compares this card to the one you searched: price points down for cheaper, salt points up for more annoying, and play rate points up when the format plays this card more than yours. Price and salt turn green or red only when the gap is big enough to matter; play rate never colours, because being played more is not better or worse, and card age carries no arrow at all for the same reason.">i</button></div>
+            <div class="result-price"><span class="price-figure much-cheaper">$0.25<span class="price-vs">&darr;</span></span><span class="result-rank">#412<span class="rank-vs">&uarr;</span></span><span class="result-salt much-saltier"><i class="salt-mark" aria-hidden="true"></i>1.32<span class="salt-vs">&uarr;</span></span><span class="result-age">13.6 years<span class="age-vs">&uarr;</span></span>
+                {# two marks on one row, because they answer two questions: what
+                   the numbers are, and what the arrows beside them mean. one
+                   panel covering both is the panel this page was told was too
+                   long to read #}
+                <button class="guide-info" aria-label="where the four numbers come from"
+                    data-title="The four numbers"
+                    data-body="Price is the cheapest paper printing, from Scryfall. The # is play rate: EDHREC's rank for how often Commander decks run a card, where #1 is the most played in the format. The shaker is salt, EDHREC's survey of the cards players least enjoy facing, 0 to about 3. Age counts from a card's first printing, so a reprint doesn't make an old card new. Every card carries all four, and the one you sorted by is the one in black.">i</button>
+                <button class="guide-info" aria-label="what the arrows and colours mean"
+                    data-title="The arrows"
+                    data-body="Each arrow compares this card to the one you searched: down for cheaper or newer, up for saltier, older, or more played. Green and red only appear where one direction is genuinely better, which is cheaper and less salty, and only for a gap big enough to be worth reacting to. Older and more played are neither better nor worse, so those two never take a colour.">i</button></div>
             <div class="match-line">"Look at the top card of your library."
                 <button class="guide-info" aria-label="what the quoted line is"
                     data-title="The line that matched"
@@ -82,16 +89,12 @@
         <li>The badge on every card is the average of the two, and the list is always in order
             of the number you see. Hover it to break the number back into its halves.</li>
     </ul>
-    <p>There used to be a slider here to weight one against the other. It is gone, because
-    testing it settled the question: an even split beats every other setting, including both
-    ends. Either one alone is a specialist's view, and the two together catch what neither
-    does on its own.</p>
     <p>Weaker matches aren't thrown away. The button under the results opens them ten
-    percentage points at a time, saying which range it is about to show, and each batch is
-    labelled where it starts. That is deliberate: it keeps the sorts honest. Sorting a
-    single band by price answers "what is the cheapest card that matches this well", where
-    sorting everything below the line at once would just hand you the cheapest card in the
-    game with a faint resemblance.</p>
+    percentage points at a time and labels each batch, which is what keeps the sorts
+    honest: sorting one band by price answers "what is the cheapest card that matches this
+    well", where opening everything below the line at once would just hand you the cheapest
+    card in the game with a faint resemblance. Anything that reloads the page, the sort
+    included, starts you back at the strong matches.</p>
 
     <h2 id="filters">Filters</h2>
     <p>The wide box in the filter bar takes scryfall style syntax and applies it to the
@@ -127,78 +130,39 @@
     box doesn't recognise is skipped rather than erroring, so a stray word never
     breaks the search.</p>
     <h2 id="pounds">Where the pound price comes from</h2>
-    <p>Scryfall quotes two currencies, dollars and euros, so pounds are worked out here
-    rather than looked up. That is why the picker says approximate, and it is worth knowing
-    what the number is before you trust it to a budget.</p>
-    <ol>
-        <li>Both of a card's prices are converted to pounds at the day's reference rates
-            (the European Central Bank's, fetched once a day).</li>
-        <li>The two results are averaged. They rarely agree, because the American and
-            European markets price cards differently, and the middle is the least wrong
-            single answer.</li>
-        <li>If a card has only one of the two prices, that one is used on its own. If it
-            has neither, it has no pound price, and any price filter hides it.</li>
-    </ol>
-    <p>So a pound figure is a fair estimate of what a card is worth, not a price anyone is
-    actually asking. For a real number, check a UK seller. Dollars and euros are printed
-    exactly as scryfall reports them.</p>
+    <p>Scryfall quotes dollars and euros only, so pounds are worked out here rather than
+    looked up: both prices are converted at the day's ECB rates and averaged, or whichever
+    one the card has if it only has one. A card with neither has no pound price, and any
+    price filter hides it.</p>
+    <p>So a pound figure is a fair estimate, not a price anyone is actually asking. For a
+    real number, check a UK seller. Dollars and euros are printed exactly as scryfall
+    reports them.</p>
 
     <h2>Unique cards</h2>
     <p><a href="/unique">The unique page</a> is the opposite of search: it deals you cards
-    that do something no other card really does, always from the most unique ones you
-    haven't seen yet. Where several are about equally unique it picks between them at
-    random, so your run is your own rather than a fixed list everybody walks in the same
-    order. It has the same filters, and judges uniqueness the same way search judges
-    similarity: half on whether any other card's text comes close, half on whether
-    anything else is tagged like it. The arrows walk back through everything
-    you've been dealt, across visits.</p>
+    that do something no other card really does, most unique first, from the ones you
+    haven't seen yet. It has the same filters, and judges uniqueness the same way search
+    judges similarity: half on whether any other card's text comes close, half on whether
+    anything else is tagged like it. The arrows walk back through everything you've been
+    dealt, across visits.</p>
 
     <h2 id="decks">The deck lens</h2>
     <p><a href="/deck">Paste a decklist or import one</a> from Archidekt or Moxfield and the
     same reading gets applied to a whole deck: how original it is, how salty, what it costs,
     how played its cards are and how old, each one placed against every Commander precon.
-    Placing a deck needs at least {{ deck_min }} nonland cards, because the score averages
-    the top half of the list and a shorter one would be averaging fewer numbers than every
-    deck it was being compared with. Shorter lists are still read, they just aren't ranked.</p>
+    Placing a deck needs at least {{ deck_min }} nonland cards. Shorter lists are still
+    read, they just aren't ranked.</p>
 
-    <p><strong>Change it</strong> walks the deck one card at a time, worst first, and offers
-    replacements for each. The count at the top says which card you are on and how many this
-    session is showing you, so "Card 3 of 12" means there are twelve to walk and you are on
-    the third. That total is the cards on offer now, not the whole deck: the queue is deeper
-    than one session of it, and reaching the end offers you the next batch rather than
-    pretending twelve was the real end of the list.</p>
+    <p><strong>Change it</strong> walks the deck a card at a time, worst first, and offers
+    replacements. Cards with nothing close enough are stepped over rather than swapped for
+    something worse, and they're named together at the end, because "nothing else does
+    this" is a real finding about a card.</p>
 
-    <p>Some cards are stepped over on the way through. If nothing in the game does a card's
-    job and moves the deck the right way, there is no honest swap to offer, so it is passed
-    over rather than swapped for something worse. Those cards are named together at the end
-    under <strong>Nothing close enough</strong>, where you can click any of them or show them
-    as cards, because "nothing else does this" is a real finding about a card and worth
-    being able to argue with.</p>
+    <p>Saved decks live in your browser and nowhere else. Nothing about a deck reaches the
+    server beyond the request that reads it, which is why there's no account to make and
+    why your decks aren't waiting for you on another machine. Reopening a deck you have
+    swapped picks up where you left it, and the list it arrived as is kept alongside.</p>
 
-    <p>Decks you have read are kept in your own browser and nowhere else. Nothing about a
-    deck reaches the server beyond the request that reads it, so the list on the deck page
-    lives in this browser's storage, which is why it is not waiting for you on another
-    machine and why there is no account to make. Each saved deck can be reopened, renamed,
-    dropped, or opened to see and export its cards. Reopening a deck you have swapped picks
-    up where you left it rather than handing back the list you first imported, and the deck
-    as it arrived is kept alongside so the two can always be compared.</p>
-
-    <h2>Where this is going</h2>
-    <p>Delvefall is a small site with a long to-do list. Roughly what is coming, in the
-    order it is likely to arrive:</p>
-    <ul>
-        <li><strong>Searching one ability, sharpened.</strong> Clicking a line of rules
-            text already narrows the search to that ability. The work in progress is making
-            the concepts side follow the same line, so picking "when this enters" stops
-            dragging in everything else the card happens to do.</li>
-        <li><strong>Pages that map the card pool.</strong> The uniqueness data can answer
-            questions nothing else can: which cards read ordinarily but do something odd,
-            which concepts the game has barely explored, which cards are functional twins.
-            Those become browsable pages.</li>
-        <li><strong>Maybe a deck lens.</strong> Paste a list, see the alternatives to each
-            card and which ones have no real substitute at all. Further off, and only if
-            the browsing above turns out to be the smaller half of what people want.</li>
-    </ul>
     <p>Found a bad match, or missing a card you expected? The report link on any results
     page is the fastest way to change what happens next: those reports become the test
     cases the matcher has to pass.</p>
