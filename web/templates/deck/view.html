@@ -32,16 +32,19 @@
         <ul class="swap-made" id="deck-changed-list"></ul>
 
         <details class="deck-card-open" id="deck-changed-pics">
-            <summary>Show the swaps as cards</summary>
+            <summary>View the swapped card images</summary>
             <div class="swap-pairs" id="deck-changed-pairs"></div>
         </details>
     </div>
 
-    {# folded, like every other block of text on the site that is here to be
-       taken rather than read. a textarea of decklist is not something anyone
-       reads down the page, so it opens when it is wanted #}
-    <details class="deck-card-open" id="deck-added-box" hidden>
-        <summary>Just the new cards</summary>
+    {# both lists are OPEN, and neither is a fold any more. this page exists to
+       hand a list back, so the thing it hands back should not need a click
+       first. the box is a fixed ten rows either way, so an open one costs the
+       same height whether the deck is 40 lines or 400.
+       the pictures below stay folded, because a hundred of them is most of a
+       page and all of somebody's data allowance #}
+    <div class="deck-list-box" id="deck-added-box" hidden>
+        <h2>Just the new cards</h2>
         <p class="deck-section-note">The cards this deck has gained since it was imported,
         on their own. Paste these in if you would rather not reimport the whole deck and
         lose the categories you have set up.</p>
@@ -49,21 +52,19 @@
         <div class="swap-actions">
             <button type="button" class="swap-copy" id="deck-copy-added">Copy the new cards</button>
         </div>
-    </details>
+    </div>
 
-    <details class="deck-card-open">
-        <summary>The whole list</summary>
+    <div class="deck-list-box">
+        <h2>The whole list</h2>
         <p class="deck-section-note" id="deck-list-note">Every line this deck was read from,
         ready to paste back wherever it came from.</p>
-        <textarea class="swap-output" id="deck-list" rows="12" readonly>{{ pasted }}</textarea>
+        <textarea class="swap-output" id="deck-list" rows="10" readonly>{{ pasted }}</textarea>
         <div class="swap-actions">
             <button type="button" class="swap-copy" id="deck-copy-list">Copy the list</button>
         </div>
-    </details>
+    </div>
 
-    {% with cards_summary = 'Every card in the deck' %}
     {% include "partials/deckcards.html" %}
-    {% endwith %}
 
     {# the other two modes, offered from here rather than making somebody go
        back a page to reach them. this page is where you land to check a deck

@@ -544,9 +544,19 @@ h2 {
     margin: 8px 0 16px;
 }
 
+/* the floor is what decides how many cards fit a row, and it is set by the
+   WIDEST thing under a card rather than by the picture: the four figures are
+   one line or they are two, and two is a card that has grown a row taller than
+   its neighbours for no reason anybody can see.
+   the row runs price, play rate, salt, card age, with arrows on the first
+   three, which is about 245px of text at 13px. 200px gave four columns of
+   227px on the 968px content width and the age figure was the one that fell
+   off the end; 240 gives three of 309px and the row has room to spare.
+   ONE rule for every card grid on the site, which is what keeps a card on a
+   deck page the same size as a card on a search */
 .card-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
     gap: 20px;
 }
 
@@ -2179,11 +2189,20 @@ footer a { color: var(--teal); }
 
 .swap-made-arrow { color: var(--muted); }
 
+/* the same box as the paste box on /deck, and capped at its height. these grow
+   to their content, which on a hundred card list meant a textarea taller than
+   the screen sitting between the reader and the rest of the page. ten rows is
+   what you type a deck INTO, so it is enough to read one back out of; past that
+   it scrolls.
+   10 rows of 1.5 line height, plus the padding and the border, which border-box
+   counts inside the height */
 .swap-output {
     width: 100%;
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    font-size: 12.5px;
-    padding: 10px;
+    font-size: 13px;
+    line-height: 1.5;
+    padding: 10px 12px;
+    max-height: calc(15em + 22px);
     border: 1px solid var(--line-strong);
     border-radius: 2px;
     background: #fffef9;
@@ -3471,7 +3490,13 @@ body.home main {
 
 /* just the cards a swap session added, above the whole list. shorter box,
    because it is a handful of lines rather than a hundred */
-.swap-output-short { min-height: 0; }
+.swap-output-short { min-height: 0; max-height: calc(9em + 22px); }
+
+/* a list on /deck/view, open rather than folded. the heading and the note do
+   the job the summary used to, so the spacing has to come from somewhere */
+.deck-list-box { margin: 22px 0; }
+
+.deck-list-box h2 { margin-bottom: 4px; }
 
 /* published inside the last year, so its salt, price and play rate have not
    settled. the mark is quiet: it qualifies a placing, it does not shout about
@@ -3682,8 +3707,10 @@ body.home main {
    printing a card about twice the size of every other card on the site: fine
    as the working area of the swap tool where there are only two of them, much
    too big as a review of twelve swaps you are scrolling through.
-   200px is the results grid's own minmax floor, so these line up with it */
-.swap-pair-side .result { max-width: 232px; }
+   309px is what a column of the results grid comes out at on a full width
+   page, so a swapped card is the size of the same card anywhere else, and the
+   four figures under it get the same one line */
+.swap-pair-side .result { max-width: 309px; }
 
 /* the incoming card sits against the arrow rather than out at the far edge, so
    the two cards being compared stay next to each other as they shrink */
@@ -3765,9 +3792,37 @@ body.home main {
 .swap-made-row .swap-undo { margin-left: auto; }
 
 @media (max-width: 560px) {
-    /* the pair stacks, and the arrow turns to point down it */
-    .swap-pair { grid-template-columns: minmax(0, 1fr); }
-    .swap-pair-arrow { justify-self: start; transform: rotate(90deg); }
+    /* the pair stacks into ONE column, and the arrow has to point down the
+       middle of it. it used to be the same rightward arrow rotated and pinned
+       to the left edge, which left a small grey mark sitting beside two cards
+       that were themselves pushed to opposite edges: three things in a column
+       and no two of them lined up, so nothing said which card became which.
+       both cards go hard left, and the arrow gets the card's own width to
+       centre itself in, so it lands between the two pictures rather than
+       beside them */
+    .swap-pair { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+
+    .swap-pair-out .result,
+    .swap-pair-in .result { margin-left: 0; margin-right: auto; }
+
+    /* font-size 0 drops the rightward arrow the markup carries and ::after
+       supplies a real down one, rather than rotating a box that now has to
+       stay the width of a card to centre anything */
+    .swap-pair-arrow {
+        justify-self: start;
+        width: min(100%, 309px);
+        margin: 2px 0;
+        text-align: center;
+        transform: none;
+        font-size: 0;
+        line-height: 1;
+    }
+
+    .swap-pair-arrow::after {
+        content: "\2193";
+        font-size: 26px;
+        color: var(--text);
+    }
 }
 
 /* ---- hidden means hidden ----

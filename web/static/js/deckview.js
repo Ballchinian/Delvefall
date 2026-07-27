@@ -47,20 +47,10 @@ import { el, cardLink, pairCard, swapPair, fitText } from "dom";
     wireCopy("deck-copy-list", "deck-list");
     wireCopy("deck-copy-added", "deck-added");
 
-    /* a list box is grown to its content the first time its fold is opened.
-       done on open rather than on load because a textarea inside a closed
-       details has no height to measure: scrollHeight is 0 until it is on
-       screen, so sizing it early sizes it to nothing */
-    document.querySelectorAll(".deck-card-open").forEach(function (fold) {
-        var box = fold.querySelector(".swap-output");
-        if (!box) return;
-        fold.addEventListener("toggle", function () {
-            if (fold.open) fitText(box);
-        });
-    });
-
-    if (!entry) return;
-
+    /* what the shelf remembers about this deck, painted onto the empty blocks.
+       it was the rest of this function and is now a named one, so the sizing
+       below can run whether or not there was anything to paint */
+    function fillIn() {
     var swaps = entry.swaps || [];
     if (swaps.length) {
         $("deck-changed-note").textContent =
@@ -105,4 +95,14 @@ import { el, cardLink, pairCard, swapPair, fitText } from "dom";
             "The deck as it stands, with the swaps above applied. Ready to paste back "
             + "wherever it came from.";
     }
+    }
+
+    if (entry) fillIn();
+
+    /* both boxes are on screen from the start now, so they size straight away:
+       a textarea inside a closed details measures 0, which is the only reason
+       this used to wait for a fold to open. AFTER fillIn, or a deck whose list
+       has moved on gets sized to the list it replaced. the css caps the result */
+    fitText($("deck-list"));
+    fitText($("deck-added"));
 })();
