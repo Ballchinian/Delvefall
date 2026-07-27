@@ -64,7 +64,6 @@ import { el } from "dom";
         offered something worse
     */
     var cache = {};
-    var found = 0;
     var nothing = [];
 
     /* how far ahead to look. the count only climbs if answers arrive before
@@ -94,11 +93,8 @@ import { el } from "dom";
         }).then(function (r) { return r.json(); }).then(function (j) {
             var cards = j.cards || [];
             cache[card.oracle_id] = cards;
-            if (cards.length) {
-                found++;
-                $("swap-progress").textContent = found;
-            } else {
-                nothing.push(card.name);
+            if (!cards.length) {
+                nothing.push(card);
             }
             /* the answer may have arrived for the card being looked at, in
                which case the page was waiting on exactly this */
@@ -127,6 +123,11 @@ import { el } from "dom";
             break;
         }
         if (at >= limit) return finish();
+        /* said here rather than on every state change, because this is the one
+           function that knows which card is actually on screen. at has already
+           stepped over the dead ends above, so this is the card being looked
+           at and not the card the loop started from */
+        $("swap-at").textContent = at + 1;
 
         var card = D.queue[at];
         $("swap-out-figure").textContent = card.figure;
@@ -280,6 +281,13 @@ import { el } from "dom";
         show();
     });
 
+    /* bound once, not in finish(): that runs at the end of every batch, so
+       binding there stacked another listener each time and redrew the frames
+       once per batch on a single click */
+    $("swap-nothing-box").addEventListener("toggle", function () {
+        if (this.open) enhanceCardFrames(this);
+    });
+
     function finish() {
         /* the end of a BATCH, not necessarily the end of the queue. if the
            deck has more cards worth looking at, say so and offer them rather
@@ -298,9 +306,18 @@ import { el } from "dom";
            dead end at a time on the way through */
         if (nothing.length) {
             var box = $("swap-nothing"), list = $("swap-nothing-list");
+            var pics = $("swap-nothing-cards");
             list.innerHTML = "";
-            nothing.forEach(function (n) {
-                el("li", "swap-made-row", list).textContent = n;
+            pics.innerHTML = "";
+            nothing.forEach(function (c) {
+                /* a link like every other card name on the site. these were the
+                   only names on the page you could not click, which made the
+                   one group you might want to go and check the one group with
+                   nowhere to go from */
+                el("li", "swap-made-row", list).appendChild(cardLink(c.name, "swap-made-out"));
+                /* no anchor name: there is no card it lost to, which is the
+                   whole point of it being in this list */
+                pics.appendChild(build(c, ""));
             });
             box.hidden = false;
         }
