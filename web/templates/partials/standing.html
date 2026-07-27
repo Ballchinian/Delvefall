@@ -144,8 +144,8 @@
                    the panel's own figure is not lost by this: it is the ordered
                    list directly above, which is where the evidence for a number
                    belongs #}
-                <div class="result-name">{{ c.name }}
-                    {%- if c.badge %} <span class="percent"
+                <div class="result-name"><span class="card-name" title="{{ c.name }}">{{ c.name }}</span>
+                    {%- if c.badge %}<span class="percent"
                         title="originality: one minus how close this card's nearest match anywhere in Magic gets, so a card at 0.30 has something out there 70% like it">{{ c.badge }}</span>{% endif %}</div>
                 {# every card carries all four numbers, not just the one this
                    panel ranks on, because "it is in here for its price, but

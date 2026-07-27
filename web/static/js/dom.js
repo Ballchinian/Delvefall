@@ -68,7 +68,7 @@ export function pairCard(c, against) {
     img.width = 488;
     img.height = 680;
     img.loading = "lazy";
-    el("div", "result-name", div, c.name);
+    el("span", "card-name", el("div", "result-name", div), c.name).title = c.name;
     if (c.price || c.rank || c.salt || c.age) {
         var row = el("div", "result-price", div);
         //the same words and the same arrows the results page prints against the

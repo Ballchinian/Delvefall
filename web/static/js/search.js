@@ -161,7 +161,8 @@ function buildResult(r) {
     flag.dataset.id = r.oracle_id;
     flag.dataset.name = r.name;
 
-    var name = el("div", "result-name", div, r.name + " ");
+    var name = el("div", "result-name", div);
+    el("span", "card-name", name, r.name).title = r.name;
     var pct = el("span", "percent" + (r.concept_only ? " concept" : ""), name, r.percent + "%");
     if (r.blended) {
         pct.title = "rules text " + r.mech_pct + "%, concepts " + r.concept_pct + "%, evenly blended";

@@ -265,9 +265,14 @@ main {
 }
 
 /* the picture is inside a card-frame now (for the rotate/flip/transform
-   overlay), so the frame owns the column width and the image fills it */
+   overlay), so the frame owns the column width and the image fills it.
+   300px, the size every SINGULAR card on the site is drawn at: this one, the
+   card leaving on the swap page, the dealt card on /unique and the guide's
+   mock. there is only ever one of them on screen and it is the card the page
+   is about, so it is read rather than scanned, and nothing is competing with
+   it for the row */
 .searched-card .card-frame {
-    width: 240px;
+    width: 300px;
     flex-shrink: 0;
     align-self: flex-start;
 }
@@ -579,12 +584,38 @@ h2 {
 
 .result .card-frame img:hover { transform: scale(1.03); }
 
+/* the name and its badge, on ONE line, which they were not. the badge FLOATED
+   right, so a name long enough to fill the line pushed it down to the next
+   one, and the next line is the figures row: it parked there and took about
+   40px out of the four numbers, which then wrapped in turn. one bug wearing
+   two faces, and Kongming, "Sleeping Dragon" wears both.
+   a flex row instead, so the badge is a sibling that cannot be displaced by
+   anything the name does, and it sizes itself: it is "56%" on a search, "0.28"
+   on a deck page and "51% unique" on the dealer */
 .result-name {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
     font-family: var(--serif);
     font-weight: 600;
     margin-top: 8px;
     font-size: 15px;
     line-height: 1.25;
+}
+
+/* the name takes what is left and ends in an ellipsis rather than wrapping.
+   a 240px column cannot hold that Kongming and a badge both, and of the two it
+   is the badge that stays: it sits in the same place on every card and is read
+   DOWN the column, where a name is read one card at a time with its own
+   picture directly above it. the full name is on the title either way.
+   min-width 0 is what lets it shrink at all. a flex item will not go below its
+   content width without it, which is the whole reason the ellipsis never fires
+   when this is left off */
+.card-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 /* the badge beside a card's name: the match percent on a search, the
@@ -596,7 +627,9 @@ h2 {
    interpret into a legend they had to learn. it is a number, it reads as one,
    and the tooltip carries the breakdown */
 .percent {
-    float: right;
+    margin-left: auto;
+    flex: none;
+    white-space: nowrap;
     font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     font-size: 13px;
     color: var(--muted);
@@ -1224,8 +1257,11 @@ h2 {
     margin: 12px 0;
 }
 
+/* the mock is a singular card too, and it is the one card on the site whose
+   whole job is being looked at closely: every part of it carries an info mark
+   explaining that part */
 .guide-demo .result {
-    width: 240px;
+    width: 300px;
     flex-shrink: 0;
 }
 
@@ -2078,11 +2114,13 @@ footer a { color: var(--teal); }
 /* the card leaving, drawn at the same size as the ones that could replace it
    but held to one column so the page reads as a comparison rather than as a
    row of equals: this is the card in question, those are the answers.
-   232px and not 200: it was set to the old grid floor, which is under the
-   220px the four figures need, so this was the one card on the page whose row
-   wrapped while the twelve below it did not */
+   300px, because this is a singular card: it is the one the page is asking
+   about, with the twelve answers below it, so it reads at the same size as the
+   searched card on /search and the dealt card on /unique. it was 200, the old
+   grid floor, which is under the 220px the four figures need, so this was the
+   one card on the page whose row wrapped while the twelve below it did not */
 .swap-out-card {
-    max-width: 232px;
+    max-width: 300px;
     margin-bottom: 6px;
 }
 
@@ -3716,10 +3754,12 @@ body.home main {
    printing a card about twice the size of every other card on the site: fine
    as the working area of the swap tool where there are only two of them, much
    too big as a review of twelve swaps you are scrolling through.
-   227px is what a column of the results grid comes out at on a full width
-   page, so a swapped card is the size of the same card anywhere else, and the
-   four figures under it clear the 220px they need */
-.swap-pair-side .result { max-width: 232px; }
+   240px rather than the 227px a results column comes out at, and the extra
+   thirteen are for the NAME, not the figures. the name shares its line with
+   the badge floated right of it, so a long one meets the badge well before
+   the row underneath runs out of room: Kongming, "Sleeping Dragon" is 27
+   characters with the quotes in it and was the card that found the edge */
+.swap-pair-side .result { max-width: 240px; }
 
 /* the incoming card sits against the arrow rather than out at the far edge, so
    the two cards being compared stay next to each other as they shrink */
@@ -3819,7 +3859,7 @@ body.home main {
        stay the width of a card to centre anything */
     .swap-pair-arrow {
         justify-self: start;
-        width: min(100%, 232px);
+        width: min(100%, 240px);
         margin: 2px 0;
         text-align: center;
         transform: none;

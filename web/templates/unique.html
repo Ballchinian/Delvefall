@@ -177,7 +177,11 @@ function render(c) {
 
     var name = document.createElement("div");
     name.className = "result-name";
-    name.textContent = c.name + " ";
+    var who = document.createElement("span");
+    who.className = "card-name";
+    who.title = c.name;
+    who.textContent = c.name;
+    name.appendChild(who);
     var pct = document.createElement("span");
     pct.className = "percent";
     pct.title = "uniqueness";

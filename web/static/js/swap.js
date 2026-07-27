@@ -170,7 +170,8 @@ import { el, cardLink, swapPair, fitText } from "dom";
         img.height = 680;
         img.loading = "lazy";
 
-        var name = el("div", "result-name", div, c.name + " ");
+        var name = el("div", "result-name", div);
+        el("span", "card-name", name, c.name).title = c.name;
         if (c.match !== undefined) el("span", "percent", name, c.match + "%");
 
         if (c.price || c.rank || c.salt || c.age) {
