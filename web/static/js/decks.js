@@ -45,15 +45,24 @@ export function baseName(label) {
 //
 //`mine` is the entry being named, by its text key, and is skipped: a deck
 //keeping the name it already has must not be numbered against itself.
+//
+//names are matched CASE INSENSITIVELY, and they have to be, because dedupe()
+//already was. matching exactly here let "goblins" onto a shelf that had
+//"Goblins", and then dedupe renamed it to "goblins #2" on the next visit to the
+//hub: the deck was numbered either way, just silently and one page later, which
+//is the worst of both. two rules for one question is how that happens
 export function uniqueName(want, decks, mine) {
     want = (want || "").trim();
     if (!want) return "";
+    //compared folded, RETURNED as typed. the shelf decides which decks share a
+    //name, it does not decide how somebody capitalises their own deck
     var wanted = baseName(want).name;
+    var key = wanted.toLowerCase();
     var used = {};
     decks.forEach(function (d) {
         if (mine !== undefined && d.text === mine) return;
         var b = baseName(d.label);
-        if (b.name === wanted) used[b.n] = true;
+        if (b.name.toLowerCase() === key) used[b.n] = true;
     });
     var n = 1;
     while (used[n]) n++;
