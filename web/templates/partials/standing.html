@@ -16,7 +16,11 @@
 </nav>
 
 {% for p in panels %}
-<section class="deck-metric" id="metric-{{ p.key }}"
+{# the focus class rides the SECTION rather than the card grid inside it, so the
+   panel's ordered list and its pictures put the ink on the same figure. it is
+   the same class /search's results grid wears, off the same map, because "which
+   number is this page about" is one question with one answer everywhere #}
+<section class="deck-metric {{ p.focus }}" id="metric-{{ p.key }}"
          data-label="{{ p.readings.desc.label }}"
          data-label-asc="{{ p.readings.asc.label }}">
     {# which end of the number. it is one measurement with a switch on it, not
@@ -130,8 +134,20 @@
                         <img src="{{ c.image }}" alt="{{ c.name }}" width="488" height="680" loading="lazy">
                     </a>
                 </div>
-                <div class="result-name">{{ c.name }} <span class="percent">{{ c.figure }}</span></div>
-                {# every card carries all three numbers, not just the one this
+                {# ORIGINALITY, on every panel, and not the figure this panel
+                   ranks on. the badge beside a card's name is the site's own
+                   number wherever a card is drawn: the match percent on a
+                   search, the originality score here. it held the panel's stat
+                   before, which meant the one slot that should be a constant
+                   was the one thing changing as you paged through, printing a
+                   price where a search prints a percentage.
+                   the panel's own figure is not lost by this: it is the ordered
+                   list directly above, which is where the evidence for a number
+                   belongs #}
+                <div class="result-name">{{ c.name }}
+                    {%- if c.badge %} <span class="percent"
+                        title="originality: one minus how close this card's nearest match anywhere in Magic gets, so a card at 0.30 has something out there 70% like it">{{ c.badge }}</span>{% endif %}</div>
+                {# every card carries all four numbers, not just the one this
                    panel ranks on, because "it is in here for its price, but
                    what does it cost me in salt" is the next question #}
                 <div class="result-price">
@@ -140,6 +156,8 @@
                         title="play rate: edhrec's rank for how often this card is played in commander, where #1 is the most played card in the format">{{ c.rank_label }}</span>{% endif %}
                     {% if c.salt_label %}<span class="result-salt"
                         title="salt {{ c.salt_label }} out of about 3, from edhrec's salt survey, where players vote on the cards they least enjoy facing"><i class="salt-mark" aria-hidden="true"></i>{{ c.salt_label }}</span>{% endif %}
+                    {% if c.age_label %}<span class="result-age"
+                        title="card age: how long ago this card was first printed, counted from its earliest printing, so a reprint does not make an old card new">{{ c.age_label }}</span>{% endif %}
                 </div>
             </div>
             {% endfor %}

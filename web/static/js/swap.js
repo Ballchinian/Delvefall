@@ -173,7 +173,7 @@ import { el, cardLink, swapPair, fitText } from "dom";
         var name = el("div", "result-name", div, c.name + " ");
         if (c.match !== undefined) el("span", "percent", name, c.match + "%");
 
-        if (c.price || c.rank || c.salt) {
+        if (c.price || c.rank || c.salt || c.age) {
             var row = el("div", "result-price", div);
             var figure = el("span", "price-figure " + (c.price_vs || ""), row, c.price);
             if (c.price_vs) {
@@ -202,6 +202,15 @@ import { el, cardLink, swapPair, fitText } from "dom";
                     salt.title = "salt " + c.salt + " out of about 3, from edhrec's salt survey, " +
                         "where players vote on the cards they least enjoy facing";
                 }
+            }
+            /* no arrow even against the outgoing card. older and newer are not
+               better and worse, so there is no verdict to point either way, and
+               the age axis is the one place the direction is already named in
+               the heading above */
+            if (c.age) {
+                el("span", "result-age", row, c.age).title = "card age: how long ago this " +
+                    "card was first printed, counted from its earliest printing, so a " +
+                    "reprint does not make an old card new";
             }
         }
         if (c.their_line) {

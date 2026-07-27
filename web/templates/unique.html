@@ -56,7 +56,10 @@
 
     <p class="unique-status" id="unique-status"></p>
 
-    <div id="unique-card" class="unique-single"></div>
+    {# focus-badge because uniqueness is what this page is about, the same way a
+       best-match search is about its match percent. the dealer has no sort
+       control, but it does have a chosen stat, and it is the one in the badge #}
+    <div id="unique-card" class="unique-single focus-badge"></div>
 
     {# start over sits way down here alone so a misclick around the controls
        can never wipe the seen list. the confirm is the second net #}
@@ -182,7 +185,7 @@ function render(c) {
     name.appendChild(pct);
     div.appendChild(name);
 
-    if (c.price || c.rank || c.salt) {
+    if (c.price || c.rank || c.salt || c.age) {
         var price = document.createElement("div");
         price.className = "result-price";
         price.textContent = c.price;
@@ -211,6 +214,17 @@ function render(c) {
             salt.appendChild(mark);
             salt.appendChild(document.createTextNode(c.salt));
             price.appendChild(salt);
+        }
+        //the fourth number, on the same terms as the other three here: no
+        //arrow and no colour, because there is no card beside this one to be
+        //older or newer than
+        if (c.age) {
+            var age = document.createElement("span");
+            age.className = "result-age";
+            age.title = "card age: how long ago this card was first printed, counted " +
+                "from its earliest printing, so a reprint does not make an old card new";
+            age.textContent = c.age;
+            price.appendChild(age);
         }
         div.appendChild(price);
     }

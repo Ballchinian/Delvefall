@@ -43,11 +43,17 @@
                 </a>
             </div>
             <div class="result-name">{{ c.name }}</div>
-            {% if c.price_label or c.rank_label or c.salt_label %}
+            {# all four readings, all in grey, and deliberately no focus class on
+               the grid: this page is not sorted by anything, so there is no
+               chosen stat and nothing has earned the ink. see the focus rules in
+               the css, where being sorted on is the only thing that promotes a
+               figure out of grey #}
+            {% if c.price_label or c.rank_label or c.salt_label or c.age_label %}
             <div class="result-price">
                 {% if c.price_label %}<span class="price-figure">{{ c.price_label }}</span>{% endif %}
                 {% if c.rank_label %}<span class="result-rank" title="play rate: edhrec's rank for how often this card is played in commander, where #1 is the most played card in the format">{{ c.rank_label }}</span>{% endif %}
                 {% if c.salt_label %}<span class="result-salt" title="salt {{ c.salt_label }} out of about 3, from edhrec's salt survey, where players vote on the cards they least enjoy facing"><i class="salt-mark" aria-hidden="true"></i>{{ c.salt_label }}</span>{% endif %}
+                {% if c.age_label %}<span class="result-age" title="card age: how long ago this card was first printed, counted from its earliest printing, so a reprint does not make an old card new">{{ c.age_label }}</span>{% endif %}
             </div>
             {% endif %}
         </div>

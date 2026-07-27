@@ -571,10 +571,14 @@ h2 {
     line-height: 1.25;
 }
 
-/* the match percent. no colour of its own: gold said nothing a reader could
-   decode, and a second colour for concept-only matches turned a number
-   people already have to interpret into a legend they had to learn. it is a
-   number, it reads as one, and the tooltip carries the breakdown */
+/* the badge beside a card's name: the match percent on a search, the
+   originality score on a deck page. always the site's OWN number, never
+   whichever figure the page happens to be sorted on, so the slot means one
+   thing wherever a card is drawn.
+   no colour of its own: gold said nothing a reader could decode, and a second
+   colour for concept-only matches turned a number people already have to
+   interpret into a legend they had to learn. it is a number, it reads as one,
+   and the tooltip carries the breakdown */
 .percent {
     float: right;
     font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -582,12 +586,15 @@ h2 {
     color: var(--muted);
 }
 
-/* the price used to be green, which quietly claimed something the number
-   doesn't mean: green reads as "good value" and it's just the price,
-   whatever it is. weight carries the prominence instead, so no colour is
-   spent saying nothing */
+/* the numbers under a card, and they all start GREY. ink is not a default here,
+   it is what being sorted on looks like (see the focus rules below), so a grid
+   with no chosen stat prints four equal readings rather than quietly promoting
+   one of them.
+   the price used to be green, which claimed something the number doesn't mean:
+   green reads as "good value" and it's just the price, whatever it is. weight
+   carries the prominence instead, so no colour is spent saying nothing */
 .result-price {
-    color: var(--text);
+    color: var(--muted);
     font-size: 13px;
     font-weight: 600;
     margin-top: 6px;
@@ -654,50 +661,67 @@ h2 {
     font-size: 12.5px;
 }
 
-/* edhrec popularity, riding along the price row. muted grey so the price
-   stays the number the eye lands on, and it has a tooltip so the bare
-   number isn't a mystery */
+/* edhrec popularity, second on the row. grey like everything beside it, and it
+   has a tooltip so the bare number isn't a mystery */
 .result-rank {
-    color: var(--muted);
     margin-left: 8px;
     cursor: help;
 }
 
-/* the salt score, third on the price row. printed on every card that has one,
-   so a missing mark means nobody voted rather than "below a bar you cannot
-   see". plain ink by default, like the price: the number is the reading, and
-   colour is reserved for a verdict.
+/* the salt score, third on the row. printed on every card that has one, so a
+   missing mark means nobody voted rather than "below a bar you cannot see".
    the mark earns its place because a bare "0.24" next to a price and a #rank
    has to say what KIND of number it is before it says anything else */
 .result-salt {
-    color: var(--muted);
     margin-left: 8px;
     cursor: help;
     white-space: nowrap;
 }
 
-/* WHICH number is the foreground follows the sort: the one you sorted by
-   takes the ink, the rest sit back in grey. that is ALL the sort changes.
-   a verdict colour is a fact about the card and it is printed in every sort,
-   including best-match, so green and red never depend on which order the
-   results happen to be in. the row's own ordering (price, then play rate,
-   then salt) already says which is the headline.
-   hence the :not()s: they keep the greying off any figure already wearing a
-   verdict, rather than the focus rule winning on specificity and quietly
-   draining the colour out of half the page */
-.card-grid.focus-salt .price-figure:not(.much-cheaper):not(.much-pricier),
-.card-grid.focus-rank .price-figure:not(.much-cheaper):not(.much-pricier) {
-    color: var(--muted);
+/* card age, fourth on the row, and the one reading that used to be missing
+   entirely: the date sorts reordered the results and nothing on any card said
+   why, so the price had to stand in as the number being scanned.
+   no mark, because the word "years" already says what kind of number it is,
+   which is the job the salt mark exists to do for a bare decimal */
+.result-age {
+    margin-left: 8px;
+    cursor: help;
+    white-space: nowrap;
 }
 
-.card-grid.focus-salt .result-salt:not(.much-milder):not(.much-saltier) {
+/* WHICH figure is the foreground follows the sort: the one you sorted by takes
+   the ink, the other four sit back in grey. that is ALL a sort changes, and it
+   is now the same rule in all five directions rather than a default of "price,
+   unless it is salt or play rate".
+   this is what fixed the two lies the old version told. best-match inked the
+   PRICE, because nothing greyed it and the badge was never a candidate, so the
+   one sort actually ordered by the badge pointed at the wrong number. and the
+   date sorts inked the price too, for want of an age figure to point at.
+   the classes name the SLOT, not the metric, so /search's "released" and the
+   precon board's "age" reach the same rule and no template has to know that
+   those are two spellings of one idea.
+   NOT scoped to .card-grid: the swap page wears its axis on the page container
+   so the card leaving and the twelve that could replace it read the same way,
+   and a standing panel wears it on the section so its list and its pictures
+   agree. the classes only ever land on a container full of cards.
+   a verdict colour is a fact about the card and it is printed in every sort,
+   including best-match, so green and red never depend on which order the
+   results happen to be in. hence the :not()s: they keep the ink rule off any
+   figure already wearing a verdict, rather than winning on source order and
+   quietly draining the colour out of half the page */
+.focus-badge .percent { color: var(--text); }
+
+.focus-price .price-figure:not(.much-cheaper):not(.much-pricier) {
     color: var(--text);
 }
 
-/* the play-rate sort gets a foreground too, even though the rank never earns
-   a verdict colour. being sorted on is a different claim from being better:
-   it is what the page is currently about, so it reads as ink */
-.card-grid.focus-rank .result-rank { color: var(--text); }
+.focus-rank .result-rank { color: var(--text); }
+
+.focus-salt .result-salt:not(.much-milder):not(.much-saltier) {
+    color: var(--text);
+}
+
+.focus-age .result-age { color: var(--text); }
 
 /* the SAME two hues and the same rules as the price, on purpose. green reads
    as better and red as worse everywhere on the internet, and salt has a

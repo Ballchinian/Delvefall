@@ -166,7 +166,7 @@ function buildResult(r) {
     if (r.blended) {
         pct.title = "rules text " + r.mech_pct + "%, concepts " + r.concept_pct + "%, evenly blended";
     }
-    if (r.price || r.rank || r.salt) {
+    if (r.price || r.rank || r.salt || r.age) {
         var price = el("div", "result-price", div);
         var figure = el("span", "price-figure " + r.price_vs, price, r.price);
         if (r.price_vs) {
@@ -196,6 +196,13 @@ function buildResult(r) {
                 salt.title = "salt " + r.salt + " out of about 3, from edhrec's salt " +
                     "survey, where players vote on the cards they least enjoy facing";
             }
+        }
+        //no arrow, unlike the three before it. older and newer are not better
+        //and worse, so there is no verdict here to point either way
+        if (r.age) {
+            el("span", "result-age", price, r.age).title = "card age: how long ago this " +
+                "card was first printed, counted from its earliest printing, so a reprint " +
+                "does not make an old card new";
         }
     }
     if (r.their_line) {

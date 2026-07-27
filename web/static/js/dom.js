@@ -69,7 +69,7 @@ export function pairCard(c, against) {
     img.height = 680;
     img.loading = "lazy";
     el("div", "result-name", div, c.name);
-    if (c.price || c.rank || c.salt) {
+    if (c.price || c.rank || c.salt || c.age) {
         var row = el("div", "result-price", div);
         //the same words and the same arrows the results page prints against the
         //searched card, so a swap reads like a search result and not like a
@@ -102,6 +102,15 @@ export function pairCard(c, against) {
                 salt.title = "salt " + c.salt + " out of about 3, from edhrec's salt survey, " +
                     "where players vote on the cards they least enjoy facing";
             }
+        }
+        //never carries a verdict, with or without `against`: older and newer are
+        //not better and worse. a swap saved before this number existed simply
+        //has no age on it and shows three figures, which is why every one of
+        //these is guarded rather than assumed
+        if (c.age) {
+            el("span", "result-age", row, c.age).title = "card age: how long ago this card " +
+                "was first printed, counted from its earliest printing, so a reprint does " +
+                "not make an old card new";
         }
     }
     return div;

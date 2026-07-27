@@ -7,7 +7,12 @@
 {% block head_extra %}<meta name="robots" content="noindex">{% endblock %}
 
 {% block content %}
-<div class="guide precons deck-detail deck-swap">
+{# the axis rides the whole page, not each grid, because every card on it is
+   being weighed on the same one: the card leaving, the twelve that could take
+   its slot, and the pairs at the bottom. one class means the figure the session
+   is about is in ink everywhere it appears, and the same class /search and the
+   standing panels use for the same job #}
+<div class="guide precons deck-detail deck-swap {{ focus }}">
     {# the list rides the link, so going back keeps the deck AND its name #}
     <form class="precon-back deck-back" method="post" action="/deck/open">
         <input type="hidden" name="list" value="{{ pasted }}">

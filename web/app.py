@@ -217,7 +217,7 @@ KOFI_URL = "https://ko-fi.com/ballchinian"
 RUNNING_COST = "about £10 a month"
 
 #the display columns the frontend needs, so every query grabs the same set
-CARD_FIELDS = "oracle_id, name, mana_cost, type_line, oracle_text, image, scryfall_uri, price_usd, price_eur, layout, image_back, edhrec_rank, salt"
+CARD_FIELDS = "oracle_id, name, mana_cost, type_line, oracle_text, image, scryfall_uri, price_usd, price_eur, layout, image_back, edhrec_rank, salt, released_at"
 
 #the choices in the type filter dropdown. also acts as a whitelist so
 #nothing weird from the url ends up inside a LIKE pattern
@@ -480,6 +480,31 @@ def salt_label(salt):
     #most of the pool lives between 0.07 and 0.38 where one decimal collapses
     #half the range into "0.2"
     return "" if salt is None else "%.2f" % salt
+
+
+#a year, in days, and the SAME one the board's sql divides by. the age column
+#there is seconds over 31557600, which is 365.25 days, so a card cannot read as
+#12.4 years on one page and 12.5 on another
+YEAR_DAYS = 365.25
+
+
+def age_label(released):
+    #how long ago this card was FIRST printed, the fourth number on the row
+    #under a card. it used to be the one metric with no reading of its own on
+    #the results grid: the date sorts reordered the page and nothing on any card
+    #said why, because there was nothing there to say it with.
+    #
+    #the word "years" is not decoration. a bare "12.4" sitting between a price
+    #and a #rank has to say what KIND of number it is before it says anything
+    #else, which is the same reason the salt figure wears a mark.
+    #
+    #released_at is scryfall's EARLIEST printing, so a reprint does not make an
+    #old card new. that is the whole point of the measurement and the reason a
+    #deck stuffed with reprints still reads old. a card with no date shows
+    #nothing at all, exactly like an unpriced or unvoted one: absent is not zero
+    if released is None:
+        return ""
+    return "%.1f years" % ((datetime.date.today() - released).days / YEAR_DAYS)
 
 
 CURRENCY_SIGNS = {"usd": "$", "eur": "€", "gbp": "£"}
@@ -835,7 +860,14 @@ SORT_FIELDS = {
     "played": {"label": "Play rate", "default": "desc",
                "asc": ("obscure", "least played first"),
                "desc": ("played", "most played first")},
-    "released": {"label": "Release date", "default": "desc",
+    #"Card age" and not "Release date". the two were the same measurement under
+    #two names, one here and one on the precon board, and a metric that is
+    #called something different depending on which page you met it on is two
+    #metrics as far as anybody reading is concerned. the board's name won
+    #because the readings underneath it are the catchy half: oldest and newest
+    #cards is what somebody actually wants, and "release date" was never going
+    #to be said out loud
+    "released": {"label": "Card age", "default": "desc",
                  "asc": ("old", "oldest first"),
                  "desc": ("new", "newest first")},
     "salt":   {"label": "Salt", "default": "desc",
@@ -878,6 +910,39 @@ def read_sort():
     field, direction = read_sort_parts()
     pair = SORT_FIELDS[field].get(direction)
     return pair[0] if pair else "best"
+
+
+#which figure on a card the page is currently ABOUT, as the class its container
+#wears. every card on this site carries the same readings in the same places -
+#one badge beside the name and four numbers under it - and the only thing a sort
+#changes is which of the five is in ink and which four sit back in grey. that is
+#all it changes, which is the point: a card does not gain or lose a number
+#depending on how the page happens to be ordered, so the row reads the same
+#everywhere and the eye still knows where to land.
+#
+#the badge is the site's OWN number, the one nothing outside Delvefall could
+#tell you: the match percent on a search, the originality score on a deck page.
+#the other four (price, play rate, salt, card age) are facts the world supplied.
+#a badge is never a sort on the deck pages and never absent on a search, so one
+#class covers both.
+#
+#BOTH vocabularies land here on purpose. /search calls the age field "released"
+#and the precon board calls the same metric "age"; they are one idea with two
+#url spellings, and the page that renders them should not have to know that
+FOCUS_CLASS = {
+    "best": "focus-badge", "original": "focus-badge",
+    "price": "focus-price",
+    "played": "focus-rank",
+    "released": "focus-age", "age": "focus-age",
+    "salt": "focus-salt",
+}
+
+
+def focus_class(key):
+    #an unknown key focuses nothing rather than guessing, which leaves every
+    #figure grey. that is the honest rendering of a grid with no chosen stat
+    #(the deck-as-cards grids), not a fallback that has gone wrong
+    return FOCUS_CLASS.get(key, "")
 
 
 def read_currency():
@@ -1545,6 +1610,10 @@ def find_similar(oracle_id, picked, filters, min_pct, sort, offset=0, how_many=2
             "rank_vs": rank_vs,
             "salt": salt_label(c["salt"]),
             "salt_vs": salt_vs,
+            #no verdict against the searched card, unlike the three above it.
+            #older and newer are not better and worse, and the site does not
+            #spend an arrow on a difference it cannot call
+            "age": age_label(c["released_at"]),
             "more_count": len(more),
             "more_text": "\n".join(more),
         })
@@ -1637,7 +1706,12 @@ def search():
                                          aside_count=sum(1 for c in chips if c["state"] == "aside"),
                                          line_tags_on=LINE_TAGS,
                                          sort_fields=SORT_FIELDS, sort_field=sort_field,
-                                         sort_dir=sort_dir))
+                                         sort_dir=sort_dir,
+                                         #off the RESOLVED field, so ?sort=salty
+                                         #from an old bookmark and the control's
+                                         #own ?sort=salt&dir=desc focus the same
+                                         #figure
+                                         focus=focus_class(sort_field)))
     #the blend cookie is gone with the slider. it is actively DELETED rather
     #than left alone, or anyone who moved the slider before today keeps a
     #stale preference in their browser forever, invisible and doing nothing
@@ -2070,7 +2144,11 @@ PRECON_METRICS = [
     },
     {
         "key": "played", "figure": "play_median", "drivers": "play_drivers",
-        "label": "Played cards",
+        #"Play rate", the name /search's sort already uses and the name every
+        #tooltip on the site already says. it was "Played cards" here, which
+        #was both a second name for one metric and nearly its own readings'
+        #names ("most played cards", "least played cards") a word short
+        "label": "Play rate",
         "decimals": 0, "best": "asc", "cards": "Most played cards",
         "noun": "median play rate",
         "settling": "A new deck reads as LESS played than it will be. EDHREC's rank counts how many decks run a card, and that accumulates: precons published in the last year average a median of #5216 against #4188 for the rest, which is mostly the format not having got round to them.",
@@ -2375,10 +2453,15 @@ def metric_cards(conn, oracle_ids, key, currency, limit=DECK_EVIDENCE_MAX):
     #overlap simply keeps everything
     ev = DECK_EVIDENCE[key]
     price = price_col(currency)
+    #uniqueness comes back for EVERY panel, not just the originality one. it is
+    #the badge beside the card's name wherever a card is drawn on these pages,
+    #the same slot the match percent fills on a search, and it holds still while
+    #the panels change underneath it. the four numbers under the card are the
+    #ones the world supplied; this is the one Delvefall worked out
     sql = """
         SELECT c.oracle_id, c.name, c.type_line, c.mana_cost, c.layout,
                c.image, c.image_back, c.scryfall_uri, c.edhrec_rank, c.salt,
-               c.price_usd, c.price_eur,
+               c.price_usd, c.price_eur, c.released_at, c.uniqueness,
                (""" + ev["value"].replace("__PRICE__", price) + """) AS value
         FROM cards c
         WHERE c.oracle_id = ANY(%s::uuid[]) AND (""" + ev["where"].replace("__PRICE__", price) + """)
@@ -2405,6 +2488,12 @@ def metric_cards(conn, oracle_ids, key, currency, limit=DECK_EVIDENCE_MAX):
         c["price_label"] = price_label(c, currency)
         c["rank_label"] = rank_label(c["edhrec_rank"])
         c["salt_label"] = "%.2f" % c["salt"] if c["salt"] is not None else ""
+        c["age_label"] = age_label(c["released_at"])
+        #two decimals, the same as the ordered list this grid sits under and the
+        #same as the originality panel's own card figures. NOT the three the
+        #deck's overall figure carries: that one is separating 166 precons from
+        #each other, where a card is just saying roughly how unusual it is
+        c["badge"] = ("%.2f" % c["uniqueness"]) if c["uniqueness"] is not None else ""
         value = float(c["value"]) if c["value"] is not None else 0.0
         #the card's own reading of the number the panel is about, printed the
         #same way the deck's figure above it is, so the two are obviously the
@@ -2543,6 +2632,11 @@ def deck_panels(conn, oracle_ids, figures, board, cur, slug=None):
             continue
         prefix, suffix = figure_units(m["key"], cur)
         panels.append({"key": m["key"], "readings": readings,
+                       #which of the five figures this panel puts in ink. the
+                       #cards below it carry all five either way, exactly as
+                       #they do on a search: the panel changes which one the
+                       #eye lands on and nothing else about the row
+                       "focus": focus_class(m["key"]),
                        "figure": figure, "decimals": m["decimals"],
                        "means": m["means"], "settling": m["settling"],
                        "cards_label": m["cards"], "noun": m["noun"],
@@ -3018,7 +3112,8 @@ def deck_cards(conn, oracle_ids, currency):
     try:
         rows = conn.execute("""
             SELECT oracle_id, name, type_line, layout, image, image_back,
-                   scryfall_uri, price_usd, price_eur, edhrec_rank, salt
+                   scryfall_uri, price_usd, price_eur, edhrec_rank, salt,
+                   released_at
             FROM cards WHERE oracle_id = ANY(%s::uuid[])
             ORDER BY name
         """, ([str(o) for o in oracle_ids],)).fetchall()
@@ -3032,6 +3127,7 @@ def deck_cards(conn, oracle_ids, currency):
         c["price_label"] = price_label(c, currency)
         c["rank_label"] = rank_label(c["edhrec_rank"])
         c["salt_label"] = salt_label(None if c["salt"] is None else float(c["salt"]))
+        c["age_label"] = age_label(c["released_at"])
         out.append(c)
     return out
 
@@ -3693,7 +3789,10 @@ def swap_card_json(c, currency, anchor=None):
         "price": price_label(c, currency),
         "rank": rank_label(c["edhrec_rank"]),
         "salt": salt_label(salt),
-        "released": str(c["released_at"])[:4] if c["released_at"] else "",
+        #the fourth number, and it replaces a bare printing year that nothing
+        #on the page ever drew. same reading, same words, same slot as on every
+        #other grid on the site
+        "age": age_label(c["released_at"]),
     }
     if anchor is not None:
         out["price_vs"] = price_verdict(price, price_in(anchor, currency))
@@ -3711,10 +3810,15 @@ def swap_figure(card, field, currency="usd"):
         return None if v is None else CURRENCY_SIGNS[currency] + ("%.2f" % float(v))
     if field == "played":
         v = card.get("edhrec_rank")
-        return None if v is None else "play rank " + str(v)
+        return None if v is None else "play rate " + rank_label(v)
     if field == "released":
+        #years old, not the year printed on it. a bare "1994" is a fact about
+        #the card and "31.6 years" is the reading the rest of the site ranks,
+        #sorts and prints, so this says the same thing the same way.
+        #None rather than age_label's empty string, so all four branches answer
+        #a missing figure the same way and the caller keeps one thing to check
         v = card.get("released_at")
-        return None if v is None else str(v)[:4]
+        return None if v is None else age_label(v)
     v = card.get("salt")
     return None if v is None else "salt %.2f" % float(v)
 
@@ -3909,6 +4013,11 @@ def deck_swap():
     name, commander = deck_identity()
     return render_template("deck/swap.html", queue=queue, deck_ids=[str(i) for i in ids],
                            colors=colors, axis=field, direction=direction,
+                           #the axis IS the chosen stat here, so the page inks
+                           #the figure it is moving and greys the other three.
+                           #never the badge: the match percent on a candidate is
+                           #the gate it cleared, not the thing being improved
+                           focus=focus_class(field),
                            goal=SWAP_AXES[(field, direction)]["goal"],
                            matched=len(ids), missing=missing, cur=cur,
                            deck_name=name, commander=commander, batch=SWAP_QUEUE,
@@ -3976,6 +4085,7 @@ def card_json(c, currency):
         "price": price,
         "rank": rank_label(c["edhrec_rank"]),
         "salt": salt_label(c["salt"]),
+        "age": age_label(c["released_at"]),
         "percent": int(round((c.get("blended_u") if c.get("blended_u") is not None else (c["uniqueness"] or 0)) * 100)),
         "unique_line": c["unique_line"] or "",
     }

@@ -20,7 +20,11 @@
        part now carries an info mark instead, and the explanation waits in a
        dialog until it is asked for #}
     <p>Every <span class="guide-info-demo">i</span> below opens an explanation of that part.</p>
-    <div class="guide-demo">
+    {# focus-badge so the mock shows the state somebody actually lands on: a
+       best-match search, where the percent is the figure the page is ordered by
+       and therefore the one in ink. without it this card would demonstrate a
+       rule the real page never uses #}
+    <div class="guide-demo focus-badge">
         <div class="result">
             <div class="card-frame">
                 <img src="{{ demo.image }}" alt="{{ demo.name }}" width="488" height="680">
@@ -42,10 +46,10 @@
                         data-body="70 or higher means a real match. The number is the average of both scores, rules text and concepts, and the list is always ordered by the number you can see. Hover it on a real result and the tooltip breaks it back into its two halves.">i</button>
                 </span> 
             </div>
-            <div class="result-price"><span class="price-figure much-cheaper">$0.25<span class="price-vs">&darr;</span></span><span class="result-rank">#412<span class="rank-vs">&uarr;</span></span><span class="result-salt much-saltier"><i class="salt-mark" aria-hidden="true"></i>1.32<span class="salt-vs">&uarr;</span></span>
-                <button class="guide-info" aria-label="what the price, play rate and salt mean"
-                    data-title="Price, play rate, salt, and the arrows"
-                    data-body="The price is the cheapest paper printing in any finish (digital, oversized and gold border versions don't count), from scryfall. The # is play rate, edhrec's rank for how often a card is played in commander, where #1 is the most played card in the format. The shaker is salt, from edhrec's survey of the cards players least enjoy facing, running 0 to about 3. Every arrow compares this card to the one you searched: price points down for cheaper, salt points up for more annoying, and play rate points up when the format plays this card more than yours. Price and salt turn green or red only when the gap is big enough to matter; play rate never colours, because being played more is not better or worse.">i</button></div>
+            <div class="result-price"><span class="price-figure much-cheaper">$0.25<span class="price-vs">&darr;</span></span><span class="result-rank">#412<span class="rank-vs">&uarr;</span></span><span class="result-salt much-saltier"><i class="salt-mark" aria-hidden="true"></i>1.32<span class="salt-vs">&uarr;</span></span><span class="result-age">13.6 years</span>
+                <button class="guide-info" aria-label="what the price, play rate, salt and card age mean"
+                    data-title="Price, play rate, salt, card age, and the arrows"
+                    data-body="The price is the cheapest paper printing in any finish (digital, oversized and gold border versions don't count), from scryfall. The # is play rate, edhrec's rank for how often a card is played in commander, where #1 is the most played card in the format. The shaker is salt, from edhrec's survey of the cards players least enjoy facing, running 0 to about 3. Card age is how long ago the card was FIRST printed, so a reprint does not make an old card new. Every card carries all four whatever you sort by, and the one you sorted by is the one in black: sorting changes which number the eye lands on and nothing else about the card. Every arrow compares this card to the one you searched: price points down for cheaper, salt points up for more annoying, and play rate points up when the format plays this card more than yours. Price and salt turn green or red only when the gap is big enough to matter; play rate never colours, because being played more is not better or worse, and card age carries no arrow at all for the same reason.">i</button></div>
             <div class="match-line">"Look at the top card of your library."
                 <button class="guide-info" aria-label="what the quoted line is"
                     data-title="The line that matched"
