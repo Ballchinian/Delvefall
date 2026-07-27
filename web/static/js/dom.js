@@ -134,3 +134,19 @@ export function swapPair(parent, swap, draw) {
     right.appendChild(draw(swap["in"], swap.out.name));
     return row;
 }
+
+//a readonly list box grown to fit what is in it.
+//
+//the rows attribute is a FLOOR, not the size: a decklist is a hundred lines and
+//twelve of them in a scrolling box is the list hidden inside its own container.
+//these sit behind a fold, so opening one is already a decision to look at the
+//whole thing, and the point of opening it is to see the whole thing.
+//
+//resize: vertical stays on in the css, so it can still be dragged smaller
+export function fitText(box) {
+    if (!box) return;
+    //to zero first, or a box that has already grown can never shrink: scrollHeight
+    //of an oversized box is its own height, so it would only ever ratchet up
+    box.style.height = "0";
+    box.style.height = box.scrollHeight + "px";
+}

@@ -9,7 +9,7 @@
 //it reads the shelf and never writes to it. reaching this page is not an event
 //in a deck's history, so nothing about it belongs in the record
 
-import { el, cardLink, pairCard, swapPair } from "dom";
+import { el, cardLink, pairCard, swapPair, fitText } from "dom";
 
 (function () {
     var dataEl = document.getElementById("deck-view-data");
@@ -47,6 +47,18 @@ import { el, cardLink, pairCard, swapPair } from "dom";
     wireCopy("deck-copy-list", "deck-list");
     wireCopy("deck-copy-added", "deck-added");
 
+    /* a list box is grown to its content the first time its fold is opened.
+       done on open rather than on load because a textarea inside a closed
+       details has no height to measure: scrollHeight is 0 until it is on
+       screen, so sizing it early sizes it to nothing */
+    document.querySelectorAll(".deck-card-open").forEach(function (fold) {
+        var box = fold.querySelector(".swap-output");
+        if (!box) return;
+        fold.addEventListener("toggle", function () {
+            if (fold.open) fitText(box);
+        });
+    });
+
     if (!entry) return;
 
     var swaps = entry.swaps || [];
@@ -79,6 +91,10 @@ import { el, cardLink, pairCard, swapPair } from "dom";
         $("deck-added").value = entry.added;
         $("deck-added-box").hidden = false;
     }
+
+    /* the list this page is holding is the deck as it stands, not as it was
+       imported, whenever a session has moved it on */
+    if (entry.newList) $("deck-list").value = entry.newList;
 
     /* the list on the page is whatever this deck is holding now. say so when
        that is not what was imported, because "the whole list" is ambiguous on

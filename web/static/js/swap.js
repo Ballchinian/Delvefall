@@ -12,7 +12,7 @@
 //a bare specifier, resolved by the import map base.html emits, so this
 //picks up dom.js at its content-hashed url rather than an unstamped one
 //that the year-long static cache would freeze
-import { el, cardLink, swapPair } from "dom";
+import { el, cardLink, swapPair, fitText } from "dom";
 (function () {
     var dataEl = document.getElementById("swap-data");
     if (!dataEl) return;
@@ -417,8 +417,14 @@ import { el, cardLink, swapPair } from "dom";
             $("swap-added-count").textContent = swaps.length;
             $("swap-added").value = swaps.map(function (s) { return "1 " + s["in"].name; }).join("\n");
             $("swap-added-box").hidden = false;
+            fitText($("swap-added"));
         }
         $("swap-output").value = rebuild();
+        /* grown to the whole list rather than scrolling inside twelve rows.
+           this is the deliverable of the session and the one thing somebody
+           takes away from it, so it is not the place to make them scroll a box
+           inside a page */
+        fitText($("swap-output"));
         remember();
     }
 
