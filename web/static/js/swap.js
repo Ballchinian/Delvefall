@@ -12,7 +12,7 @@
 //a bare specifier, resolved by the import map base.html emits, so this
 //picks up dom.js at its content-hashed url rather than an unstamped one
 //that the year-long static cache would freeze
-import { el, cardLink, swapPair, fitText } from "dom";
+import { el, cardLink, swapPair, fitText, resultCard } from "dom";
 (function () {
     var dataEl = document.getElementById("swap-data");
     if (!dataEl) return;
@@ -141,7 +141,6 @@ import { el, cardLink, swapPair, fitText } from "dom";
         if (backBtn) backBtn.hidden = !trail.length;
 
         var card = D.queue[at];
-        $("swap-out-figure").textContent = card.figure;
         var out = $("swap-out-card");
         out.innerHTML = "";
         out.appendChild(build(card));
@@ -159,87 +158,25 @@ import { el, cardLink, swapPair, fitText } from "dom";
     }
 
     /*
-        one card, drawn the way the results grid draws one. the card leaving
-        and the cards that could replace it go through here together: if they
-        were built by two functions the comparison would eventually be between
-        two different presentations of the same numbers, which is the way a
-        page starts lying without anyone editing it
+        one card, from dom.js, which is the only place on the site that draws
+        one now. the card leaving and the cards that could replace it go
+        through it together: two builders would eventually be two different
+        presentations of the same numbers, which is how a page starts lying
+        without anyone editing it.
 
-        anchorName is set for candidates and empty for the outgoing card. it
-        is what turns a bare figure into a verdict ("cheaper than Stasis"),
-        and its absence is why the card leaving carries no arrows: a card
-        compared against itself has nothing to say
+        anchorName is set for candidates and empty for the outgoing card. it is
+        what turns a bare figure into a verdict ("cheaper than Stasis"), and its
+        absence is why the card leaving carries no arrows: a card compared
+        against itself has nothing to say
     */
+    /* NO report flag, and that is the one thing on a search result this page
+       deliberately does not draw. the flag posts to /feedback with the query
+       string of the page it was pressed on, and this page is a POST result with
+       no query string to send: the button would render and do nothing, which is
+       worse than not offering it. wiring it properly means deciding what a
+       report against a SUGGESTION even means, which is its own question */
     function build(c, anchorName) {
-        var div = document.createElement("div");
-        div.className = "result";
-
-        var frame = el("div", "card-frame", div);
-        frame.dataset.sideways = c.sideways ? "1" : "";
-        frame.dataset.flip = c.flip ? "1" : "";
-        frame.dataset.back = c.image_back || "";
-        var link = el("a", "", frame);
-        link.href = "/search?q=" + encodeURIComponent(c.name);
-        link.dataset.card = c.name;
-        link.dataset.scryfall = c.scryfall_uri;
-        link.title = "search " + c.name + " here. ctrl-click to open it on scryfall";
-        var img = el("img", "", link);
-        img.src = c.image;
-        img.alt = c.name;
-        img.width = 488;
-        img.height = 680;
-        img.loading = "lazy";
-
-        var name = el("div", "result-name", div);
-        el("span", "card-name", name, c.name).title = c.name;
-        if (c.match !== undefined) el("span", "percent", name, c.match + "%");
-
-        if (c.price || c.rank || c.salt || c.age) {
-            var row = el("div", "result-price", div);
-            var figure = el("span", "price-figure " + (c.price_vs || ""), row, c.price);
-            if (c.price_vs) {
-                figure.title = c.price_vs.replace("-", " ") + " than " + anchorName;
-                el("span", "price-vs", figure, c.price_vs.indexOf("cheaper") > -1 ? "↓" : "↑");
-            }
-            if (c.rank) {
-                var rank = el("span", "result-rank", row, c.rank);
-                rank.title = "play rate: edhrec's rank for how often this card is played in " +
-                    "commander, where #1 is the most played card in the format";
-                if (c.rank_vs) {
-                    el("span", "rank-vs", rank, c.rank_vs == "more-played" ? "↑" : "↓")
-                        .title = (c.rank_vs == "more-played" ? "more" : "less") + " played than " + anchorName;
-                }
-            }
-            /* empty means no score at all, not that the card is mild */
-            if (c.salt) {
-                var salt = el("span", "result-salt " + (c.salt_vs || ""), row);
-                el("i", "salt-mark", salt).setAttribute("aria-hidden", "true");
-                salt.appendChild(document.createTextNode(c.salt));
-                if (c.salt_vs) {
-                    salt.title = c.salt_vs.replace("-", " ").replace("milder", "less salty") +
-                        " than " + anchorName;
-                    el("span", "salt-vs", salt, c.salt_vs.indexOf("milder") > -1 ? "↓" : "↑");
-                } else {
-                    salt.title = "salt " + c.salt + " out of about 3, from edhrec's salt survey, " +
-                        "where players vote on the cards they least enjoy facing";
-                }
-            }
-            /* no arrow even against the outgoing card. older and newer are not
-               better and worse, so there is no verdict to point either way, and
-               the age axis is the one place the direction is already named in
-               the heading above */
-            if (c.age) {
-                el("span", "result-age", row, c.age).title = "card age: how long ago this " +
-                    "card was first printed, counted from its earliest printing, so a " +
-                    "reprint does not make an old card new";
-            }
-        }
-        if (c.their_line) {
-            var ml = el("div", "match-line", div);
-            manaFill(ml, '"' + c.their_line + '"');
-            ml.title = "matches " + anchorName + "'s line: " + c.our_line;
-        }
-        return div;
+        return resultCard(c, anchorName);
     }
 
     /*
@@ -294,25 +231,63 @@ import { el, cardLink, swapPair, fitText } from "dom";
         enhanceCardFrames(deckGrid);
     }
 
-    function render(cards) {
-        options.innerHTML = "";
-        /* an empty list never reaches here: show() walks past those before
-           drawing anything, and they are named in the passed-over section */
-        if (!cards.length) { at++; return show(); }
-        note.textContent = "Pick one to swap it in, or keep the card you have.";
+    /*
+        the suggestions, revealed a batch at a time out of the whole answer the
+        server sent. it used to send five and that was the lot.
+
+        the batch is the same D.offer the rest of the site reveals (twelve), and
+        the deeper list costs NOTHING extra to fetch: the query already scanned
+        two hundred rows per line and threw all but five away at the very end.
+        so this is one round trip either way, and reaching the bottom of twelve
+        is answered from what the page is already holding.
+
+        `shown` is per card and resets in render(), because twelve into one
+        card's list says nothing about the next card's
+    */
+    var shown = 0;
+    var moreBtn = $("swap-options-more");
+
+    function paintOptions(cards) {
         var outName = D.queue[at].name;
-        cards.forEach(function (c) {
+        for (var i = options.children.length; i < Math.min(shown, cards.length); i++) {
+            var c = cards[i];
             var card = build(c, outName);
             /* the picture stays a link to scryfall like everywhere else on the
                site, so the swap gets its own button rather than making the
                whole card a target that fights the link inside it */
             var take_btn = el("button", "swap-take", card, "Swap this in");
             take_btn.type = "button";
-            take_btn.addEventListener("click", function () { take(c); });
+            take_btn.addEventListener("click", (function (pick) {
+                return function () { take(pick); };
+            })(c));
             options.appendChild(card);
-        });
+        }
+        var left = cards.length - options.children.length;
+        if (moreBtn) {
+            moreBtn.hidden = left <= 0;
+            moreBtn.textContent = left > 0
+                ? "Show " + Math.min(D.offer, left) + " more" + (left > D.offer ? "" : " (the last)")
+                : "";
+        }
         enhanceCardFrames(options);
     }
+
+    function render(cards) {
+        options.innerHTML = "";
+        /* an empty list never reaches here: show() walks past those before
+           drawing anything, and they are named in the passed-over section */
+        if (!cards.length) { at++; return show(); }
+        note.textContent = "Pick one to swap it in, or keep the card you have.";
+        shown = D.offer;
+        paintOptions(cards);
+    }
+
+    if (moreBtn) moreBtn.addEventListener("click", function () {
+        var got = cache[D.queue[at].oracle_id];
+        if (!Array.isArray(got)) return;
+        shown = Math.min(shown + D.offer, got.length);
+        paintOptions(got);
+    });
 
     function take(c) {
         /* the WHOLE card on both sides, not just the names. the review at the

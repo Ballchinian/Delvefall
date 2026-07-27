@@ -12,7 +12,7 @@
 //small inline script above this one in search.html, and are read back into
 //the same names the body already used
 
-import { el } from "dom";
+import { el, resultCard } from "dom";
 
 //the searched card's own figures, so results added by load more can
 //name what their arrows are measured against, exactly like the
@@ -127,102 +127,17 @@ filterForm.addEventListener("invalid", function(e) {
 }, true);
 
 /*
-    one result card as dom elements, mirroring the server-rendered
-    markup above. everything is set through textContent and
-    properties, never glued into an html string, so a name or a rules
-    line full of quotes (or anything else) can't break out of the
-    markup. tiny helper: make an element, place it, fill it
+    one result card, from dom.js, which is now the only place on the
+    site that draws one. it used to be written out here in full and
+    again in the swap tool, and the two had already drifted: the swap
+    tool's cards were missing the age arrow, the "+2 more matching
+    lines" note and the shared tags.
+
+    ANCHOR finishes the verdict sentences ("cheaper than Bolt at
+    $0.25"), which is what the server-rendered cards above say too
 */
 function buildResult(r) {
-    var div = document.createElement("div");
-    div.className = "result";
-
-    var frame = el("div", "card-frame", div);
-    frame.dataset.sideways = r.sideways ? "1" : "";
-    frame.dataset.flip = r.flip ? "1" : "";
-    frame.dataset.back = r.image_back;
-    var link = el("a", "", frame);
-    link.href = "/search?q=" + encodeURIComponent(r.name);
-    link.dataset.card = r.name;
-    link.dataset.scryfall = r.scryfall_uri;
-    link.title = "search " + r.name + " here. ctrl-click to open it on scryfall";
-    var img = el("img", "", link);
-    img.src = r.image;
-    img.alt = r.name;
-    img.width = 488;   //scryfall's normal size, same as the
-    img.height = 680;  //server-rendered cards declare
-    img.loading = "lazy";
-    var flag = el("button", "report-flag", frame, "?");
-    flag.title = "shouldn't be here? report this as a bad match";
-    flag.dataset.id = r.oracle_id;
-    flag.dataset.name = r.name;
-
-    var name = el("div", "result-name", div);
-    el("span", "card-name", name, r.name).title = r.name;
-    var pct = el("span", "percent" + (r.concept_only ? " concept" : ""), name, r.percent + "%");
-    if (r.blended) {
-        pct.title = "rules text " + r.mech_pct + "%, concepts " + r.concept_pct + "%, evenly blended";
-    }
-    if (r.price || r.rank || r.salt || r.age) {
-        var price = el("div", "result-price", div);
-        var figure = el("span", "price-figure " + r.price_vs, price, r.price);
-        if (r.price_vs) {
-            figure.title = r.price_vs.replace("-", " ") + " than " + cardName + " at " + ANCHOR.price;
-            el("span", "price-vs", figure, r.price_vs.indexOf("cheaper") > -1 ? "↓" : "↑");
-        }
-        if (r.rank) {
-            var rank = el("span", "result-rank", price, r.rank);
-            rank.title = "play rate: edhrec's rank for how often this card is played in " +
-                "commander, where #1 is the most played card in the format";
-            if (r.rank_vs) {
-                el("span", "rank-vs", rank, r.rank_vs == "more-played" ? "↑" : "↓")
-                    .title = (r.rank_vs == "more-played" ? "more" : "less") + " played than " +
-                        cardName + " at " + ANCHOR.rank;
-            }
-        }
-        //empty means the card has no score at all, not that it is mild
-        if (r.salt) {
-            var salt = el("span", "result-salt " + r.salt_vs, price);
-            el("i", "salt-mark", salt).setAttribute("aria-hidden", "true");
-            salt.appendChild(document.createTextNode(r.salt));
-            if (r.salt_vs) {
-                salt.title = r.salt_vs.replace("-", " ").replace("milder", "less salty") +
-                    " than " + cardName + " at " + ANCHOR.salt;
-                el("span", "salt-vs", salt, r.salt_vs.indexOf("milder") > -1 ? "↓" : "↑");
-            } else {
-                salt.title = "salt " + r.salt + " out of about 3, from edhrec's salt " +
-                    "survey, where players vote on the cards they least enjoy facing";
-            }
-        }
-        //an arrow like the three before it, but never a colour: older and
-        //newer are not better and worse, so there is a direction to point
-        //and no verdict to spend green or red on
-        if (r.age) {
-            var age = el("span", "result-age", price, r.age);
-            if (r.age_vs) {
-                age.title = r.age_vs + " than " + cardName + " at " + ANCHOR.age;
-                el("span", "age-vs", age, r.age_vs == "older" ? "↑" : "↓");
-            } else {
-                age.title = "card age: how long ago this card was first printed, " +
-                    "counted from its earliest printing, so a reprint does not make " +
-                    "an old card new";
-            }
-        }
-    }
-    if (r.their_line) {
-        var ml = el("div", "match-line", div);
-        manaFill(ml, '"' + r.their_line + '"');
-        ml.title = "matches your card's line: " + r.our_line +
-            (r.matched_back ? " (printed on the back face, shown here)" : "");
-    }
-    if (r.more_count) {
-        el("div", "more-lines", div, "+" + r.more_count + " more matching " + (r.more_count == 1 ? "line" : "lines")).title = r.more_text;
-    }
-    if (r.concept_tags) {
-        el("div", "concept-tags", div, r.concept_tags).title =
-            "community tags shared with your card" + (r.concept_only ? "" : " - concept match " + r.concept_pct + "%");
-    }
-    return div;
+    return resultCard(r, cardName, {anchor: ANCHOR, flag: true});
 }
 
 /*

@@ -66,9 +66,12 @@
        thing every other tool already does, and it is the part people do not
        finish. the queue is walked, not dumped #}
     <div id="swap-live">
+        {# the figure that put this card at the top of the queue used to be
+           repeated here. it is gone: the card below prints all four numbers
+           already, and the axis is inked among them, so the label was saying
+           "salt 1.32" directly above a card saying salt 1.32 #}
         <div class="swap-out">
             <span class="swap-label">Out</span>
-            <span class="swap-out-figure" id="swap-out-figure"></span>
         </div>
         <div class="swap-out-card" id="swap-out-card"></div>
 
@@ -96,6 +99,12 @@
            salt, and the line that matched. every figure carries its verdict
            against the card leaving, which is the only question being asked #}
         <div class="card-grid swap-grid" id="swap-options"></div>
+        {# the rest of this card's answer, already in the page. the server sends
+           the whole list and the browser reveals a batch, so this costs no
+           round trip: the query scanned two hundred rows per line either way #}
+        <div class="load-more-wrap">
+            <button type="button" id="swap-options-more" hidden></button>
+        </div>
     </div>
 
     {# the cards that were passed over for having nothing above the bar. named
@@ -192,6 +201,7 @@
     'dir': direction,
     'goal': goal,
     'batch': batch,
+    'offer': offer,
     'text': pasted,
     'origin': origin
 } | tojson }}</script>

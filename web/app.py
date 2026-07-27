@@ -3703,21 +3703,52 @@ def swap_column(field, currency):
     return price_col(currency) if field == "price" else "c." + SWAP_COLUMNS[field]
 
 
-#the match a suggestion has to clear before the page will offer it. 80 is not
-#a strictness setting picked to feel safe, it is the calibrated boundary the
-#display score was pinned to, so it is simply where a real match starts.
+#the match a suggestion has to clear before the page will offer it, IN BLENDED
+#DISPLAY UNITS, the same number /search badges.
+#
+#it was 80 and that was not a stricter setting, it was a different SCALE: this
+#tool scored on rules text alone, where 80 is the calibrated boundary (see
+#tier_cut, which returns 80 at either end of the old slider for exactly this
+#reason). now that a suggestion is scored on both axes like everything else,
+#the comparable boundary is /search's mixed cut of 70, because an average of
+#two axes rarely reaches 80.
+#
+#75 rather than 70 is Ethan's call and a deliberate one: this is the page that
+#PROPOSES a card for a slot rather than handing back a list to browse, so it
+#should want better answers than a search does. it is the only number on the
+#site set above its calibrated boundary, and it is set there on purpose.
+#
+#it is a REAL tightening and not a nominal one, measured over 224 queue cards
+#across 14 precons on both the salt and the price axes:
+#
+#  rule            skipped   median offer
+#  rules >= 80        10%          14      (what this used to do)
+#  blend >= 70         5%          13      (/search's boundary)
+#  blend >= 75        18%           8      (shipped)
+#  blend >= 80        32%           5
+#
+#so a fifth of queue cards now get passed over, against a tenth before. that is
+#the price of the bar and it is paid honestly: a skipped card is NAMED under
+#"nothing close enough" rather than quietly vanishing. drop to 70 if that reads
+#as too harsh in use; the numbers above are what the choice costs.
 #
 #there is NO looser pass and no strict-mode toggle. this had a "show weaker
 #matches" button borrowed from /search's band walking, on the reasoning that
 #an empty list needs an escape hatch. the better reasoning is that an empty
-#list IS the answer: a card with nothing above 80 has nothing that does its
-#job, and offering something worse is the TOOL lowering its standards rather
-#than the user choosing to. so a card with no suggestions is skipped, and the
-#page says which cards it skipped instead of letting them vanish.
+#list IS the answer: a card with nothing above the bar has nothing that does
+#its job, and offering something worse is the TOOL lowering its standards
+#rather than the user choosing to. so a card with no suggestions is skipped,
+#and the page says which cards it skipped instead of letting them vanish.
 #
 #that also makes four controls this site has now deleted for having one right
 #answer, after the blend slider, the uniqueness bar and the search threshold
-SWAP_GATE = 80
+SWAP_GATE = 75
+
+#the swap tool scores on BOTH axes, same as /search, and for the same reason:
+#an even split beat every other setting when it was measured, and either axis
+#alone is a specialist's view. it is a constant rather than a request parameter
+#because the slider is gone from the whole site
+SWAP_BLEND = 0.5
 
 #how many cards the queue offers BEFORE asking whether to keep going. it used
 #to be how many it offered full stop, and stopping a working tool at twelve was
@@ -3735,9 +3766,18 @@ SWAP_QUEUE = 12
 #nobody reaches it by accident and shallow enough that the json stays small
 SWAP_DEEP = 48
 
-#how many replacements are offered per card. enough to choose from, few enough
-#to read without scrolling, and past about six the tail is padding anyway
-SWAP_OFFER = 5
+#how many replacements are REVEALED per card, and how many the answer holds.
+#
+#it was five, full stop, on the reasoning that past about six the tail is
+#padding. that is the same call that capped the queue at twelve and it was wrong
+#the same way: somebody who has read five and wants a sixth is exactly who this
+#is for, and the deeper list is FREE. the query already scans 200 rows per line
+#and cuts at the very end, so holding 48 costs one bigger json and no extra
+#database work.
+#
+#twelve is the batch every other list on this site reveals at a time
+SWAP_OFFER = 12
+SWAP_OFFER_DEEP = 48
 
 #how far a replacement's mana value may sit from the card leaving. similarity
 #is on RULES TEXT, so a two mana rock and a six mana rock score identically on
@@ -3829,6 +3869,9 @@ def swap_card_json(c, currency, anchor=None):
         out["price_vs"] = price_verdict(price, price_in(anchor, currency))
         out["rank_vs"] = rank_verdict(c["edhrec_rank"], anchor["edhrec_rank"])
         out["salt_vs"] = salt_verdict(salt, None if anchor["salt"] is None else float(anchor["salt"]))
+        #the fourth arrow, same as the results grid. no colour on it there and
+        #none here: older is not better than newer
+        out["age_vs"] = age_verdict(c["released_at"], anchor["released_at"])
     return out
 
 
@@ -3926,6 +3969,9 @@ def swap_candidates(conn, card, deck_ids, colors, field, direction, currency="us
     where += " AND " + col + (" < %s" if axis["better"] == "lower" else " > %s")
     params.append(here)
 
+    #EVERY pair per card now, not just the best one, so a suggestion can say
+    #"+2 more matching lines" the way a search result does. the best one still
+    #decides the ranking and the number on the badge
     pairs_by_card, meta = {}, {}
     for ql in qlines:
         w = line_weight(ql["count"])
@@ -3944,32 +3990,99 @@ def swap_candidates(conn, card, deck_ids, colors, field, direction, currency="us
             LIMIT 200
         """, [ql["embedding"], card["oracle_id"]] + params + [ql["embedding"]]).fetchall()
         for m in rows:
-            best = pairs_by_card.get(m["oracle_id"])
             #weighted BOTH ways for the ranking and the cut, raw for the number
             #on screen. one common line on either side is enough to make a
             #perfect match meaningless, so both sides have to earn it
             score = (m["sim"] * w * line_weight(m["their_count"]),
                      m["sim"], ql["line_text"], m["line_text"])
-            if best is None or score[0] > best[0]:
-                pairs_by_card[m["oracle_id"]] = score
-                meta[m["oracle_id"]] = m
+            pairs_by_card.setdefault(m["oracle_id"], []).append(score)
+            #the row is the same card every time, so the first one wins and the
+            #rest are the same values again
+            meta.setdefault(m["oracle_id"], m)
+
+    #sorted so pairs[0] is the best one, exactly as find_similar does it
+    for pairs in pairs_by_card.values():
+        pairs.sort(reverse=True)
+
+    #the CONCEPTS half, and this is the change that makes a suggestion scored
+    #the way everything else on the site is scored. it was rules text alone,
+    #which quietly made this the one page that had never adopted the even blend
+    #the rest of the site settled on.
+    #
+    #it re-ranks the candidates the LINES found, and never adds any of its own.
+    #that is not a shortcut, it is the Stasis rule holding: a replacement for a
+    #slot has to share a real line with the card leaving, where a search result
+    #only has to be about the same thing. a concept-only card could not clear
+    #the gate anyway (no line means mech 0, so a 50/50 blend caps it at 50
+    #against a bar of 75), so the rule and the arithmetic agree.
+    #
+    #no dropped, picked or forced tags: this page has no tag picker, so the
+    #anchor is the whole card, which is what anchor_vector does with empty sets
+    concept_raw = {}
+    shared = {}
+    ids = list(pairs_by_card)
+    if SWAP_BLEND > 0 and ids:
+        atags, aweights, anorm = anchor_vector(conn, card["oracle_id"], ())
+        if atags and anorm:
+            for r in conn.execute("""
+                WITH anchor AS (
+                    SELECT * FROM unnest(%s::text[], %s::real[]) AS a(tag, weight)
+                )
+                SELECT ct.oracle_id,
+                       sum(a.weight * ct.weight) / (%s * nc.norm) AS raw
+                FROM card_tags ct
+                JOIN anchor a ON a.tag = ct.tag
+                JOIN card_tag_norms nc ON nc.oracle_id = ct.oracle_id
+                WHERE ct.oracle_id = ANY(%s::uuid[])
+                GROUP BY ct.oracle_id, nc.norm
+            """, (atags, aweights, anorm, ids)).fetchall():
+                concept_raw[r["oracle_id"]] = r["raw"]
+            #which tags each candidate actually shares, rarest first: the chips
+            #that say WHY the concepts side ranked a card where it did, same
+            #query and same ordering the results page uses
+            for r in conn.execute("""
+                SELECT ct.oracle_id, ct.tag FROM card_tags ct
+                JOIN unnest(%s::text[], %s::real[]) AS a(tag, weight) ON a.tag = ct.tag
+                WHERE ct.oracle_id = ANY(%s::uuid[])
+                ORDER BY a.weight * ct.weight DESC
+            """, (atags, aweights, ids)).fetchall():
+                shared.setdefault(r["oracle_id"], []).append(r["tag"])
 
     out = []
-    for oid, (weighted, raw, ours, theirs) in pairs_by_card.items():
-        pct = mech_display(raw)
+    for oid, pairs in pairs_by_card.items():
+        weighted, raw, ours, theirs = pairs[0]
+        mech_pct = mech_display(raw)
+        concept_pct = concept_display(concept_raw.get(oid, 0.0))
+        #the badge IS the number the gate and the ranking use, which is the
+        #promise the whole site runs on
+        pct = int(round((1 - SWAP_BLEND) * mech_pct + SWAP_BLEND * concept_pct))
         if pct < SWAP_GATE or weighted < SWAP_PAIR_CUT:
             continue
+        #the abilities beyond the one on the badge. a pair reusing a line
+        #already shown is skipped, so the count means genuinely different
+        #abilities matched rather than the same one matching twice
+        more = []
+        used_ours, used_theirs = [ours], [theirs]
+        for p in pairs[1:]:
+            if p[2] in used_ours or p[3] in used_theirs:
+                continue
+            used_ours.append(p[2])
+            used_theirs.append(p[3])
+            more.append('"' + p[3] + '" (' + str(mech_display(p[1])) + '%) matches "' + p[2] + '"')
         #every figure carried against the card LEAVING, which is the anchor
         #here in exactly the way the searched card is the anchor on /search
         row = swap_card_json(meta[oid], currency, anchor=card)
-        row.update({"match": pct, "their_line": theirs, "our_line": ours})
+        row.update({"match": pct, "their_line": theirs, "our_line": ours,
+                    "blended": True, "mech_pct": mech_pct, "concept_pct": concept_pct,
+                    "concept_tags": ", ".join(shared.get(oid, [])[:3]),
+                    "more_count": len(more), "more_text": "\n".join(more)})
         out.append(row)
     #ranked by the number printed on them, which is the promise the whole site
     #runs on. the axis is not a tiebreak here because it is already a gate:
     #everything in this list is a genuine improvement, so the only open
     #question left is which one does the job best
     out.sort(key=lambda c: -c["match"])
-    return out[:SWAP_OFFER]
+    return out[:SWAP_OFFER_DEEP]
 
 
 def read_axis():
@@ -4058,7 +4171,7 @@ def deck_swap():
                            goal=SWAP_AXES[(field, direction)]["goal"],
                            matched=len(ids), missing=missing, cur=cur,
                            deck_name=name, commander=commander, batch=SWAP_QUEUE,
-                           cards=all_cards, section=DECK_SECTION,
+                           cards=all_cards, section=DECK_SECTION, offer=SWAP_OFFER,
                            pasted=text[:DECK_MAX_CHARS],
                            #the shelf key, so a finished session writes itself
                            #onto the deck it belongs to rather than looking for

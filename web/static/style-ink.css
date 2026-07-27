@@ -2174,14 +2174,6 @@ footer a { color: var(--teal); }
 
 .swap-out-name:hover { text-decoration: underline; }
 
-/* the number that put this card in the queue. shown so a queue the user
-   disagrees with is arguable rather than mysterious */
-.swap-out-figure {
-    margin-left: auto;
-    font-size: 13px;
-    color: var(--muted);
-}
-
 .swap-grid { margin-bottom: 14px; }
 
 /* the cards nothing could replace. quiet, because it is a footnote to the
