@@ -437,10 +437,19 @@ import { el, cardLink, swapPair } from "dom";
                     /* only what the review needs to draw a card. the rest of
                        the queue row is about picking, and picking is over */
                     var keep = function (c) {
+                        /* the verdicts ride along too. the server worked them
+                           out against the card being replaced when it sent the
+                           candidate, and they are the whole reading of a swap:
+                           without them the review shows two prices and leaves
+                           the arithmetic to whoever is looking. only the card
+                           coming IN carries them, because the one going out is
+                           what they were measured against */
                         return {name: c.name, image: c.image, image_back: c.image_back || "",
                                 sideways: !!c.sideways, flip: !!c.flip,
                                 scryfall_uri: c.scryfall_uri, price: c.price,
-                                rank: c.rank, salt: c.salt};
+                                rank: c.rank, salt: c.salt,
+                                price_vs: c.price_vs || "", rank_vs: c.rank_vs || "",
+                                salt_vs: c.salt_vs || ""};
                     };
                     return {out: keep(s.out), "in": keep(s["in"])};
                 });

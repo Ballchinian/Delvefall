@@ -40,10 +40,17 @@ export function cardLink(name, cls, parent) {
 }
 
 //a card as a picture with its name and figures under it, the same shape the
-//results grid renders server side. it deliberately does NOT do match percents
-//or the against-this-card verdicts: those belong to a card being COMPARED with
-//another, which is the swap tool's own richer builder
-export function pairCard(c) {
+//results grid renders server side.
+//
+//`against` is the card this one replaced, and giving it turns every figure into
+//a verdict: cheaper, less played, saltier, with the same arrows the results
+//page uses against the searched card. it is optional because only the card
+//coming IN has anything to be measured against, and because a swap saved
+//before the verdicts were stored simply has none to show.
+//
+//it still does NOT do match percents. those belong to a card being weighed as a
+//candidate, which is the swap tool's own richer builder
+export function pairCard(c, against) {
     var div = document.createElement("div");
     div.className = "result";
     var frame = el("div", "card-frame", div);
@@ -64,9 +71,38 @@ export function pairCard(c) {
     el("div", "result-name", div, c.name);
     if (c.price || c.rank || c.salt) {
         var row = el("div", "result-price", div);
-        if (c.price) el("span", "price-figure", row, c.price);
-        if (c.rank) el("span", "result-rank", row, c.rank);
-        if (c.salt) el("span", "result-salt", row, c.salt);
+        //the same words and the same arrows the results page prints against the
+        //searched card, so a swap reads like a search result and not like a
+        //second vocabulary for the same three numbers
+        if (c.price) {
+            var price = el("span", "price-figure " + (against && c.price_vs || ""), row, c.price);
+            if (against && c.price_vs) {
+                price.title = c.price_vs.replace("-", " ") + " than " + against;
+                el("span", "price-vs", price, c.price_vs.indexOf("cheaper") > -1 ? "↓" : "↑");
+            }
+        }
+        if (c.rank) {
+            var rank = el("span", "result-rank", row, c.rank);
+            rank.title = "play rate: edhrec's rank for how often this card is played in " +
+                "commander, where #1 is the most played card in the format";
+            if (against && c.rank_vs) {
+                el("span", "rank-vs", rank, c.rank_vs === "more-played" ? "↑" : "↓")
+                    .title = (c.rank_vs === "more-played" ? "more" : "less") + " played than " + against;
+            }
+        }
+        if (c.salt) {
+            var salt = el("span", "result-salt " + (against && c.salt_vs || ""), row);
+            el("i", "salt-mark", salt).setAttribute("aria-hidden", "true");
+            salt.appendChild(document.createTextNode(c.salt));
+            if (against && c.salt_vs) {
+                salt.title = c.salt_vs.replace("-", " ").replace("milder", "less salty") +
+                    " than " + against;
+                el("span", "salt-vs", salt, c.salt_vs.indexOf("milder") > -1 ? "↓" : "↑");
+            } else {
+                salt.title = "salt " + c.salt + " out of about 3, from edhrec's salt survey, " +
+                    "where players vote on the cards they least enjoy facing";
+            }
+        }
     }
     return div;
 }
@@ -93,6 +129,8 @@ export function swapPair(parent, swap, draw) {
     el("div", "swap-pair-arrow", row, "→");
     var right = el("div", "swap-pair-side swap-pair-in", row);
     el("span", "swap-pair-label", right, "In");
-    right.appendChild(draw(swap["in"]));
+    //the card leaving is what the card arriving gets measured against, which
+    //is the second argument both renderers take
+    right.appendChild(draw(swap["in"], swap.out.name));
     return row;
 }
