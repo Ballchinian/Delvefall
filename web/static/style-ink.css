@@ -546,17 +546,23 @@ h2 {
 
 /* the floor is what decides how many cards fit a row, and it is set by the
    WIDEST thing under a card rather than by the picture: the four figures are
-   one line or they are two, and two is a card that has grown a row taller than
-   its neighbours for no reason anybody can see.
-   the row runs price, play rate, salt, card age, with arrows on the first
-   three, which is about 245px of text at 13px. 200px gave four columns of
-   227px on the 968px content width and the age figure was the one that fell
-   off the end; 240 gives three of 309px and the row has room to spare.
-   ONE rule for every card grid on the site, which is what keeps a card on a
-   deck page the same size as a card on a search */
+   one line or they are two, and two is a card grown a row taller than its
+   neighbours for no reason anybody can see.
+   220px is where price, play rate, salt and card age stop fitting on one line,
+   measured at the three widths a column count changes: 4 cards at a 975px
+   viewport is 220.75px each, 3 at 740px is 222.67, 2 at 495px is 221.50. one
+   number, three times, so the rule is a minimum card width and not a set of
+   breakpoints.
+   it has to be the FLOOR rather than a media query, because these grids sit in
+   containers of different widths (a search gets 968px, the swap page 860px)
+   and the card is meant to be the same size in all of them. auto-fill measures
+   the container, a media query would measure the window.
+   the old 200px floor let four columns squeeze to 200px before dropping to
+   three, so the row broke across every viewport from 892 to 974 and again from
+   672 to 734 and 452 to 493. that is 188 widths, not an edge case */
 .card-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
     gap: 20px;
 }
 
@@ -2071,9 +2077,12 @@ footer a { color: var(--teal); }
 
 /* the card leaving, drawn at the same size as the ones that could replace it
    but held to one column so the page reads as a comparison rather than as a
-   row of equals: this is the card in question, those are the answers */
+   row of equals: this is the card in question, those are the answers.
+   232px and not 200: it was set to the old grid floor, which is under the
+   220px the four figures need, so this was the one card on the page whose row
+   wrapped while the twelve below it did not */
 .swap-out-card {
-    max-width: 200px;
+    max-width: 232px;
     margin-bottom: 6px;
 }
 
@@ -3707,10 +3716,10 @@ body.home main {
    printing a card about twice the size of every other card on the site: fine
    as the working area of the swap tool where there are only two of them, much
    too big as a review of twelve swaps you are scrolling through.
-   309px is what a column of the results grid comes out at on a full width
+   227px is what a column of the results grid comes out at on a full width
    page, so a swapped card is the size of the same card anywhere else, and the
-   four figures under it get the same one line */
-.swap-pair-side .result { max-width: 309px; }
+   four figures under it clear the 220px they need */
+.swap-pair-side .result { max-width: 232px; }
 
 /* the incoming card sits against the arrow rather than out at the far edge, so
    the two cards being compared stay next to each other as they shrink */
@@ -3810,7 +3819,7 @@ body.home main {
        stay the width of a card to centre anything */
     .swap-pair-arrow {
         justify-self: start;
-        width: min(100%, 309px);
+        width: min(100%, 232px);
         margin: 2px 0;
         text-align: center;
         transform: none;
