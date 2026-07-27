@@ -158,7 +158,10 @@
 
         var more = panel.querySelector(".deck-card-more-btn");
         if (more) more.addEventListener("click", function () {
-            shown[panel.id] += step;
+            /* clamped to the grid, same reason as cardfold.js: a press that
+               lands after the last card should be a no-op, not a negative */
+            var have = (panel.querySelector(".deck-card-grid") || {children: []}).children.length;
+            shown[panel.id] = Math.min(shown[panel.id] + step, have);
             paint(panel);
             /* the frames that just appeared need wiring. enhanceCardFrames
                marks what it has already done, so calling it again is free */

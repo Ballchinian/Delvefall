@@ -2,6 +2,17 @@
    palette comes from the logo (dark ink, warm cream), display type is
    fraunces, the accent is a delve-ish teal instead of scryfall purple.
    a/b against the old look by pointing base.html back at style.css */
+/* hidden means hidden.
+   [hidden] is a USER AGENT rule, so any author rule with a display beats it and
+   the attribute quietly stops doing anything. two controls were hiding nothing
+   because of this: the precons "show more cards" button (.deck-card-more is a
+   flex) and the swap tool's "check more cards" (.swap-actions is a flex). both
+   read as dead buttons, because that is what they were: still on screen, still
+   clickable, with nothing left to do.
+   this is the case !important is for. every .hidden = true in the scripts is a
+   promise that this line keeps */
+[hidden] { display: none !important; }
+
 
 /* fraunces variable fonts, self hosted (see fonts/OFL.txt). headings and
    card names only, the ui stays on the system stack */

@@ -43,7 +43,11 @@
         }
 
         btn.addEventListener("click", function () {
-            shown += step;
+            /* clamped, so the count can never run past the end. it did once,
+               because the hidden attribute was not hiding this button and the
+               presses kept landing: the label counted down through zero and
+               the button offered to "load the last -44" */
+            shown = Math.min(shown + step, cards.length);
             paint();
             /* the frames that just appeared need wiring for the rotate and flip
                overlay. enhanceCardFrames marks what it has already done, so

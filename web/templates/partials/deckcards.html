@@ -10,15 +10,19 @@
    mana base arrives as one Forest. the exact list with its counts sits on the
    same page to copy, which is where counts actually matter.
 
+   the batch size is `section`, which is DECK_SECTION and is the SAME number
+   every other card list on the site reveals at a time. one number so that a
+   fix to one batching control is a fix to all of them.
+
    FOLDED, and a batch at a time inside the fold. a hundred card pictures is
    most of a page and all of somebody's data allowance, and it is not what most
    people came for: opening it is a decision, and so is going past the first
-   twenty. the whole deck is in the html either way, so nothing here fetches
+   batch of them. the whole deck is in the html either way, so nothing here fetches
    anything and closing it costs nothing to reopen.
 
-   the first twenty are the ones the SERVER leaves visible, so the fold is
+   the first batch is the one the SERVER leaves visible, so the fold is
    already correct with no script running. without javascript it simply stays
-   at twenty, which is a readable page rather than a broken one.
+   at one batch, which is a readable page rather than a broken one.
 
    the class is deck-card-grid and NOT deck-cards, which is already an ol in
    partials/standing.html with styling of its own.
@@ -30,9 +34,9 @@
 <details class="deck-card-open deck-card-fold">
     <summary>{{ cards_summary or 'Show the deck as cards' }}
         <span class="deck-card-total">{{ cards|length }} cards</span></summary>
-    <div class="card-grid deck-card-grid" data-step="20">
+    <div class="card-grid deck-card-grid" data-step="{{ section }}">
         {% for c in cards %}
-        <div class="result{% if loop.index0 >= 20 %} is-over{% endif %}">
+        <div class="result{% if loop.index0 >= section %} is-over{% endif %}">
             <div class="card-frame" data-sideways="{{ '1' if c.sideways else '' }}" data-flip="{{ '1' if c.flip else '' }}" data-back="{{ c.image_back }}">
                 <a href="/search?q={{ c.name | urlencode }}" data-card="{{ c.name }}" data-scryfall="{{ c.scryfall_uri }}" title="search {{ c.name }} here. ctrl-click to open it on scryfall">
                     <img src="{{ c.image }}" alt="{{ c.name }}" width="488" height="680" loading="lazy">
@@ -49,8 +53,8 @@
         </div>
         {% endfor %}
     </div>
-    <div class="deck-card-more"{% if cards|length <= 20 %} hidden{% endif %}>
-        <button type="button" class="deck-card-more-btn">Load 20 more</button>
-        <span class="deck-card-more-left">{{ cards|length - 20 }} more</span>
+    <div class="deck-card-more"{% if cards|length <= section %} hidden{% endif %}>
+        <button type="button" class="deck-card-more-btn">Load {{ section }} more</button>
+        <span class="deck-card-more-left">{{ cards|length - section }} more</span>
     </div>
 </details>

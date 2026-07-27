@@ -2307,7 +2307,14 @@ def precons():
 #how many cards a panel names as the evidence for its number. enough to read
 #as evidence, short enough that nobody scrolls a 100 row table looking for the
 #point.
-DECK_SECTION = 12
+#how many cards any list on this site reveals at a time. ONE number, because
+#every list that does this should do it identically: the standing panels, the
+#deck grid on /deck/view and on a precon page. a fix to one batching control is
+#then a fix to all of them, and a reader who has learned what the button does
+#in one place has learned it everywhere.
+#
+#16 rather than 12: four rows of four on the results grid's own column count
+DECK_SECTION = 16
 
 #and how far the pictures go when somebody opens them and keeps asking. the
 #tool is working, so there is no reason to stop them at twelve: "load more"
@@ -3170,6 +3177,7 @@ def deck_view():
     with pool.connection() as conn:
         cards = deck_cards(conn, ids, cur)
     return render_template("deck/view.html", cards=cards, matched=len(ids),
+                           section=DECK_SECTION,
                            missing=missing, cur=cur, deck_name=name,
                            commander=commander, pasted=text[:DECK_MAX_CHARS],
                            origin=request.form.get("origin", "")[:DECK_MAX_CHARS])
