@@ -2,17 +2,6 @@
    palette comes from the logo (dark ink, warm cream), display type is
    fraunces, the accent is a delve-ish teal instead of scryfall purple.
    a/b against the old look by pointing base.html back at style.css */
-/* hidden means hidden.
-   [hidden] is a USER AGENT rule, so any author rule with a display beats it and
-   the attribute quietly stops doing anything. two controls were hiding nothing
-   because of this: the precons "show more cards" button (.deck-card-more is a
-   flex) and the swap tool's "check more cards" (.swap-actions is a flex). both
-   read as dead buttons, because that is what they were: still on screen, still
-   clickable, with nothing left to do.
-   this is the case !important is for. every .hidden = true in the scripts is a
-   promise that this line keeps */
-[hidden] { display: none !important; }
-
 
 /* fraunces variable fonts, self hosted (see fonts/OFL.txt). headings and
    card names only, the ui stays on the system stack */
@@ -3709,3 +3698,25 @@ body.home main {
     .swap-pair-arrow { justify-self: start; transform: rotate(90deg); }
 }
 
+/* ---- hidden means hidden ----
+
+   [hidden] lives in the USER AGENT stylesheet, and an author rule beats a ua
+   one whatever its specificity. so any element given a display of its own
+   stopped honouring the attribute, and .hidden = true in a script became a
+   line that did nothing. two controls were hiding nothing because of it: the
+   precons "show more cards" button (.deck-card-more is a flex) and the swap
+   tool's "check more cards" (.swap-actions is a flex). both read as dead
+   buttons, which is what they were: still on screen, still clickable, with
+   nothing left to do.
+
+   an attribute selector scores the same as a class, so this is (0,1,0) and
+   ties with .swap-actions and .deck-card-more rather than beating them. a tie
+   is broken by source order, which is why it is the LAST rule in the file and
+   has to stay there. that is the whole trick, and it is why no !important is
+   needed.
+
+   what would beat it is a display set by a two-class or an id selector. there
+   is exactly one display rule on any element the scripts hide (.swap-actions,
+   at (0,1,0)), so nothing does today. if that changes, the fix is a
+   [hidden] guard on that one selector rather than reaching for !important */
+[hidden] { display: none; }
