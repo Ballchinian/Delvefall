@@ -41,6 +41,23 @@
     </div>
 
     <div class="deck-modes-pick">
+        {# the third mode, and the one an IMPORT wants first: it answers "did
+           all of it arrive" rather than answering it sideways through a figure.
+           listed first for that reason, since checking the deck is what comes
+           before deciding anything about it #}
+        <form action="/deck/view" method="post" class="deck-mode">
+            <input type="hidden" name="list" value="{{ pasted }}">
+            <input type="hidden" name="origin" value="{{ origin }}">
+            <input type="hidden" name="name" class="deck-name-field" value="{{ deck_name }}">
+            <input type="hidden" name="commander" class="deck-commander-field" value="{{ commander }}">
+            <button type="submit">
+                <span class="deck-mode-title">View it</span>
+                <span class="deck-mode-body">Every card in the deck, as cards, with the
+                list to copy and whatever has been changed since it was imported.</span>
+                <span class="deck-mode-go">See the cards &rarr;</span>
+            </button>
+        </form>
+
         <form action="/deck/read" method="post" class="deck-mode">
             <input type="hidden" name="list" value="{{ pasted }}">
             {# rides both modes so the shelf still knows which deck this is

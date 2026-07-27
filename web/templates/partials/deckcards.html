@@ -1,0 +1,38 @@
+{# a deck drawn as its cards, and the ONE place that does it.
+
+   /deck/view renders it for a pasted or imported list, /precons/<slug> for a
+   precon, and both look identical because they are the same file rather than
+   two grids that happen to agree today. it takes `cards` and nothing else, so
+   anything that can produce that list can show a deck.
+
+   it draws the DISTINCT cards a deck holds rather than its copies, because
+   that is what the parser hands back: a list folds to the cards in it, so a
+   mana base arrives as one Forest. the exact list with its counts sits on the
+   same page to copy, which is where counts actually matter.
+
+   the class is deck-card-grid and NOT deck-cards, which is already an ol in
+   partials/standing.html with styling of its own.
+
+   the frame markup matches the results grid deliberately: cards.js wires every
+   .card-frame on the page for the rotate and flip overlay, so a card here
+   behaves exactly like a card anywhere else on the site without this template
+   knowing anything about it #}
+<div class="card-grid deck-card-grid">
+    {% for c in cards %}
+    <div class="result">
+        <div class="card-frame" data-sideways="{{ '1' if c.sideways else '' }}" data-flip="{{ '1' if c.flip else '' }}" data-back="{{ c.image_back }}">
+            <a href="/search?q={{ c.name | urlencode }}" data-card="{{ c.name }}" data-scryfall="{{ c.scryfall_uri }}" title="search {{ c.name }} here. ctrl-click to open it on scryfall">
+                <img src="{{ c.image }}" alt="{{ c.name }}" width="488" height="680" loading="lazy">
+            </a>
+        </div>
+        <div class="result-name">{{ c.name }}</div>
+        {% if c.price_label or c.rank_label or c.salt_label %}
+        <div class="result-price">
+            {% if c.price_label %}<span class="price-figure">{{ c.price_label }}</span>{% endif %}
+            {% if c.rank_label %}<span class="result-rank" title="play rate: edhrec's rank for how often this card is played in commander, where #1 is the most played card in the format">{{ c.rank_label }}</span>{% endif %}
+            {% if c.salt_label %}<span class="result-salt" title="salt {{ c.salt_label }} out of about 3, from edhrec's salt survey, where players vote on the cards they least enjoy facing"><i class="salt-mark" aria-hidden="true"></i>{{ c.salt_label }}</span>{% endif %}
+        </div>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>

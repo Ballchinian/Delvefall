@@ -35,6 +35,37 @@
     {% include "partials/standing.html" %}
     {% endif %}
 
+    {# the deck itself, on the page rather than behind a link to somebody
+       else's site. it is the same grid /deck/view draws, because it is the same
+       template: a precon and a pasted list are both just a deck.
+
+       it is also the answer to why the official decklist link was the only way
+       to see what is in one of these, which sent every visitor who wanted that
+       away from a page that already had the cards to hand #}
+    {% if cards %}
+    <h2 id="cards">The cards</h2>
+    <p class="deck-section-note">Every card in the deck. Click any of them to search it
+    here, or ctrl-click to open it on Scryfall.</p>
+    {% include "partials/deckcards.html" %}
+
+    {# straight into the lens, with the commander already known. it posts the
+       deck's own list to the same front door a paste goes through, so this
+       lands on the shelf as a deck like any other and can be swapped from
+       there. no new path, just this one pointed at it #}
+    <form class="deck-mode deck-precon-lens" action="/deck/open" method="post">
+        <input type="hidden" name="list" value="{{ decklist }}">
+        <input type="hidden" name="name" value="{{ deck.name }}">
+        <input type="hidden" name="commander" value="{{ deck.leaders[0] if deck.leaders else '' }}">
+        <input type="hidden" name="seen" value="1">
+        <button type="submit">
+            <span class="deck-mode-title">Run it through the deck lens</span>
+            <span class="deck-mode-body">Saves it to this browser as your own deck, so you
+            can read it, change it card by card, and keep what you change.</span>
+            <span class="deck-mode-go">Open it as a deck &rarr;</span>
+        </button>
+    </form>
+    {% endif %}
+
     <p class="deck-detail-foot">Every ranking here is against the other
     {{ total - 1 }} Commander precons, measured the same way for all of them.
     <a href="/deck">Read your own deck through the same lens &rarr;</a></p>

@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+
+{% block title %}{{ deck_name or 'Your deck' }}, card by card - Delvefall{% endblock %}
+
+{# a pasted list is nobody's business, same as the other two modes #}
+{% block head_extra %}<meta name="robots" content="noindex">{% endblock %}
+
+{% block content %}
+<div class="guide precons deck-detail deck-view">
+    <form class="precon-back deck-back" method="post" action="/deck/open">
+        <input type="hidden" name="list" value="{{ pasted }}">
+        <input type="hidden" name="origin" value="{{ origin }}">
+        <input type="hidden" name="name" value="{{ deck_name }}">
+        <input type="hidden" name="commander" value="{{ commander }}">
+        <input type="hidden" name="seen" value="1">
+        <button type="submit">&larr; Back to this deck</button>
+        <a href="/deck">Read another deck</a>
+    </form>
+
+    <h1>{{ deck_name or 'Your deck' }}</h1>
+    <p class="deck-detail-sub">{{ matched }} card{{ '' if matched == 1 else 's' }},
+    every one of them below.</p>
+
+    {# what a swap session left behind. it is EMPTY here and filled in by the
+       script, because none of it ever reached the server: the swaps live in
+       this browser's own shelf and the page can only ask for them once it is
+       running. the blocks stay hidden until there is something in them, so a
+       deck nobody has changed shows its cards and nothing else #}
+    <div id="deck-changed" hidden>
+        <h2>What changed</h2>
+        <p class="deck-section-note" id="deck-changed-note"></p>
+        <ul class="swap-made" id="deck-changed-list"></ul>
+
+        <details class="deck-card-open" id="deck-changed-pics">
+            <summary>Show the swaps as cards</summary>
+            <div class="swap-pairs" id="deck-changed-pairs"></div>
+        </details>
+    </div>
+
+    <div id="deck-added-box" hidden>
+        <h2>Just the new cards</h2>
+        <p class="deck-section-note">The cards this deck has gained since it was imported,
+        on their own. Paste these in if you would rather not reimport the whole deck and
+        lose the categories you have set up.</p>
+        <textarea class="swap-output swap-output-short" id="deck-added" rows="6" readonly></textarea>
+        <div class="swap-actions">
+            <button type="button" class="swap-copy" id="deck-copy-added">Copy the new cards</button>
+        </div>
+    </div>
+
+    <h2>The whole list</h2>
+    <p class="deck-section-note" id="deck-list-note">Every line this deck was read from,
+    ready to paste back wherever it came from.</p>
+    <textarea class="swap-output" id="deck-list" rows="12" readonly>{{ pasted }}</textarea>
+    <div class="swap-actions">
+        <button type="button" class="swap-copy" id="deck-copy-list">Copy the list</button>
+    </div>
+
+    <h2>The cards</h2>
+    {% include "partials/deckcards.html" %}
+
+    {# the other two modes, offered from here rather than making somebody go
+       back a page to reach them. this page is where you land to check a deck
+       arrived, and "it did, now read it" is the next thing you want #}
+    <div class="deck-modes-pick deck-modes-after">
+        <form action="/deck/read" method="post" class="deck-mode">
+            <input type="hidden" name="list" value="{{ pasted }}">
+            <input type="hidden" name="origin" value="{{ origin }}">
+            <input type="hidden" name="name" value="{{ deck_name }}">
+            <input type="hidden" name="commander" value="{{ commander }}">
+            <input type="hidden" name="seen" value="1">
+            <button type="submit">
+                <span class="deck-mode-title">Read it</span>
+                <span class="deck-mode-go">See the reading &rarr;</span>
+            </button>
+        </form>
+        <form action="/deck/swap" method="post" class="deck-mode">
+            <input type="hidden" name="list" value="{{ pasted }}">
+            <input type="hidden" name="origin" value="{{ origin }}">
+            <input type="hidden" name="name" value="{{ deck_name }}">
+            <input type="hidden" name="commander" value="{{ commander }}">
+            <input type="hidden" name="seen" value="1">
+            <button type="submit">
+                <span class="deck-mode-title">Change it</span>
+                <span class="deck-mode-go">Walk it card by card &rarr;</span>
+            </button>
+        </form>
+    </div>
+
+    <p class="deck-detail-foot">Nothing here was saved. The list above is the one this
+    browser is holding, and it goes no further than the request that drew this page.</p>
+</div>
+
+{# which shelf entry to look up, so the script can find whatever this deck's
+   last session left behind #}
+<script id="deck-view-data" type="application/json">{{ {
+    'origin': origin,
+    'text': pasted
+} | tojson }}</script>
+{% endblock %}
+
+{% block scripts %}
+<script>
+/* the token -> svg map manaFill needs, same as every other page with cards */
+window.MANA_URLS = {{ mana_urls() | tojson }};
+</script>
+<script type="module" src="{{ static_url('js/deckview.js') }}"></script>
+{% endblock %}

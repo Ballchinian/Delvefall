@@ -2586,10 +2586,17 @@ def precon(slug):
     #whose number is affected, rather than a blanket disclaimer nobody reads
     is_new = bool(deck_row["release_date"] and deck_row["release_date"] >
                   datetime.date.today() - datetime.timedelta(days=PRECON_NEW_DAYS))
+    #the deck itself, drawn by the same partial /deck/view uses, plus the plain
+    #list the "run it through the lens" button posts. the list is built from the
+    #card names rather than stored: it only has to be something parse_decklist
+    #can read back, and one name per line is exactly that
+    with pool.connection() as conn:
+        cards = deck_cards(conn, ids, cur)
+    decklist = "\n".join("1 " + c["name"] for c in cards)
     return render_template("precons/deck.html", deck=deck_row, year=year, panels=panels,
                            opened=opened, back=arrived["key"], cur=cur, is_new=is_new,
                            cur_urls=currency_urls(), cur_labels=CURRENCY_LABELS,
-                           section=DECK_SECTION,
+                           section=DECK_SECTION, cards=cards, decklist=decklist,
                            counted=len(ids), total=len(board))
 
 
@@ -2988,6 +2995,40 @@ def deck_leaders(conn, oracle_ids):
         return []
 
 
+def deck_cards(conn, oracle_ids, currency):
+    #every card in a deck, ready to be drawn by partials/deckcards.html. it is
+    #the one query behind both the view page and the precon page, so a deck
+    #looks the same wherever it is shown.
+    #
+    #the labels come off the same helpers the results grid and the swap grid
+    #use rather than being formatted here, which is what keeps a price on this
+    #page reading identically to the same card's price on a search.
+    #
+    #DISTINCT cards, not copies: parse_decklist folds a list down to the cards
+    #it holds, so thirty seven Forests arrive here as one Forest and there is
+    #no count to print. that is the right grid for "did this import whole",
+    #and the exact list with its counts is on the same page to copy
+    try:
+        rows = conn.execute("""
+            SELECT oracle_id, name, type_line, layout, image, image_back,
+                   scryfall_uri, price_usd, price_eur, edhrec_rank, salt
+            FROM cards WHERE oracle_id = ANY(%s::uuid[])
+            ORDER BY name
+        """, ([str(o) for o in oracle_ids],)).fetchall()
+    except Exception:
+        return []
+    out = []
+    for r in rows:
+        c = dict(r)
+        c["sideways"] = sideways(c["layout"], c["type_line"])
+        c["flip"] = c["layout"] == "flip"
+        c["price_label"] = price_label(c, currency)
+        c["rank_label"] = rank_label(c["edhrec_rank"])
+        c["salt_label"] = salt_label(None if c["salt"] is None else float(c["salt"]))
+        out.append(c)
+    return out
+
+
 def deck_names(conn, oracle_ids):
     #every card in the list, for the picker to filter when the deck holds no
     #legendary creature (a brew pasted without its commander, a cube, a pile)
@@ -3008,6 +3049,7 @@ def deck_names(conn, oracle_ids):
 @app.route("/deck/open", methods=["GET"])
 @app.route("/deck/read", methods=["GET"])
 @app.route("/deck/swap", methods=["GET"])
+@app.route("/deck/view", methods=["GET"])
 def deck_post_only():
     return redirect("/deck")
 
@@ -3099,6 +3141,38 @@ def deck_open():
                            deck_name=name, commander=commander,
                            leaders=leaders, picker=picker,
                            swap_axes=SWAP_AXES, swap_default=SWAP_DEFAULT)
+
+
+@app.route("/deck/view", methods=["POST"])
+def deck_view():
+    #the deck itself, as its cards. the third of the three modes and the one
+    #that answers "did this arrive whole", which is the question an IMPORT
+    #most needs and the one the other two answer only by implication.
+    #
+    #it renders the same partial /precons/<slug> does, so a deck someone
+    #pasted and a deck that shipped in a box are shown by one piece of code
+    #rather than by two that agree until somebody edits one of them.
+    #
+    #what CHANGED is deliberately not computed here and cannot be: a swap
+    #session never reaches the server, so the only record of it is the shelf in
+    #the visitor's own browser. the page carries its origin and the script
+    #fills those blocks in from there
+    text = request.form.get("list", "")
+    ids, missing = parse_decklist(text)
+    if not ids:
+        return deck_hub(error=("None of those lines matched a card." if text.strip()
+                               else "Paste a decklist first."),
+                        pasted=text[:DECK_MAX_CHARS], missing=missing)
+    if request.form.get("seen"):
+        missing = []
+    cur = read_currency()
+    name, commander = deck_identity()
+    with pool.connection() as conn:
+        cards = deck_cards(conn, ids, cur)
+    return render_template("deck/view.html", cards=cards, matched=len(ids),
+                           missing=missing, cur=cur, deck_name=name,
+                           commander=commander, pasted=text[:DECK_MAX_CHARS],
+                           origin=request.form.get("origin", "")[:DECK_MAX_CHARS])
 
 
 @app.route("/deck/read", methods=["POST"])
