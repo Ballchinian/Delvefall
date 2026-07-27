@@ -169,7 +169,7 @@
         });
 
         /* closing the fold puts the count back to the first batch.
-           without this, "Show more cards" was a one way door: it lives INSIDE
+           without this, "View more card images" was a one way door: it lives INSIDE
            the fold and the names list above shares its count, so opening the
            pictures, revealing another twelve and closing again left the names
            list expanded with the only control that could shrink it now hidden.

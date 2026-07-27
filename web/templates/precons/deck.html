@@ -35,18 +35,10 @@
     {% include "partials/standing.html" %}
     {% endif %}
 
-    {# the deck itself, on the page rather than behind a link to somebody
-       else's site. it is the same grid /deck/view draws, because it is the same
-       template: a precon and a pasted list are both just a deck.
-
-       it is also the answer to why the official decklist link was the only way
-       to see what is in one of these, which sent every visitor who wanted that
-       away from a page that already had the cards to hand #}
+    {# no whole-deck grid here, deliberately. every standing panel above already
+       opens into its own pictures, so a second grid of the same cards was the
+       page saying "view every card image" six times #}
     {% if cards %}
-    {% with cards_summary = 'Every card in the deck' %}
-    {% include "partials/deckcards.html" %}
-    {% endwith %}
-
     {# straight into the lens, with the commander already known. it posts the
        deck's own list to the same front door a paste goes through, so this
        lands on the shelf as a deck like any other and can be swapped from
@@ -73,5 +65,4 @@
 
 {% block scripts %}
 <script src="{{ static_url('js/standing.js') }}" defer></script>
-<script src="{{ static_url('js/cardfold.js') }}" defer></script>
 {% endblock %}

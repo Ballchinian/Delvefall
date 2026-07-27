@@ -31,8 +31,11 @@
    .card-frame on the page for the rotate and flip overlay, so a card here
    behaves exactly like a card anywhere else on the site without this template
    knowing anything about it #}
+{# "View every card image" rather than "the deck as cards", which never said
+   what opening it would get you: a decklist is already cards, so "as cards"
+   read as a formatting choice rather than as pictures #}
 <details class="deck-card-open deck-card-fold">
-    <summary>{{ cards_summary or 'Show the deck as cards' }}
+    <summary>{{ cards_summary or 'View every card image' }}
         <span class="deck-card-total">{{ cards|length }} cards</span></summary>
     <div class="card-grid deck-card-grid" data-step="{{ section }}">
         {% for c in cards %}

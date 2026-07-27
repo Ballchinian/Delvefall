@@ -122,7 +122,7 @@
        nothing to fetch: /deck/read is a POST result with no url to ask again
        at, and one query returning 96 rows costs what one returning 12 does #}
     <details class="deck-card-open" data-step="{{ section }}">
-        <summary>Show them as cards</summary>
+        <summary>View these card images</summary>
         <div class="card-grid deck-card-grid">
             {% for c in p.cards %}
             <div class="result" data-i="{{ loop.index0 }}">
@@ -163,7 +163,7 @@
             {% endfor %}
         </div>
         <div class="deck-card-more">
-            <button type="button" class="deck-card-more-btn">Show more cards</button>
+            <button type="button" class="deck-card-more-btn">View more card images</button>
             <span class="deck-card-more-left"></span>
         </div>
     </details>
