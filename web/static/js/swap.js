@@ -298,32 +298,47 @@ import { el, cardLink, swapPair } from "dom";
            than closing the session on a number that was only ever a batch
            size. the extra cards cost nothing until they are reached: their
            candidates are still fetched one card at a time */
-        if (limit < D.queue.length) {
-            $("swap-more-left").textContent = Math.min(D.batch, D.queue.length - limit);
+        var more_left = D.queue.length - limit;
+        if (more_left > 0) {
+            $("swap-more-left").textContent = Math.min(D.batch, more_left);
             $("swap-more").hidden = false;
+        } else {
+            /* the queue is out. the button was hidden by the press that used up
+               the last of it and there was no branch here to say anything, so
+               the control somebody had been pressing simply vanished. a button
+               that disappears without a word reads as a button that broke,
+               which is what it was reported as */
+            $("swap-more").hidden = true;
         }
+        /* the header still says the card the walk stopped on, which is the
+           whole batch once it has been walked */
+        $("swap-at").textContent = Math.min(at, limit);
 
         /* say what the batch just did. a batch that found nothing puts the page
            back exactly where it was, so without a word here the button reads as
            broken: it is the one outcome the screen cannot show by itself */
+        var say = "";
         if (batchFrom !== null) {
             var walked = limit - batchFrom;
             var got = swaps.length - batchSwaps;
-            var note = $("swap-batch-note");
-            if (!got) {
-                note.textContent = "Checked " + walked + " more card"
-                    + (walked === 1 ? "" : "s") + ". Nothing in the game does what any of "
-                    + "them do and moves the deck " + D.goal + ", so there was nothing to "
-                    + "offer. They are listed below."
-                    + (limit < D.queue.length ? " There are more further down the queue."
-                                              : "");
-            } else {
-                note.textContent = "Checked " + walked + " more card"
-                    + (walked === 1 ? "" : "s") + " and found " + got + " swap"
-                    + (got === 1 ? "" : "s") + ".";
-            }
-            note.hidden = false;
+            say = got
+                ? "Checked " + walked + " more card" + (walked === 1 ? "" : "s")
+                  + " and found " + got + " swap" + (got === 1 ? "" : "s") + "."
+                : "Checked " + walked + " more card" + (walked === 1 ? "" : "s")
+                  + ". Nothing in the game does what any of them do and moves the deck "
+                  + D.goal + ", so there was nothing to offer. They are listed below.";
             batchFrom = null;
+        }
+        /* and where that leaves the queue. said on EVERY finish, not only after
+           a press, because "there is nothing more to load" is exactly the fact
+           the vanishing button was failing to communicate */
+        if (more_left <= 0) {
+            say += (say ? " " : "") + "That is every card in this deck worth checking, all "
+                + D.queue.length + " of them. There are no more to load.";
+        }
+        if (say) {
+            $("swap-batch-note").textContent = say;
+            $("swap-batch-note").hidden = false;
         }
         $("swap-live").hidden = true;
         var done = $("swap-done");
