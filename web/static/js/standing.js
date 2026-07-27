@@ -164,6 +164,19 @@
                marks what it has already done, so calling it again is free */
             enhanceCardFrames(panel);
         });
+
+        /* closing the fold puts the count back to the first batch.
+           without this, "Show more cards" was a one way door: it lives INSIDE
+           the fold and the names list above shares its count, so opening the
+           pictures, revealing another twelve and closing again left the names
+           list expanded with the only control that could shrink it now hidden.
+           the cards retracted and their names did not */
+        var open = panel.querySelector(".deck-card-open");
+        if (open) open.addEventListener("toggle", function () {
+            if (open.open || shown[panel.id] === step) return;
+            shown[panel.id] = step;
+            paint(panel);
+        });
     });
 
     if (pager && panels.length > 1) {
