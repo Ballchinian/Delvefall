@@ -3088,7 +3088,13 @@ def deck_open():
     #confirmation that the list arrived intact, which is the thing an IMPORT
     #most needs: a link that silently read 40 of your 100 cards is the failure
     #nobody notices until the numbers look wrong
+    #which shelf entry this deck belongs to, when it came off the shelf. it is
+    #the list as first imported, and the browser keys its saved decks on it, so
+    #a deck reopened after a swap session is recognised as the same deck rather
+    #than saved again as a second one. empty for a fresh paste or import, which
+    #is the browser's cue to key on the list itself
     return render_template("deck/modes.html", pasted=text[:DECK_MAX_CHARS],
+                           origin=request.form.get("origin", "")[:DECK_MAX_CHARS],
                            matched=len(ids), missing=missing,
                            deck_name=name, commander=commander,
                            leaders=leaders, picker=picker,
@@ -3144,6 +3150,9 @@ def deck_read():
                            total=len(board), ranked=ranked, min_cards=DECK_MIN_FOR_RANK,
                            cur=cur, deck_name=name, commander=commander, swaps=swaps,
                            section=DECK_SECTION,
+                           #passed straight through: the Change it form below
+                           #posts to /deck/swap and the key has to survive the hop
+                           origin=request.form.get("origin", "")[:DECK_MAX_CHARS],
                            #the currency control here is a form rather than
                            #links: this page has no url of its own to flip
                            cur_post=True, cur_labels=CURRENCY_LABELS,
@@ -3810,7 +3819,11 @@ def deck_swap():
                            goal=SWAP_AXES[(field, direction)]["goal"],
                            matched=len(ids), missing=missing, cur=cur,
                            deck_name=name, commander=commander, batch=SWAP_QUEUE,
-                           pasted=text[:DECK_MAX_CHARS])
+                           pasted=text[:DECK_MAX_CHARS],
+                           #the shelf key, so a finished session writes itself
+                           #onto the deck it belongs to rather than looking for
+                           #an entry under the list it happens to be holding
+                           origin=request.form.get("origin", "")[:DECK_MAX_CHARS])
 
 
 @app.route("/deck/swap/cards", methods=["POST"])

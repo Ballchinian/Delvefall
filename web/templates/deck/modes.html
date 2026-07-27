@@ -43,6 +43,9 @@
     <div class="deck-modes-pick">
         <form action="/deck/read" method="post" class="deck-mode">
             <input type="hidden" name="list" value="{{ pasted }}">
+            {# rides both modes so the shelf still knows which deck this is
+               after the swap tool has finished with it. see /deck/open #}
+            <input type="hidden" name="origin" value="{{ origin }}">
             <input type="hidden" name="name" class="deck-name-field" value="{{ deck_name }}">
             <input type="hidden" name="commander" class="deck-commander-field" value="{{ commander }}">
             <button type="submit">
@@ -56,6 +59,9 @@
 
         <form action="/deck/swap" method="post" class="deck-mode">
             <input type="hidden" name="list" value="{{ pasted }}">
+            {# rides both modes so the shelf still knows which deck this is
+               after the swap tool has finished with it. see /deck/open #}
+            <input type="hidden" name="origin" value="{{ origin }}">
             <input type="hidden" name="name" class="deck-name-field" value="{{ deck_name }}">
             <input type="hidden" name="commander" class="deck-commander-field" value="{{ commander }}">
             <input type="hidden" name="axis" value="{{ swap_default[0] }}">
@@ -77,6 +83,7 @@
 <script id="deck-lead-data" type="application/json">{{ picker | tojson }}</script>
 <script id="deck-remember" type="application/json">{{ {
     'text': pasted,
+    'origin': origin,
     'count': matched
 } | tojson }}</script>
 {% endblock %}
@@ -187,6 +194,16 @@
         var listField = document.querySelector('.deck-mode input[name="list"]');
         var text = listField ? listField.value : d.text;
         if (!text) return;
+        /*
+            which deck this IS, as against what is currently in it. a deck off
+            the shelf carries the list it was first imported as, and that is
+            what the shelf is keyed on: reopening a deck after a swap session
+            hands back the swapped list, and keying on that would file the same
+            deck a second time as "#2" every time it was picked up.
+
+            a fresh paste or import has no origin, so it is keyed on itself.
+        */
+        var key = d.origin || text;
         var f = document.querySelector(".deck-name-field");
         var label = f ? f.value.trim() : "";
         try {
@@ -198,7 +215,7 @@
                it on every visit is how one deck became #2, then #4, then #6 */
             var was = null;
             decks = decks.filter(function (x) {
-                if (x.text === text) { was = x; return false; }
+                if (x.text === key) { was = x; return false; }
                 return true;
             });
             /* two different decks led by the same commander get numbered, the
@@ -226,7 +243,22 @@
                     if (n > 1) name = name + " #" + n;
                 }
             }
-            decks.unshift({text: text, count: d.count, label: name, at: Date.now()});
+            /* the entry is keyed on the origin and remembers where the deck has
+               actually got to, so a row can offer both: the deck as imported,
+               and the deck as it stands. whatever a swap session left behind
+               rides along untouched, because picking a deck back up is not
+               what should undo the work done to it */
+            var entry = {text: key, count: d.count, label: name, at: Date.now()};
+            if (was) {
+                ["swaps", "goal", "added", "newList"].forEach(function (k) {
+                    if (was[k]) entry[k] = was[k];
+                });
+            }
+            /* it arrived as a list that is not the one it was imported as, so
+               that IS where it has got to, and it replaces whatever the last
+               session recorded */
+            if (key !== text) entry.newList = text;
+            decks.unshift(entry);
             localStorage.setItem(KEY, JSON.stringify(decks.slice(0, KEEP)));
         } catch (e) {
             /* private browsing, a full quota, or storage switched off. the site

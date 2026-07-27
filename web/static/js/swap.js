@@ -388,8 +388,13 @@ import { el } from "dom";
         try {
             var decks = JSON.parse(localStorage.getItem(KEY)) || [];
             var found = false;
+            /* the shelf is keyed on the list the deck was IMPORTED as, which is
+               not the list this page is holding once the deck has been through
+               here before. matching on D.text alone meant a second session on
+               the same deck found no entry and threw its work away silently */
+            var key = D.origin || D.text;
             decks.forEach(function (x) {
-                if (x.text !== D.text) return;
+                if (x.text !== key) return;
                 found = true;
                 x.swaps = swaps.map(function (s) {
                     /* only what the review needs to draw a card. the rest of

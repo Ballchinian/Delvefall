@@ -11,6 +11,7 @@
     {# the list rides the link, so going back keeps the deck AND its name #}
     <form class="precon-back deck-back" method="post" action="/deck/open">
         <input type="hidden" name="list" value="{{ pasted }}">
+        <input type="hidden" name="origin" value="{{ origin }}">
         <input type="hidden" name="name" value="{{ deck_name }}">
         <input type="hidden" name="commander" value="{{ commander }}">
         <input type="hidden" name="seen" value="1">
@@ -141,7 +142,8 @@
     'dir': direction,
     'goal': goal,
     'batch': batch,
-    'text': pasted
+    'text': pasted,
+    'origin': origin
 } | tojson }}</script>
 {% endblock %}
 

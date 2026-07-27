@@ -84,6 +84,11 @@
    as a second entry for a deck already in it #}
 <form id="deck-recent-form" action="/deck/open" method="post" hidden>
     <input type="hidden" name="list" id="deck-recent-list-field">
+    {# which shelf entry this is, which is not the same question as what is in
+       it. the list above is wherever the deck has got to, the origin is what it
+       was imported as, and the shelf is keyed on the origin so a deck that has
+       been swapped is still the deck it started as rather than a new one #}
+    <input type="hidden" name="origin" id="deck-recent-origin-field">
     <input type="hidden" name="name" id="deck-recent-name-field">
     <input type="hidden" name="commander" id="deck-recent-commander-field">
     {# already checked once, when it was first read. seen means "do not ask

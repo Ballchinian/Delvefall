@@ -21,7 +21,17 @@ import { el } from "dom";
     }
 
     function open(d) {
-        document.getElementById("deck-recent-list-field").value = d.text;
+        /* reopening picks up where the deck was left, so what goes back is the
+           list AFTER any swaps. it used to send d.text every time, which meant
+           a session's work was recorded on the shelf and then handed back
+           undone, with nothing on screen to say so.
+
+           d.text still rides along as the origin, because it is what this
+           shelf is keyed on. without it the deck would arrive looking like a
+           list nobody had seen before and be saved a second time as "#2",
+           which is the same deck twice under two names */
+        document.getElementById("deck-recent-list-field").value = d.newList || d.text;
+        document.getElementById("deck-recent-origin-field").value = d.text;
         /* the name goes back with the list. the commander is the name without
            the "#2" a repeat picked up here, since the numbering belongs to
            this list and not to the deck */

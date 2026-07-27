@@ -13,6 +13,7 @@
        landed on then invented a new entry called "72 cards" #}
     <form class="precon-back deck-back" method="post" action="/deck/open">
         <input type="hidden" name="list" value="{{ pasted }}">
+        <input type="hidden" name="origin" value="{{ origin }}">
         <input type="hidden" name="name" value="{{ deck_name }}">
         <input type="hidden" name="commander" value="{{ commander }}">
         <input type="hidden" name="seen" value="1">
@@ -65,6 +66,9 @@
         out at the end.</p>
         <form class="swap-start" id="deck-swap-start" method="post" action="/deck/swap">
             <input type="hidden" name="list" value="{{ pasted }}">
+            {# which shelf entry this deck is, carried on so the swap tool can
+               write its session onto the right one. see /deck/open #}
+            <input type="hidden" name="origin" value="{{ origin }}">
             <input type="hidden" name="name" value="{{ deck_name }}">
             <input type="hidden" name="commander" value="{{ commander }}">
             <input type="hidden" name="seen" value="1">
