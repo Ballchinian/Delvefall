@@ -3629,6 +3629,25 @@ body.home main {
     font-size: 20px;
 }
 
+/* the swap axis picker, under the Change it button rather than inside it: a
+   select inside a submit button is a select you cannot open without submitting */
+.deck-mode-axis {
+    display: block;
+    margin-top: 10px;
+    font-size: 13px;
+    color: var(--muted);
+}
+
+.deck-mode-axis select {
+    margin-left: 6px;
+    font: inherit;
+    color: var(--ink);
+    background: var(--bg);
+    border: 1px solid var(--line-strong);
+    border-radius: 3px;
+    padding: 2px 4px;
+}
+
 /* the undo spans the row under both cards, because it is about the pair */
 .swap-pair .swap-undo { grid-column: 1 / -1; justify-self: start; }
 

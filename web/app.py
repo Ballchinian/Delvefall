@@ -3832,7 +3832,18 @@ def swap_candidates(conn, card, deck_ids, colors, field, direction, currency="us
 def read_axis():
     #the axis off the request, falling back to the default rather than
     #erroring: an unknown field is a stale link, not an attack, and the
-    #tool has a sensible thing to do with one
+    #tool has a sensible thing to do with one.
+    #
+    #a "goal" of "price:asc" is the same thing said in one field, which is what
+    #the picker on the modes page sends. it has to be one control because the
+    #choice is one choice: "cheaper" is a field AND a direction, and two
+    #dropdowns would let somebody pick "price" and "newer" and mean nothing.
+    #the pair is still accepted, because every link and form already sends it
+    goal = request.values.get("goal", "")
+    if goal.count(":") == 1:
+        f, d = goal.split(":")
+        if (f, d) in SWAP_AXES:
+            return f, d
     field = request.values.get("axis", SWAP_DEFAULT[0])
     direction = request.values.get("dir", "")
     if (field, direction) not in SWAP_AXES:

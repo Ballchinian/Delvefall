@@ -81,14 +81,28 @@
             <input type="hidden" name="origin" value="{{ origin }}">
             <input type="hidden" name="name" class="deck-name-field" value="{{ deck_name }}">
             <input type="hidden" name="commander" class="deck-commander-field" value="{{ commander }}">
-            <input type="hidden" name="axis" value="{{ swap_default[0] }}">
-            <input type="hidden" name="dir" value="{{ swap_default[1] }}">
             <button type="submit">
                 <span class="deck-mode-title">Change it</span>
                 <span class="deck-mode-body">Walk the deck a card at a time, worst first,
                 and swap what you want to. Ends with a list you can paste back.</span>
-                <span class="deck-mode-go">Make it {{ swap_axes[swap_default]['goal'] }} &rarr;</span>
+                <span class="deck-mode-go">Walk it card by card &rarr;</span>
             </button>
+            {# which way to push the deck. one control and not two, because the
+               choice is one choice: "cheaper" names a field and a direction
+               together, and a pair of dropdowns would let somebody ask for
+               price sorted newest, which means nothing.
+
+               it sits UNDER the button rather than above it so the mode reads
+               as a mode first. the tool did this one way for months and the
+               machinery was always generic over all eight #}
+            <label class="deck-mode-axis">Make it
+                <select name="goal" aria-label="which way to change the deck">
+                    {% for pair, spec in swap_axes.items() %}
+                    <option value="{{ pair[0] }}:{{ pair[1] }}"
+                        {% if pair == swap_default %}selected{% endif %}>{{ spec.goal }}</option>
+                    {% endfor %}
+                </select>
+            </label>
         </form>
     </div>
 </div>
