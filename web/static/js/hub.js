@@ -100,13 +100,16 @@ import { el } from "dom";
     function panel(d) {
         var box = document.createElement("li");
         box.className = "deck-recent-panel";
+        var swaps = d.swaps || [];
 
-        el("p", "deck-hub-note", box,
-           d.swaps.length + " swap" + (d.swaps.length === 1 ? "" : "s")
-           + (d.goal ? ", making it " + d.goal : "") + ".");
+        el("p", "deck-hub-note", box, swaps.length
+           ? swaps.length + " swap" + (swaps.length === 1 ? "" : "s")
+             + (d.goal ? ", making it " + d.goal : "") + "."
+           : "Nothing has been changed in this deck yet, so what is below is the "
+             + "list exactly as it came in.");
 
         var made = el("ul", "swap-made", box);
-        d.swaps.forEach(function (s) {
+        swaps.forEach(function (s) {
             var li = el("li", "swap-made-row", made);
             var out = el("a", "swap-made-out", li, s.out.name);
             out.href = "/search?q=" + encodeURIComponent(s.out.name);
@@ -118,9 +121,10 @@ import { el } from "dom";
         });
 
         var pics = el("details", "deck-card-open", box);
+        pics.hidden = !swaps.length;
         el("summary", "", pics, "Show the swaps as cards");
         var pairs = el("div", "swap-pairs", pics);
-        d.swaps.forEach(function (s) {
+        swaps.forEach(function (s) {
             var row = el("div", "swap-pair", pairs);
             var left = el("div", "swap-pair-side swap-pair-out", row);
             el("span", "swap-pair-label", left, "Out");
@@ -145,8 +149,18 @@ import { el } from "dom";
         }
         if (d.newList) {
             copyBox(box, "The whole new list",
-                    "Your original list with the swaps applied.", d.newList, "Copy the list");
+                    "Your original list with the swaps applied. This is what reopening "
+                    + "this deck picks up from.", d.newList, "Copy the list");
         }
+        /* always last, and always there. checking that an import arrived whole
+           is the other reason to open a deck, and until now the only way to do
+           it was to reopen the deck and count the cards on the reading */
+        copyBox(box, d.newList ? "The list as imported" : "The list",
+                d.newList
+                    ? "Before any swaps, kept so a session can always be compared "
+                      + "against where the deck started."
+                    : "Every line this deck was read from, to check it arrived whole.",
+                d.text, "Copy the original");
         return box;
     }
 
@@ -174,11 +188,13 @@ import { el } from "dom";
                and the two lists to paste back. only offered on a deck that has
                been through the swap tool, because on any other one the panel
                would open onto nothing */
-            if (d.swaps && d.swaps.length) {
+            {
                 var view = el("button", "deck-recent-tool", tools, "⇱");
                 view.type = "button";
-                view.title = "view and export the " + d.swaps.length + " swap"
-                           + (d.swaps.length === 1 ? "" : "s") + " saved for this deck";
+                view.title = (d.swaps && d.swaps.length)
+                    ? "view and export this deck and the " + d.swaps.length + " swap"
+                      + (d.swaps.length === 1 ? "" : "s") + " saved for it"
+                    : "view and export the cards in this deck";
                 view.setAttribute("aria-label", "view and export " + (d.label || "this deck"));
                 view.addEventListener("click", function () {
                     var open = li.nextElementSibling;
