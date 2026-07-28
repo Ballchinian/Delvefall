@@ -3584,11 +3584,14 @@ body.home main {
 
 .deck-lead .deck-hub-note { display: block; margin-top: 8px; }
 
-/* the shelf numbered this deck on the way in, said under the heading it applies
-   to. a NOTE and not an alert: nothing went wrong, the deck is saved, and the
-   name is fixable from the hub whenever they get round to it */
-.deck-renamed {
-    margin: 0 0 12px;
+/* this name is already on another deck in this browser, said beside the box it
+   was typed into while the person who typed it is still looking at it.
+   it replaces .deck-renamed, which was the same styling on the opposite idea:
+   a note on the NEXT page explaining that the shelf had renamed the deck for
+   you. refusing needs no explaining afterwards, so the message moved to where
+   the name is chosen and the banner went with the numbering */
+.deck-name-clash {
+    margin: 6px 0 0;
     padding: 8px 11px;
     border-left: 3px solid var(--gold);
     background: var(--wash);

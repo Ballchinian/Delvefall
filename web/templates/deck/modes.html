@@ -58,6 +58,11 @@
                    placeholder="{{ commander or 'Named after the commander' }}"
                    value="{{ deck_name if deck_name != commander else '' }}">
         </div>
+        {# a name this browser is already using for a different deck. said here,
+           beside the box, while the person who chose it is still looking at it.
+           the shelf used to accept it and quietly file the deck as "#2", then
+           try to explain itself on the next page #}
+        <p class="deck-name-clash" id="deck-name-clash" hidden></p>
     </div>
 
     {# three rows separated by rules, not three bordered cards side by side.

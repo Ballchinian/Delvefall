@@ -4,7 +4,10 @@
 //it lives here rather than in the two pages that touch it because the naming
 //rule has to be the same in both: the modes page names a deck when it is first
 //read, the hub renames one later, and a rule enforced in one of those is not a
-//rule. it is also why dedupe() exists, for shelves written before there was one.
+//rule.
+//
+//the rule is now simply that two decks cannot share a name, refused at the
+//moment of naming. see nameTaken for what it replaced and why.
 //
 //nothing here talks to the server. a deck never leaves this machine, which is
 //the whole design of the feature and the reason there is no account to make
@@ -17,33 +20,15 @@ export var KEY = "delvefall_recent_decks";
 //you keep rather than something that happens to you
 export var KEEP = 10;
 
-//a one-shot note from the page that renamed a deck to the page it lands on.
+//the rename note that used to live here is GONE, along with the banner it fed.
+//it carried "we called your deck something else" from the page that renamed to
+//the page that landed, and it only ever existed because the shelf renamed decks
+//behind your back. nothing does that now: a clash is refused while you are still
+//looking at the box you typed it in, which is the moment it can be fixed.
 //
-//the shelf numbers a clashing name at SUBMIT time, and submitting navigates, so
-//there is no moment on the naming page where the answer is both known and still
-//on screen. predicting it there instead was tried and pulled: it fired on decks
-//that turned out not to clash, and a warning about something that has not
-//happened is one nobody can check. this reports what the shelf ACTUALLY did.
-//
-//sessionStorage rather than localStorage: it is about one hop, and a note that
-//outlived the tab would greet somebody days later about a deck they had
-//forgotten renaming
-export var RENAMED = "delvefall_renamed";
-
-export function noteRename(was, now) {
-    try { sessionStorage.setItem(RENAMED, JSON.stringify({was: was, now: now})); }
-    catch (e) {}
-}
-
-//read AND delete, so it shows once. a refresh of the page it landed on is not a
-//second rename and should not say it was
-export function takeRename() {
-    try {
-        var raw = sessionStorage.getItem(RENAMED);
-        sessionStorage.removeItem(RENAMED);
-        return raw ? JSON.parse(raw) : null;
-    } catch (e) { return null; }
-}
+//it is worth knowing that leftover notes may still sit in a tab's sessionStorage
+//under "delvefall_renamed". nothing reads them, and sessionStorage dies with the
+//tab, so they need no cleaning up.
 
 export function read() {
     try { return JSON.parse(localStorage.getItem(KEY)) || []; }
@@ -58,72 +43,43 @@ export function write(decks) {
     }
 }
 
-//a label split into the name somebody meant and the number this shelf added.
-//"Goblins #3" is Goblins, third of that name; "Goblins" is Goblins, first
-export function baseName(label) {
-    var m = /^(.*?)(?: #(\d+))?$/.exec(label || "");
-    return m ? {name: m[1], n: parseInt(m[2] || "1", 10)} : {name: "", n: 1};
-}
-
-//`want`, numbered if this shelf already has a deck of that name.
+//the deck on this shelf already called `want`, or null.
 //
-//ONE PAST THE HIGHEST, not the smallest free number. the shelf is newest first,
-//so a number has to climb with recency or it reads backwards: taking the free
-//#1 while a #2 sat below meant the newest deck wore the lowest number and the
-//list counted upwards as it got older. dedupe closes any gap this leaves on the
-//next visit to the hub, so "#2 and #3 with no #1" is a state that tidies itself.
+//THE SHELF USED TO NUMBER A CLASH INSTEAD OF REFUSING IT, appending "#2" and
+//then telling you it had. that rule is gone, and it is worth writing down why,
+//because it looked reasonable and was wrong in four separate ways:
+//
+//  - it normalised what you typed before comparing, so asking for
+//    "Kratos, God of War #3" was read as a request for "Kratos, God of War",
+//    which clashed, and came back as "#2". the answer to a name you chose was
+//    a different name you did not.
+//  - it had to tell you afterwards, which needed a note carried between two
+//    pages, which needed the note to know which deck it was about, which it
+//    could not, because a numbered deck and the deck it was numbered against
+//    share the name the note was matched on.
+//  - "#2" is not a name. it is the shelf admitting it could not do the thing
+//    and going ahead anyway.
+//  - and the numbers had to be maintained: dedupe() existed only to close the
+//    gaps the numbering left behind.
+//
+//refusing is one rule with no state, nothing to carry between pages and nothing
+//to tidy up afterwards. the person naming the deck is right there and is the
+//only one who knows what they meant.
 //
 //`mine` is the entry being named, by its text key, and is skipped: a deck
-//keeping the name it already has must not be numbered against itself.
+//keeping the name it already has has not clashed with anything.
 //
-//names are matched CASE INSENSITIVELY, and they have to be, because dedupe()
-//already was. matching exactly here let "goblins" onto a shelf that had
-//"Goblins", and then dedupe renamed it to "goblins #2" on the next visit to the
-//hub: the deck was numbered either way, just silently and one page later, which
-//is the worst of both. two rules for one question is how that happens
-export function uniqueName(want, decks, mine) {
-    want = (want || "").trim();
-    if (!want) return "";
-    //compared folded, RETURNED as typed. the shelf decides which decks share a
-    //name, it does not decide how somebody capitalises their own deck
-    var wanted = baseName(want).name;
-    var key = wanted.toLowerCase();
-    var top = 0;
-    decks.forEach(function (d) {
-        if (mine !== undefined && d.text === mine) return;
-        var b = baseName(d.label);
-        if (b.name.toLowerCase() === key && b.n > top) top = b.n;
+//names are compared CASE INSENSITIVELY and with the ends trimmed, so "goblins "
+//does not slip onto a shelf that has "Goblins". it is a comparison only: what
+//gets stored is what was typed, because the shelf decides which decks share a
+//name, not how somebody capitalises their own deck
+export function nameTaken(want, decks, mine) {
+    want = (want || "").trim().toLowerCase();
+    if (!want) return null;
+    var hit = null;
+    (decks || []).forEach(function (d) {
+        if (hit || (mine !== undefined && d.text === mine)) return;
+        if ((d.label || "").trim().toLowerCase() === want) hit = d;
     });
-    return top ? wanted + " #" + (top + 1) : wanted;
-}
-
-//every deck on the shelf given a name nothing else on it has.
-//
-//shelves written before the rule existed can hold two decks called the same
-//thing, and a rule that only applies to new decks leaves those there forever.
-//this runs on load, keeps the OLDEST of any clash unnumbered and numbers the
-//rest, so nobody loses a deck and nobody has to be asked about it.
-//
-//OLDEST, and that is the whole reason for the reverse below. the shelf is
-//newest first, so numbering down the array handed the bare name to the deck
-//that arrived LAST and pushed "#2" onto the one that had been there for weeks.
-//uniqueName numbers the arrival, not the resident, and the two have to agree:
-//#2 is the later deck, which on a newest-first shelf is the one ABOVE, so the
-//numbers count down the list the way a reader expects them to.
-//
-//it returns null when there was nothing to do, which is the usual case and
-//saves writing the whole shelf back on every page view
-export function dedupe(decks) {
-    var seen = {}, changed = false;
-    var out = decks.slice().reverse().map(function (d) {
-        var b = baseName(d.label);
-        if (!b.name) return d;
-        var key = b.name.toLowerCase();
-        seen[key] = (seen[key] || 0) + 1;
-        var want = seen[key] > 1 ? b.name + " #" + seen[key] : b.name;
-        if (want === d.label) return d;
-        changed = true;
-        return Object.assign({}, d, {label: want});
-    }).reverse();
-    return changed ? out : null;
+    return hit;
 }

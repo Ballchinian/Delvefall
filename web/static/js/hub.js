@@ -4,19 +4,20 @@
 //straight relocation minus its own copy of el
 
 import { el } from "dom";
-import { read, write, uniqueName, dedupe, KEY } from "decks";
+import { read, write, nameTaken, KEY } from "decks";
 
 (function () {
     var box = document.getElementById("deck-recent");
     var list = document.getElementById("deck-recent-list");
     if (!box || !list) return;
 
-    /* shelves written before deck names had to be distinct can hold two decks
-       called the same thing, and a rule that only applies to new ones leaves
-       those there for good. this numbers the clashes once, on the first visit
-       after the rule arrived, keeping the earliest of each name as it is */
-    var fixed = dedupe(read());
-    if (fixed) write(fixed);
+    /* a dedupe() ran here, renumbering any two decks that shared a name on the
+       first visit after the numbering rule arrived. it is gone with the rest of
+       the numbering: a shelf carrying two decks called the same thing is only
+       an eyesore, because NOTHING ON THIS SITE FINDS A DECK BY ITS NAME. every
+       lookup is by the decklist the deck was imported as, here and in the swap
+       tool and on /deck/view alike. renaming somebody's decks on sight to fix
+       something that was never broken is the worse of the two options */
 
     function open(d) {
         /* reopening picks up where the deck was left, so what goes back is the
@@ -74,25 +75,27 @@ import { read, write, uniqueName, dedupe, KEY } from "decks";
                 var was = d.label || "";
                 var now = window.prompt("Call this deck:", was);
                 if (now === null) return;
+                now = now.trim();
                 var all = read();
-                /* two decks on this shelf cannot share a name, and renaming was
-                   the way round that: type "Goblins" over a second deck and you
-                   had two. it goes through the same rule the modes page names a
-                   deck with, so a clash is numbered rather than allowed.
+                /* REFUSED rather than numbered, the same rule the naming page
+                   follows. it used to accept the clash and file the deck under
+                   a number, which had a particular way of reading as broken:
+                   asking for "Kratos, God of War #3" was normalised to the base
+                   name, clashed, and came back as "#2", so the shelf answered a
+                   name you chose with a different name you did not.
                    d.text is passed as "mine" so a deck keeping its own name is
-                   not numbered against itself */
-                var name = uniqueName(now, all, d.text);
+                   not held to have clashed with itself */
+                var hit = nameTaken(now, all, d.text);
+                if (hit) {
+                    window.alert("You already have a deck called " + hit.label
+                                 + ". Give this one a different name.");
+                    return;
+                }
                 /* matched by TEXT, never by position: the list may have been
                    rewritten in another tab since this row was drawn */
-                all.forEach(function (x) { if (x.text === d.text) x.label = name; });
+                all.forEach(function (x) { if (x.text === d.text) x.label = now; });
                 write(all);
                 draw();
-                if (name !== now.trim() && name) {
-                    /* say so rather than silently filing it under another name.
-                       it is the only moment the shelf overrules what was typed */
-                    window.alert("You already have a deck called " + now.trim()
-                                 + ", so this one is " + name + ".");
-                }
             });
 
             var del = el("button", "deck-recent-tool deck-recent-drop", tools, "×");

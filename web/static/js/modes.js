@@ -10,7 +10,7 @@
 //the shelf and its naming rule live in decks.js, shared with the hub, because a
 //rule enforced in one of the two places that name a deck is not a rule
 
-import { read, write, uniqueName, baseName, noteRename } from "decks";
+import { read, write, nameTaken } from "decks";
 
 (function () {
     var input = document.getElementById("deck-lead-input");
@@ -129,80 +129,107 @@ import { read, write, uniqueName, baseName, noteRename } from "decks";
     var el = document.getElementById("deck-remember");
     if (!el) return;
 
-    function remember() {
+    /* looked up here rather than reached for across the picker's closure above:
+       the two halves of this file share the page, not their variables */
+    var clashBox = document.getElementById("deck-name-clash");
+    var nameBox = document.getElementById("deck-name-input");
+    var leadBox = document.getElementById("deck-lead-input");
+
+    /* what this deck is called and which shelf entry it is, worked out the same
+       way whether it is being checked as somebody types or saved on submit */
+    function reading() {
+        var d = JSON.parse(el.textContent);
+        var listField = document.querySelector('.deck-mode input[name="list"]');
+        var text = listField ? listField.value : d.text;
+        var f = document.querySelector(".deck-name-field");
+        var decks = read();
+        /*
+            WHICH DECK THIS IS, as against what is currently in it.
+
+            a deck off the shelf carries the list it was first imported as, and
+            that is what the shelf is keyed on: reopening a deck after a swap
+            session hands back the swapped list, and keying on that would file
+            the same deck a second time.
+
+            a fresh paste has no origin, so it is keyed on its own text, and
+            that USED to be the end of it. it is not enough: a pasted deck that
+            has since been swapped comes back holding the new list, whose text
+            matches no entry, so the shelf saw a stranger and filed a second
+            copy. so a list that matches some entry's newList identifies that
+            entry too. this is the whole of "is this a deck I already have"
+        */
+        var key = d.origin || text;
+        var was = null;
+        decks.forEach(function (x) {
+            if (was) return;
+            if (x.text === key || (text && x.newList === text)) was = x;
+        });
+        if (was) key = was.text;
+        return {d: d, text: text, key: key, was: was, decks: decks,
+                wanted: f ? f.value.trim() : ""};
+    }
+
+    /* the deck already using this name, or null. a deck keeping its own name
+       has not clashed with anything, which is why the entry is passed through */
+    function clash(r) {
+        if (r.was && r.was.label && r.wanted === r.was.label) return null;
+        return nameTaken(r.wanted, r.decks, r.key);
+    }
+
+    function saySo(hit) {
+        if (!clashBox) return;
+        clashBox.textContent = hit
+            ? "You already have a deck called " + hit.label + ". Give this one a different name."
+            : "";
+        clashBox.hidden = !hit;
+    }
+
+    /* said as it is typed, so it is answered before anything is clicked rather
+       than by a button that refuses to work */
+    if (nameBox) nameBox.addEventListener("input", function () { saySo(clash(reading())); });
+    if (leadBox) leadBox.addEventListener("input", function () { saySo(clash(reading())); });
+
+    function remember(e) {
         /* read at SUBMIT time, never at load. what the deck is called is not
            settled until the commander has been picked, and what is IN it is
            not settled until the unmatched lines have been dealt with, so a
            snapshot taken on load is a snapshot of neither */
-        var d = JSON.parse(el.textContent);
-        var listField = document.querySelector('.deck-mode input[name="list"]');
-        var text = listField ? listField.value : d.text;
-        if (!text) return;
-        /*
-            which deck this IS, as against what is currently in it. a deck off
-            the shelf carries the list it was first imported as, and that is
-            what the shelf is keyed on: reopening a deck after a swap session
-            hands back the swapped list, and keying on that would file the same
-            deck a second time as "#2" every time it was picked up.
+        var r = reading();
+        if (!r.text) return;
 
-            a fresh paste or import has no origin, so it is keyed on itself.
-        */
-        var key = d.origin || text;
-        var f = document.querySelector(".deck-name-field");
-        var wanted = f ? f.value.trim() : "";
-
-        var decks = read();
-        /* the same deck twice is one entry, moved back to the front, rather
-           than a history that fills with the deck you keep rereading. its OLD
-           entry is found before it is removed, because a deck coming back
-           round keeps the name it was given: renumbering it on every visit is
-           how one deck became #2, then #4, then #6 */
-        var was = null;
-        decks = decks.filter(function (x) {
-            if (x.text === key) { was = x; return false; }
-            return true;
-        });
-
-        /* it already had a name of its own, so it keeps it. only a deck being
-           named for the first time, or renamed, goes through the numbering */
-        var name = wanted;
-        if (was && was.label && wanted === was.label) name = was.label;
-        else name = uniqueName(wanted, decks, key);
-
-        /* it got NUMBERED, so say so on the page this is about to land on.
-           checked off the number rather than off "the name changed", because
-           uniqueName also tidies a "#2" somebody typed themselves down to the
-           bare name, and that is not a clash and not worth a word */
-        if (name && wanted && name !== wanted && baseName(name).n > 1) {
-            noteRename(baseName(name).name, name);
+        /* REFUSED, not renamed. the shelf used to accept the clash, file the
+           deck as "#2" and try to tell you on the next page. the person who
+           chose the name is standing right here and is the only one who knows
+           what they meant by it */
+        var hit = clash(r);
+        if (hit) {
+            e.preventDefault();
+            saySo(hit);
+            if (nameBox) { nameBox.focus(); nameBox.select(); }
+            return;
         }
+        saySo(null);
 
-        /* and the deck travels under the name it was SAVED as, which until now
-           it did not: the shelf filed "Kratos, God of War #2" while the fields
-           still carried the "Kratos, God of War" that was typed, so the page
-           you landed on was titled one thing and the shelf listed another.
-           it is also what lets the rename banner know which deck it is about.
-           the note names the numbered deck, the page it lands on is now titled
-           with that same name, and the two can be compared. matching on the
-           base name could not tell the new deck from the one it clashed with,
-           because the base name is exactly what they have in common */
-        document.querySelectorAll(".deck-name-field").forEach(function (f) { f.value = name; });
+        var decks = r.decks.filter(function (x) { return x.text !== r.key; });
+        /* a deck coming back round keeps the name it was given unless a new one
+           was typed over it */
+        var name = r.wanted || (r.was && r.was.label) || "";
 
         /* the entry is keyed on the origin and remembers where the deck has
            actually got to, so a row can offer both: the deck as imported,
            and the deck as it stands. whatever a swap session left behind
            rides along untouched, because picking a deck back up is not
            what should undo the work done to it */
-        var entry = {text: key, count: d.count, label: name, at: Date.now()};
-        if (was) {
+        var entry = {text: r.key, count: r.d.count, label: name, at: Date.now()};
+        if (r.was) {
             ["swaps", "goal", "added", "newList"].forEach(function (k) {
-                if (was[k]) entry[k] = was[k];
+                if (r.was[k]) entry[k] = r.was[k];
             });
         }
         /* it arrived as a list that is not the one it was imported as, so
            that IS where it has got to, and it replaces whatever the last
            session recorded */
-        if (key !== text) entry.newList = text;
+        if (r.key !== r.text) entry.newList = r.text;
         decks.unshift(entry);
         write(decks);
     }

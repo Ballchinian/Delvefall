@@ -52,15 +52,14 @@
 
            IN THE HEAD, and it has to be. an import map only applies to module
            tags the parser meets AFTER it, and it used to sit at the foot of the
-           body on the reasoning that the scripts block was the first module tag
-           on any page. that stopped being true the day a partial started
-           shipping its own: partials/renamed.html puts a module halfway up the
-           body, met the map never arrived in time for, and every browser
-           answered `Failed to resolve module specifier "decks"` and dropped the
-           script. the rename banner has been silently dead ever since, which
-           also left its one-shot note sitting in sessionStorage waiting to be
-           read by the next deck page that managed to run the script.
-           the head is the one place nothing can get in front of #}
+           body on the reasoning that the scripts block held the first module tag
+           on any page. that reasoning was one partial away from wrong, and a
+           partial did it: it included a module halfway up the body, which the
+           map then arrived too late for, and every browser answered `Failed to
+           resolve module specifier "decks"` and dropped the script. it failed
+           silently for as long as nobody looked.
+           the partial in question is gone now, which changes nothing: the head
+           is the one place no include can get in front of #}
         <script type="importmap">
         {"imports": {
             "dom": "{{ static_url('js/dom.js') }}",
