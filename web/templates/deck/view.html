@@ -20,8 +20,6 @@
 
     <h1>{{ deck_name or 'Your deck' }}</h1>
     {% include "partials/renamed.html" %}
-    <p class="deck-detail-sub">{{ matched }} card{{ '' if matched == 1 else 's' }},
-    every one of them below.</p>
 
     {# what a swap session left behind, and the deck's own list. the same three
        blocks the end of /deck/swap draws, from the same partial, so the two
@@ -43,9 +41,6 @@
                           want to.",
                     name=deck_name, commander=commander, origin=origin) }}
     </div>
-
-    <p class="deck-detail-foot">Nothing here was saved. The list above is the one this
-    browser is holding, and it goes no further than the request that drew this page.</p>
 </div>
 
 {# which shelf entry to look up, so the script can find whatever this deck's

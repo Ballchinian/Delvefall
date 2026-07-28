@@ -3306,7 +3306,11 @@ def deck_view():
     name, commander = deck_identity()
     with pool.connection() as conn:
         cards = deck_cards(conn, ids, cur)
-    return render_template("deck/view.html", cards=cards, matched=len(ids),
+    #no matched count: the page used to open with "71 cards, every one of them
+    #below" and the fold under it already says "View every card image 71 cards".
+    #it was also the one number on the page a revert could not correct, since
+    #the count is the server's and the revert is the browser's
+    return render_template("deck/view.html", cards=cards,
                            section=DECK_SECTION,
                            missing=missing, cur=cur, deck_name=name,
                            commander=commander, pasted=text[:DECK_MAX_CHARS],
