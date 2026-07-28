@@ -170,7 +170,12 @@
                 <div class="more-lines" title="{{ r.more_text }}">+{{ r.more_count }} more matching {% if r.more_count == 1 %}line{% else %}lines{% endif %}</div>
                 {% endif %}
                 {% if r.concept_tags %}
-                <div class="concept-tags" title="community tags shared with your card{% if not r.concept_only %} - concept match {{ r.concept_pct }}%{% endif %}">{{ r.concept_tags }}</div>
+                {# the tags and what they are, and nothing else. it used to add
+                   "concept match 63%", a second number for a card that already
+                   prints its match on the badge above, in units nobody asked
+                   for. the line tooltip beside it names the matched line and
+                   stops, and these two are the same kind of label #}
+                <div class="concept-tags" title="community tags shared with your card">{{ r.concept_tags }}</div>
                 {% endif %}
             </div>
             {% endfor %}

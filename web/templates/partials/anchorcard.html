@@ -77,15 +77,16 @@
             {% endif %}
             {% endfor %}
         </div>
+        {# only when something IS picked, and it reports rather than instructs.
+           the sentence that used to sit here when nothing was picked explained
+           at length that lines are clickable, which the one short invitation
+           under the chips now does for both pickers at once #}
+        {% if picked_count %}
         <p class="line-hint">
-            {% if picked_count %}
             {% if mode == 'swap' %}replacing {{ 'this line' if picked_count == 1 else 'these lines' }}
             only{% else %}searching {{ 'this line' if picked_count == 1 else 'these lines' }} only{% endif %}{% if line_tags_on %}, on both scores{% endif %}. click to toggle
-            {% else %}
-            every line here is clickable: {% if mode == 'swap' %}replace{% else %}search{% endif %}
-            one ability on its own, or a few together
-            {% endif %}
         </p>
+        {% endif %}
         {# the concepts side's half of the picker: the community tags this card
            was given, with picking a line narrowing them to that one ability.
            LINE_TAGS=0 is the kill switch, and with it off the route hands back
@@ -99,6 +100,12 @@
                     data-state="{{ chip.state }}" title="{{ chip.description or chip.tag }}">{{ chip.tag }}</button>
             {% endfor %}
         </div>
+        {# the same rule as the line hint above: it speaks when the picker is in
+           a state worth explaining, and says nothing when it is not. the two
+           paragraphs that used to describe what the chips are FOR are gone,
+           because between the word "concepts" and a row of tags the page was
+           spending three lines to introduce a control you learn by clicking #}
+        {% if aside_count or dropped_count or (picked_count and line_tags_on) %}
         <p class="line-hint">
             {% if aside_count %}
             concepts: the faded tags aren't what your highlighted {{ 'line' if picked_count == 1 else 'lines' }}
@@ -106,11 +113,6 @@
             <strong>this is a guess and it gets things wrong</strong>, so click one to put it back
             {% elif dropped_count %}
             concepts: the crossed out tags are switched off, the concepts side is ignoring them
-            {% elif line_tags_on %}
-            concepts: the concepts score searches these community tags. highlight a line above to
-            narrow them to that ability, or click one to switch it off
-            {% else %}
-            concepts: the concepts score searches these community tags. click one to switch it off
             {% endif %}
             {# the report only makes sense once a line is picked: with no pick
                every tag is on, and "this tag is wrong for the whole card" is a
@@ -119,6 +121,17 @@
              <a href="#" id="report-tag" class="report-open">a tag on the wrong line?</a>
             {% endif %}
         </p>
+        {% endif %}
+        {% endif %}
+
+        {# ONE invitation for both pickers, under the pair of them, and only
+           while both are untouched. it replaces two paragraphs that said the
+           same thing twice at four times the length, and it goes away the
+           moment anything is clicked, because by then the sentences above are
+           reporting what the click did and an invitation to do it again is
+           just the page talking over itself #}
+        {% if not picked_count and not aside_count and not dropped_count %}
+        <p class="line-hint">Click a line or tag to filter</p>
         {% endif %}
     </div>
 </div>
