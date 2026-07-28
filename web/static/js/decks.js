@@ -43,43 +43,27 @@ export function write(decks) {
     }
 }
 
-//the deck on this shelf already called `want`, or null.
+//TWO DECKS MAY SHARE A NAME, and nothing here checks. this went through three
+//rules before landing on none, which is worth writing down so it is not
+//reinvented a fourth time:
 //
-//THE SHELF USED TO NUMBER A CLASH INSTEAD OF REFUSING IT, appending "#2" and
-//then telling you it had. that rule is gone, and it is worth writing down why,
-//because it looked reasonable and was wrong in four separate ways:
+//  1. NUMBER THE CLASH. the shelf appended "#2" and told you afterwards, which
+//     needed a note carried between two pages, which needed the note to know
+//     which deck it was about, which it could not: a numbered deck and the deck
+//     it was numbered against share the very name the note was matched on. it
+//     also normalised what you typed before comparing, so asking for
+//     "Kratos, God of War #3" came back as "#2".
+//  2. REFUSE THE CLASH. one rule, no state, said where the name was typed. but
+//     refusing means blocking the submit, and the submit was the mode button:
+//     pick a name another deck had and View it simply stopped working. a naming
+//     rule that can break the page's primary action is worse than the thing it
+//     was protecting against.
+//  3. NOTHING. the name is a LABEL. no deck is ever found by it: the hub opens
+//     by d.text, the swap tool writes by d.origin || d.text, /deck/view looks
+//     up the same way. two decks called "Kratos, God of War" are two rows with
+//     the same word on them, which is a thing the person who named them can see
+//     and fix, and which breaks nothing at all.
 //
-//  - it normalised what you typed before comparing, so asking for
-//    "Kratos, God of War #3" was read as a request for "Kratos, God of War",
-//    which clashed, and came back as "#2". the answer to a name you chose was
-//    a different name you did not.
-//  - it had to tell you afterwards, which needed a note carried between two
-//    pages, which needed the note to know which deck it was about, which it
-//    could not, because a numbered deck and the deck it was numbered against
-//    share the name the note was matched on.
-//  - "#2" is not a name. it is the shelf admitting it could not do the thing
-//    and going ahead anyway.
-//  - and the numbers had to be maintained: dedupe() existed only to close the
-//    gaps the numbering left behind.
-//
-//refusing is one rule with no state, nothing to carry between pages and nothing
-//to tidy up afterwards. the person naming the deck is right there and is the
-//only one who knows what they meant.
-//
-//`mine` is the entry being named, by its text key, and is skipped: a deck
-//keeping the name it already has has not clashed with anything.
-//
-//names are compared CASE INSENSITIVELY and with the ends trimmed, so "goblins "
-//does not slip onto a shelf that has "Goblins". it is a comparison only: what
-//gets stored is what was typed, because the shelf decides which decks share a
-//name, not how somebody capitalises their own deck
-export function nameTaken(want, decks, mine) {
-    want = (want || "").trim().toLowerCase();
-    if (!want) return null;
-    var hit = null;
-    (decks || []).forEach(function (d) {
-        if (hit || (mine !== undefined && d.text === mine)) return;
-        if ((d.label || "").trim().toLowerCase() === want) hit = d;
-    });
-    return hit;
-}
+//it also answers the hand-edited-localStorage question for free: a duplicate
+//name arriving from outside cannot corrupt anything, because nothing resolves a
+//deck by name in the first place.

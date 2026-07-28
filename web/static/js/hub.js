@@ -4,7 +4,7 @@
 //straight relocation minus its own copy of el
 
 import { el } from "dom";
-import { read, write, nameTaken, KEY } from "decks";
+import { read, write, KEY } from "decks";
 
 (function () {
     var box = document.getElementById("deck-recent");
@@ -56,7 +56,16 @@ import { read, write, nameTaken, KEY } from "decks";
             var btn = el("button", "deck-recent-open", li, d.label || (d.count + " cards"));
             btn.type = "button";
             btn.addEventListener("click", function () { open(d); });
-            el("span", "deck-recent-meta", li, d.count + " cards");
+            /* HOW MUCH THIS DECK HAS MOVED, not how big it is. the card count
+               was the same number on every row for anybody who plays one format
+               (a hundred, a hundred, a hundred) and said nothing about which
+               deck you were looking at.
+               the swaps are a running total: every change ever made to this
+               list, across every session, never reset. that is what makes it
+               worth a line on the shelf */
+            var n = (d.swaps || []).length;
+            el("span", "deck-recent-meta", li,
+               n ? n + (n === 1 ? " change" : " changes") : "unchanged");
 
             var tools = el("span", "deck-recent-tools", li);
 
@@ -77,20 +86,10 @@ import { read, write, nameTaken, KEY } from "decks";
                 if (now === null) return;
                 now = now.trim();
                 var all = read();
-                /* REFUSED rather than numbered, the same rule the naming page
-                   follows. it used to accept the clash and file the deck under
-                   a number, which had a particular way of reading as broken:
-                   asking for "Kratos, God of War #3" was normalised to the base
-                   name, clashed, and came back as "#2", so the shelf answered a
-                   name you chose with a different name you did not.
-                   d.text is passed as "mine" so a deck keeping its own name is
-                   not held to have clashed with itself */
-                var hit = nameTaken(now, all, d.text);
-                if (hit) {
-                    window.alert("You already have a deck called " + hit.label
-                                 + ". Give this one a different name.");
-                    return;
-                }
+                /* whatever was typed, including a name another deck already
+                   has. see decks.js for the three rules this went through and
+                   why none of them earned their keep: the name is a label, and
+                   nothing on this site finds a deck by one */
                 /* matched by TEXT, never by position: the list may have been
                    rewritten in another tab since this row was drawn */
                 all.forEach(function (x) { if (x.text === d.text) x.label = now; });

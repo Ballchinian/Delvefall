@@ -10,7 +10,7 @@
 //the shelf and its naming rule live in decks.js, shared with the hub, because a
 //rule enforced in one of the two places that name a deck is not a rule
 
-import { read, write, nameTaken } from "decks";
+import { read, write } from "decks";
 
 (function () {
     var input = document.getElementById("deck-lead-input");
@@ -129,14 +129,7 @@ import { read, write, nameTaken } from "decks";
     var el = document.getElementById("deck-remember");
     if (!el) return;
 
-    /* looked up here rather than reached for across the picker's closure above:
-       the two halves of this file share the page, not their variables */
-    var clashBox = document.getElementById("deck-name-clash");
-    var nameBox = document.getElementById("deck-name-input");
-    var leadBox = document.getElementById("deck-lead-input");
-
-    /* what this deck is called and which shelf entry it is, worked out the same
-       way whether it is being checked as somebody types or saved on submit */
+    /* what this deck is called and which shelf entry it is */
     function reading() {
         var d = JSON.parse(el.textContent);
         var listField = document.querySelector('.deck-mode input[name="list"]');
@@ -169,46 +162,22 @@ import { read, write, nameTaken } from "decks";
                 wanted: f ? f.value.trim() : ""};
     }
 
-    /* the deck already using this name, or null. a deck keeping its own name
-       has not clashed with anything, which is why the entry is passed through */
-    function clash(r) {
-        if (r.was && r.was.label && r.wanted === r.was.label) return null;
-        return nameTaken(r.wanted, r.decks, r.key);
-    }
+    /*
+        THIS NEVER REFUSES AND NEVER PREVENTS THE SUBMIT.
 
-    function saySo(hit) {
-        if (!clashBox) return;
-        clashBox.textContent = hit
-            ? "You already have a deck called " + hit.label + ". Give this one a different name."
-            : "";
-        clashBox.hidden = !hit;
-    }
-
-    /* said as it is typed, so it is answered before anything is clicked rather
-       than by a button that refuses to work */
-    if (nameBox) nameBox.addEventListener("input", function () { saySo(clash(reading())); });
-    if (leadBox) leadBox.addEventListener("input", function () { saySo(clash(reading())); });
-
-    function remember(e) {
+        it briefly did both, to stop two decks sharing a name, and the cost was
+        out of all proportion: the submit it blocked was the mode button, so
+        typing a name another deck had made View it stop working, with a
+        sentence beside the box as the only clue. saving a deck is what this
+        page is FOR, and nothing about a label is worth not doing it.
+    */
+    function remember() {
         /* read at SUBMIT time, never at load. what the deck is called is not
            settled until the commander has been picked, and what is IN it is
            not settled until the unmatched lines have been dealt with, so a
            snapshot taken on load is a snapshot of neither */
         var r = reading();
         if (!r.text) return;
-
-        /* REFUSED, not renamed. the shelf used to accept the clash, file the
-           deck as "#2" and try to tell you on the next page. the person who
-           chose the name is standing right here and is the only one who knows
-           what they meant by it */
-        var hit = clash(r);
-        if (hit) {
-            e.preventDefault();
-            saySo(hit);
-            if (nameBox) { nameBox.focus(); nameBox.select(); }
-            return;
-        }
-        saySo(null);
 
         var decks = r.decks.filter(function (x) { return x.text !== r.key; });
         /* a deck coming back round keeps the name it was given unless a new one
