@@ -83,6 +83,10 @@
             <input type="hidden" name="axis" value="{{ swaps.salt.axis }}">
             <input type="hidden" name="dir" value="{{ swaps.salt.dir }}">
             <button type="submit">
+                {# the same mark the macro would have given this row. this one
+                   form is hand written because the pager rewrites its axis, so
+                   it has to carry the swap arrows itself #}
+                <i class="mode-mark mode-change" aria-hidden="true"></i>
                 <span class="deck-mode-title">Change it</span>
                 <span class="deck-mode-body">Walk the deck one card at a time, worst first,
                 and swap what you want to. Nothing changes until you copy the new list out

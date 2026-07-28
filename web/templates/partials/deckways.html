@@ -14,6 +14,20 @@
    {% call %} it to hang a control off the row, which the swap axis picker
    needs: a select cannot live inside the submit button, since opening it would
    submit the form #}
+
+{# the drawing on each row, keyed by WHERE IT GOES and not by a parameter. the
+   wording is the caller's business because the same door is a different offer
+   on a precon page, but the picture is a fact about the destination: "view it"
+   and "see the cards" are two ways of saying one place, and both should arrive
+   wearing the same mark. keyed here, so no call site can forget one or pass
+   the wrong one.
+
+   there are three, for the three things you can do with a deck. /deck/open is
+   the door to all three and so is not any of them: it takes no mark, and the
+   css holds its column open so its row still lines up #}
+{% set marks = {'/deck/view': 'view', '/deck/read': 'compare',
+                '/deck/swap': 'change'} %}
+
 {% macro way(action, title, go, pasted, body='', name='', commander='', origin='', seen='1') %}
 <form action="{{ action }}" method="post" class="deck-mode">
     <input type="hidden" name="list" value="{{ pasted }}">
@@ -24,6 +38,7 @@
     <input type="hidden" name="commander" class="deck-commander-field" value="{{ commander }}">
     {% if seen %}<input type="hidden" name="seen" value="{{ seen }}">{% endif %}
     <button type="submit">
+        {% if marks.get(action) %}<i class="mode-mark mode-{{ marks[action] }}" aria-hidden="true"></i>{% endif %}
         <span class="deck-mode-title">{{ title }}</span>
         {% if body %}<span class="deck-mode-body">{{ body }}</span>{% endif %}
         <span class="deck-mode-go">{{ go }} &rarr;</span>

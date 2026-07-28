@@ -50,6 +50,35 @@
        draw them in. deliberately chunky: it is read at 11px, where a
        finer shaker turns into a grey blob */
     --shaker: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2016%2016'%3E%3Cpath%20fill-rule='evenodd'%20d='M8%201.6c-2%200-3.6%201.6-3.6%203.6v7.3c0%20.9.7%201.6%201.6%201.6h4c.9%200%201.6-.7%201.6-1.6V5.2c0-2-1.6-3.6-3.6-3.6zM4.6%206.2h6.8v1H4.6zM6.5%203.3a.6.6%200%201%200%200%201.2.6.6%200%200%200%200-1.2zm3%200a.6.6%200%201%200%200%201.2.6.6%200%200%200%200-1.2zM8%202.6a.6.6%200%201%200%200%201.2.6.6%200%200%200%200-1.2z'/%3E%3C/svg%3E");
+
+    /* the three things you can do with a deck: a lens for looking at it, two
+       panels side by side for placing it against the precons, and two cards
+       trading places for changing it.
+
+       held here rather than as files under static, like every other icon on
+       the site, for the two reasons the shaker is: masking them from
+       currentColor is what lets one drawing sit muted on a resting row and
+       teal on a hovered one, and an <img> would be three more requests for
+       three hundred bytes.
+
+       they arrived at 800px from three different icon sets and are normalised
+       to one weight here, since the thing that makes a set look like a set at
+       24px is the thickness of the line and nothing else. the lens is redrawn
+       at the others' weight (its own was a hairline meant for 800px, which
+       comes out under a pixel here and vanishes); the exchange is carried at
+       its own 32 box with a stroke laid over the fill, which is the cheap way
+       to fatten line art that has its weight baked into the outline */
+
+    /* the deck lens. the circle sits high and left so the handle has its
+       corner, which is the one proportion a magnifier cannot get wrong */
+    --lens: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='%23000'%20stroke-width='2.5'%20stroke-linecap='round'%3E%3Ccircle%20cx='10.1'%20cy='10.1'%20r='6.9'/%3E%3Cpath%20d='M15%2015l5.8%205.8'/%3E%3C/svg%3E");
+    /* your deck and the field, split down the middle. the left half is solid
+       and the right half dotted on purpose: one of the two is the thing you
+       brought and the other is everything it is being measured against */
+    --split: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='%23000'%20stroke-width='2.5'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Cpath%20d='M13%204H6C4.9%204%204%204.9%204%206V18C4%2019.1%204.9%2020%206%2020H13M17%204H18C19.1%204%2020%204.9%2020%206V7M20%2017V18C20%2019.1%2019.1%2020%2018%2020H17M20%2011V13M12%202V22'/%3E%3C/svg%3E");
+    /* two cards trading places, one arrow each way. neither direction is the
+       important one, which is what a swap is */
+    --exchange: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%20stroke='%23000'%20stroke-width='1.1'%20stroke-linejoin='round'%3E%3Cpath%20d='M28,6H18V4a2,2,0,0,0-2-2H4A2,2,0,0,0,2,4V24a2,2,0,0,0,2,2H14v2a2,2,0,0,0,2,2H28a2,2,0,0,0,2-2V8A2,2,0,0,0,28,6ZM4,15h6.17L7.59,17.59,9,19l5-5L9,9,7.59,10.41,10.17,13H4V4H16V24H4ZM16,28V26a2,2,0,0,0,2-2V8H28v9H21.83l2.58-2.59L23,13l-5,5,5,5,1.41-1.41L21.83,19H28v9Z'/%3E%3C/svg%3E");
 }
 
 * { box-sizing: border-box; }
@@ -1870,13 +1899,20 @@ footer a { color: var(--teal); }
 
 .deck-mode:hover { background: var(--wash); }
 
-/* title and body on the left, the go line on the right and vertically centred
-   against both. one row per thing you could do, which is what a list is */
+/* the mark, then title and body, then the go line on the right and vertically
+   centred against both. one row per thing you could do, which is what a list is.
+   the mark gets a COLUMN rather than sitting inside the title, so the title and
+   the sentence under it still start at the same place: an icon shoved into the
+   title indents the title alone and leaves the row with two left edges.
+   the column is a FIXED width rather than auto, so it is held open on the one
+   row that has no mark (the precon page's way into the lens, which is a door to
+   all three of these and so is none of them). auto would collapse it there and
+   leave that row's title starting 38px left of the one under it */
 .deck-mode button {
     display: grid;
-    grid-template-columns: 1fr auto;
+    grid-template-columns: 24px 1fr auto;
     align-items: center;
-    gap: 3px 20px;
+    gap: 3px 14px;
     width: 100%;
     padding: 0;
     border: 0;
@@ -1888,21 +1924,21 @@ footer a { color: var(--teal); }
 }
 
 .deck-mode-title {
-    grid-column: 1;
+    grid-column: 2;
     font-family: var(--serif);
     font-weight: 600;
     font-size: 18px;
 }
 
 .deck-mode-body {
-    grid-column: 1;
+    grid-column: 2;
     font-size: 13.5px;
     color: var(--muted);
     line-height: 1.5;
 }
 
 .deck-mode-go {
-    grid-column: 2;
+    grid-column: 3;
     grid-row: 1 / -1;
     font-size: 13.5px;
     white-space: nowrap;
@@ -1911,15 +1947,46 @@ footer a { color: var(--teal); }
 
 .deck-mode:hover .deck-mode-go { text-decoration: underline; }
 
+/* which page this row is a door to, masked from the text colour like the salt
+   shaker is. spanning both rows rather than riding row one keeps it centred on
+   the whole row, so it reads as the row's mark and not as a bullet on the title.
+   an <i> and not an <img>, again like the shaker: the title beside it already
+   says View it, and a screen reader announcing "image" here would add nothing.
+   at 24px, which is where these three were normalised to be read.
+   muted at rest so three rows of them do not read as three buttons, and it takes
+   the action colour with the go line when the row is under the pointer */
+.mode-mark {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+    width: 24px;
+    height: 24px;
+    color: var(--muted);
+    background: currentColor;
+    -webkit-mask: var(--mark) center / contain no-repeat;
+    mask: var(--mark) center / contain no-repeat;
+}
+
+.deck-mode:hover .mode-mark { color: var(--teal); }
+
+/* which drawing, off the destination. one line each, because the rule above
+   already knows how to wear any of them */
+.mode-view { --mark: var(--lens); }
+
+.mode-compare { --mark: var(--split); }
+
+.mode-change { --mark: var(--exchange); }
+
 /* under about a phone the go line has nowhere to sit beside the text, so it
    drops under it and the row reads top to bottom like everything else */
 @media (max-width: 560px) {
     .deck-mode button {
-        grid-template-columns: 1fr;
+        grid-template-columns: 24px 1fr;
     }
 
+    /* under the sentence, still in the text column: the mark keeps its own
+       column at every width, so the row never loses its left edge */
     .deck-mode-go {
-        grid-column: 1;
+        grid-column: 2;
         grid-row: auto;
         padding-top: 4px;
     }
