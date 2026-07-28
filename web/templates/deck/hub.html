@@ -98,6 +98,6 @@
 {% endblock %}
 
 {% block scripts %}
-{% include "partials/missing_js.html" %}
+<script type="module" src="{{ static_url('js/missing.js') }}"></script>
 <script type="module" src="{{ static_url('js/hub.js') }}"></script>
 {% endblock %}
