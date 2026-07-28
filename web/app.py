@@ -4682,17 +4682,33 @@ def feedback():
             return {"ok": False, "stored": False, "msg": "Say a few words about why it's a bad match first."}
 
         got_pct = best_sim(conn, card["oracle_id"], got["oracle_id"], picked)
+        #the same split the missing branch makes, and for the same reason. the
+        #DATABASE keeps the mechanical percent and the snapshot keeps the
+        #concept half, because the review needs the two axes apart to route a
+        #report. the SENTENCE quotes the number the page actually badged, which
+        #past detent 0 is the blend of the two.
+        #it used to quote the mech half here, so flagging Professor Hulk under
+        #Ancient Silver Dragon answered "shows at 92% right now" about a card
+        #the page had just badged 78%: the site contradicting its own results
+        #by fourteen points, at the exact moment somebody had told it that
+        #number was wrong
+        shown_pct = got_pct
         if blend > 0:
-            #the badge the user flagged was blended, so keep the concept half
-            #on file - the review needs it to route the report to an axis
-            snap["concept_pct"] = concept_between(conn, card["oracle_id"], got["oracle_id"], dropped)
+            cpct = concept_between(conn, card["oracle_id"], got["oracle_id"], dropped)
+            snap["concept_pct"] = cpct
+            #None means the card has no searchable lines, which cannot happen
+            #for a card that was ON the page, but blending it would 500 rather
+            #than say something odd, so the raw value stands
+            if got_pct is not None:
+                w = BLEND_WEIGHTS[blend]
+                shown_pct = int(round((1 - w) * got_pct + w * cpct))
         conn.execute("""INSERT INTO feedback (kind, anchor_id, anchor_name, got_id, got_name,
                                               got_pct, reason, picked_lines, filters, embed_model, ip)
                         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
                      (kind, card["oracle_id"], card["name"], got["oracle_id"], got["name"],
                       got_pct, reason, "\n".join(picked), json.dumps(snap), model, ip))
         return {"ok": True, "stored": True,
-                "msg": "Logged. " + got["name"] + " shows at " + str(got_pct) +
+                "msg": "Logged. " + got["name"] + " shows at " + str(shown_pct) +
                        "% right now, and reports like this become the test cases the matcher is graded against."}
 
 
