@@ -63,8 +63,8 @@
                     data-body="The community tags this card has in common with yours, rarest first. These are what the concepts half of the score searches, so when a card arrives with no matching line of text, these tags are why it is here.">i</button></div>
         </div>
     </div>
-    <p>Clicking a result's picture opens it on Scryfall. <strong>Ctrl-click</strong> (cmd
-    on mac) searches that card here instead, for following a thread without leaving.</p>
+    <p>A result's picture opens it on Scryfall. <strong>Ctrl-click</strong> (cmd on mac)
+    searches it here instead.</p>
 
     {# one dialog, refilled by whichever mark was clicked. <dialog> brings its
        own backdrop, focus trap and escape key, so none of that is hand rolled #}
@@ -76,21 +76,19 @@
     {% endif %}
 
     <h2>Two kinds of similar, counted together</h2>
-    <p>Every result is scored twice, and the two scores are averaged.</p>
+    <p>Every result is scored twice and the two are averaged.</p>
     <ul>
-        <li><strong>rules text</strong>: cards whose printed text works the same way. Search
-            Sol Ring, get the other rocks that tap for two.</li>
-        <li><strong>concepts</strong>: cards built around the same idea, from community tags.
-            Search Sol Ring, get the whole mana-rock family.</li>
-        <li>The badge on every card is the average of the two, and the list is always in order
-            of the number you see. Hover it to break the number back into its halves.</li>
+        <li><strong>rules text</strong>: cards whose printed text works the same way. Sol
+            Ring gets the other rocks that tap for two.</li>
+        <li><strong>concepts</strong>: cards built around the same idea, from community
+            tags. Sol Ring gets the whole mana-rock family.</li>
+        <li>The badge is the average, and the list is always in order of it. Hover to break
+            it back into halves.</li>
     </ul>
-    <p>Weaker matches aren't thrown away. The button under the results opens them ten
-    percentage points at a time and labels each batch, which is what keeps the sorts
-    honest: sorting one band by price answers "what is the cheapest card that matches this
-    well", where opening everything below the line at once would just hand you the cheapest
-    card in the game with a faint resemblance. Anything that reloads the page, the sort
-    included, starts you back at the strong matches.</p>
+    <p>Weaker matches open ten percentage points at a time, which is what keeps a sort
+    honest: one band sorted by price answers "the cheapest card that matches this well",
+    where everything at once would just hand you the cheapest card in the game with a faint
+    resemblance.</p>
 
     <h2 id="filters">Filters</h2>
     <p>The whole vocabulary:</p>
@@ -106,8 +104,7 @@
             <code>mv&lt;=2</code> <code>cmc=4</code> mana value</li>
         <li><code>salt&gt;=1.5</code> how much players dislike facing a card, from
             <a href="https://edhrec.com/top/salt" target="_blank" rel="noopener">EDHREC's
-            salt survey</a>. Runs 0 to about 3, and only 2% of cards pass 1. Cards
-            nobody voted on have no score and fail any salt comparison</li>
+            salt survey</a>. 0 to about 3, and only 2% of cards pass 1</li>
         <li><code>is:dfc</code> two-sided cards, <code>is:split</code>
             <code>is:mdfc</code> <code>is:saga</code> and other layouts,
             <code>is:gamechanger</code> the commander watchlist</li>
@@ -117,95 +114,51 @@
             creatures), words side by side mean and, <code>or</code> and parentheses
             group: <code>(o:draw or o:scry) -t:creature</code></li>
     </ul>
-    <p>That's the whole vocabulary, not all of scryfall's. There's no
-    <code>pow</code>/<code>tou</code>, rarity, set, artist, format beyond commander,
-    or regex here yet, the cards table just doesn't carry those fields. Anything the
-    box doesn't recognise is skipped rather than erroring, so a stray word never
-    breaks the search.</p>
+    <p>That's the whole vocabulary, not all of scryfall's: no <code>pow</code>/<code>tou</code>,
+    rarity, set, artist, format beyond commander or regex, because the cards table doesn't
+    carry those fields. Anything unrecognised is skipped rather than erroring, so a stray
+    word never breaks a search.</p>
+
     <h2 id="pounds">Where the pound price comes from</h2>
-    <p>Scryfall quotes dollars and euros only, so pounds are worked out here rather than
-    looked up: both prices are converted at the day's ECB rates and averaged, or whichever
-    one the card has if it only has one. A card with neither has no pound price, and any
-    price filter hides it.</p>
-    <p>So a pound figure is a fair estimate, not a price anyone is actually asking. For a
-    real number, check a UK seller. Dollars and euros are printed exactly as scryfall
-    reports them.</p>
+    <p>Scryfall quotes dollars and euros only, so pounds are worked out here: both
+    converted at the day's ECB rates and averaged, or whichever one the card has. It is an
+    estimate, not a price anyone is asking. Dollars and euros are printed exactly as
+    scryfall reports them.</p>
 
     <h2>Unique cards</h2>
-    <p><a href="/unique">The unique page</a> runs the same math backwards: a card's score is
-    one minus its best match anywhere in Magic, on both axes and averaged the same way a
-    search is. A card at 90% has nothing out there more than 10% like it.</p>
-    <p>Three things about it you can't see from the page:</p>
-    <ul>
-        <li><strong>It is a draw, not a running order.</strong> It finds the best card left
-            and then deals at random from everything within 5% of it, so two people opening
-            the page do not walk the same sequence, and every press still comes off the top
-            of what remains.</li>
-        <li><strong>It never deals you the same card twice</strong>, and the record of what
-            you have been dealt lives in your browser, so it survives closing the tab and
-            picks up months later. Clearing it is what makes the whole game fresh again.</li>
-        <li><strong>A card with no rules text the matcher can read is never dealt at all.</strong>
-            A vanilla creature is not unique, it has nothing to be unique about.</li>
-    </ul>
+    <p><a href="/unique">The unique page</a> is the same math backwards: one minus a card's
+    best match anywhere in Magic. 90% means nothing out there is more than 10% like it.</p>
+    <p>It deals at random from everything within 5% of the best card left, so it is a draw
+    rather than a running order and no two people walk the same sequence.</p>
 
+    {# the one thing about the lens somebody cannot work out by using it. the
+       rest of this section described the pages themselves, which anybody who
+       has reached them has already read #}
     <h2 id="decks">The deck lens</h2>
-    <p><a href="/deck">Paste a decklist or import one</a> from Archidekt or Moxfield and the
-    same reading gets applied to a whole deck: how original it is, how salty, what it costs,
-    how played its cards are and how old, each one placed against every Commander precon.
-    Placing a deck needs at least {{ deck_min }} nonland cards. Shorter lists are still
-    read, they just aren't ranked.</p>
-
-    <p><strong>Change it</strong> walks the deck a card at a time, worst first, and offers
-    replacements. Cards with nothing close enough are stepped over rather than swapped for
-    something worse, and they're named together at the end, because "nothing else does
-    this" is a real finding about a card.</p>
-
-    <p>Saved decks live in your browser and nowhere else. Nothing about a deck reaches the
-    server beyond the request that reads it, which is why there's no account to make and
-    why your decks aren't waiting for you on another machine. Reopening a deck you have
-    swapped picks up where you left it, and the list it arrived as is kept alongside.</p>
-
-    <p>Found a bad match, or missing a card you expected? The report link on any results
-    page is the fastest way to change what happens next: those reports become the test
-    cases the matcher has to pass.</p>
+    <p><a href="/deck">The lens</a> reads the most original half of a deck. The other half
+    is lands and the staples every deck brings, which tell no two decks apart. Salt and age
+    drop basic lands, play rate drops every land.</p>
 
     {# the section this page was missing, and the reason it exists: everything
        above is a description of what is on screen, which anyone using the site
        can see for themselves. these are the rules that decide what NEVER
        reaches the screen, and every one of them has been mistaken for a bug #}
     <h2 id="hidden">Rules you can't see</h2>
-    <p>The site holds cards back on purpose in a few places. None of these are failures,
-    but all of them look like one if you don't know they're there.</p>
+    <p>Three things that look like bugs and aren't.</p>
     <ul>
-        <li><strong>A replacement has to cost about the same.</strong> Similarity is
-            measured on rules text, and rules text can't see a curve: a two mana rock and a
-            six mana rock read identically on the ability that makes them rocks. So
-            <strong>Change it</strong> only offers cards near the mana value of the card
-            leaving, within 2 up to five mana and within 3 past it. Above eight it stops
-            counting distance and simply reaches down to five, because up there everything
-            is a finisher. This is why a search can show you fourteen cards and the swap
-            tool offer one: the page now says how many it held back and what the window
-            was.</li>
-        <li><strong>A replacement has to share a real line of text.</strong> Cards that
-            match only on community tags are never offered for a slot, however well they
-            score, and everything offered has to clear 75%.</li>
-        <li><strong>It searches the card's rarest ability, not its best-matching one.</strong>
-            Stasis and Sunken City match perfectly on their upkeep tax, and the untap lock,
-            the entire reason anybody plays or hates Stasis, would go unexamined. So a swap
-            anchors on what makes a card that card, which is sometimes not the line you
-            expected it to use.</li>
-        <li><strong>A missing number fails every comparison.</strong> A card nobody has
-            priced is hidden by any price filter, and a card nobody voted on in the salt
-            survey is hidden by any salt filter. Neither is treated as a zero, because a
-            card with no salt score is not a card players don't mind facing.</li>
-        <li><strong>Lands are left out</strong> of a deck's originality and age, on both
-            your deck and every precon it is placed against. A mana base is not what makes
-            a deck a deck. A deck also needs at least {{ deck_min }} nonland cards before it
-            can be placed at all; shorter lists are still read, just not ranked.</li>
-        <li><strong>Nothing about a deck reaches the server</strong> beyond the request that
-            reads it. Saved decks, swap sessions and the unique page's history are all in
-            your browser, which is why there is no account and why none of it follows you to
-            another machine.</li>
+        <li><strong>A replacement has to cost about the same.</strong> Rules text can't see
+            a curve: a two mana rock and a six mana rock read identically. So
+            <strong>Change it</strong> stays within 2 mana up to five, 3 past it, and above
+            eight just reaches down to five. It is why a search shows fourteen cards and a
+            swap offers one; the page says how many it held back.</li>
+        <li><strong>Salt, price and play rate lag on new cards.</strong> EDHREC's rank
+            counts decks that have added a card and salt counts votes, so both climb for
+            months. A card printed last week reads as unplayed and unsalty because nobody
+            has got to it yet. A card with no score at all fails any filter on it rather
+            than counting as zero.</li>
+        <li><strong>No deck reaches the server</strong> beyond the request that reads it.
+            Decks, swap sessions and the unique history are all in your browser, so there
+            is no account and none of it follows you to another machine.</li>
     </ul>
 </div>
 {% endblock %}
