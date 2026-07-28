@@ -3862,6 +3862,9 @@ body.home main {
     gap: 14px;
     padding-bottom: 18px;
     border-bottom: 1px solid var(--line);
+    /* how wide a card in a pair is, held once because the label has to be the
+       same width to sit over it. see the two rules below */
+    --pair-card: 240px;
 }
 
 .swap-pair-side { min-width: 0; }
@@ -3876,12 +3879,27 @@ body.home main {
    the badge floated right of it, so a long one meets the badge well before
    the row underneath runs out of room: Kongming, "Sleeping Dragon" is 27
    characters with the quotes in it and was the card that found the edge */
-.swap-pair-side .result { max-width: 240px; }
+.swap-pair-side .result { max-width: var(--pair-card); }
 
 /* the incoming card sits against the arrow rather than out at the far edge, so
    the two cards being compared stay next to each other as they shrink */
 .swap-pair-in .result { margin-right: auto; }
 .swap-pair-out .result { margin-left: auto; }
+
+/* and OUT rides over to sit on its card, which is the whole point of a label.
+   the card leaving is pushed to the right of its column by the rule above, and
+   the label is a block, so it stayed behind at the far left of the column: the
+   word sat over empty space with its card a column-width away, while IN sat
+   over its card correctly because the incoming card is pinned left anyway.
+   giving the label the card's width and the same auto margin puts the two on
+   the same left edge, so the pair reads OUT-card, arrow, IN-card at any size.
+   it only shows up on a wide screen. stacked on a phone there is no spare
+   column for the word to be stranded in, which is why this looked fine there */
+.swap-pair-out .swap-pair-label {
+    width: var(--pair-card);
+    max-width: 100%;
+    margin-left: auto;
+}
 
 .swap-pair-label {
     display: block;
