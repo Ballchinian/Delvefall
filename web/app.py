@@ -4224,6 +4224,12 @@ def deck_swap():
     with pool.connection() as conn:
         cards = deck_swappable(conn, ids, cur)
         colors = deck_colors(conn, ids)
+        #the whole deck as pictures, for the fold at the END of a session. the
+        #same rows /deck/view draws from, through the same helper, so the two
+        #folds cannot be two different ideas of what a deck looks like. it is
+        #one more query on a page that already runs three, and it buys the
+        #finished session the thing it used to send people to another page for
+        deck_pictures = deck_cards(conn, ids, cur)
     #flattened here rather than picked apart in the template: the page hands
     #the whole queue to the browser as json, and building that out of five
     #jinja map() filters was a second place for the field names to drift
@@ -4247,6 +4253,10 @@ def deck_swap():
                            matched=len(ids), missing=missing, cur=cur,
                            deck_name=name, commander=commander, batch=SWAP_QUEUE,
                            offer=SWAP_OFFER,
+                           #cards and section are what partials/deckcards.html
+                           #takes, named the same as on every other page that
+                           #includes it
+                           cards=deck_pictures, section=DECK_SECTION,
                            pasted=text[:DECK_MAX_CHARS],
                            #the shelf key, so a finished session writes itself
                            #onto the deck it belongs to rather than looking for

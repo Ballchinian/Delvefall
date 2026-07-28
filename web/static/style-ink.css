@@ -2352,6 +2352,12 @@ footer a { color: var(--teal); }
 
 .swap-again { color: var(--teal); font-size: 14px; }
 
+/* on its own line now, under the list rather than beside its copy button. the
+   copy button and the list box came out of this page and into the partial
+   /deck/view shares, and "read another deck" did not follow them: it is the one
+   thing at the end of a session that only makes sense at the end of a session */
+.swap-again-line { margin: 14px 0 0; }
+
 .swap-made {
     list-style: none;
     margin: 0 0 10px;

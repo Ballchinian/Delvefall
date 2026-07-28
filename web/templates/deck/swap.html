@@ -141,53 +141,31 @@
        persists past the last card. it is the deliverable: without a list you
        can paste back into moxfield the whole session evaporates #}
     <div id="swap-done" hidden>
-        <h2>Your swaps</h2>
-        <ul class="swap-made" id="swap-made"></ul>
-        <p class="deck-section-note" id="swap-summary"></p>
+        {# the same three blocks /deck/view draws, from the same partial. they
+           were a second copy here with a second set of ids, which is how the
+           two pages came to disagree about the heading and about whether a card
+           could be put back #}
+        {% include "partials/deckchanges.html" %}
 
-        {# the same swaps as pictures, folded. names are the fast read and are
-           right most of the time; the pictures are for the moment somebody
-           wants to check what they actually did, which is exactly when a list
-           of names is the wrong medium #}
-        <details class="deck-card-open swap-pairs-box" id="swap-pairs-box" hidden>
-            <summary>View the swapped card images</summary>
-            <div class="swap-pairs" id="swap-pairs"></div>
-        </details>
+        {# the deck as it now stands, which the swap page used to refuse to
+           show: "this page is about one card at a time" was right about the
+           WORKING area and wrong about the end of it, where the session is over
+           and the deck is the thing you have just built. the tiles for swapped
+           cards are rewritten by the script, so this is the new deck and not
+           the one that arrived #}
+        {% include "partials/deckcards.html" %}
 
-        {# the cards that came IN, on their own, above the whole list.
+        {# this page's own, and the reason it is not in the partial: /deck/view
+           has the mode rows for going elsewhere, this one has finishing #}
+        <p class="swap-again-line"><a class="swap-again" href="/deck">Read another deck</a></p>
 
-           importing the whole deck again is the wrong shape for how people
-           actually build: categories, groupings and everything else a builder
-           holds are lost the moment a list is replaced wholesale. what somebody
-           wants back from a session like this is the handful of cards that
-           changed, so they can add those and leave the rest of their deck alone #}
-        <div id="swap-added-box" hidden>
-            <h2>Just the new cards</h2>
-            <p class="deck-section-note">The {{ '' }}<span id="swap-added-count"></span> cards
-            this added, on their own. Paste these in if you would rather not reimport the
-            whole deck and lose the categories you have set up.</p>
-            <textarea class="swap-output swap-output-short" id="swap-added" rows="6" readonly></textarea>
-            <div class="swap-actions">
-                <button type="button" class="swap-copy" id="swap-copy-added">Copy the new cards</button>
-            </div>
-        </div>
+        {# where you go from a finished session. the reading only: /deck/view
+           would be strictly less than what is already on this page now that the
+           cards and the list are both here.
 
-        <h2>The whole new list</h2>
-        <p class="deck-section-note">Your original list with the swaps applied, ready to
-        paste back wherever it came from.</p>
-        <textarea class="swap-output" id="swap-output" rows="10" readonly></textarea>
-        <div class="swap-actions">
-            <button type="button" class="swap-copy" id="swap-copy">Copy the list</button>
-            <a class="swap-again" href="/deck">Read another deck</a>
-        </div>
-
-        {# where you go from a finished session, and the reading is the obvious
-           one: you have just moved a deck along an axis and the page that says
-           where that put it was reachable only by going back two pages.
-
-           these carry the SWAPPED list, not the one the session started with.
-           the fields render with the original because that is all jinja knows
-           at page build time, and the script overwrites them when the session
+           it carries the SWAPPED list, not the one the session started with.
+           the field renders with the original because that is all jinja knows
+           at page build time, and the script overwrites it when the session
            finishes, which is the only moment the new list exists. comparing the
            deck you no longer have would be the one wrong answer here #}
         <div class="deck-modes-pick deck-modes-after">
@@ -196,18 +174,9 @@
                               cards are and how old, with your swaps applied, against every
                               Commander precon.",
                         name=deck_name, commander=commander, origin=origin) }}
-            {{ ways.way("/deck/view", "View it", "See the cards", pasted,
-                        body="Every card in the deck as it now stands, with the list to copy
-                              and what this session changed.",
-                        name=deck_name, commander=commander, origin=origin) }}
         </div>
     </div>
     {% endif %}
-
-    {# the whole deck as a fold lived here for one afternoon and is OUT: this
-       page is about one card at a time, and a hundred pictures of the deck you
-       already know is not what you came to it for. /deck/view is the page that
-       shows a deck #}
 </div>
 
 {# the deck the page is holding. it lives here rather than on the server
@@ -234,4 +203,7 @@
 window.MANA_URLS = {{ mana_urls() | tojson }};
 </script>
 <script type="module" src="{{ static_url('js/swap.js') }}"></script>
+{# the deck fold at the end of a session batches its pictures the same way
+   /deck/view's does, off the same script #}
+<script src="{{ static_url('js/cardfold.js') }}" defer></script>
 {% endblock %}

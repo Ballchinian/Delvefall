@@ -6,17 +6,24 @@
 //that is why these blocks arrive empty and are filled in here, and why a deck
 //opened in a browser that never swapped it correctly shows nothing.
 //
-//it reads the shelf and never writes to it. reaching this page is not an event
-//in a deck's history, so nothing about it belongs in the record
+//the drawing itself is js/changes.js, shared with the end of /deck/swap. this
+//file is now only the two things that are this page's own: finding the shelf
+//entry, and putting a card back.
+//
+//IT WRITES TO THE SHELF NOW, and that is a deliberate reversal. it used to only
+//read, on the reasoning that reaching this page is not an event in a deck's
+//history. putting a card back IS an event, and it was offered on the swap page
+//and nowhere else, which meant the only way to undo a swap you regretted was to
+//still be standing in the session that made it.
 
-import { el, cardLink, pairCard, swapPair, fitText } from "dom";
+import { paintChanges, rebuild, addedList } from "changes";
+import { el, pairCard } from "dom";
 
 (function () {
     var dataEl = document.getElementById("deck-view-data");
     if (!dataEl) return;
     var D = JSON.parse(dataEl.textContent);
     var KEY = "delvefall_recent_decks";
-    var $ = function (id) { return document.getElementById(id); };
 
     /* the shelf is keyed on the list a deck was IMPORTED as. this page may be
        holding a list that has moved on since, so the origin is what to look
@@ -33,50 +40,6 @@ import { el, cardLink, pairCard, swapPair, fitText } from "dom";
            server rendered and unaffected, so the page is still the page */
     }
 
-    function wireCopy(btnId, boxId) {
-        var btn = $(btnId);
-        if (!btn) return;
-        btn.addEventListener("click", function () {
-            var out = $(boxId);
-            out.select();
-            navigator.clipboard.writeText(out.value).then(function () {
-                btn.textContent = "Copied";
-            }).catch(function () { btn.textContent = "Press Ctrl+C"; });
-        });
-    }
-    wireCopy("deck-copy-list", "deck-list");
-    wireCopy("deck-copy-added", "deck-added");
-
-    /* what the shelf remembers about this deck, painted onto the empty blocks.
-       it was the rest of this function and is now a named one, so the sizing
-       below can run whether or not there was anything to paint */
-    function fillIn() {
-    var swaps = entry.swaps || [];
-    if (swaps.length) {
-        $("deck-changed-note").textContent =
-            swaps.length + " card" + (swaps.length === 1 ? " has" : "s have")
-            + " been changed since this deck was imported"
-            + (entry.goal ? ", making it " + entry.goal : "") + ".";
-        var list = $("deck-changed-list");
-        var pairs = $("deck-changed-pairs");
-        swaps.forEach(function (s) {
-            var li = el("li", "swap-made-row", list);
-            cardLink(s.out.name, "swap-made-out", li);
-            el("span", "swap-made-arrow", li, "→");
-            cardLink(s["in"].name, "swap-made-in", li);
-
-            swapPair(pairs, s, pairCard);
-        });
-        /* the frames only exist once the fold has been built, and
-           enhanceCardFrames marks what it has done, so opening and closing it
-           repeatedly is safe */
-        var pics = $("deck-changed-pics");
-        pics.addEventListener("toggle", function () {
-            if (pics.open) enhanceCardFrames(pics);
-        });
-        $("deck-changed").hidden = false;
-    }
-
     /*
         a card this deck GAINED, marked where it sits in the deck grid.
 
@@ -84,9 +47,8 @@ import { el, cardLink, pairCard, swapPair, fitText } from "dom";
         these tiles as full result cards, with the match percent, the verdicts
         and the matched line on them, and that was the wrong trade: one tile in
         a hundred wearing four extra rows is the grid shouting about the least
-        interesting thing on it, and "what changed" already has its own section
-        directly above with the pairs in it. this is a footnote, so it reads
-        like one.
+        interesting thing on it, and the swaps have their own section directly
+        above with the pairs in it. this is a footnote, so it reads like one.
 
         matched on the card id where the shelf has one and on the NAME where it
         does not: entries written before the id was stored are still on people's
@@ -96,7 +58,7 @@ import { el, cardLink, pairCard, swapPair, fitText } from "dom";
     */
     function markSwapped(swaps) {
         var grid = document.querySelector(".deck-card-fold .deck-card-grid");
-        if (!grid || !swaps.length) return;
+        if (!grid) return;
         var byOid = {}, byName = {};
         swaps.forEach(function (s) {
             if (s["in"].oracle_id) byOid[s["in"].oracle_id] = s.out.name;
@@ -105,40 +67,100 @@ import { el, cardLink, pairCard, swapPair, fitText } from "dom";
         Array.prototype.forEach.call(grid.children, function (tile) {
             var name = tile.querySelector(".card-name");
             if (!name) return;
+            /* redrawn from scratch every paint, because a revert takes a mark
+               off as surely as a swap puts one on */
+            var had = tile.querySelector(".deck-card-swapped");
+            if (had) had.remove();
             var was = byOid[tile.dataset.oid] || byName[name.textContent];
             if (!was) return;
             el("span", "deck-card-swapped", name.parentNode, "*").title =
                 "swapped in for " + was;
         });
     }
-    markSwapped(swaps);
 
-    if (entry.added) {
-        $("deck-added").value = entry.added;
-        $("deck-added-box").hidden = false;
+    /*
+        put a card back, from the page that is only looking at the deck.
+
+        the list is rebuilt from the deck as IMPORTED rather than patched out of
+        the one on screen: undoing a swap means the list without it, and taking
+        the card out of the current list would leave the one it replaced missing
+        from a deck that is meant to have it back.
+
+        entry.text is the shelf key, which is the imported list. that is what
+        makes this possible here at all.
+    */
+    /* the grid is SERVER rendered, from the list this page was posted, so the
+       tile for a reverted card is showing the card that is no longer in the
+       deck. the shelf keeps both sides of a swap whole, which is exactly enough
+       to draw the one coming back, and it is drawn by the same builder every
+       other card on the site goes through */
+    function restoreTile(s) {
+        var grid = document.querySelector(".deck-card-fold .deck-card-grid");
+        if (!grid) return;
+        var tile = null;
+        Array.prototype.forEach.call(grid.children, function (t) {
+            var n = t.querySelector(".card-name");
+            if (!n) return;
+            if ((s["in"].oracle_id && t.dataset.oid === s["in"].oracle_id) ||
+                n.textContent === s["in"].name) tile = t;
+        });
+        if (!tile) return;
+        var fresh = pairCard(s.out);
+        fresh.dataset.oid = s.out.oracle_id || "";
+        /* whether it is past the first batch is a fact about its POSITION, and
+           the position has not changed */
+        if (tile.classList.contains("is-over")) fresh.classList.add("is-over");
+        tile.replaceWith(fresh);
+        enhanceCardFrames(grid);
     }
 
-    /* the list this page is holding is the deck as it stands, not as it was
-       imported, whenever a session has moved it on */
-    if (entry.newList) $("deck-list").value = entry.newList;
-
-    /* the list on the page is whatever this deck is holding now. say so when
-       that is not what was imported, because "the whole list" is ambiguous on
-       a deck that has been changed and the difference is the whole point of
-       having opened this page */
-    if (entry.newList && entry.newList !== entry.text) {
-        $("deck-list-note").textContent =
-            "The deck as it stands, with the swaps above applied. Ready to paste back "
-            + "wherever it came from.";
+    function revert(i) {
+        if (!entry) return;
+        restoreTile(entry.swaps[i]);
+        entry.swaps.splice(i, 1);
+        entry.newList = rebuild(entry.text, entry.swaps);
+        entry.added = addedList(entry.swaps);
+        entry.at = Date.now();
+        try {
+            var all = JSON.parse(localStorage.getItem(KEY)) || [];
+            all.forEach(function (x) {
+                if (x.text !== key) return;
+                x.swaps = entry.swaps;
+                x.newList = entry.newList;
+                x.added = entry.added;
+                x.at = entry.at;
+            });
+            localStorage.setItem(KEY, JSON.stringify(all));
+        } catch (e) {
+            /* the page still shows the undo, it just will not survive a
+               reload. failing loudly here would be worse: the swap is already
+               gone from the screen */
+        }
+        draw();
     }
+
+    function draw() {
+        var swaps = (entry && entry.swaps) || [];
+        paintChanges({
+            swaps: swaps,
+            added: entry ? entry.added : "",
+            newList: entry ? entry.newList : "",
+            text: entry ? entry.text : D.text,
+            goal: entry ? entry.goal : ""
+        }, {
+            onRevert: entry ? revert : null,
+            /* this page's own sentence, and the reason the note exists at all.
+               somebody arriving here may not have made these swaps five minutes
+               ago, so the deck being different from the one they imported is
+               news rather than a recap */
+            note: swaps.length
+                ? swaps.length + " card" + (swaps.length === 1 ? " has" : "s have")
+                  + " been changed since this deck was imported"
+                  + (entry && entry.goal ? ", making it " + entry.goal : "") + "."
+                : ""
+        });
+        markSwapped(swaps);
     }
 
-    if (entry) fillIn();
-
-    /* both boxes are on screen from the start now, so they size straight away:
-       a textarea inside a closed details measures 0, which is the only reason
-       this used to wait for a fold to open. AFTER fillIn, or a deck whose list
-       has moved on gets sized to the list it replaced. the css caps the result */
-    fitText($("deck-list"));
-    fitText($("deck-added"));
+    draw();
 })();

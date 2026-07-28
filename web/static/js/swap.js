@@ -12,8 +12,12 @@
 //a bare specifier, resolved by the import map base.html emits, so this
 //picks up dom.js at its content-hashed url rather than an unstamped one
 //that the year-long static cache would freeze
-import { el, cardLink, swapPair, fitText, resultCard } from "dom";
+import { el, cardLink, resultCard, pairCard } from "dom";
 import { wireReports } from "report";
+//the end of a session is /deck/view's change blocks, so it is /deck/view's
+//painter that draws them. rebuild came the other way: it was this file's and
+///deck/view needed it the moment it could put a card back
+import { paintChanges, rebuild, addedList } from "changes";
 (function () {
     var dataEl = document.getElementById("swap-data");
     if (!dataEl) return;
@@ -604,71 +608,26 @@ import { wireReports } from "report";
             box.hidden = false;
         }
 
-        var made = $("swap-made");
-        made.innerHTML = "";
-        swaps.forEach(function (s, i) {
-            var li = el("li", "swap-made-row", made);
-            /* both names are LINKS, like every other card name on the site.
-               these are the cards a session's whole decision rests on and they
-               were the only ones on the page you could not click. data-card
-               gets them the same ctrl-click-to-scryfall the rest have */
-            li.appendChild(cardLink(s.out.name, "swap-made-out"));
-            el("span", "swap-made-arrow", li, "→");
-            li.appendChild(cardLink(s["in"].name, "swap-made-in"));
+        /* the swaps, the new cards and the list, all three drawn by the painter
+           /deck/view uses, onto the partial they now share.
 
-            var undo = el("button", "swap-undo", li, "put it back");
-            undo.type = "button";
-            undo.addEventListener("click", function () { revert(i); });
-        });
-        $("swap-summary").textContent = swaps.length
-            ? swaps.length + " card" + (swaps.length === 1 ? "" : "s") + " swapped."
-            : "You kept every card. Nothing to copy.";
+           build and not pairCard: a card being weighed against another carries
+           its match percent and its verdicts, which is the whole question a
+           swap asks and is this page's alone. no note, because the swaps are
+           what the last twenty minutes were spent making and counting them back
+           is the page narrating your own move to you */
+        var built = rebuild(D.text, swaps);
+        paintChanges({swaps: swaps, added: addedList(swaps),
+                      newList: built, text: D.text, goal: D.goal},
+                     {draw: build, onRevert: revert});
 
-        /*
-            the same swaps as PICTURES, folded away. a list of names is the
-            fast read and is right most of the time; the pictures are for the
-            moment somebody wants to check what they actually did, which is
-            exactly when names are the wrong medium.
+        /* the deck as it now stands. the fold is server rendered from the deck
+           that ARRIVED, so every swap has left a tile showing a card that is no
+           longer in it */
+        repaintDeck();
 
-            the pair is drawn as one row per swap, out on the left and in on
-            the right, so the comparison is the layout rather than something
-            the reader has to hold in their head. on a narrow screen the pair
-            stacks and keeps its labels, which is why the labels exist at all
-        */
-        var pairs = $("swap-pairs");
-        pairs.innerHTML = "";
-        $("swap-pairs-box").hidden = !swaps.length;
-        swaps.forEach(function (s, i) {
-            /* build, not pairCard: a card being weighed against another
-               carries its match percent and its verdicts, which is the whole
-               question a swap asks and is this page's alone */
-            var row = swapPair(pairs, s, build);
-
-            var back = el("button", "swap-undo", row, "Put " + s.out.name + " back");
-            back.type = "button";
-            back.addEventListener("click", function () { revert(i); });
-        });
-        enhanceCardFrames(pairs);
-
-        /* the cards that came IN, on their own, in the shape a decklist is in.
-           one copy each, because that is what a swap is: the card leaving took
-           one slot and the card arriving takes it back */
-        if (swaps.length) {
-            $("swap-added-count").textContent = swaps.length;
-            $("swap-added").value = swaps.map(function (s) { return "1 " + s["in"].name; }).join("\n");
-            $("swap-added-box").hidden = false;
-            fitText($("swap-added"));
-        }
-        var built = rebuild();
-        $("swap-output").value = built;
-        /* grown to the whole list rather than scrolling inside twelve rows.
-           this is the deliverable of the session and the one thing somebody
-           takes away from it, so it is not the place to make them scroll a box
-           inside a page */
-        fitText($("swap-output"));
-
-        /* the two ways on from here carry the deck AS IT NOW STANDS. jinja
-           rendered them with the list the session opened on, because at page
+        /* the way on from here carries the deck AS IT NOW STANDS. jinja
+           rendered it with the list the session opened on, because at page
            build time that is the only list there is; this is the moment the new
            one exists. scoped to .deck-mode on purpose: the back link at the top
            of the page also holds a list field and it means the opposite thing,
@@ -728,8 +687,8 @@ import { wireReports } from "report";
                     return {out: keep(s.out), "in": keep(s["in"])};
                 });
                 x.goal = D.goal;
-                x.newList = $("swap-output").value;
-                x.added = $("swap-added").value;
+                x.newList = $("deck-list").value;
+                x.added = $("deck-added").value;
                 x.at = Date.now();
             });
             if (found) localStorage.setItem(KEY, JSON.stringify(decks));
@@ -746,49 +705,69 @@ import { wireReports } from "report";
         one line each. substituting leaves every count, every section header
         and every bit of the user's own formatting exactly where it was
     */
-    function rebuild() {
-        var text = D.text || "";
-        swaps.forEach(function (s) {
-            /* the swap holds whole cards now, and this only ever wanted their
-               names. pulled out here rather than at every use below */
-            var out = s.out.name, into = s["in"].name;
-            var lines = text.split("\n");
-            var hit = -1;
-            for (var i = 0; i < lines.length; i++) {
-                /* case insensitive, because an export may not match our
-                   capitalisation and the parser normalised it away anyway */
-                if (lines[i].toLowerCase().indexOf(out.toLowerCase()) !== -1) { hit = i; break; }
-            }
-            if (hit === -1) {
-                /* a name we cannot find in the raw text (a face name, or a
-                   collector number wedged in the middle). say so rather than
-                   dropping the swap on the floor */
-                text += "\n# swap by hand: " + out + " -> " + into;
+    /*
+        the deck's fold, brought up to date with the session.
+
+        the grid is rendered by the server from the deck that ARRIVED, so after
+        a swap one of its tiles is a card that is no longer in the deck. the
+        swap holds both sides whole, which is exactly enough to draw the one
+        that replaced it, and it goes through the same builder every other card
+        on the site does.
+
+        it walks from the ORIGINAL tile every time rather than patching the last
+        paint, which is what makes a revert work: putting a card back is just
+        this running again with one fewer swap in the list
+    */
+    var bornTiles = null;
+
+    function repaintDeck() {
+        var grid = document.querySelector(".deck-card-fold .deck-card-grid");
+        if (!grid) return;
+        /* the deck as it ARRIVED, kept as markup, captured before anything has
+           been rewritten. it is what a revert puts back, and keeping the html
+           rather than the card data means the restored tile is the server's own
+           tile again rather than a redrawing of it that has to agree */
+        if (!bornTiles) {
+            bornTiles = {};
+            Array.prototype.slice.call(grid.children).forEach(function (t) {
+                t.dataset.born = t.dataset.oid;
+                bornTiles[t.dataset.oid] = t.outerHTML;
+            });
+        }
+        var byOut = {};
+        swaps.forEach(function (s) { byOut[s.out.oracle_id] = s; });
+
+        Array.prototype.slice.call(grid.children).forEach(function (tile) {
+            var born = tile.dataset.born;
+            var swap = byOut[born];
+            var showing = tile.dataset.oid;
+            /* already right: swapped and showing the card that came in, or
+               untouched and showing the card it was born as */
+            if (swap ? showing === swap["in"].oracle_id : showing === born) return;
+
+            var fresh;
+            if (swap) {
+                fresh = pairCard(swap["in"]);
+                fresh.dataset.oid = swap["in"].oracle_id || "";
+                el("span", "deck-card-swapped", fresh.querySelector(".result-name"), "*")
+                    .title = "swapped in for " + swap.out.name;
             } else {
-                var re = new RegExp(out.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
-                lines[hit] = lines[hit].replace(re, into);
-                text = lines.join("\n");
+                var holder = document.createElement("div");
+                holder.innerHTML = bornTiles[born] || "";
+                fresh = holder.firstElementChild;
+                if (!fresh) return;
             }
+            fresh.dataset.born = born;
+            /* whether it is past the first batch is a fact about its POSITION,
+               and swapping a card does not move it */
+            if (tile.classList.contains("is-over")) fresh.classList.add("is-over");
+            tile.replaceWith(fresh);
         });
-        return text;
+        enhanceCardFrames(grid);
     }
 
-    /* one copier for both boxes. it selects the text either way, so the
-        fallback message is true: the clipboard api is blocked on http origins
-        and in some browsers, and by then the textarea is already selected */
-    function wireCopy(btnId, boxId, said) {
-        $(btnId).addEventListener("click", function () {
-            var out = $(boxId);
-            out.select();
-            navigator.clipboard.writeText(out.value).then(function () {
-                $(btnId).textContent = said;
-            }).catch(function () {
-                $(btnId).textContent = "Press Ctrl+C";
-            });
-        });
-    }
-    wireCopy("swap-copy", "swap-output", "Copied");
-    wireCopy("swap-copy-added", "swap-added", "Copied");
+    /* the two copy buttons are wired by paintChanges, along with everything
+       else on the partial they sit in */
 
     show();
 })();
