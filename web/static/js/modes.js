@@ -177,6 +177,17 @@ import { read, write, uniqueName, baseName, noteRename } from "decks";
             noteRename(baseName(name).name, name);
         }
 
+        /* and the deck travels under the name it was SAVED as, which until now
+           it did not: the shelf filed "Kratos, God of War #2" while the fields
+           still carried the "Kratos, God of War" that was typed, so the page
+           you landed on was titled one thing and the shelf listed another.
+           it is also what lets the rename banner know which deck it is about.
+           the note names the numbered deck, the page it lands on is now titled
+           with that same name, and the two can be compared. matching on the
+           base name could not tell the new deck from the one it clashed with,
+           because the base name is exactly what they have in common */
+        document.querySelectorAll(".deck-name-field").forEach(function (f) { f.value = name; });
+
         /* the entry is keyed on the origin and remembers where the deck has
            actually got to, so a row can offer both: the deck as imported,
            and the deck as it stands. whatever a swap session left behind

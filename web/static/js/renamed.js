@@ -27,12 +27,17 @@ import { takeRename } from "decks";
     var note = takeRename();
     if (!note || !note.now) return;
 
-    /* the name the deck went in under, which is what the page it lands on is
-       titled with: the shelf numbered it afterwards and the form never heard.
-       an empty data-deck means the page did not say, and an unnamed deck is
-       not one this note can be checked against, so it is let through */
+    /* the NUMBERED name, which is what the deck was saved as and what the page
+       it landed on is now titled with.
+       it used to check the base name, and a base name cannot tell the two decks
+       apart: "Kratos, God of War #2" was numbered against a deck called
+       "Kratos, God of War", so both pages answered to it and the banner fired
+       on whichever loaded first. that was usually the original, which is the
+       one deck the message is definitely not about.
+       an empty data-deck means the page did not say, and an unnamed deck is not
+       one this note can be checked against, so it is let through */
     var mine = box.dataset.deck || "";
-    if (mine && note.was && note.was !== mine) return;
+    if (mine && note.now !== mine) return;
 
     box.textContent = "Saved as " + note.now + ", because this browser already had a "
         + "deck called " + note.was + ". Rename it from the deck list on /deck.";
