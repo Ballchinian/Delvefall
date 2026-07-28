@@ -4,6 +4,14 @@
    the element AND its script travel together, because a banner with nothing to
    fill it is worse than no banner: one include is the whole feature and there
    is no second edit to forget. the script is a module, so it defers on its own
-   and runs after this element is parsed regardless of where the include sits #}
-<p class="deck-renamed" id="deck-renamed" hidden></p>
+   and runs after this element is parsed regardless of where the include sits.
+   (it is also why the import map lives in the head: this tag is a module in the
+   middle of the body, and a map at the foot of the body arrives too late for
+   it. see base.html.)
+
+   WHICH DECK this page is about, so a note meant for another one cannot be
+   read out here. the note travels in sessionStorage, which belongs to the tab
+   and not to any deck, so without this the answer to "is this note mine" is
+   "whoever asks first" #}
+<p class="deck-renamed" id="deck-renamed" data-deck="{{ deck_name }}" hidden></p>
 <script type="module" src="{{ static_url('js/renamed.js') }}"></script>

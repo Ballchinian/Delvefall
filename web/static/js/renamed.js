@@ -8,6 +8,16 @@
 //
 //it reads the note ONCE and deletes it, so a refresh does not repeat itself.
 //no note is the usual case and the banner simply never appears.
+//
+//and it only speaks for the deck the note is ABOUT. the note lives in
+//sessionStorage, which belongs to the tab, so it has no owner of its own: any
+//page that asked first got it. that is how a rename of one deck ended up
+//announced on the page of another, days of clicking later, with a warning
+//about a name the user could no longer see anywhere on screen.
+//
+//the mismatch case still DELETES it rather than putting it back. a note that
+//has reached the wrong deck has already missed the page it was written for,
+//and the alternative is leaving it in the tab to miss another one
 
 import { takeRename } from "decks";
 
@@ -16,6 +26,13 @@ import { takeRename } from "decks";
     if (!box) return;
     var note = takeRename();
     if (!note || !note.now) return;
+
+    /* the name the deck went in under, which is what the page it lands on is
+       titled with: the shelf numbered it afterwards and the form never heard.
+       an empty data-deck means the page did not say, and an unnamed deck is
+       not one this note can be checked against, so it is let through */
+    var mine = box.dataset.deck || "";
+    if (mine && note.was && note.was !== mine) return;
 
     box.textContent = "Saved as " + note.now + ", because this browser already had a "
         + "deck called " + note.was + ". Rename it from the deck list on /deck.";

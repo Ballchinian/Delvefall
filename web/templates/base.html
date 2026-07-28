@@ -41,6 +41,33 @@
            content, so it overrides this with the card's own address #}
         {% block canonical %}<link rel="canonical" href="{{ request.url_root.rstrip('/') ~ request.path }}">{% endblock %}
         {% block head_extra %}{% endblock %}
+
+        {# how the module scripts on every page find the shared helpers, and the
+           ONLY reason this exists: static files are cached for a year, which is
+           safe only because static_url stamps a content hash onto every url the
+           templates emit. a plain `import "./dom.js"` would go out unstamped and
+           a fix to it would sit behind a year-old cache in every browser that
+           had already been here. the map puts the stamped url back in front of
+           the bare name, so imports cache-bust like everything else.
+
+           IN THE HEAD, and it has to be. an import map only applies to module
+           tags the parser meets AFTER it, and it used to sit at the foot of the
+           body on the reasoning that the scripts block was the first module tag
+           on any page. that stopped being true the day a partial started
+           shipping its own: partials/renamed.html puts a module halfway up the
+           body, met the map never arrived in time for, and every browser
+           answered `Failed to resolve module specifier "decks"` and dropped the
+           script. the rename banner has been silently dead ever since, which
+           also left its one-shot note sitting in sessionStorage waiting to be
+           read by the next deck page that managed to run the script.
+           the head is the one place nothing can get in front of #}
+        <script type="importmap">
+        {"imports": {
+            "dom": "{{ static_url('js/dom.js') }}",
+            "decks": "{{ static_url('js/decks.js') }}",
+            "report": "{{ static_url('js/report.js') }}"
+        }}
+        </script>
     </head>
     <body class="{% block bodyclass %}{% endblock %}">
 
@@ -291,22 +318,8 @@
            enhanceCardFrames themselves #}
         <script src="{{ static_url('cards.js') }}"></script>
 
-        {# how the module scripts below find the shared helpers, and the ONLY
-           reason this exists: static files are cached for a year, which is safe
-           only because static_url stamps a content hash onto every url the
-           templates emit. a plain `import "./dom.js"` would go out unstamped
-           and a fix to it would sit behind a year-old cache in every browser
-           that had already been here. the map puts the stamped url back in
-           front of the bare name, so imports cache-bust like everything else.
-           it has to come before the first module tag, which is this block #}
-        <script type="importmap">
-        {"imports": {
-            "dom": "{{ static_url('js/dom.js') }}",
-            "decks": "{{ static_url('js/decks.js') }}",
-            "report": "{{ static_url('js/report.js') }}"
-        }}
-        </script>
-
+        {# the import map these need is in the head, where no partial's own
+           module tag can get in front of it #}
         {% block scripts %}{% endblock %}
 
     </body>
