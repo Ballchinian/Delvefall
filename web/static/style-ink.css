@@ -605,22 +605,36 @@ h2 {
     gap: 20px;
 }
 
-/* the search results, and the one grid allowed out of the reading column.
-   four columns of 290 need 1220px and main is capped at 968, so inside the
-   column four across is arithmetically impossible: it would mean 227px cards,
-   which is not "more cards", it is smaller cards than every other page draws.
-   stepping the GRID out instead keeps the card the size it already is and just
-   fits another one beside it, so nothing about the reading column moves and
-   nothing on any other page changes.
-   1320 is where 1220px of grid plus a 50px gutter each side fits. below it
-   this rule is not there at all and the grid is the column, as before */
+/* HOW WIDE A GRID OF CARD PICTURES GETS, and it is one answer for every grid
+   on the site. a card is the same object on a search, in a deck's fold and in
+   the swap tool's suggestions, so it is drawn at the same size in all three and
+   the same number fit across.
+
+   it is a width these grids STEP OUT to, not the column they sit in. the
+   reading column is 968px on a search and 860px on a deck page, sized for
+   prose, and four columns of 290 need 1220. inside the column four across is
+   arithmetically impossible: it would mean 227px cards, which is not "more
+   cards", it is smaller cards than every other page draws. stepping the grid
+   out keeps the card the size it already is and fits another one beside it.
+
+   the centring is done off 100% rather than a fixed number so one rule serves
+   both columns: whatever the parent is, the grid overhangs it evenly. */
+:root {
+    --grid-width: min(968px, 100vw - 32px);
+}
+
+/* 1320 is where 1220px of grid plus a 50px gutter each side fits */
 @media (min-width: 1320px) {
-    .results-grid {
-        width: 1220px;
-        /* (1220 - 968) / 2: main is centred, so the grid stays centred on the
-           same axis rather than hanging off one side of it */
-        margin-left: -126px;
+    :root {
+        --grid-width: 1220px;
     }
+}
+
+.results-grid,
+.deck-card-grid,
+.swap-grid {
+    width: var(--grid-width);
+    margin-left: calc((100% - var(--grid-width)) / 2);
 }
 
 /* scoped to the frame: rules text under the picture carries mana symbol
@@ -3407,14 +3421,11 @@ body.home main {
     cursor: help;
 }
 
-/* the expanded pictures break OUT of the 860px reading column to the width
-   the results grid gets. inside it, auto-fill landed on four columns at
-   exactly the 200px minimum, 12% narrower than a result card and right at the
-   point where the name and the three figures under it stop being readable */
-.deck-card-grid {
-    width: min(968px, 100vw - 32px);
-    margin-left: calc((100% - min(968px, 100vw - 32px)) / 2);
-}
+/* the expanded pictures break OUT of the 860px reading column to the width the
+   results grid gets, and it is the SAME rule that does it: see --grid-width up
+   with .card-grid. this used to carry its own copy of the arithmetic, which is
+   how it ended up pinned at the old 968 while a search went to 1220 and drew a
+   fourth card the deck pages could not. one grid width, one place */
 
 /* ---- the missing lines, and fixing one where it stands ---- */
 
