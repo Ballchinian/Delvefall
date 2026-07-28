@@ -146,7 +146,11 @@
            the price standing in for figures the row could not show. best-match
            orders by the badge, so the badge is what it should point at, and the
            date sorts now have an age figure of their own to point at #}
-        <div class="card-grid {{ focus }}">
+        {# results-grid names the ONE grid on the site that is the page rather
+           than a panel inside one, which is what lets the css widen it past
+           the reading column on a monitor with the room. the swap page's and
+           the deck pages' grids sit inside a reading and stay in the column #}
+        <div class="card-grid results-grid {{ focus }}">
             {% for r in results %}
             <div class="result">
                 {# the ? in the picture's corner is the misplaced-card report,

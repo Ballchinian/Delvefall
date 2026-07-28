@@ -50,25 +50,7 @@
        draw them in. deliberately chunky: it is read at 11px, where a
        finer shaker turns into a grey blob */
     --shaker: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2016%2016'%3E%3Cpath%20fill-rule='evenodd'%20d='M8%201.6c-2%200-3.6%201.6-3.6%203.6v7.3c0%20.9.7%201.6%201.6%201.6h4c.9%200%201.6-.7%201.6-1.6V5.2c0-2-1.6-3.6-3.6-3.6zM4.6%206.2h6.8v1H4.6zM6.5%203.3a.6.6%200%201%200%200%201.2.6.6%200%200%200%200-1.2zm3%200a.6.6%200%201%200%200%201.2.6.6%200%200%200%200-1.2zM8%202.6a.6.6%200%201%200%200%201.2.6.6%200%200%200%200-1.2z'/%3E%3C/svg%3E");
-
-    /* the three things you can do with a deck: a lens for looking at it, two
-       panels side by side for placing it against the precons, and two cards
-       trading places for changing it.
-
-       held here rather than as files under static, like every other icon on
-       the site, for the two reasons the shaker is: masking them from
-       currentColor is what lets one drawing sit muted on a resting row and
-       teal on a hovered one, and an <img> would be three more requests for
-       three hundred bytes.
-
-       they arrived at 800px from three different icon sets and are normalised
-       to one weight here, since the thing that makes a set look like a set at
-       24px is the thickness of the line and nothing else. the lens is redrawn
-       at the others' weight (its own was a hairline meant for 800px, which
-       comes out under a pixel here and vanishes); the exchange is carried at
-       its own 32 box with a stroke laid over the fill, which is the cheap way
-       to fatten line art that has its weight baked into the outline */
-
+    
     /* the deck lens. the circle sits high and left so the handle has its
        corner, which is the one proportion a magnifier cannot get wrong */
     --lens: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='%23000'%20stroke-width='2.5'%20stroke-linecap='round'%3E%3Ccircle%20cx='10.1'%20cy='10.1'%20r='6.9'/%3E%3Cpath%20d='M15%2015l5.8%205.8'/%3E%3C/svg%3E");
@@ -600,24 +582,45 @@ h2 {
    three, so the row broke across every viewport from 892 to 974 and again from
    672 to 734 and 452 to 493. that is 188 widths, not an edge case.
 
-   230 AND NOT 220, because 220 was measured before the age figure grew an
-   arrow. that arrow is 6.1px of glyph and 2px of margin, and the widest row on
-   a Cards-like-Ancient-Silver-Dragon search went from 221.7px to 229.8px the
-   day it landed: one pixel inside the old floor to eight pixels outside it. so
-   four columns at a 979px viewport gave 221.8px each and eight of the twenty
-   rows broke in half, which is the exact bug the floor exists to prevent,
-   reintroduced by a change nobody thought was about layout.
+   290 AND NOT 220, and the number is MEASURED rather than eyeballed this time.
+   220 was set before the age figure grew an arrow, and an arrow is 6.1px of
+   glyph plus 2px of margin. with all four figures carrying one, the widest row
+   on a search comes to 286px: Temporal Cascade under Timetwister and Mawcor
+   under Immard both land there, from opposite ends of the card pool, so 286 is
+   the shape of the row and not a freak card. 220 was 66px short of it.
 
-   this floor CANNOT cover every card and it is worth saying so rather than
-   claiming a round number again. a search for Timetwister wraps all twenty
-   rows and wants 280px, because four figures each carrying an arrow is simply
-   wider than a card picture when the price runs to three digits. the floor
-   buys the ordinary case; the row-gap below is what makes the rest read as
-   two deliberate lines rather than as a collision */
+   what 230 bought (the first attempt at this) was the four-column case at a
+   979px viewport and nothing else: three columns at 770px are 232.7px each and
+   Aladdin's Ring still broke in half. a floor has to clear the WIDEST row or
+   it is just a smaller version of the same bug.
+
+   it costs a column at some widths, and that is the trade the floor has always
+   been: a 770px viewport now draws two cards a row instead of three broken
+   ones. what it does not cost is card SIZE, which is the thing that has to
+   stay the same across the site: 290 at four columns, 309 at three, and the
+   pictures stay within 6% of each other everywhere */
 .card-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
     gap: 20px;
+}
+
+/* the search results, and the one grid allowed out of the reading column.
+   four columns of 290 need 1220px and main is capped at 968, so inside the
+   column four across is arithmetically impossible: it would mean 227px cards,
+   which is not "more cards", it is smaller cards than every other page draws.
+   stepping the GRID out instead keeps the card the size it already is and just
+   fits another one beside it, so nothing about the reading column moves and
+   nothing on any other page changes.
+   1320 is where 1220px of grid plus a 50px gutter each side fits. below it
+   this rule is not there at all and the grid is the column, as before */
+@media (min-width: 1320px) {
+    .results-grid {
+        width: 1220px;
+        /* (1220 - 968) / 2: main is centred, so the grid stays centred on the
+           same axis rather than hanging off one side of it */
+        margin-left: -126px;
+    }
 }
 
 /* scoped to the frame: rules text under the picture carries mana symbol
