@@ -17,7 +17,7 @@ import { wireReports } from "report";
 //the end of a session is /deck/view's change blocks, so it is /deck/view's
 //painter that draws them. rebuild came the other way: it was this file's and
 ///deck/view needed it the moment it could put a card back
-import { paintChanges, rebuild, addedList } from "changes";
+import { paintChanges, rebuild, addedList, carryList } from "changes";
 (function () {
     var dataEl = document.getElementById("swap-data");
     if (!dataEl) return;
@@ -626,15 +626,11 @@ import { paintChanges, rebuild, addedList } from "changes";
            longer in it */
         repaintDeck();
 
-        /* the way on from here carries the deck AS IT NOW STANDS. jinja
-           rendered it with the list the session opened on, because at page
-           build time that is the only list there is; this is the moment the new
-           one exists. scoped to .deck-mode on purpose: the back link at the top
-           of the page also holds a list field and it means the opposite thing,
-           the deck you arrived with */
-        document.querySelectorAll('.deck-mode input[name="list"]').forEach(function (f) {
-            f.value = built;
-        });
+        /* every way on from here carries the deck AS IT NOW STANDS, the back
+           link included. jinja rendered them with the list the session opened
+           on, because at page build time that is the only list there is; this
+           is the moment the new one exists */
+        carryList(built);
 
         remember();
     }

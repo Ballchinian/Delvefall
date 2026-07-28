@@ -52,6 +52,28 @@ export function addedList(swaps) {
     return (swaps || []).map(function (s) { return "1 " + s["in"].name; }).join("\n");
 }
 
+/*
+    point every form that carries this deck onward at the deck AS IT NOW STANDS.
+
+    a deck travels in a hidden field, because it has no url. jinja fills those
+    fields with the list the PAGE was posted, which is the only list the server
+    knows about, and a deck that has been through the swap tool has moved on
+    from it in a place the server never hears about.
+
+    left unset, the back link and the mode rows hand out the deck as it was
+    before the session: swap Wheel of Fortune for Incendiary Command, walk back
+    in through any of them, and the tool offers you Wheel of Fortune to change
+    again, because that genuinely is the deck it was given.
+
+    every field and not just the mode rows. "back to this deck" means the deck,
+    and after a session the deck is the one with the swaps in it.
+*/
+export function carryList(text) {
+    if (!text) return;
+    document.querySelectorAll('input[name="list"], textarea[name="list"]')
+        .forEach(function (f) { f.value = text; });
+}
+
 //a "put it back" hung off whatever row it belongs to
 function undo(parent, label, i, fn) {
     var b = el("button", "swap-undo", parent, label);

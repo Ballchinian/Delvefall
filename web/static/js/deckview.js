@@ -16,7 +16,7 @@
 //and nowhere else, which meant the only way to undo a swap you regretted was to
 //still be standing in the session that made it.
 
-import { paintChanges, rebuild, addedList } from "changes";
+import { paintChanges, rebuild, addedList, carryList } from "changes";
 import { el, pairCard } from "dom";
 
 (function () {
@@ -160,6 +160,12 @@ import { el, pairCard } from "dom";
                 : ""
         });
         markSwapped(swaps);
+        /* the mode rows and the back link were rendered with the list this page
+           was POSTED, which is not always the deck as it stands: arriving here
+           by any route that has not heard about a swap session hands Change it
+           the deck from before it, and the tool then offers to change a card
+           that is no longer in the deck */
+        carryList(entry && entry.newList);
     }
 
     draw();
