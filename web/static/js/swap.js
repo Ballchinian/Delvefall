@@ -659,12 +659,24 @@ import { wireReports } from "report";
             $("swap-added-box").hidden = false;
             fitText($("swap-added"));
         }
-        $("swap-output").value = rebuild();
+        var built = rebuild();
+        $("swap-output").value = built;
         /* grown to the whole list rather than scrolling inside twelve rows.
            this is the deliverable of the session and the one thing somebody
            takes away from it, so it is not the place to make them scroll a box
            inside a page */
         fitText($("swap-output"));
+
+        /* the two ways on from here carry the deck AS IT NOW STANDS. jinja
+           rendered them with the list the session opened on, because at page
+           build time that is the only list there is; this is the moment the new
+           one exists. scoped to .deck-mode on purpose: the back link at the top
+           of the page also holds a list field and it means the opposite thing,
+           the deck you arrived with */
+        document.querySelectorAll('.deck-mode input[name="list"]').forEach(function (f) {
+            f.value = built;
+        });
+
         remember();
     }
 

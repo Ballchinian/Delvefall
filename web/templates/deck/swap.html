@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "partials/deckways.html" as ways %}
 
 {% block title %}Improving {{ deck_name or 'your deck' }} - Delvefall{% endblock %}
 
@@ -178,6 +179,27 @@
         <div class="swap-actions">
             <button type="button" class="swap-copy" id="swap-copy">Copy the list</button>
             <a class="swap-again" href="/deck">Read another deck</a>
+        </div>
+
+        {# where you go from a finished session, and the reading is the obvious
+           one: you have just moved a deck along an axis and the page that says
+           where that put it was reachable only by going back two pages.
+
+           these carry the SWAPPED list, not the one the session started with.
+           the fields render with the original because that is all jinja knows
+           at page build time, and the script overwrites them when the session
+           finishes, which is the only moment the new list exists. comparing the
+           deck you no longer have would be the one wrong answer here #}
+        <div class="deck-modes-pick deck-modes-after">
+            {{ ways.way("/deck/read", "Compare it", "See the reading", pasted,
+                        body="How original it is, how salty, what it costs, how played its
+                              cards are and how old, with your swaps applied, against every
+                              Commander precon.",
+                        name=deck_name, commander=commander, origin=origin) }}
+            {{ ways.way("/deck/view", "View it", "See the cards", pasted,
+                        body="Every card in the deck as it now stands, with the list to copy
+                              and what this session changed.",
+                        name=deck_name, commander=commander, origin=origin) }}
         </div>
     </div>
     {% endif %}
