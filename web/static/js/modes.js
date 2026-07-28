@@ -10,7 +10,7 @@
 //the shelf and its naming rule live in decks.js, shared with the hub, because a
 //rule enforced in one of the two places that name a deck is not a rule
 
-import { read, write } from "decks";
+import { create, find, patch } from "decks";
 
 (function () {
     var input = document.getElementById("deck-lead-input");
@@ -129,94 +129,124 @@ import { read, write } from "decks";
         so the only copy that outlives the tab is the one written here, on the
         user's own machine, where they can delete it from the hub.
 
-        it runs on SUBMIT rather than on load, because what the deck is called
-        is not settled until the commander has been picked, and an entry
-        written on load would be the one that had to be corrected later
+        READING A DECK SAVES IT, every time, and this page is the only place
+        that ever creates a shelf entry. arriving here means a list was pasted,
+        a link was imported or a precon was handed to the lens, and all three
+        are somebody saying "this deck, now". the same list read twice is two
+        decks, because the two are about to be taken in two directions, and the
+        shelf is theirs to prune.
+
+        the one thing that stops it is the shelf being FULL. see below.
     */
     var el = document.getElementById("deck-remember");
     if (!el) return;
+    var D = JSON.parse(el.textContent);
+    var note = document.getElementById("deck-save-full");
 
-    /* what this deck is called and which shelf entry it is */
-    function reading() {
-        var d = JSON.parse(el.textContent);
-        var listField = document.querySelector('.deck-mode input[name="list"]');
-        var text = listField ? listField.value : d.text;
+    /*
+        WHICH SAVED DECK THIS IS, carried in a hidden field on every form that
+        leads off this page. it arrives filled when the deck came from the shelf
+        or from another page of the lens, and empty when the deck is new here.
+
+        it used to be the decklist AS IMPORTED, and every page had to hold that
+        alongside the list as it stands and guess which of the two it was looking
+        at. an id cannot go stale and cannot be two things at once
+    */
+    var did = D.did;
+
+    function fields(cls) {
+        return Array.prototype.slice.call(document.querySelectorAll(cls));
+    }
+
+    /* the deck as this page is holding it. every mode form carries it, and
+       missing.js rewrites all of them when a card is matched by hand */
+    function listNow() {
+        var f = document.querySelector('.deck-mode input[name="list"]');
+        return f ? f.value : D.text;
+    }
+
+    /* what it is called, off the hidden fields the other half of this file
+       keeps in step with both boxes. so this reads the answer rather than
+       working it out a second way */
+    function named() {
         var f = document.querySelector(".deck-name-field");
-        var decks = read();
-        /*
-            WHICH DECK THIS IS, as against what is currently in it.
+        return f ? f.value.trim() : "";
+    }
 
-            a deck off the shelf carries the list it was first imported as, and
-            that is what the shelf is keyed on: reopening a deck after a swap
-            session hands back the swapped list, and keying on that would file
-            the same deck a second time.
-
-            a fresh paste has no origin, so it is keyed on its own text, and
-            that USED to be the end of it. it is not enough: a pasted deck that
-            has since been swapped comes back holding the new list, whose text
-            matches no entry, so the shelf saw a stranger and filed a second
-            copy. so a list that matches some entry's newList identifies that
-            entry too. this is the whole of "is this a deck I already have"
-        */
-        var key = d.origin || text;
-        var was = null;
-        decks.forEach(function (x) {
-            if (was) return;
-            if (x.text === key || (text && x.newList === text)) was = x;
-        });
-        if (was) key = was.text;
-        return {d: d, text: text, key: key, was: was, decks: decks,
-                wanted: f ? f.value.trim() : ""};
+    /* who leads it, kept separately from what it is called because they are two
+       different facts. the shelf hands both back when the deck is reopened, and
+       a deck renamed to "the budget one" still knows which card it is built
+       around */
+    function leader() {
+        var f = document.querySelector(".deck-commander-field");
+        return f ? f.value.trim() : "";
     }
 
     /*
-        THIS NEVER REFUSES AND NEVER PREVENTS ANYTHING.
+        THE ONE REFUSAL. a shelf with ten decks on it cannot take an eleventh,
+        and the alternative (drop the oldest to make room) is a save quietly
+        deleting a save, which may be the deck carrying a hundred swaps.
 
-        it briefly did both, to stop two decks sharing a name, and the cost was
-        out of all proportion: the submit it blocked was the mode button, so
-        typing a name another deck had made View it stop working, with a
-        sentence beside the box as the only clue. saving a deck is what this
-        page is FOR, and nothing about a label is worth not doing it.
-
-        AND IT RUNS ON ARRIVAL, not only on the way out. it used to wait for a
-        submit, on the reasoning that what a deck is called is not settled until
-        the commander has been picked. true, and it made reaching this page and
-        going anywhere else lose the deck entirely: the one moment a person is
-        most likely to wander off is before they have chosen what to do with it.
-        so the deck is saved the moment it is read, and every later touch of the
-        name is a rename of an entry that already exists. an unnamed deck is a
-        saved deck with no name yet, which is a better thing to be than gone.
+        the hub stops this before a deck is read at all, which is where it
+        belongs: nobody wants to find out after the import. this is for the ways
+        in that do not pass through the hub, a precon sent to the lens above all,
+        and it is a note rather than a block because the deck on screen still
+        works. it simply will not be there tomorrow.
     */
-    function remember() {
-        var r = reading();
-        if (!r.text) return;
-
-        var decks = r.decks.filter(function (x) { return x.text !== r.key; });
-        /* a deck coming back round keeps the name it was given unless a new one
-           was typed over it */
-        var name = r.wanted || (r.was && r.was.label) || "";
-
-        /* the entry is keyed on the origin and remembers where the deck has
-           actually got to, so a row can offer both: the deck as imported,
-           and the deck as it stands. whatever a swap session left behind
-           rides along untouched, because picking a deck back up is not
-           what should undo the work done to it */
-        var entry = {text: r.key, count: r.d.count, label: name, at: Date.now()};
-        if (r.was) {
-            ["swaps", "goal", "added", "newList"].forEach(function (k) {
-                if (r.was[k]) entry[k] = r.was[k];
-            });
-        }
-        /* it arrived as a list that is not the one it was imported as, so
-           that IS where it has got to, and it replaces whatever the last
-           session recorded */
-        if (r.key !== r.text) entry.newList = r.text;
-        decks.unshift(entry);
-        write(decks);
+    function refuse() {
+        if (note) note.hidden = false;
     }
 
-    /* renamed as it is typed. the entry is found by its list, not its name, so
-       a rename is the same write as the first save with a different label on it */
+    function remember() {
+        var text = listNow();
+        if (!text) return;
+
+        if (!did) {
+            did = create({text: text, count: D.count,
+                          label: named(), commander: leader()});
+            if (!did) return refuse();
+            /* every way on from this page now knows which deck it is carrying.
+               jinja could not fill these in: the entry did not exist when the
+               page was built, and the id is what it got when it did */
+            fields(".deck-did-field").forEach(function (f) { f.value = did; });
+            return;
+        }
+
+        var entry = find(did);
+        /* deleted from the hub in another tab while this page sat open. the
+           right answer is to write nothing: a rename should not resurrect a
+           deck somebody has just thrown away */
+        if (!entry) return;
+
+        /* the count comes back round too, because it is the shelf's fallback
+           name for a deck nobody has named and it can genuinely move: a deck
+           reopened after a swap session is being counted again, from the list
+           it has now */
+        var change = {label: named(), commander: leader(), count: D.count};
+        if (text && text !== entry.text) {
+            /*
+                the list under this deck has moved, and WHICH FIELD that lands
+                in turns on whether the deck has been swapped.
+
+                a deck with no swaps on it has not gone anywhere: whatever it is
+                holding IS what it was imported as. the way that happens is
+                matching a line the parser could not read, which does not change
+                the deck, it corrects our reading of it.
+
+                once it has swaps, entry.text is the list they were all made
+                against and rebuilding the deck depends on it, so it must not
+                move under them. the change is then where the deck has got TO.
+            */
+            if ((entry.swaps || []).length) change.newList = text;
+            else change.text = text;
+        }
+        patch(did, change);
+    }
+
+    /* renamed as it is typed, which is the whole reason this listens for an
+       event rather than reading the box: every way of changing the name comes
+       through sync(), and a rename is the same write as the first save with a
+       different label on it */
     document.addEventListener("deck-named", remember);
 
     /* and once more on the way out, because the LIST can still change after the

@@ -10,7 +10,7 @@
 <div class="guide precons deck-detail deck-view">
     <form class="precon-back deck-back" method="post" action="/deck/open">
         <input type="hidden" name="list" value="{{ pasted }}">
-        <input type="hidden" name="origin" value="{{ origin }}">
+        <input type="hidden" name="did" value="{{ did }}">
         <input type="hidden" name="name" value="{{ deck_name }}">
         <input type="hidden" name="commander" value="{{ commander }}">
         <input type="hidden" name="seen" value="1">
@@ -34,18 +34,18 @@
         {{ ways.way("/deck/read", "Compare it", "See the reading", pasted,
                     body="How original it is, how salty, what it costs, how played its
                           cards are and how old, against every Commander precon.",
-                    name=deck_name, commander=commander, origin=origin) }}
+                    name=deck_name, commander=commander, did=did) }}
         {{ ways.way("/deck/swap", "Change it", "Walk it card by card", pasted,
                     body="Walk the deck a card at a time, worst first, and swap what you
                           want to.",
-                    name=deck_name, commander=commander, origin=origin) }}
+                    name=deck_name, commander=commander, did=did) }}
     </div>
 </div>
 
-{# which shelf entry to look up, so the script can find whatever this deck's
-   last session left behind #}
+{# which saved deck to look up, so the script can find every change this deck
+   has ever had. the cards above are the server's, the changes are the browser's #}
 <script id="deck-view-data" type="application/json">{{ {
-    'origin': origin,
+    'did': did,
     'text': pasted
 } | tojson }}</script>
 {% endblock %}

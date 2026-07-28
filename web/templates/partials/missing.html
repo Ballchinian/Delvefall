@@ -33,6 +33,12 @@
        actually looking at, and the name travels with it like everywhere else #}
     <form class="deck-missing-again" method="post" action="{{ reread or '/deck/read' }}" hidden>
         <input type="hidden" name="list" value="{{ pasted or '' }}">
+        {# the deck's id, so fixing a line it could not read is a CORRECTION to
+           the deck you are holding rather than a second copy of it on the shelf.
+           the class matters as much as the value: on /deck/open the entry may
+           not exist yet when jinja draws this, and the script fills it in the
+           moment it does #}
+        <input type="hidden" name="did" class="deck-did-field" value="{{ did or '' }}">
         <input type="hidden" name="name" value="{{ deck_name or '' }}">
         <input type="hidden" name="commander" value="{{ commander or '' }}">
         <button type="submit">Read the deck again with them</button>

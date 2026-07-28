@@ -17,28 +17,19 @@
 //still be standing in the session that made it.
 
 import { paintChanges, rebuild, addedList, carryList } from "changes";
+import { find, patch } from "decks";
 import { el, pairCard } from "dom";
 
 (function () {
     var dataEl = document.getElementById("deck-view-data");
     if (!dataEl) return;
     var D = JSON.parse(dataEl.textContent);
-    var KEY = "delvefall_recent_decks";
 
-    /* the shelf is keyed on the list a deck was IMPORTED as. this page may be
-       holding a list that has moved on since, so the origin is what to look
-       up, exactly as the swap tool does */
-    var key = D.origin || D.text;
-    var entry = null;
-    try {
-        var decks = JSON.parse(localStorage.getItem(KEY)) || [];
-        for (var i = 0; i < decks.length; i++) {
-            if (decks[i].text === key) { entry = decks[i]; break; }
-        }
-    } catch (e) {
-        /* storage off, private browsing, or a full quota. the cards above are
-           server rendered and unaffected, so the page is still the page */
-    }
+    /* which saved deck this is, carried in a hidden field from the page that
+       sent us here. a deck arriving without one (a precon handed straight to
+       the lens) has no history to draw, and the blocks below stay empty, which
+       is the honest answer rather than a missing one */
+    var entry = find(D.did);
 
     /*
         a card this deck GAINED, marked where it sits in the deck grid.
@@ -86,8 +77,8 @@ import { el, pairCard } from "dom";
         the card out of the current list would leave the one it replaced missing
         from a deck that is meant to have it back.
 
-        entry.text is the shelf key, which is the imported list. that is what
-        makes this possible here at all.
+        entry.text is that list, kept on the shelf beside every swap ever made
+        against it. that is what makes this possible here at all.
     */
     /* the grid is SERVER rendered, from the list this page was posted, so the
        tile for a reverted card is showing the card that is no longer in the
@@ -120,22 +111,10 @@ import { el, pairCard } from "dom";
         entry.swaps.splice(i, 1);
         entry.newList = rebuild(entry.text, entry.swaps);
         entry.added = addedList(entry.swaps);
-        entry.at = Date.now();
-        try {
-            var all = JSON.parse(localStorage.getItem(KEY)) || [];
-            all.forEach(function (x) {
-                if (x.text !== key) return;
-                x.swaps = entry.swaps;
-                x.newList = entry.newList;
-                x.added = entry.added;
-                x.at = entry.at;
-            });
-            localStorage.setItem(KEY, JSON.stringify(all));
-        } catch (e) {
-            /* the page still shows the undo, it just will not survive a
-               reload. failing loudly here would be worse: the swap is already
-               gone from the screen */
-        }
+        /* only the three fields a revert actually changes, so a rename made in
+           another tab while this page sat open is not written back over */
+        patch(D.did, {swaps: entry.swaps, newList: entry.newList,
+                      added: entry.added});
         draw();
     }
 

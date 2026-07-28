@@ -14,7 +14,7 @@
        landed on then invented a new entry called "72 cards" #}
     <form class="precon-back deck-back" method="post" action="/deck/open">
         <input type="hidden" name="list" value="{{ pasted }}">
-        <input type="hidden" name="origin" value="{{ origin }}">
+        <input type="hidden" name="did" value="{{ did }}">
         <input type="hidden" name="name" value="{{ deck_name }}">
         <input type="hidden" name="commander" value="{{ commander }}">
         <input type="hidden" name="seen" value="1">
@@ -54,7 +54,7 @@
         {{ ways.way("/deck/view", "View it", "See the cards", pasted,
                     body="Every card in the deck, as cards, with the list to copy and
                           whatever has been changed since it was imported.",
-                    name=deck_name, commander=commander, origin=origin) }}
+                    name=deck_name, commander=commander, did=did) }}
 
         {# the one row that FOLLOWS the standing on screen, and on the one
            standing it cannot act on it is not there at all: originality has no
@@ -71,9 +71,9 @@
         {% if swaps %}
         <form class="deck-mode" id="deck-swap-start" method="post" action="/deck/swap" hidden>
             <input type="hidden" name="list" value="{{ pasted }}">
-            {# which shelf entry this deck is, carried on so the swap tool can
-               write its session onto the right one. see /deck/open #}
-            <input type="hidden" name="origin" value="{{ origin }}">
+            {# which saved deck this is, carried on so every swap made over
+               there writes itself onto the right one. see deck_did() #}
+            <input type="hidden" name="did" value="{{ did }}">
             <input type="hidden" name="name" value="{{ deck_name }}">
             <input type="hidden" name="commander" value="{{ commander }}">
             <input type="hidden" name="seen" value="1">

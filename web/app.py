@@ -3130,6 +3130,28 @@ def deck_identity():
     return (name or commander), commander
 
 
+def deck_did():
+    #WHICH SAVED DECK this is, in the visitor's own browser, passed from page to
+    #page and handed straight back. the server never reads it, never writes it
+    #and could not use it if it wanted to: the shelf of saved decks is
+    #localStorage and nothing about it reaches us.
+    #
+    #it rides the form like the list and the name do, for the same reason: there
+    #is no session and no account, so every request states its own everything.
+    #
+    #it replaced the whole DECKLIST being carried in a second hidden field on
+    #every form, which is what the browser used to key its shelf on. that key
+    #moved whenever a swap changed the deck, so each page carried the list twice,
+    #once as it stands and once as it was imported, and every lookup was a guess
+    #about which one it was holding.
+    #
+    #trimmed to a length no id will ever reach. it is echoed into html, so what
+    #matters is that it cannot be a decklist smuggled through the field that was
+    #never meant to carry one
+    return "".join(c for c in request.form.get("did", "")[:64]
+                   if c.isalnum())
+
+
 def deck_leaders(conn, oracle_ids):
     #every card in the list that could BE the commander: front face legendary
     #creatures, the same test the search's "commanders only" filter uses. a
@@ -3285,13 +3307,8 @@ def deck_open():
     #confirmation that the list arrived intact, which is the thing an IMPORT
     #most needs: a link that silently read 40 of your 100 cards is the failure
     #nobody notices until the numbers look wrong
-    #which shelf entry this deck belongs to, when it came off the shelf. it is
-    #the list as first imported, and the browser keys its saved decks on it, so
-    #a deck reopened after a swap session is recognised as the same deck rather
-    #than saved again as a second one. empty for a fresh paste or import, which
-    #is the browser's cue to key on the list itself
     return render_template("deck/modes.html", pasted=text[:DECK_MAX_CHARS],
-                           origin=request.form.get("origin", "")[:DECK_MAX_CHARS],
+                           did=deck_did(),
                            matched=len(ids), missing=missing,
                            deck_name=name, commander=commander,
                            leaders=leaders, picker=picker,
@@ -3310,7 +3327,7 @@ def deck_view():
     #
     #what CHANGED is deliberately not computed here and cannot be: a swap
     #session never reaches the server, so the only record of it is the shelf in
-    #the visitor's own browser. the page carries its origin and the script
+    #the visitor's own browser. the page carries the deck's id and the script
     #fills those blocks in from there
     text = request.form.get("list", "")
     ids, missing = parse_decklist(text)
@@ -3332,7 +3349,7 @@ def deck_view():
                            section=DECK_SECTION,
                            missing=missing, cur=cur, deck_name=name,
                            commander=commander, pasted=text[:DECK_MAX_CHARS],
-                           origin=request.form.get("origin", "")[:DECK_MAX_CHARS])
+                           did=deck_did())
 
 
 @app.route("/deck/read", methods=["POST"])
@@ -3385,8 +3402,8 @@ def deck_read():
                            cur=cur, deck_name=name, commander=commander, swaps=swaps,
                            section=DECK_SECTION,
                            #passed straight through: the Change it form below
-                           #posts to /deck/swap and the key has to survive the hop
-                           origin=request.form.get("origin", "")[:DECK_MAX_CHARS],
+                           #posts to /deck/swap and the id has to survive the hop
+                           did=deck_did(),
                            #the currency control here is a form rather than
                            #links: this page has no url of its own to flip
                            cur_post=True, cur_labels=CURRENCY_LABELS,
@@ -4280,10 +4297,10 @@ def deck_swap():
                            #includes it
                            cards=deck_pictures, section=DECK_SECTION,
                            pasted=text[:DECK_MAX_CHARS],
-                           #the shelf key, so a finished session writes itself
-                           #onto the deck it belongs to rather than looking for
-                           #an entry under the list it happens to be holding
-                           origin=request.form.get("origin", "")[:DECK_MAX_CHARS])
+                           #which saved deck this is, so every swap made here
+                           #writes itself onto the deck it belongs to rather
+                           #than onto whichever entry holds a matching list
+                           did=deck_did())
 
 
 @app.route("/deck/swap/cards", methods=["POST"])

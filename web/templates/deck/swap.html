@@ -17,7 +17,7 @@
     {# the list rides the link, so going back keeps the deck AND its name #}
     <form class="precon-back deck-back" method="post" action="/deck/open">
         <input type="hidden" name="list" value="{{ pasted }}">
-        <input type="hidden" name="origin" value="{{ origin }}">
+        <input type="hidden" name="did" value="{{ did }}">
         <input type="hidden" name="name" value="{{ deck_name }}">
         <input type="hidden" name="commander" value="{{ commander }}">
         <input type="hidden" name="seen" value="1">
@@ -172,7 +172,7 @@
                         body="How original it is, how salty, what it costs, how played its
                               cards are and how old, with your swaps applied, against every
                               Commander precon.",
-                        name=deck_name, commander=commander, origin=origin) }}
+                        name=deck_name, commander=commander, did=did) }}
         </div>
     </div>
     {% endif %}
@@ -192,7 +192,7 @@
     'batch': batch,
     'offer': offer,
     'text': pasted,
-    'origin': origin
+    'did': did
 } | tojson }}</script>
 {% endblock %}
 

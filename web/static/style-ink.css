@@ -1870,9 +1870,62 @@ footer a { color: var(--teal); }
 }
 
 .deck-recent-row .deck-recent-open,
-.deck-recent-row .deck-recent-meta { grid-column: 1; }
+.deck-recent-row .deck-recent-name,
+.deck-recent-row .deck-recent-meta,
+.deck-recent-row .deck-recent-changes { grid-column: 1; }
 
 .deck-recent-row .deck-recent-tools { grid-column: 2; grid-row: 1 / span 2; }
+
+/* renaming happens where the name is, in a box the size of the name. it was a
+   window.prompt, which is a modal dialog for one text field: it stops the page,
+   it looks like the browser asking rather than the site, and what you typed only
+   landed if you found the right button. this saves on every letter, so it needs
+   no button at all */
+.deck-recent-name {
+    width: 100%;
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    border-bottom: 1px solid var(--teal);
+    border-radius: 0;
+    background: none;
+    font: inherit;
+    font-size: 14px;
+    color: var(--text);
+}
+
+.deck-recent-name:focus { outline: none; }
+
+/* every change this deck has ever had, folded. it is a HISTORY and not a
+   summary: ten decks each listing thirty swaps would bury the thing this panel
+   is for, which is getting back into a deck. closed, it is exactly the line the
+   plain count used to be */
+.deck-recent-changes { min-width: 0; }
+
+/* the disclosure triangle is left exactly as the browser draws it. it is the
+   only thing on the row saying there is more underneath, and every restyling of
+   it costs the one marker every user already knows */
+.deck-recent-changes > summary { cursor: pointer; }
+
+.deck-recent-swaps {
+    list-style: none;
+    margin: 3px 0 5px;
+    padding: 0 0 0 2px;
+    border-left: 1px solid var(--line);
+}
+
+/* the same three parts a swap is drawn as everywhere else on the site, in the
+   order they were made, one size smaller because this is a list of thirty and
+   /deck/view's is a list of the ones you just made */
+.deck-recent-swap {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 5px;
+    padding: 2px 0 2px 7px;
+    font-size: 12.5px;
+    line-height: 1.35;
+}
 
 .deck-recent-open {
     background: none;

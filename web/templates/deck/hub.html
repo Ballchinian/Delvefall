@@ -13,6 +13,19 @@
 
     {% if error %}<p class="deck-error">{{ error }}</p>{% endif %}
 
+    {# the shelf is full, said at the moment somebody tries to read another
+       deck. reading a deck SAVES it, so a full shelf is a reading that cannot
+       be kept, and the alternative (quietly dropping the oldest to make room)
+       is a save deleting a save.
+
+       it sits with the errors rather than beside the panel it is about,
+       because it is the answer to the button that was just pressed. hidden
+       until then: hub.js reveals it, and only when the shelf is actually
+       full #}
+    <p class="deck-error" id="deck-full" hidden>Your saved decks are full. Forget one on
+    the right and this will go through: reading a deck saves it, and the shelf will not
+    drop an old deck to make room for a new one.</p>
+
     <div class="deck-hub-cols">
         <div class="deck-hub-main">
             {# two inputs, not one clever one. a single box sniffing at its own
@@ -67,9 +80,15 @@
             {# saying WHEN it saves, because "decks you've read" gave no clue and
                a list that fills up on its own reads like an account keeping
                notes on you. it is one sentence and it answers the whole thing:
-               what triggers it, where it lives, and how to stop #}
-            <p class="deck-hub-note">Saved to this browser when you pick a commander.
-            Never sent anywhere, and nothing is kept on our side.
+               what triggers it, where it lives, and how to stop.
+
+               HOW FULL IT IS is the other half of that, and it is filled in by
+               the script because only the browser knows. it is the number that
+               decides whether the next deck can be read at all, so learning it
+               by being turned away is learning it too late #}
+            <p class="deck-hub-note">Saved to this browser the moment a deck is read, and
+            every change you make to it after that. Never sent anywhere, and nothing is kept
+            on our side. <span id="deck-recent-room"></span>
             <button type="button" class="deck-recent-clear" id="deck-recent-clear">Forget them all</button></p>
         </aside>
     </div>
@@ -84,11 +103,11 @@
    as a second entry for a deck already in it #}
 <form id="deck-recent-form" action="/deck/open" method="post" hidden>
     <input type="hidden" name="list" id="deck-recent-list-field">
-    {# which shelf entry this is, which is not the same question as what is in
-       it. the list above is wherever the deck has got to, the origin is what it
-       was imported as, and the shelf is keyed on the origin so a deck that has
-       been swapped is still the deck it started as rather than a new one #}
-    <input type="hidden" name="origin" id="deck-recent-origin-field">
+    {# WHICH saved deck this is, which is not the same question as what is in it.
+       the list above is wherever the deck has got to, the id is the deck itself,
+       and it is the id that travels: two rows may hold the very same cards, and
+       reopening one of them has to come back to that one #}
+    <input type="hidden" name="did" id="deck-recent-did-field">
     <input type="hidden" name="name" id="deck-recent-name-field">
     <input type="hidden" name="commander" id="deck-recent-commander-field">
     {# already checked once, when it was first read. seen means "do not ask

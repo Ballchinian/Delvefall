@@ -18,6 +18,10 @@ import { wireReports } from "report";
 //painter that draws them. rebuild came the other way: it was this file's and
 ///deck/view needed it the moment it could put a card back
 import { paintChanges, rebuild, addedList, carryList } from "changes";
+//the shelf, through the one file that owns it. this page used to read and write
+//localStorage by hand, with its own copy of the key and its own idea of which
+//entry a deck was, which is exactly how the two ideas drifted apart
+import { find, patch } from "decks";
 (function () {
     var dataEl = document.getElementById("swap-data");
     if (!dataEl) return;
@@ -51,17 +55,11 @@ import { paintChanges, rebuild, addedList, carryList } from "changes";
         one back out is putting it back by hand. a deck starts over by being
         pasted in as a new list, which is a new entry and a new history.
     */
-    var shelfKey = D.origin || D.text;
-    var entry = null;
-    try {
-        (JSON.parse(localStorage.getItem("delvefall_recent_decks")) || []).forEach(function (x) {
-            if (!entry && (x.text === shelfKey || (D.text && x.newList === D.text))) entry = x;
-        });
-    } catch (e) {
-        /* storage off or unreadable. the session still works, it just starts
-           from an empty history and writes nothing at the end */
-    }
-    if (entry) shelfKey = entry.text;
+    /* which saved deck this is, carried in a hidden field from the page that
+       sent us here. it used to be worked out by matching the decklist against
+       every entry on the shelf two ways, because the key WAS the list and the
+       list moves during a session. an id does not move */
+    var entry = find(D.did);
 
     /* every swap this deck has ever had, this session's included as they are
        made. the ones carried in are already applied to the list the page is
@@ -455,6 +453,11 @@ import { paintChanges, rebuild, addedList, carryList } from "changes";
         swaps.push({out: D.queue[at], in: c, match: c.match});
         deck.push(c.oracle_id);
         trail.push({at: at, took: true});
+        /* written down HERE, on the decision, rather than at the end of the
+           batch. somebody who swaps three cards and closes the tab has made
+           three decisions about their deck, and a tool built to be left half
+           walked cannot only save the sessions that were finished */
+        remember();
         at++;
         clearPicks();
         show();
@@ -479,6 +482,9 @@ import { paintChanges, rebuild, addedList, carryList } from "changes";
             var s = swaps.pop();
             var at_in = deck.indexOf(s["in"].oracle_id);
             if (at_in > -1) deck.splice(at_in, 1);
+            /* the same reason take() writes: undoing a swap is a decision too,
+               and the shelf has to lose it as surely as the screen does */
+            remember();
         }
         at = step.at;
         clearPicks();
@@ -677,64 +683,56 @@ import { paintChanges, rebuild, addedList, carryList } from "changes";
         remember();
     }
 
+    /* only what the review needs to draw a card. the rest of the queue row is
+       about picking, and picking is over by the time a swap is written down */
+    function keep(c) {
+        /* the verdicts ride along too. the server worked them out against the
+           card being replaced when it sent the candidate, and they are the whole
+           reading of a swap: without them the review shows two prices and leaves
+           the arithmetic to whoever is looking. only the card coming IN carries
+           them, because the one going out is what they were measured against */
+        return {oracle_id: c.oracle_id, name: c.name, image: c.image,
+                image_back: c.image_back || "",
+                sideways: !!c.sideways, flip: !!c.flip,
+                scryfall_uri: c.scryfall_uri, price: c.price,
+                rank: c.rank, salt: c.salt, age: c.age,
+                price_vs: c.price_vs || "", rank_vs: c.rank_vs || "",
+                salt_vs: c.salt_vs || "", age_vs: c.age_vs || ""};
+    }
+
     /*
         hand the session back to the deck it belongs to, in this browser.
 
         without this a swap session evaporates the moment the tab closes, and
-        the work it represents (twelve judgement calls about somebody's deck)
-        is exactly the kind of thing worth being able to come back to. the
-        server still stores nothing: this is the same localStorage shelf the
-        hub already keeps, and the deck is found by the TEXT it was read from,
-        which is the key that shelf is built on.
+        the work it represents (twelve judgement calls about somebody's deck) is
+        exactly the kind of thing worth being able to come back to. the server
+        still stores nothing: this is the same localStorage shelf the hub keeps.
 
-        written on every finish, including after a revert, so what is stored is
-        always what is on screen rather than a snapshot of an earlier decision
+        IT RUNS ON EVERY DECISION, not at the end of a batch. it used to wait
+        for finish(), which meant walking away mid session lost every swap made
+        in it, and the tool is explicitly built to be walked a card at a time
+        and left. a swap is a decision, and a decision is worth writing down the
+        moment it is made.
+
+        that is also why the two lists are COMPUTED here rather than read off the
+        page: the boxes holding them are drawn by finish(), so mid session they
+        hold the last batch's answer or nothing at all. rebuild and addedList
+        are the same two functions that fill those boxes, run against the same
+        swaps, so the stored deck and the drawn deck cannot disagree
     */
     function remember() {
-        var KEY = "delvefall_recent_decks";
-        try {
-            var decks = JSON.parse(localStorage.getItem(KEY)) || [];
-            var found = false;
-            /* the shelf is keyed on the list the deck was IMPORTED as, which is
-               not the list this page is holding once the deck has been through
-               here before. matching on D.text alone meant a second session on
-               the same deck found no entry and threw its work away silently.
-               shelfKey is worked out once at the top, off the entry this page
-               found, so both ends of the session agree which deck this is */
-            decks.forEach(function (x) {
-                if (x.text !== shelfKey) return;
-                found = true;
-                x.swaps = swaps.map(function (s) {
-                    /* only what the review needs to draw a card. the rest of
-                       the queue row is about picking, and picking is over */
-                    var keep = function (c) {
-                        /* the verdicts ride along too. the server worked them
-                           out against the card being replaced when it sent the
-                           candidate, and they are the whole reading of a swap:
-                           without them the review shows two prices and leaves
-                           the arithmetic to whoever is looking. only the card
-                           coming IN carries them, because the one going out is
-                           what they were measured against */
-                        return {oracle_id: c.oracle_id, name: c.name, image: c.image,
-                                image_back: c.image_back || "",
-                                sideways: !!c.sideways, flip: !!c.flip,
-                                scryfall_uri: c.scryfall_uri, price: c.price,
-                                rank: c.rank, salt: c.salt, age: c.age,
-                                price_vs: c.price_vs || "", rank_vs: c.rank_vs || "",
-                                salt_vs: c.salt_vs || "", age_vs: c.age_vs || ""};
-                    };
-                    return {out: keep(s.out), "in": keep(s["in"])};
-                });
-                x.goal = D.goal;
-                x.newList = $("deck-list").value;
-                x.added = $("deck-added").value;
-                x.at = Date.now();
-            });
-            if (found) localStorage.setItem(KEY, JSON.stringify(decks));
-        } catch (e) {
-            /* private browsing, a full quota, or storage switched off. the
-               session on screen is unaffected, so this fails quietly */
-        }
+        /* no entry means this deck is not on the shelf: reached from a precon,
+           or deleted from the hub in another tab. the session on screen works
+           either way, it just has nowhere to be written */
+        if (!entry) return;
+        patch(D.did, {
+            swaps: swaps.map(function (s) {
+                return {out: keep(s.out), "in": keep(s["in"])};
+            }),
+            goal: D.goal,
+            newList: rebuild(baseList, swaps),
+            added: addedList(swaps)
+        });
     }
 
     /*

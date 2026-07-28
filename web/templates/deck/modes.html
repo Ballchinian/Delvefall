@@ -19,6 +19,18 @@
     <p class="deck-detail-sub">{{ matched }} card{{ '' if matched == 1 else 's' }} read in{% if missing %},
     {{ missing|length }} not found{% endif %}.</p>
 
+    {# this deck could not be saved, because the shelf in this browser is full.
+       /deck refuses at the paste box, which is the right place and covers every
+       ordinary way in; this is for the ways that do not pass through it, a
+       precon handed straight to the lens above all.
+
+       a NOTE and not a block: the deck on screen works, every mode below works,
+       and the only thing it will not do is still be here tomorrow. that is worth
+       saying and not worth stopping anybody over #}
+    <p class="deck-error" id="deck-save-full" hidden>This deck is not saved:
+    your saved decks are full. Forget one on <a href="/deck">the deck page</a> and read this
+    deck again to keep it.</p>
+
     {% if missing %}{% with reread = '/deck/read' %}{% include "partials/missing.html" %}{% endwith %}{% endif %}
 
     {# who leads it, which is the only thing that turns a pile of cards into a
@@ -73,7 +85,7 @@
         {{ ways.way("/deck/view", "View it", "See the cards", pasted,
                     body="Every card in the deck, as cards, with the list to copy and
                           whatever has been changed since it was imported.",
-                    name=deck_name, commander=commander, origin=origin, seen='') }}
+                    name=deck_name, commander=commander, did=did, seen='') }}
 
         {# COMPARE, not "read". "read it" next to "view it" was two words for
            looking at something, and the difference between them (one shows you
@@ -83,7 +95,7 @@
                     body="How original it is, how salty, what it costs, how played its
                           cards are and how old, each one placed against every Commander
                           precon.",
-                    name=deck_name, commander=commander, origin=origin, seen='') }}
+                    name=deck_name, commander=commander, did=did, seen='') }}
 
         {# which way to push the deck. one control and not two, because the
            choice is one choice: "cheaper" names a field and a direction
@@ -95,7 +107,7 @@
         {% call ways.way("/deck/swap", "Change it", "Walk it card by card", pasted,
                          body="Walk the deck a card at a time, worst first, and swap what
                                you want to. Ends with a list you can paste back.",
-                         name=deck_name, commander=commander, origin=origin, seen='') %}
+                         name=deck_name, commander=commander, did=did, seen='') %}
         <label class="deck-mode-axis">Make it
             <select name="goal" aria-label="which way to change the deck">
                 {% for pair, spec in swap_axes.items() %}
@@ -115,7 +127,7 @@
 <script id="deck-lead-data" type="application/json">{{ picker | tojson }}</script>
 <script id="deck-remember" type="application/json">{{ {
     'text': pasted,
-    'origin': origin,
+    'did': did,
     'count': matched
 } | tojson }}</script>
 {% endblock %}

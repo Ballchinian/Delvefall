@@ -28,12 +28,14 @@
 {% set marks = {'/deck/view': 'view', '/deck/read': 'compare',
                 '/deck/swap': 'change'} %}
 
-{% macro way(action, title, go, pasted, body='', name='', commander='', origin='', seen='1') %}
+{% macro way(action, title, go, pasted, body='', name='', commander='', did='', seen='1') %}
 <form action="{{ action }}" method="post" class="deck-mode">
     <input type="hidden" name="list" value="{{ pasted }}">
-    {# which shelf entry this deck is, as against what is currently in it, so a
-       deck that has been swapped is still the deck it started as #}
-    <input type="hidden" name="origin" value="{{ origin }}">
+    {# WHICH SAVED DECK this is, in the visitor's own browser. it is empty on a
+       deck that has not been saved yet, which is every deck the first time
+       /deck/open draws this row: the entry is made by the script once the page
+       is running, and the class is how it reaches back in and fills these #}
+    <input type="hidden" name="did" class="deck-did-field" value="{{ did }}">
     <input type="hidden" name="name" class="deck-name-field" value="{{ name }}">
     <input type="hidden" name="commander" class="deck-commander-field" value="{{ commander }}">
     {% if seen %}<input type="hidden" name="seen" value="{{ seen }}">{% endif %}
