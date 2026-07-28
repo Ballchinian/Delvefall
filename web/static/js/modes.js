@@ -39,6 +39,13 @@ import { read, write } from "decks";
         fields(".deck-name-field").forEach(function (f) { f.value = label(); });
         if (title) title.textContent = label() || "Your deck";
         if (nameInput) nameInput.placeholder = lead || "Named after the commander";
+        /* the deck is now called something, possibly something new. said out
+           loud so the half of this file that keeps the shelf can hear it,
+           because every way of changing the name comes through here: typing in
+           either box, picking a commander off the dropdown, and Clear. the two
+           halves share the page rather than their variables, and one event is a
+           smaller bridge than moving either of them */
+        document.dispatchEvent(new CustomEvent("deck-named"));
     }
 
     /*
@@ -163,19 +170,24 @@ import { read, write } from "decks";
     }
 
     /*
-        THIS NEVER REFUSES AND NEVER PREVENTS THE SUBMIT.
+        THIS NEVER REFUSES AND NEVER PREVENTS ANYTHING.
 
         it briefly did both, to stop two decks sharing a name, and the cost was
         out of all proportion: the submit it blocked was the mode button, so
         typing a name another deck had made View it stop working, with a
         sentence beside the box as the only clue. saving a deck is what this
         page is FOR, and nothing about a label is worth not doing it.
+
+        AND IT RUNS ON ARRIVAL, not only on the way out. it used to wait for a
+        submit, on the reasoning that what a deck is called is not settled until
+        the commander has been picked. true, and it made reaching this page and
+        going anywhere else lose the deck entirely: the one moment a person is
+        most likely to wander off is before they have chosen what to do with it.
+        so the deck is saved the moment it is read, and every later touch of the
+        name is a rename of an entry that already exists. an unnamed deck is a
+        saved deck with no name yet, which is a better thing to be than gone.
     */
     function remember() {
-        /* read at SUBMIT time, never at load. what the deck is called is not
-           settled until the commander has been picked, and what is IN it is
-           not settled until the unmatched lines have been dealt with, so a
-           snapshot taken on load is a snapshot of neither */
         var r = reading();
         if (!r.text) return;
 
@@ -203,7 +215,19 @@ import { read, write } from "decks";
         write(decks);
     }
 
+    /* renamed as it is typed. the entry is found by its list, not its name, so
+       a rename is the same write as the first save with a different label on it */
+    document.addEventListener("deck-named", remember);
+
+    /* and once more on the way out, because the LIST can still change after the
+       name has settled: adding a card the parser missed rewrites every list
+       field on the page, and this is the last moment to catch it */
     document.querySelectorAll(".deck-mode").forEach(function (form) {
         form.addEventListener("submit", remember);
     });
+
+    /* on arrival. sync() has already run and dispatched its event by the time
+       this half of the file is reached, so the first save has to be made here
+       rather than waited for */
+    remember();
 })();
