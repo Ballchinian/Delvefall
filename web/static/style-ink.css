@@ -592,21 +592,31 @@ h2 {
    WIDEST thing under a card rather than by the picture: the four figures are
    one line or they are two, and two is a card grown a row taller than its
    neighbours for no reason anybody can see.
-   220px is where price, play rate, salt and card age stop fitting on one line,
-   measured at the three widths a column count changes: 4 cards at a 975px
-   viewport is 220.75px each, 3 at 740px is 222.67, 2 at 495px is 221.50. one
-   number, three times, so the rule is a minimum card width and not a set of
-   breakpoints.
    it has to be the FLOOR rather than a media query, because these grids sit in
    containers of different widths (a search gets 968px, the swap page 860px)
    and the card is meant to be the same size in all of them. auto-fill measures
    the container, a media query would measure the window.
    the old 200px floor let four columns squeeze to 200px before dropping to
    three, so the row broke across every viewport from 892 to 974 and again from
-   672 to 734 and 452 to 493. that is 188 widths, not an edge case */
+   672 to 734 and 452 to 493. that is 188 widths, not an edge case.
+
+   230 AND NOT 220, because 220 was measured before the age figure grew an
+   arrow. that arrow is 6.1px of glyph and 2px of margin, and the widest row on
+   a Cards-like-Ancient-Silver-Dragon search went from 221.7px to 229.8px the
+   day it landed: one pixel inside the old floor to eight pixels outside it. so
+   four columns at a 979px viewport gave 221.8px each and eight of the twenty
+   rows broke in half, which is the exact bug the floor exists to prevent,
+   reintroduced by a change nobody thought was about layout.
+
+   this floor CANNOT cover every card and it is worth saying so rather than
+   claiming a round number again. a search for Timetwister wraps all twenty
+   rows and wants 280px, because four figures each carrying an arrow is simply
+   wider than a card picture when the price runs to three digits. the floor
+   buys the ordinary case; the row-gap below is what makes the rest read as
+   two deliberate lines rather than as a collision */
 .card-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
     gap: 20px;
 }
 
@@ -686,6 +696,18 @@ h2 {
     font-size: 13px;
     font-weight: 600;
     margin-top: 6px;
+    /* a wrapped row of figures used to be four inline spans falling onto a
+       second line with nothing between them, which read as the numbers running
+       into each other rather than as a second line of numbers. flex-wrap gives
+       it a row-gap, which inline flow has no way to express, and the 10px
+       column gap replaces the margin-left each figure used to carry: one rule
+       for the spacing instead of three that had to agree.
+       the figures stay in source order and each stays nowrap, so this changes
+       where the row BREAKS and nothing about what it says */
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 10px;
 }
 
 /* the price and its arrow, coloured together. colour on the arrow alone was
@@ -700,7 +722,12 @@ h2 {
    COMPARISON, not on the number itself: green here means cheaper than the
    card you searched, which is a fact, where a green price meant "good
    value", which was an opinion the number could not support */
-.price-figure { cursor: help; }
+/* nowrap like the other three. as a flex item it can break between the figure
+   and its arrow, and a lone arrow starting the next line names nothing */
+.price-figure {
+    cursor: help;
+    white-space: nowrap;
+}
 
 .price-figure.much-cheaper { color: #1f6b41; }
 
@@ -750,9 +777,13 @@ h2 {
 }
 
 /* edhrec popularity, second on the row. grey like everything beside it, and it
-   has a tooltip so the bare number isn't a mystery */
+   has a tooltip so the bare number isn't a mystery.
+   no margin-left on any of these three any more: both rows they appear in
+   (.result-price under a card and .anchor-figures under the searched one) are
+   flex with a column gap, and a margin on top of a gap is two rules deciding
+   one distance. on the anchor row they were actually stacking, 8 onto 10, so
+   the searched card's figures sat further apart than the results' */
 .result-rank {
-    margin-left: 8px;
     cursor: help;
 }
 
@@ -761,7 +792,6 @@ h2 {
    the mark earns its place because a bare "0.24" next to a price and a #rank
    has to say what KIND of number it is before it says anything else */
 .result-salt {
-    margin-left: 8px;
     cursor: help;
     white-space: nowrap;
 }
@@ -772,7 +802,6 @@ h2 {
    no mark, because the word "years" already says what kind of number it is,
    which is the job the salt mark exists to do for a bare decimal */
 .result-age {
-    margin-left: 8px;
     cursor: help;
     white-space: nowrap;
 }
