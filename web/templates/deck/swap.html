@@ -120,7 +120,12 @@
     <div class="swap-nothing" id="swap-nothing" hidden>
         <h2>Nothing close enough</h2>
         <p class="deck-section-note">No card does what these do and moves the deck
-        {{ goal }}, so they were passed over rather than swapped for something worse.</p>
+        {{ goal }}, so they were passed over rather than swapped for something worse.{#
+           filled in by the script when it is true, because "no card does what
+           these do" is a claim and the mana value band can make it a false one:
+           a card whose every match was the right effect at the wrong cost has
+           not been passed over for want of an answer #}
+        <span id="swap-nothing-cost"></span></p>
         <ul class="swap-made" id="swap-nothing-list"></ul>
         {# the same fold the swaps get. these are cards somebody may well
            disagree with the tool about, and "no card does this job" is much

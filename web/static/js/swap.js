@@ -120,6 +120,13 @@ import { wireReports } from "report";
        there is one description of this panel and not two */
     var panels = {};
 
+    /* what each answer held back for costing the wrong amount, keyed the same
+       way the cards are. it is kept beside the list rather than inside it
+       because it is a fact about the ANSWER and not about any card in it: an
+       answer of three cards that turned eleven away is a different answer from
+       one that turned none away, and the list alone cannot tell you which */
+    var held = {};
+
     /*
         ask for one card's replacements, once. the result is cached whichever
         way it comes back, so walking forwards and the look-ahead never ask
@@ -147,6 +154,7 @@ import { wireReports } from "report";
             var cards = j.cards || [];
             cache[key] = cards;
             if (j.panel) panels[key] = j.panel;
+            held[key] = {n: j.offband || 0, lo: j.mv_lo, hi: j.mv_hi};
             /* a card with nowhere to go is named at the end, but only when the
                PLAIN question got no answer: narrowing to one line and finding
                nothing is the user's own filter, not a fact about the card */
@@ -211,7 +219,7 @@ import { wireReports } from "report";
 
         var got = cache[key];
         if (Array.isArray(got)) {
-            render(got);
+            render(got, held[key]);
         } else {
             note.textContent = "Looking for replacements…";
             load(at);
@@ -354,7 +362,19 @@ import { wireReports } from "report";
         enhanceCardFrames(options);
     }
 
-    function render(cards) {
+    /* the matches that were the right card at the wrong cost, said out loud.
+       without it the tool answers "one card" and looks like it has run out of
+       ideas, when what actually happened is that it turned eleven away for
+       being the wrong thing to put in this slot. that is a judgement worth
+       arguing with, and an unstated one cannot be argued with at all */
+    function costNote(h) {
+        if (!h || !h.n || h.lo === null || h.lo === undefined) return "";
+        return " " + h.n + (h.n === 1 ? " other match was" : " other matches were")
+            + " left out for costing outside " + Math.max(0, h.lo) + " to " + h.hi
+            + ": what a card does is not what it costs, and the slot has a curve.";
+    }
+
+    function render(cards, h) {
         options.innerHTML = "";
         if (!cards.length) {
             /*
@@ -369,12 +389,13 @@ import { wireReports } from "report";
                 is what /search does with a filter that matches nothing
             */
             if (!picked()) { at++; return show(); }
-            note.textContent = "Nothing matches with those lines and tags. "
-                + "Widen it above, or keep the card you have.";
+            note.textContent = "Nothing matches with those lines and tags."
+                + costNote(h) + " Widen it above, or keep the card you have.";
             if (moreBtn) moreBtn.hidden = true;
             return;
         }
-        note.textContent = "Pick one to swap it in, or keep the card you have.";
+        note.textContent = "Pick one to swap it in, or keep the card you have."
+            + costNote(h);
         shown = D.offer;
         paintOptions(cards);
     }
@@ -550,6 +571,22 @@ import { wireReports } from "report";
         /* the cards nothing could replace, named together rather than one
            dead end at a time on the way through */
         if (nothing.length) {
+            /* how many of them were not short of an answer but short of one at
+               the right cost. the heading above says no card does what these
+               do, which the mana value band can turn into a lie, so the count
+               that makes it a lie is printed next to it */
+            var costly = nothing.filter(function (c) {
+                var h = held[c.oracle_id + "|||"];
+                return h && h.n;
+            }).length;
+            var costEl = $("swap-nothing-cost");
+            if (costEl) {
+                costEl.textContent = costly
+                    ? (costly === 1 ? "One of them has" : costly + " of them have")
+                      + " matches that do the job at a different mana value, held"
+                      + " back because a slot has a curve."
+                    : "";
+            }
             var box = $("swap-nothing"), list = $("swap-nothing-list");
             var pics = $("swap-nothing-cards");
             list.innerHTML = "";

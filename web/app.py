@@ -3786,8 +3786,35 @@ SWAP_OFFER_DEEP = 48
 #is on RULES TEXT, so a two mana rock and a six mana rock score identically on
 #the ability that makes them rocks. on /search that is browsing and the user
 #judges. here the page is proposing a card for a specific slot, and a curve is
-#a real constraint that the text cannot see
+#a real constraint that the text cannot see.
+#
+#it is not one FLAT number any more, and that was the bug. two either way
+#reaches 89% of the format at three mana and 10.7% of it at eight, because the
+#format thins out fast past five: 7,497 nonland commander-legal cards cost
+#three and 292 cost eight. so the single band was barely a constraint in the
+#middle of the curve and close to a blackout at the top, where Ancient Silver
+#Dragon's "less salty" list came back holding one card while /search showed
+#fourteen of them.
+#
+#past five it widens to three. past eight it stops measuring distance
+#downwards at all and just reaches to five: up there everything is a finisher,
+#and the gap between an eight drop and an eleven drop is not a difference
+#anybody builds around. the two fives below are the same number by coincidence
+#and not by rule, so they are two constants
 SWAP_MV_BAND = 2
+SWAP_MV_BAND_HIGH = 3
+#where the wider band starts
+SWAP_MV_HIGH = 5
+#the lowest mana value a card past that band can reach down to
+SWAP_MV_FLOOR = 5
+
+
+def swap_mv_range(cmc):
+    #the mana values a replacement for this slot may cost, low and high, both
+    #inclusive. min() and not max(): the floor only ever OPENS the range, so a
+    #three drop still reaches down to one rather than being dragged up to five
+    band = SWAP_MV_BAND if cmc <= SWAP_MV_HIGH else SWAP_MV_BAND_HIGH
+    return min(cmc - band, SWAP_MV_FLOOR), cmc + band
 
 #how close to the card's OWN rarest line another of its lines has to be before
 #it is worth anchoring on too. 0.9 keeps genuine second abilities and drops
@@ -3987,10 +4014,15 @@ def swap_candidates(conn, card, deck_ids, colors, field, direction, currency="us
     where += " AND (c.type_line ILIKE %s) = %s"
     params.append("%Land%")
     params.append(bool("Land" in (card["type_line"] or "")))
-    if card.get("cmc") is not None:
-        where += " AND abs(c.cmc - %s) <= %s"
-        params.append(card["cmc"])
-        params.append(SWAP_MV_BAND)
+    #the mana value band is NOT in this where clause, and that is deliberate.
+    #it is applied below, after every candidate has been scored, so the page can
+    #say how many real matches it held back for being the wrong cost. filtered
+    #here they would be indistinguishable from cards that never matched at all,
+    #which is the whole reason this looked broken: a tool that answers "one
+    #card" without saying it turned fourteen away is a tool nobody can argue
+    #with. everything else stays in the SQL, where the LIMIT can bite after it
+    mv_lo, mv_hi = (swap_mv_range(card["cmc"])
+                    if card.get("cmc") is not None else (None, None))
     #and the axis itself, as an EXCLUSION rather than a sort applied later.
     #this is the one the notes warned about: similarity finds the same EFFECT,
     #and the effect is what people voted salt on, so the neighbours of a salty
@@ -4087,6 +4119,9 @@ def swap_candidates(conn, card, deck_ids, colors, field, direction, currency="us
                 shared.setdefault(r["oracle_id"], []).append(r["tag"])
 
     out = []
+    #real matches on every count except what they cost, which is the one
+    #exclusion worth reporting: the others are all "this is not the same card"
+    offband = 0
     for oid, pairs in pairs_by_card.items():
         weighted, raw, ours, theirs = pairs[0]
         mech_pct = mech_display(raw)
@@ -4095,6 +4130,12 @@ def swap_candidates(conn, card, deck_ids, colors, field, direction, currency="us
         #promise the whole site runs on
         pct = int(round((1 - SWAP_BLEND) * mech_pct + SWAP_BLEND * concept_pct))
         if pct < SWAP_GATE or weighted < SWAP_PAIR_CUT:
+            continue
+        #counted only AFTER the gate, so the number the page prints is cards
+        #that would have been offered, not everything the vector walk touched
+        cmc = meta[oid]["cmc"]
+        if mv_lo is not None and cmc is not None and not (mv_lo <= cmc <= mv_hi):
+            offband += 1
             continue
         #the abilities beyond the one on the badge. a pair reusing a line
         #already shown is skipped, so the count means genuinely different
@@ -4120,7 +4161,9 @@ def swap_candidates(conn, card, deck_ids, colors, field, direction, currency="us
     #everything in this list is a genuine improvement, so the only open
     #question left is which one does the job best
     out.sort(key=lambda c: -c["match"])
-    return out[:SWAP_OFFER_DEEP]
+    #the held-back count rides back with the list rather than being recovered
+    #from it later, because it cannot be: those cards are gone by then
+    return out[:SWAP_OFFER_DEEP], offband, (mv_lo, mv_hi)
 
 
 def read_axis():
@@ -4268,8 +4311,8 @@ def deck_swap_cards():
         #it back here beats doing it twice and risking two answers
         picked = [l["text"] for l in panel["card_lines"] if l["selected"]]
         picked = [clean_line(t, card["name"]) for t in picked]
-        cards = swap_candidates(conn, card, deck_ids, colors, field, direction,
-                                currency=cur, picked=picked, dropped=dropped, forced=forced)
+        cards, offband, mv = swap_candidates(conn, card, deck_ids, colors, field, direction,
+                                             currency=cur, picked=picked, dropped=dropped, forced=forced)
     #an empty list is a real answer here, not a miss, so it comes back as one
     #rather than as an error the page has to interpret.
     #
@@ -4277,7 +4320,13 @@ def deck_swap_cards():
     #rebuilds. that is what keeps partials/anchorcard.html the only description
     #of this card anywhere: a json shape plus a javascript builder would be a
     #second one, and the two would drift the first time only one was edited
+    #offband is how many matches were the right card at the wrong cost, and mv
+    #is the window they missed, so the page can name both rather than saying a
+    #number nobody can check
     return {"cards": cards, "gate": SWAP_GATE, "axis": field, "dir": direction,
+            "offband": offband,
+            "mv_lo": None if mv[0] is None else int(mv[0]),
+            "mv_hi": None if mv[1] is None else int(mv[1]),
             "panel": render_template("partials/anchorcard.html", **panel)}
 
 
