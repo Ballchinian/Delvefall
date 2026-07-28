@@ -36,7 +36,43 @@ import { paintChanges, rebuild, addedList, carryList } from "changes";
     */
     var deck = D.deck.slice();
     var at = 0;
-    var swaps = [];
+
+    /*
+        THE SHELF ENTRY THIS DECK ALREADY HAS, read once at the start.
+
+        a session used to begin with an empty swaps list and end by writing it
+        over whatever was there, so a deck's history was only ever its most
+        recent visit: swap two cards today, one card tomorrow, and the shelf
+        said one card. it was also the number the review drew from, so the work
+        did not vanish quietly, it vanished visibly.
+
+        the swaps now ACCUMULATE. this session's decisions are appended to
+        everything the deck has ever been through, and the only thing that takes
+        one back out is putting it back by hand. a deck starts over by being
+        pasted in as a new list, which is a new entry and a new history.
+    */
+    var shelfKey = D.origin || D.text;
+    var entry = null;
+    try {
+        (JSON.parse(localStorage.getItem("delvefall_recent_decks")) || []).forEach(function (x) {
+            if (!entry && (x.text === shelfKey || (D.text && x.newList === D.text))) entry = x;
+        });
+    } catch (e) {
+        /* storage off or unreadable. the session still works, it just starts
+           from an empty history and writes nothing at the end */
+    }
+    if (entry) shelfKey = entry.text;
+
+    /* every swap this deck has ever had, this session's included as they are
+       made. the ones carried in are already applied to the list the page is
+       holding, which is what the rebuild below has to account for */
+    var swaps = (entry && entry.swaps ? entry.swaps.slice() : []);
+    var carried = swaps.length;
+
+    /* the deck as it was IMPORTED, which is what a rebuild starts from. the
+       list this page is holding already has the carried swaps in it, so
+       replaying them onto it would look for cards that left long ago */
+    var baseList = (entry && entry.text) || D.text;
 
     /*
         how far into the queue this session has agreed to go. it used to be the
@@ -466,11 +502,14 @@ import { paintChanges, rebuild, addedList, carryList } from "changes";
         var at_in = deck.indexOf(s["in"].oracle_id);
         if (at_in > -1) deck.splice(at_in, 1);
         swaps.splice(i, 1);
+        if (i < carried) carried--;
         /* the trail records the DECISION, so undoing one from the review has to
            take its step with it or going back afterwards would try to unwind a
            swap that is no longer there. matched on the card it was made at,
            never on position: the review's order and the trail's are the same
-           today and nothing enforces that */
+           today and nothing enforces that.
+           a swap CARRIED IN from an earlier session has no step in this
+           session's trail, and the loop simply finds nothing, which is right */
         for (var t = 0; t < trail.length; t++) {
             if (trail[t].took && D.queue[trail[t].at] === s.out) {
                 trail[t].took = false;
@@ -616,7 +655,10 @@ import { paintChanges, rebuild, addedList, carryList } from "changes";
            swap asks and is this page's alone. no note, because the swaps are
            what the last twenty minutes were spent making and counting them back
            is the page narrating your own move to you */
-        var built = rebuild(D.text, swaps);
+        /* from the deck as IMPORTED, with every swap it has ever had replayed
+           onto it, this session's and the ones carried in alike. rebuilding
+           from the list the page is holding would apply the carried ones twice */
+        var built = rebuild(baseList, swaps);
         paintChanges({swaps: swaps, added: addedList(swaps),
                       newList: built, text: D.text, goal: D.goal},
                      {draw: build, onRevert: revert});
@@ -656,10 +698,11 @@ import { paintChanges, rebuild, addedList, carryList } from "changes";
             /* the shelf is keyed on the list the deck was IMPORTED as, which is
                not the list this page is holding once the deck has been through
                here before. matching on D.text alone meant a second session on
-               the same deck found no entry and threw its work away silently */
-            var key = D.origin || D.text;
+               the same deck found no entry and threw its work away silently.
+               shelfKey is worked out once at the top, off the entry this page
+               found, so both ends of the session agree which deck this is */
             decks.forEach(function (x) {
-                if (x.text !== key) return;
+                if (x.text !== shelfKey) return;
                 found = true;
                 x.swaps = swaps.map(function (s) {
                     /* only what the review needs to draw a card. the rest of
