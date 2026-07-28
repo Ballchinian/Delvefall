@@ -102,12 +102,30 @@ _static_hash = {}
 
 @app.template_global()
 def static_url(filename):
-    v = _static_hash.get(filename)
-    if v is None:
-        with open(os.path.join(app.static_folder, filename), "rb") as f:
+    #the hash is memoised against the file's mtime and size rather than against
+    #its name alone, and the stat is the whole point of this function working.
+    #
+    #memoised on the name alone, an edited file kept the hash it had when the
+    #process started, so the page went on emitting ?v=<old> while the file
+    #underneath changed. static files are cached for a year, so every browser
+    #that had already loaded that url never asked again: the fix was on disk,
+    #served by the server, and reaching nobody. it cost an afternoon of testing
+    #javascript that had been replaced hours earlier, and it only ever bites in
+    #development, which is exactly where it is hardest to notice.
+    #
+    #in production the process restarts on deploy and the stat changes nothing.
+    path = os.path.join(app.static_folder, filename)
+    try:
+        st = os.stat(path)
+        stamp = (st.st_mtime_ns, st.st_size)
+    except OSError:
+        stamp = None
+    hit = _static_hash.get(filename)
+    if hit is None or hit[0] != stamp:
+        with open(path, "rb") as f:
             v = hashlib.md5(f.read()).hexdigest()[:8]
-        _static_hash[filename] = v
-    return url_for("static", filename=filename) + "?v=" + v
+        _static_hash[filename] = (stamp, v)
+    return url_for("static", filename=filename) + "?v=" + _static_hash[filename][1]
 
 
 _MANA_TOKEN = re.compile(r"\{([^}]+)\}")
