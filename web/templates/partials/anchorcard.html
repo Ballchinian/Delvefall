@@ -58,14 +58,17 @@
         {# this card's own four figures. every result carries an arrow measured
            against these, so the thing being compared to has to be on the page.
            age was the one missing: the results grew an age arrow and there was
-           nothing up here for it to point back at #}
+           nothing up here for it to point back at.
+           they used to be followed by "what the arrows below compare against",
+           which is what the position already says: four numbers under the
+           searched card, with the same four under every result carrying arrows.
+           the tooltips on each still spell it out for anyone who asks #}
         {% if card.price or card.rank or card.salt_text or card.age %}
         <p class="anchor-figures">
             {% if card.price %}<span class="anchor-price" title="the cheapest paper printing of {{ card.name }} in any finish, from scryfall. digital, oversized and gold border versions don't count. every price arrow below is measured against this number">{{ card.price }}</span>{% endif %}
             {% if card.rank %}<span class="result-rank" title="play rate: edhrec's rank for how often this card is played in commander, where #1 is the most played card in the format. every play-rate arrow below is measured against this number">{{ card.rank }}</span>{% endif %}
             {% if card.salt_text %}<span class="result-salt" title="salt {{ card.salt_text }} out of about 3, from edhrec's salt survey, where players vote on the cards they least enjoy facing. this is the one number here that is an opinion rather than a measurement. every salt mark below is measured against this one"><i class="salt-mark" aria-hidden="true"></i>{{ card.salt_text }}</span>{% endif %}
             {% if card.age %}<span class="result-age" title="card age: how long ago {{ card.name }} was first printed, so a reprint does not make an old card new. every age arrow below is measured against this number">{{ card.age }}</span>{% endif %}
-            <span class="anchor-note">what the arrows below compare against</span>
         </p>
         {% endif %}
         <div class="oracle">

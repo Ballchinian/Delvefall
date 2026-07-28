@@ -114,14 +114,14 @@
         {% endfor %}
 
         {# the heading names the card, because "cards similar to Sol Ring" is
-           the phrase this page answers and the one people search for. the
-           line under it says the same thing the two other ways they phrase
-           it, which is honest copy rather than keyword stuffing: alternatives
-           and cards like it ARE what the list below holds #}
+           the phrase this page answers and the one people search for.
+           it used to carry a line under it saying the same thing again in the
+           two other phrasings people use, on the reasoning that "alternatives"
+           and "cards like it" are what the list holds. they are, and the
+           heading already said so: a sentence whose whole content is the
+           heading reworded is a sentence between the reader and the cards #}
         <h2>Cards similar to {{ card.name }}
             <a href="#" id="report-missing" class="report-open">expected a card that isn't here?</a></h2>
-        <p class="results-blurb">Cards like {{ card.name }}, and the alternatives to it, ranked by how
-        closely they do the same thing.</p>
 
         {# the report bar. hidden until one of the two entry points opens it:
            the "expected a card" link above (a missing report, which asks for

@@ -562,14 +562,6 @@ h2 {
     padding-bottom: 8px;
 }
 
-/* the line under the results heading. quiet, it is there to say what the
-   list is in the words people search for, not to be read twice */
-.results-blurb {
-    color: var(--muted);
-    font-size: 13px;
-    margin: 8px 0 16px;
-}
-
 /* the floor is what decides how many cards fit a row, and it is set by the
    WIDEST thing under a card rather than by the picture: the four figures are
    one line or they are two, and two is a card grown a row taller than its
@@ -788,10 +780,6 @@ h2 {
     cursor: help;
 }
 
-.anchor-note {
-    color: var(--muted);
-    font-size: 12.5px;
-}
 
 /* edhrec popularity, second on the row. grey like everything beside it, and it
    has a tooltip so the bare number isn't a mystery.
