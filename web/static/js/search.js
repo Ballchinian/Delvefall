@@ -94,7 +94,15 @@ dirSel.onchange = function() {
     has to be kept current as you type, not only checked on the way out
 */
 var filterForm = document.querySelector(".filter-bar");
-var RANGES = [["pmin", "pmax", "price"], ["mvmin", "mvmax", "mana value"]];
+/*
+    every pair the server checks, and it has to stay every pair: salt arrived
+    as a range after this list was written and was not added to it, so an
+    inverted salt range was the one that got no bubble and had to be met as
+    the red note after a reload. the label is what the sentence below says
+    out loud, so it reads as the box is named
+*/
+var RANGES = [["pmin", "pmax", "price"], ["mvmin", "mvmax", "mana value"],
+              ["smin", "smax", "salt"]];
 
 function checkRanges() {
     RANGES.forEach(function(r) {
