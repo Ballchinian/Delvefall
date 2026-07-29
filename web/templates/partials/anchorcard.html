@@ -8,12 +8,21 @@
    complaint: the tool that PROPOSES a card gave you less control over the match
    than the tool that just lists them.
 
-   `mode` is 'search' or 'swap', and only three things turn on it. the swap page
-   is a POST result with no url, so:
-     - the picture is not a link that clears filters, because there are none
-     - the pickers do not reload, they refetch (see swap.js)
-     - the "a tag on the wrong line?" report is absent, because /feedback keys
-       off a query string this page does not have
+   `mode` is 'search' or 'swap', and THREE things in this file turn on it:
+     - the picture's link and its tooltip. on /search it clears the filters and
+       searches the card on its own, which the swap page has nothing to clear
+     - the heading. it is the h1 on /search, where the card IS the page, and a
+       plain line on the swap page, which has its own h1 about the swap
+     - the line hint's verb, "replacing" against "searching"
+   the pickers behave differently too, but not because of anything here: a click
+   reloads on /search and refetches on the swap page, and that lives in swap.js.
+
+   the "a tag on the wrong line?" report is NOT one of the differences, and this
+   note used to say it was, on the grounds that /feedback keys off a query string
+   the swap page does not have. it builds one instead (see report.js, and the
+   from=swap marker /feedback stores), so the link is rendered on both and works
+   on both. it is the report most worth having there, since a tag that drags a
+   PROPOSED replacement sideways is a stronger complaint than one on a search.
    everything else is identical markup, which is the point of it being one file #}
 {% set mode = mode | default('search') %}
 <div class="searched-card">
