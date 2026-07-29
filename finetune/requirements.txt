@@ -1,0 +1,18 @@
+# what the live model was trained with, read off its model card
+# (models/mtg-tuned-embeddinggemma-300m/README.md, "Framework Versions").
+#
+# pinned because train.py needs v5 behaviour that fails quietly on v4:
+# warmup_steps=0.1 means a ratio there and a step count here, and the losses
+# and evaluators moved under .sentence_transformer.
+#
+# python was 3.12.6.
+
+sentence-transformers==5.6.0
+transformers==5.13.0
+datasets==5.0.0
+accelerate==1.14.0
+tokenizers==0.22.2
+
+# the card says 2.12.1+cpu. version pinned, build not: a gpu box wants the
+# cuda wheel from pytorch's own index.
+torch==2.12.1

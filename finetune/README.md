@@ -56,23 +56,23 @@ evening and no script can produce it a second time.
 
 ## What is published here, and what is not
 
-Published: this README, `train.py`, `bakeoff_lines.py`, and the whole of
-`legacy/` including its training data. That is the v1 story end to end, and the
-site stopped serving that model on 2026-07-22.
+Published: every script in this folder, plus `requirements.txt` and the whole of
+`legacy/` including its v1 training data. That is the method end to end, enough
+to rebuild all of it against your own database.
 
-Local: everything about the model running now. The miners that build its
-training data, the data itself, the hand judged tag verdicts and the exams that
-score it.
+Local: `traindata/`, `testing_list/`, `out/` and `models/`. The generated
+training data, the hand judged tag verdicts, and the trained models themselves.
 
-Not because the approach is a secret. It is described below in enough detail to
-argue with. It is that the data is the actual work: every exam question was
-verified card by card, every tag verdict was read and judged one at a time, and
-that judgement is the only part of this that nobody else has. Publishing the
-recipe is fine. Publishing the thing that took the evenings is not.
+Not because the approach is a secret, since it is described below in enough
+detail to argue with. It is that the data is the actual work: every exam
+question was verified card by card, every tag verdict read and judged one at a
+time, and that judgement is the only part of this nobody else has. The recipe is
+free. The evenings are not.
 
-The v1 data is out because that trade has already been paid: the model it built
-is retired, its story is worth telling in full, and it says nothing about how
-the live one learned.
+`models/` is out for a duller reason as well: one is 1.2GB, past what GitHub
+takes. The v1 training data is published because that trade is already paid.
+The model it built was retired on 2026-07-22, and it says nothing about how the
+live one learned.
 
 ## Step 1: build an exam before shopping
 

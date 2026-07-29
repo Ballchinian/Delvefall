@@ -9,18 +9,29 @@ __pycache__/
 .env
 .claude/
 
-#finetune/ is local by default. the training data and the hand judged verdicts
-#are the actual work, not the recipe, so the current model's data never ships.
-#the rule is deny by default with named exceptions, so a new script is private
-#until someone decides otherwise rather than the other way around
+#finetune/ ships its SCRIPTS and keeps its DATA. the recipe is worth reading and
+#the generated pairs, the hand judged verdicts and the trained models are the
+#actual work, so the split runs between code and everything code produces.
+#deny by default with named exceptions, so a new data file is private until
+#someone says otherwise rather than the other way around
 finetune/*
 !finetune/README.md
+!finetune/requirements.txt
+!finetune/*.py
 
-#the trainer and the 26-triplet exam. the exam is the v1 artifact and the
-#trainer runs both objectives, so the legacy README below can still tell you
-#to run it. neither one carries any labelled data with it
-!finetune/train.py
-!finetune/bakeoff_lines.py
+#what the scripts read and write. traindata and testing_list are the work
+#itself, out is regenerable and dull, models are a gigabyte each and past what
+#github accepts anyway
+finetune/traindata/
+finetune/testing_list/
+finetune/out/
+finetune/models/
+
+#the v1 era in full, data included: the model it built was retired 2026-07-22,
+#so it tells the whole story without saying how the live one learned. named
+#explicitly because finetune/* above excludes the DIRECTORY, and nothing under
+#an excluded directory can be re-included one file at a time
+!finetune/legacy/
 
 #the v1 era in full: its training data, its scripts and the evidence they
 #produced. the site stopped serving that model on 2026-07-22, so publishing it
