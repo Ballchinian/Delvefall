@@ -1413,49 +1413,48 @@ def find_similar(oracle_id, picked, filters, min_pct, sort, offset=0, how_many=2
         #who clicked "Vigilance, trample, haste" was asking for
         if blend > 0 and atags:
             have = {oid for oid, pairs in ranked}
-            if atags:
-                #cards the lines never found, injected as candidates when their
-                #concept score alone is worth considering at the current cutoff,
-                #through the same filters as everything else
-                rows = conn.execute("""
+            #cards the lines never found, injected as candidates when their
+            #concept score alone is worth considering at the current cutoff,
+            #through the same filters as everything else
+            rows = conn.execute("""
+                WITH anchor AS (
+                    SELECT * FROM unnest(%s::text[], %s::real[]) AS a(tag, weight)
+                )
+                SELECT ct.oracle_id, """ + pcol + """ AS price, c.edhrec_rank, c.released_at,
+                       sum(a.weight * ct.weight) / (%s * nc.norm) AS raw
+                FROM card_tags ct
+                JOIN anchor a ON a.tag = ct.tag
+                JOIN cards c ON c.oracle_id = ct.oracle_id
+                JOIN card_tag_norms nc ON nc.oracle_id = ct.oracle_id
+                WHERE ct.oracle_id <> %s""" + where + """
+                GROUP BY ct.oracle_id, """ + pcol + """, c.edhrec_rank, c.released_at, nc.norm
+                HAVING sum(a.weight * ct.weight) / (%s * nc.norm) >= %s
+                ORDER BY raw DESC
+                LIMIT 300
+            """, [atags, aweights, anorm, oracle_id] + fparams + [anorm, concept_raw_gate(min_pct)]).fetchall()
+            for r in rows:
+                concept_raw[r["oracle_id"]] = r["raw"]
+                prices.setdefault(r["oracle_id"], r["price"])
+                ranks.setdefault(r["oracle_id"], r["edhrec_rank"])
+                dates.setdefault(r["oracle_id"], r["released_at"])
+
+            #every mechanical candidate needs its concept score too, the
+            #blend weighs both axes for everyone
+            ids = [oid for oid in have if oid not in concept_raw]
+            if ids:
+                for r in conn.execute("""
                     WITH anchor AS (
                         SELECT * FROM unnest(%s::text[], %s::real[]) AS a(tag, weight)
                     )
-                    SELECT ct.oracle_id, """ + pcol + """ AS price, c.edhrec_rank, c.released_at,
+                    SELECT ct.oracle_id,
                            sum(a.weight * ct.weight) / (%s * nc.norm) AS raw
                     FROM card_tags ct
                     JOIN anchor a ON a.tag = ct.tag
-                    JOIN cards c ON c.oracle_id = ct.oracle_id
                     JOIN card_tag_norms nc ON nc.oracle_id = ct.oracle_id
-                    WHERE ct.oracle_id <> %s""" + where + """
-                    GROUP BY ct.oracle_id, """ + pcol + """, c.edhrec_rank, c.released_at, nc.norm
-                    HAVING sum(a.weight * ct.weight) / (%s * nc.norm) >= %s
-                    ORDER BY raw DESC
-                    LIMIT 300
-                """, [atags, aweights, anorm, oracle_id] + fparams + [anorm, concept_raw_gate(min_pct)]).fetchall()
-                for r in rows:
+                    WHERE ct.oracle_id = ANY(%s)
+                    GROUP BY ct.oracle_id, nc.norm
+                """, (atags, aweights, anorm, ids)).fetchall():
                     concept_raw[r["oracle_id"]] = r["raw"]
-                    prices.setdefault(r["oracle_id"], r["price"])
-                    ranks.setdefault(r["oracle_id"], r["edhrec_rank"])
-                    dates.setdefault(r["oracle_id"], r["released_at"])
-
-                #every mechanical candidate needs its concept score too, the
-                #blend weighs both axes for everyone
-                ids = [oid for oid in have if oid not in concept_raw]
-                if ids:
-                    for r in conn.execute("""
-                        WITH anchor AS (
-                            SELECT * FROM unnest(%s::text[], %s::real[]) AS a(tag, weight)
-                        )
-                        SELECT ct.oracle_id,
-                               sum(a.weight * ct.weight) / (%s * nc.norm) AS raw
-                        FROM card_tags ct
-                        JOIN anchor a ON a.tag = ct.tag
-                        JOIN card_tag_norms nc ON nc.oracle_id = ct.oracle_id
-                        WHERE ct.oracle_id = ANY(%s)
-                        GROUP BY ct.oracle_id, nc.norm
-                    """, (atags, aweights, anorm, ids)).fetchall():
-                        concept_raw[r["oracle_id"]] = r["raw"]
 
             #pure concept finds carry no line pairs, their badge is w * concept
             for oid in concept_raw:
