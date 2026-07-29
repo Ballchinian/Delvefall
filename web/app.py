@@ -4282,11 +4282,16 @@ def deck_swap():
     field, direction = read_axis()
     ids, missing = parse_decklist(text)
     if not ids:
-        return render_template("deck/hub.html", deck_count=len(precon_board()),
-                               example=(precon_board() or [None])[0],
-                               error=("None of those lines matched a card." if text.strip()
-                                      else "Paste a decklist first."),
-                               missing=missing, pasted=text[:DECK_MAX_CHARS])
+        #through deck_hub like the other two, rather than rendering hub.html
+        #here. this route used to build the front door itself, which is one
+        #board lookup for a page that shows one and one set of arguments that
+        #could quietly stop matching the function whose whole job is that an
+        #error state never drifts into looking like a different page. it had
+        #already started: the url the import was typed into was not passed on,
+        #so a failed link came back to an empty box
+        return deck_hub(error=("None of those lines matched a card." if text.strip()
+                               else "Paste a decklist first."),
+                        pasted=text[:DECK_MAX_CHARS], missing=missing)
     cur = read_currency()
     with pool.connection() as conn:
         cards = deck_swappable(conn, ids, cur)
