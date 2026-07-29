@@ -462,12 +462,16 @@ def anchor_chips(conn, oracle_id, dropped, picked=(), forced=()):
     return chips
 
 
-def concept_between(conn, oracle_a, oracle_b, dropped=()):
+def concept_between(conn, oracle_a, oracle_b, dropped=(), picked=(), forced=()):
     #the calibrated concept percent between two specific cards, for the
     #feedback path. 0 when either card carries no tags at all. oracle_a is
-    #the anchor, so the page's dropped tags apply to it and the report says
-    #what the user was actually looking at
-    tags, weights, norm = anchor_vector(conn, oracle_a, dropped)
+    #the anchor, so EVERY control that narrowed its vector on the page applies
+    #here too: dropped tags, picked lines and tags forced back on. the report
+    #says what the user was actually looking at, and it only does that if this
+    #vector is the one the badge was scored against. handing over the dropped
+    #tags alone answered a line-picked search with a percent off the card's
+    #FULL tag set, a number the page had never printed anywhere
+    tags, weights, norm = anchor_vector(conn, oracle_a, dropped, picked, forced)
     other = conn.execute("SELECT norm FROM card_tag_norms WHERE oracle_id = %s", (oracle_b,)).fetchone()
     if not tags or other is None:
         return 0
@@ -4743,6 +4747,7 @@ def feedback():
     min_pct = tier_cut(blend)
     _, picked = build_lines(card, read_picked())
     dropped = read_dropped()
+    forced = read_forced()
 
     #the ip is stored only as the day's one-way token, same as the visit
     #counter: enough to spot one source flooding reports within an hour,
@@ -4773,11 +4778,16 @@ def feedback():
         #the slider position changes what the numbers the user saw MEANT
         #(blended past detent 0), so it rides in the snapshot too
         snap["blend"] = blend
-        #same reasoning for switched-off tags: a concept percent scored
-        #against a reduced tag vector is not the one the full card would
-        #give, and a report is unreadable later without knowing which
+        #same reasoning for the tag switches: a concept percent scored against
+        #a narrowed tag vector is not the one the full card would give, and a
+        #report is unreadable later without knowing which tags made it. both
+        #sides are kept, since the ones put back by hand shape the vector just
+        #as much as the ones switched off. the picked lines narrow it too and
+        #they have a column of their own below
         if dropped:
             snap["notags"] = sorted(dropped)
+        if forced:
+            snap["yestags"] = sorted(forced)
         #scale marker: reports from before 2026-07-15 stored raw-cosine
         #percents, everything after stores calibrated display percents
         snap["cal"] = 1
@@ -4811,7 +4821,7 @@ def feedback():
             w = BLEND_WEIGHTS[blend]
             shown_pct = expected_pct
             if w > 0:
-                cpct = concept_between(conn, card["oracle_id"], expected["oracle_id"], dropped)
+                cpct = concept_between(conn, card["oracle_id"], expected["oracle_id"], dropped, picked, forced)
                 snap["concept_pct"] = cpct
                 shown_pct = int(round((1 - w) * expected_pct + w * cpct))
             full = conn.execute("""SELECT color_identity, price_usd, price_eur, cmc, type_line, game_changer, legal_commander, oracle_text, salt
@@ -4900,7 +4910,7 @@ def feedback():
         #number was wrong
         shown_pct = got_pct
         if blend > 0:
-            cpct = concept_between(conn, card["oracle_id"], got["oracle_id"], dropped)
+            cpct = concept_between(conn, card["oracle_id"], got["oracle_id"], dropped, picked, forced)
             snap["concept_pct"] = cpct
             #None means the card has no searchable lines, which cannot happen
             #for a card that was ON the page, but blending it would 500 rather
