@@ -338,10 +338,19 @@ def main():
     for oracle_id, text_hash in conn.execute("SELECT oracle_id, text_hash FROM cards"):
         have[str(oracle_id)] = text_hash
 
+    #WHICH cards the database is holding, kept separately because the model
+    #check below empties the hash map and the stale scan needs the ids. read off
+    #the same query rather than asked for again: they are the same fact
+    held = set(have)
+
     if model_changed:
         #forget the stored hashes so every card counts as new and gets
         #embedded again. the old vectors stay put for now, the site keeps
-        #searching on them while the new ones compute
+        #searching on them while the new ones compute.
+        #
+        #only the HASHES go. the stale scan below used to walk this same map, so
+        #on a swap run it found nothing to remove and a card scryfall had dropped
+        #stayed in search results until an ordinary run came round
         have = {}
 
     new_cards = []
@@ -381,7 +390,7 @@ def main():
     for c in cards:
         kept_ids.add(c["oracle_id"])
     stale = []
-    for oid in have:
+    for oid in held:
         if oid not in kept_ids:
             stale.append(oid)
     print(str(len(new_cards)) + " new, " + str(len(changed_cards)) + " changed, "
