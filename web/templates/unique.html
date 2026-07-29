@@ -148,6 +148,29 @@ if (seen.length > SEEN_CAP) {
 var pos = seen.length - 1;  //which card in the trail is on screen
 var cache = {};             //oracle_id -> card json, so the arrows dont refetch
 
+/*
+    the trail, written back. it is a FUNCTION with a catch around it for the
+    same reason decks.js wraps its own writes: private browsing, a full quota
+    or storage switched off entirely make setItem throw, and the read above was
+    already guarded while the write was not.
+
+    unguarded it did more than lose the trail. the write sits between the card
+    arriving and the card being drawn, inside the deal's promise, so the throw
+    was caught by the .catch() at the bottom of dealOne and reported as "the
+    deal didn't reach the server" -- about a deal that had reached the server
+    and come back with a card. on a browser with storage off, that was every
+    press: the page never dealt anything and blamed the network for it.
+
+    losing the trail is the honest cost of having no storage. the dealer still
+    deals, it just stops remembering what it showed you
+*/
+function saveSeen() {
+    try {
+        localStorage.setItem("unique_seen", JSON.stringify(seen));
+    } catch (e) {
+    }
+}
+
 function render(c) {
     //one card. the rotate/flip/transform buttons come from the shared
     //card-frame overlay (static/cards.js), this just marks the frame up the
@@ -369,7 +392,7 @@ function dealOne() {
                 if (seen.length > SEEN_CAP) {
                     seen = seen.slice(seen.length - SEEN_CAP);
                 }
-                localStorage.setItem("unique_seen", JSON.stringify(seen));
+                saveSeen();
                 pos = seen.length - 1;
                 updateArrows();
                 paint(c);
@@ -417,7 +440,12 @@ document.getElementById("unique-reset").onclick = function() {
     }
     seen = [];
     pos = -1;
-    localStorage.removeItem("unique_seen");
+    //removeItem throws in exactly the same places setItem does, and stranding
+    //the reset before the deal would be the same bug in the other direction
+    try {
+        localStorage.removeItem("unique_seen");
+    } catch (e) {
+    }
     dealOne();
 };
 
