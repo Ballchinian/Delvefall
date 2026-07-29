@@ -1,7 +1,14 @@
-#railway only deploys web/, so web/ carries copies of code that lives in
-#common/ and ingest/ (clean_line, the prefix word catalogs, the calibration
-#seeds). this fails the push whenever a copy drifts from its source of
-#truth, which is the failure mode that would silently break the line picker
+#the gate in front of a deploy. railway ships main on push, so anything that
+#gets past this is live, and until now the only thing being asked was whether
+#the copies in web/ still matched their sources.
+#
+#that left the obvious hole wide open: a syntax error in web/app.py, the whole
+#website, passed this workflow green and deployed. check_sync.py parses the
+#handful of files it compares and nothing else, so app.py, db.py, visitors.py,
+#views/, and half of ingest/ were never even read.
+#
+#so the drift check keeps its job and compiling comes first, because a file
+#that does not parse cannot be compared anyway.
 
 name: check web copies
 
@@ -18,6 +25,26 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
+
+      #every python file in the repo, not just the ones the drift check reads.
+      #-q keeps the log to the failures. no imports and no database: this asks
+      #whether the source parses, which is the failure that takes the site down
+      #without anyone having to be wrong about anything
+      - name: compile every python file
+        run: python -m compileall -q common ingest tools web
+
+      #the browser modules get the same treatment. they are what draws the
+      #results grid, the swap tool and the deck pages, and a parse error in one
+      #is a page that renders and then does nothing, which is harder to notice
+      #than a 500. node is already on the runner. --input-type=module because
+      #these are es modules and the default check reads them as commonjs, where
+      #every import line is a syntax error
+      - name: check the javascript parses
+        run: |
+          for f in web/static/js/*.js; do
+            node --input-type=module --check < "$f" || { echo "FAILED: $f"; exit 1; }
+          done
+          node --check web/static/cards.js
 
       #stdlib only, nothing to install
       - run: python tools/check_sync.py
