@@ -3000,7 +3000,17 @@ def parse_decklist(text):
         #this care, the front of the line never did.
         #
         #trying the untouched line first can only ADD matches: for it to hit,
-        #a card has to really be named with digits in front
+        #a card has to really be named with digits in front.
+        #
+        #DORMANT AS OF 2026-07-29, and worth writing down so it is not deleted as
+        #dead weight: NO card in the pool starts with a digit, so over 800 real
+        #names across 8 line shapes this changes not one result. it is one dict
+        #lookup, and the shape it still covers is a real one: an UNCOUNTED line
+        #naming such a card. "1 1996 World Champion" is fine without it, because
+        #the count comes off and the name is left; a bare "1996 World Champion"
+        #is the case that degrades to looking up "World Champion". the card is
+        #real, it is just not in scryfall's oracle set, so this is waiting rather
+        #than doing nothing
         whole = DECK_TRAILERS.sub(" ", line).strip()
         #the heading test runs HERE rather than on the raw line, so a heading
         #carrying its own count ("Commander (1)") is still a heading
