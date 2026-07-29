@@ -47,6 +47,14 @@ python -m pip install pytest flask flask-compress
 python -m pytest tests -q
 ```
 
+Alongside those sits one regression test per bug that has actually shipped and been fixed. Those need real rows, so they only run when `TEST_DATABASE_URL` points at a **throwaway** Postgres with pgvector (never the live one, the fixture writes):
+
+```
+TEST_DATABASE_URL=postgresql://... python -m pytest tests -q
+```
+
+Without it they skip and the rest of the suite still runs.
+
 `.github/workflows/check.yml` runs it on every push, alongside compiling every Python and JS file and checking that the copies in `web/` still match their sources. Railway deploys `main` on push, so that workflow is the gate in front of a deploy.
 
 ### The database
