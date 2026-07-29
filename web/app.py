@@ -5065,6 +5065,21 @@ def admin_act():
 #substring tiers read alphabetically, the fuzzy tier closest-first (its
 #alphabetical CASE key is NULL, which sorts after every real name). this is
 #the hottest route on the site, it fires on every pause in typing
+#how many names the dropdown offers, and how many rows are asked for to fill it.
+#the two differ because the odd card name occurs twice in the pool and the
+#duplicates collapse HERE rather than in sql: every ordering key is derived from
+#the name, so a DISTINCT would have to carry all three into the select list to
+#say what one python check says.
+#
+#asking for exactly the eight it shows meant every duplicate cost a row off the
+#end, so the one query that fires on every pause in typing quietly handed back
+#seven suggestions, or six. the spare four are free (the LIMIT is what the index
+#walk stops at, and it is the same walk either way) and they cannot all be
+#duplicates
+SUGGEST_SHOW = 8
+SUGGEST_ROWS = 12
+
+
 @app.route("/suggest")
 def suggest():
     q = request.args.get("q", "").strip()
@@ -5081,10 +5096,12 @@ def suggest():
             FROM cards
             WHERE name ILIKE %s OR name ILIKE %s OR name %% %s
             ORDER BY tier, CASE WHEN name ILIKE %s THEN name END, name <-> %s, name
-            LIMIT 8
-        """, (p, s, p, s, q, s, q)):
-            if row["name"] not in names:  #the odd duplicated name collapses to one entry
+            LIMIT %s
+        """, (p, s, p, s, q, s, q, SUGGEST_ROWS)):
+            if row["name"] not in names:
                 names.append(row["name"])
+                if len(names) == SUGGEST_SHOW:
+                    break
     return {"names": names}
 
 
