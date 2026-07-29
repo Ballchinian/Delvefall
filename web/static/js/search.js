@@ -1,16 +1,15 @@
-//the results page: the filter panel, the sort controls, load more, the
-//band memory and the recent-searches list. moved out of
-//templates/search.html, which is why it reads as one long top level
-//rather than a module built to be one.
+//the results page: the filter panel, the sort controls, load more, the band
+//memory and the recent-searches list. it reads as one long top level rather
+//than a module built to be one, because that is the shape it has in
+//templates/search.html.
 //
-//it was top-level code in a classic script, so everything in it used to
-//be a global. nothing outside ever reached in (no inline handlers on the
-//page, and cards.js only has its own local named el), so module scope
-//costs nothing here and stops the page leaking 23 names onto window.
+//module scope rather than a classic script, so the page does not leak 23 names
+//onto window. nothing outside reaches in anyway: no inline handlers on the
+//page, and cards.js only has its own local named el.
 //
-//the four values the template computes still arrive on window, set by the
-//small inline script above this one in search.html, and are read back into
-//the same names the body already used
+//the four values the template computes arrive on window, set by the small
+//inline script above this one in search.html, and are read back into the same
+//names the body uses
 
 import { el, resultCard } from "dom";
 import { wireReports } from "report";
@@ -337,10 +336,6 @@ if (reportTagLink) {
         reports.open("tag", null);
     };
 }
-
-//the rabbit-hole hop that used to live here is the plain click now,
-//and the ctrl-click that carried it belongs to the one card-link rule
-//in base.html. nothing on this page has to know about either
 
 //the same name suggestions as the search bar, wired by the shared
 //helper in base.html, picking just fills the box in

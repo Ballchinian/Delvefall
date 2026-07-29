@@ -26,10 +26,10 @@
     </form>
 
     <h1>Making {{ deck_name or 'this deck' }} {{ goal }}</h1>
-    {# where you are, and how far there is to go. it used to count how many of
-       the checked cards had somewhere to go, which is a fact about the tool
-       rather than about the deck: what somebody walking a queue wants to know
-       is which card they are on and how many are left.
+    {# where you are, and how far there is to go. counting how many checked
+       cards had somewhere to go is a fact about the tool rather than about the
+       deck: what somebody walking a queue wants to know is which card they are
+       on and how many are left.
 
        the total is the cards this session is offering, not the whole queue,
        because that is the number the page is actually showing. cards with
@@ -66,10 +66,10 @@
        thing every other tool already does, and it is the part people do not
        finish. the queue is walked, not dumped #}
     <div id="swap-live">
-        {# the figure that put this card at the top of the queue used to be
-           repeated here. it is gone: the card below prints all four numbers
-           already, and the axis is inked among them, so the label was saying
-           "salt 1.32" directly above a card saying salt 1.32 #}
+        {# no repeat of the figure that put this card at the top of the queue.
+           the card below prints all four numbers already and the axis is inked
+           among them, so a label here says "salt 1.32" directly above a card
+           saying salt 1.32 #}
         <div class="swap-out">
             <span class="swap-label">Out</span>
         </div>
@@ -80,11 +80,11 @@
            particular card is pressing this over and over, and making them
            scroll past the suggestions each time to reach it is the version
            that gets abandoned halfway #}
-        {# the walk runs both ways. one misplaced click on a suggestion used to
-           be final until the end of the batch, which is a hard thing to live
-           with in a tool whose whole shape is one card at a time.
+        {# the walk runs both ways, because one misplaced click on a suggestion
+           being final until the end of the batch is a hard thing to live with
+           in a tool whose whole shape is one card at a time.
 
-           back is SECOND and hidden until there is somewhere to go, so the
+           back is second and hidden until there is somewhere to go, so the
            control people press constantly stays where it was and does not shift
            under the cursor the first time a decision gets made #}
         <div class="swap-actions swap-actions-top">
@@ -146,12 +146,11 @@
            could be put back #}
         {% include "partials/deckchanges.html" %}
 
-        {# the deck as it now stands, which the swap page used to refuse to
-           show: "this page is about one card at a time" was right about the
-           WORKING area and wrong about the end of it, where the session is over
-           and the deck is the thing you have just built. the tiles for swapped
-           cards are rewritten by the script, so this is the new deck and not
-           the one that arrived #}
+        {# the deck as it now stands. "this page is about one card at a time"
+           is right about the working area and wrong about the end of it, where
+           the session is over and the deck is the thing just built. the tiles
+           for swapped cards are rewritten by the script, so this is the new
+           deck and not the one that arrived #}
         {% include "partials/deckcards.html" %}
 
         {# this page's own, and the reason it is not in the partial: /deck/view

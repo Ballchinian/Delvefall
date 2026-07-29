@@ -1,13 +1,9 @@
-//the swap tool: the lens with a hand on it. moved out of
-//templates/deck/swap.html unchanged, so this is a relocation and not a
-//rewrite. it reads its whole session out of the #swap-data island the
-//template renders, and leans on manaFill from cards.js, which base.html
-//loads above the scripts block. defer keeps that order: cards.js runs
-//while the page parses, this runs once it is parsed and before
-//DOMContentLoaded, so nothing it looks up is missing.
-//
-//a module now, for the el import. type="module" defers on its own, so the
-//tag no longer says defer and the order above is unchanged
+//the swap tool: the lens with a hand on it. it reads its whole session out of
+//the #swap-data island templates/deck/swap.html renders, and leans on manaFill
+//from cards.js, which base.html loads above the scripts block. type="module"
+//defers on its own, which keeps that order: cards.js runs while the page
+//parses, this runs once it is parsed and before DOMContentLoaded, so nothing it
+//looks up is missing
 
 //a bare specifier, resolved by the import map base.html emits, so this
 //picks up dom.js at its content-hashed url rather than an unstamped one
@@ -15,12 +11,12 @@
 import { el, cardLink, resultCard, pairCard } from "dom";
 import { wireReports } from "report";
 //the end of a session is /deck/view's change blocks, so it is /deck/view's
-//painter that draws them. rebuild came the other way: it was this file's and
-///deck/view needed it the moment it could put a card back
+//painter that draws them, and rebuild is shared the other way since /deck/view
+//needs it to put a card back
 import { paintChanges, rebuild, addedList, carryList } from "changes";
-//the shelf, through the one file that owns it. this page used to read and write
-//localStorage by hand, with its own copy of the key and its own idea of which
-//entry a deck was, which is exactly how the two ideas drifted apart
+//the shelf, through the one file that owns it. reading and writing localStorage
+//here instead means a second copy of the key and a second idea of which entry a
+//deck is, which is how the two drift apart
 import { find, patch } from "decks";
 (function () {
     var dataEl = document.getElementById("swap-data");
@@ -66,16 +62,15 @@ import { find, patch } from "decks";
        holding, which is what the rebuild below has to account for */
     var swaps = (entry && entry.swaps ? entry.swaps.slice() : []);
 
-    /* the deck as it was IMPORTED, which is what a rebuild starts from. the
+    /* the deck as it was imported, which is what a rebuild starts from. the
        list this page is holding already has the carried swaps in it, so
        replaying them onto it would look for cards that left long ago */
     var baseList = (entry && entry.text) || D.text;
 
     /*
-        how far into the queue this session has agreed to go. it used to be the
-        whole queue and the queue used to be twelve cards, which stopped a
-        working tool for no reason: somebody who has walked twelve and wants a
-        thirteenth is exactly who this is for.
+        how far into the queue this session has agreed to go. a fixed twelve
+        card queue stops a working tool for no reason: somebody who has walked
+        twelve and wants a thirteenth is exactly who this is for.
 
         so the queue is deep and the SESSION is the batch. reaching the end
         offers the next batch rather than finishing, and the count in the

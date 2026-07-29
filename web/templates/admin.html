@@ -92,8 +92,8 @@
     {% endif %}
     {% if tag_md %}
     {# these do not go in an md file at all: they belong in the LABELS dict in
-       finetune/exam_attribution.py, which is the only exam testing which LINE
-       a tag lands on and currently has three hand labelled cards #}
+       finetune/exam_attribution.py, the only exam testing which line a tag
+       lands on, which holds three hand labelled cards #}
     <h3>tag reports, for the LABELS dict in finetune/exam_attribution.py</h3>
     <div class="fb-export"><pre>{{ tag_md }}</pre></div>
     {% endif %}

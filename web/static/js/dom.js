@@ -167,11 +167,11 @@ export function resultCard(c, against, opts) {
             (c.more_count === 1 ? "line" : "lines")).title = c.more_text;
     }
     if (c.concept_tags) {
-        //the tags and what they are, and nothing else. it used to carry
-        //"concept match 63%" as well: a second number for a card whose match is
-        //already printed on its badge, in units the page never explains. the
-        //line tooltip above names the matched line and stops there, and these
-        //two labels are the same kind of thing
+        //the tags and what they are, and nothing else. a "concept match 63%"
+        //alongside is a second number for a card whose match is already printed
+        //on its badge, in units the page never explains. the line tooltip above
+        //names the matched line and stops there, and these two labels are the
+        //same kind of thing
         el("div", "concept-tags", div, c.concept_tags).title =
             "community tags shared with " + (against || "your card");
     }

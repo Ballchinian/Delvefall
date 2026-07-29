@@ -43,13 +43,13 @@
         {% include "partials/filters.html" %}
     </form>
 
-    {# the controls sit ABOVE the card so spamming through cards never makes
+    {# the controls sit above the card so spamming through cards never makes
        you chase the button down the page, and the arrows walk the paper
        trail of everything this browser has been dealt #}
     <div class="unique-controls">
         <button id="unique-back" title="the previous card you were dealt" aria-label="previous card on your trail">&#9664;</button>
-        {# the label stays put now (see flashSound in the script): the noises
-           are a flash after each deal, not a permanent replacement #}
+        {# the label stays put (see flashSound in the script): the noises are a
+           flash after each deal, not a permanent replacement #}
         <button id="unique-again" title="deal another unseen card that fits this search">Deal another card</button>
         <button id="unique-fwd" title="the next card in your trail" aria-label="next card on your trail">&#9654;</button>
     </div>

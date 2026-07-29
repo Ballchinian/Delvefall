@@ -8,10 +8,10 @@
    is a widget that applies), and each added one carries a button to take it
    back off. the eligibility toggles are the exception, they sit there from
    the start because they are the ones people expect to find. #}
-{# the placeholder used to be a full worked example, parentheses and all:
-   accurate, and unreadable to anyone who hadn't already met the syntax. it
-   now names the job first and shows the smallest useful example, with the
-   full grammar one click away on the guide #}
+{# the placeholder names the job first and shows the smallest useful example,
+   with the full grammar one click away on the guide. a full worked example,
+   parentheses and all, is accurate and unreadable to anyone who has not already
+   met the syntax #}
 {# the aria-label is not a duplicate of the placeholder. a placeholder is only
    the accessible name until somebody types, and then it is gone, so the one
    control on the bar without a visible label was also the one whose name
@@ -36,13 +36,13 @@
               request.args.get('cmdr'), request.args.get('gc'), request.args.get('illegal')] %}
     {% if on %}{% set ns.count = ns.count + 1 %}{% endif %}
 {% endfor %}
-{# never opens itself, not on a reload and not because filters are active: a
-   panel that springs open on its own is a panel you have to close, and the
-   count on the summary already answers what an auto-opened panel was there
-   to tell you. it opens when you click it, and applying shuts it again #}
+{# it opens when you click it, and applying shuts it again. never on its own,
+   not on a reload and not because filters are active: a panel that springs open
+   by itself is a panel you have to close, and the count on the summary already
+   answers what an auto-opened panel would be there to tell you #}
 <details class="adv-filters">
     {# "Filters", not "extra filters": for anyone not writing the syntax by
-       hand these ARE the filters, and "extra" filed them as an afterthought.
+       hand these are the filters, and "extra" files them as an afterthought.
        the funnel comes from css, on the summary. the count rides here so the
        answer to "is anything narrowing my results" is visible with the panel
        shut, which is how it is most of the time #}

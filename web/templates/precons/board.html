@@ -37,14 +37,14 @@
     {{- '?' ~ parts|join('&') if parts else '' -}}
     {%- endmacro %}
 
-    {# WHAT is measured, then WHICH END of it. it was ten buttons in one row,
-       which is the same five numbers listed twice: "most expensive" and
-       "cheapest" are one sum read from either end, not two things to choose
-       between. /search splits its sorts the same way and for the same reason.
+    {# what is measured, then which end of it. ten buttons in one row is the
+       same five numbers listed twice: "most expensive" and "cheapest" are one
+       sum read from either end, not two things to choose between. /search
+       splits its sorts the same way and for the same reason.
 
        the urls stay ten, because each end really is its own page with its own
        title and its own question, and that is what lets someone searching for
-       the cheapest precons land here already sorted. only the CONTROL folded #}
+       the cheapest precons land here already sorted. only the control folds #}
     <nav class="precon-eras precon-sorts" aria-label="rank by">
         <span class="precon-depth-label">Rank by:</span>
         {% for m in metrics %}

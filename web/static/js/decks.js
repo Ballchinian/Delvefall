@@ -1,27 +1,24 @@
 //the shelf of decks this browser is keeping, and the one place that decides
-//what a deck IS.
+//what a deck is.
 //
-//it lives here rather than in the pages that touch it because FOUR of them do:
+//it lives here rather than in the pages that touch it because four of them do:
 //the modes page creates a deck and renames it as you type, the hub renames and
 //deletes, the swap tool writes a session onto one, /deck/view puts a card back.
 //a rule enforced in one of those is not a rule.
 //
-//EVERY ENTRY HAS AN ID, AND THE ID IS THE WHOLE OF ITS IDENTITY. that is the
-//change this file exists to make, and everything below follows from it. the
-//shelf used to be keyed on the DECKLIST, and keying a saved deck on its own
-//contents cost more than it ever bought:
+//every entry has an id, and the id is the whole of its identity. everything
+//below follows from that. keying the shelf on the decklist instead would mean:
 //
-//  1. THE SAME DECK COULD NOT BE SAVED TWICE. pasting a list you already had
-//     found the old entry and wrote over it, so "import it again and keep both"
-//     was not a thing the shelf could express. it is a perfectly ordinary thing
-//     to want: the same list, forked two ways.
-//  2. A RENAME HIT EVERY DECK WITH THAT LIST. the hub renamed by matching text,
-//     so two entries holding the same cards were renamed together, silently.
-//  3. THE KEY MOVED WHEN THE DECK DID. a swap session changes the list, so
-//     every page had to carry the list as IMPORTED alongside the list as it
-//     stands, and every lookup was a two branch guess about which of the two it
-//     was holding. that guess is gone: pages carry an id, which is four bytes
-//     and cannot go stale.
+//  1. the same deck cannot be saved twice. pasting a list already on the shelf
+//     finds the old entry and writes over it, so "import it again and keep
+//     both" is not a thing the shelf can express, and forking one list two ways
+//     is an ordinary thing to want.
+//  2. a rename hits every deck with that list. renaming by matching text
+//     renames two entries holding the same cards together, silently.
+//  3. the key moves when the deck does. a swap session changes the list, so
+//     every page has to carry the list as imported alongside the list as it
+//     stands, and every lookup is a two branch guess about which it holds. an
+//     id is four bytes and cannot go stale.
 //
 //nothing here talks to the server. a deck never leaves this machine, which is
 //the whole design of the feature and the reason there is no account to make.
@@ -64,12 +61,11 @@ export function read() {
     return decks;
 }
 
-//NO CAP HERE. create() is the one place that decides whether a deck may be
-//added, and it refuses rather than dropping the oldest. this used to slice to
-//KEEP as well, which is the same rule written twice and written differently:
-//refuse in one place, silently delete in the other. it could not fire today,
-//since nothing reaches this with more than KEEP entries, but the entries it
-//would have cut are exactly the ones the shelf exists to not lose
+//no cap here. create() is the one place that decides whether a deck may be
+//added, and it refuses rather than dropping the oldest. slicing to KEEP here as
+//well is the same rule written twice and written differently: refuse in one
+//place, silently delete in the other. the entries such a slice would cut are
+//exactly the ones the shelf exists to not lose
 export function write(decks) {
     try { localStorage.setItem(KEY, JSON.stringify(decks)); }
     catch (e) {
@@ -154,22 +150,7 @@ export function clear() {
     }
 }
 
-//TWO DECKS MAY SHARE A NAME, and nothing here checks. this went through three
-//rules before landing on none, which is worth writing down so it is not
-//reinvented a fourth time:
-//
-//  1. NUMBER THE CLASH. the shelf appended "#2" and told you afterwards, which
-//     needed a note carried between two pages, which needed the note to know
-//     which deck it was about, which it could not: a numbered deck and the deck
-//     it was numbered against share the very name the note was matched on. it
-//     also normalised what you typed before comparing, so asking for
-//     "Kratos, God of War #3" came back as "#2".
-//  2. REFUSE THE CLASH. one rule, no state, said where the name was typed. but
-//     refusing means blocking the submit, and the submit was the mode button:
-//     pick a name another deck had and View it simply stopped working. a naming
-//     rule that can break the page's primary action is worse than the thing it
-//     was protecting against.
-//  3. NOTHING. the name is a LABEL, and since ids arrived it is ONLY a label:
-//     no deck is ever found by one, here or on any page. two decks called
-//     "Kratos, God of War" are two rows with the same word on them, which is a
-//     thing the person who named them can see and fix, and which breaks nothing.
+//two decks may share a name, and nothing here checks. the name is a label and
+//only a label: no deck is ever found by one, here or on any page. two decks
+//called "Kratos, God of War" are two rows with the same word on them, which the
+//person who named them can see and fix, and which breaks nothing.

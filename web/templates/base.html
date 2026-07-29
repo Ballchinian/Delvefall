@@ -29,16 +29,15 @@
            preconnecting shaves the dns+tls handshake off the first one #}
         <link rel="preconnect" href="https://cards.scryfall.io">
         <link rel="icon" type="image/png" href="{{ static_url('DelvefallLogo.png') }}">
-        {# trying out the ink and paper skin, swap back to style.css for the old look #}
         <link rel="stylesheet" href="{{ static_url('style-ink.css') }}">
-        {# every page declares one canonical url or none of them do, which was
-           the state before this: /precons carries a sort, an era and a depth,
-           so the same board is reachable at 32 addresses and google was free
-           to treat them as 32 thin pages competing with each other.
-           the default is the path with the query string dropped, which is
-           right wherever the query string is a CONTROL rather than the
-           content. search.html is the one page where the query string IS the
-           content, so it overrides this with the card's own address #}
+        {# every page declares one canonical url or none of them do. /precons
+           carries a sort, an era and a depth, so the same board is reachable at
+           32 addresses, and without this google is free to treat them as 32
+           thin pages competing with each other.
+           the default is the path with the query string dropped, which is right
+           wherever the query string is a control rather than the content.
+           search.html is the one page where the query string is the content, so
+           it overrides this with the card's own address #}
         {% block canonical %}<link rel="canonical" href="{{ request.url_root.rstrip('/') ~ request.path }}">{% endblock %}
         {% block head_extra %}{% endblock %}
 

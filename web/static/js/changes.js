@@ -14,12 +14,12 @@ import { el, cardLink, pairCard, swapPair, fitText } from "dom";
 
 var $ = function (id) { return document.getElementById(id); };
 
-//the deck's list with a set of swaps applied, from the list it was IMPORTED as.
+//the deck's list with a set of swaps applied, starting from the list as it was
+//imported.
 //
-//lifted out of swap.js unchanged in behaviour, because /deck/view needs the
-//same arithmetic the moment it can put a card back: undoing a swap means
-//rebuilding the list without it, and rebuilding from the CURRENT list would
-//leave the card that was put back in there twice.
+//shared with /deck/view, which needs the same arithmetic to put a card back:
+//undoing a swap means rebuilding the list without it, and rebuilding from the
+//current list would leave the card that was put back in there twice.
 /*
     the name part of one line: the count off the front, the exporter's trailers
     off the back. the same shapes parse_decklist strips server side, so a line

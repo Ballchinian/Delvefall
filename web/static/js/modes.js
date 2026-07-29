@@ -1,11 +1,10 @@
 //the page between a deck arriving and something being done with it: pick the
 //commander, optionally name it, then choose a mode.
 //
-//moved out of templates/deck/modes.html, which is also where the two questions
-//got separated. picking a commander used to write into the deck's NAME as well,
-//so the two could never disagree and a deck could not be called anything else.
-//they are independent now: the commander names the deck only when no name has
-//been typed, which is the common case and stays one decision.
+//the two questions are independent: the commander names the deck only when no
+//name has been typed, which is the common case and stays one decision. having
+//the commander write into the name outright means the two can never disagree
+//and a deck can never be called anything else.
 //
 //the shelf and its naming rule live in decks.js, shared with the hub, because a
 //rule enforced in one of the two places that name a deck is not a rule

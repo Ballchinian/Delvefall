@@ -1,12 +1,10 @@
 //the unmatched lines of a pasted deck, and the offer to name what they were
 //meant to be. it fills in partials/missing.html.
 //
-//it was templates/partials/missing_js.html, a <script> tag with no jinja in it
-//at all, inlined into two pages. this is that file with the tags taken off:
-//nothing about it needed rendering, so nothing about it needed to be a
-//template. as a file it gets the content-hashed url static_url stamps, which
-//is what lets it be cached at all, and it stops riding in the html of every
-//deck page that shows the box.
+//a file rather than a <script> block inlined into the two pages that show the
+//box: nothing in it needs rendering, so nothing in it needs to be a template.
+//as a file it gets the content-hashed url static_url stamps, which is what lets
+//it be cached at all.
 //
 //wireSuggest is base.html's, reached as a global exactly the way search.js
 //reaches it. it is the one autocomplete on the site and it belongs to the page

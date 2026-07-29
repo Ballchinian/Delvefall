@@ -536,11 +536,10 @@ main {
     outline-offset: 2px;
 }
 
-/* Apply, and only Apply. this used to be .filter-bar button, which reached
-   every button inside the filters panel too and painted them all as solid
-   teal rectangles: the remove x wore a green pill it was never meant to
-   have, and the add-a-filter buttons could not round themselves because
-   the more specific selector kept winning */
+/* Apply, and only Apply. .filter-bar button reaches every button inside the
+   filters panel too and paints them all as solid teal rectangles: the remove x
+   wears a green pill it was never meant to have, and the add-a-filter buttons
+   cannot round themselves because the more specific selector keeps winning */
 .filter-actions button {
     background: var(--teal);
     color: #fff;
@@ -705,14 +704,13 @@ h2 {
     font-size: 13px;
     font-weight: 600;
     margin-top: 6px;
-    /* a wrapped row of figures used to be four inline spans falling onto a
-       second line with nothing between them, which read as the numbers running
-       into each other rather than as a second line of numbers. flex-wrap gives
-       it a row-gap, which inline flow has no way to express, and the 10px
-       column gap replaces the margin-left each figure used to carry: one rule
-       for the spacing instead of three that had to agree.
-       the figures stay in source order and each stays nowrap, so this changes
-       where the row BREAKS and nothing about what it says */
+    /* as four inline spans a wrapped row falls onto a second line with nothing
+       between them, which reads as the numbers running into each other rather
+       than as a second line of numbers. flex-wrap gives it a row-gap, which
+       inline flow has no way to express, and the 10px column gap does the
+       spacing in one rule instead of a margin-left per figure.
+       the figures stay in source order and each stays nowrap, so this decides
+       where the row breaks and nothing about what it says */
     display: flex;
     flex-wrap: wrap;
     align-items: baseline;
@@ -801,9 +799,7 @@ h2 {
     white-space: nowrap;
 }
 
-/* card age, fourth on the row, and the one reading that used to be missing
-   entirely: the date sorts reordered the results and nothing on any card said
-   why, so the price had to stand in as the number being scanned.
+/* card age, fourth on the row, and what the date sorts reorder the results by.
    no mark, because the word "years" already says what kind of number it is,
    which is the job the salt mark exists to do for a bare decimal */
 .result-age {
@@ -1782,10 +1778,10 @@ footer a { color: var(--teal); }
 
 .deck-recent-row .deck-recent-tools { grid-column: 2; grid-row: 1 / span 2; }
 
-/* renaming happens where the name is, in a box the size of the name. it was a
-   window.prompt, which is a modal dialog for one text field: it stops the page,
-   it looks like the browser asking rather than the site, and what you typed only
-   landed if you found the right button. this saves on every letter, so it needs
+/* renaming happens where the name is, in a box the size of the name. a
+   window.prompt is a modal dialog for one text field: it stops the page, it
+   looks like the browser asking rather than the site, and what was typed only
+   lands if the right button is found. this saves on every letter, so it needs
    no button at all */
 .deck-recent-name {
     width: 100%;
@@ -1875,11 +1871,11 @@ footer a { color: var(--teal); }
    above them or they read as one more row of whatever was there */
 .deck-modes-after { margin-top: 30px; }
 
-/* the ROW is the form, not the button inside it. it used to be the button,
-   which meant anything that was not the button could only sit outside the
-   rule: the swap axis picker read as a stray control floating under three
-   cards rather than as part of the one it belongs to. a select cannot go
-   inside a submit button either, because opening it would submit */
+/* the row is the form, not the button inside it. make the button the form and
+   anything that is not the button can only sit outside it: the swap axis picker
+   reads as a stray control floating under three cards rather than as part of
+   the one it belongs to. a select cannot go inside a submit button either,
+   because opening it would submit */
 .deck-mode {
     display: flex;
     flex-direction: column;
@@ -2504,14 +2500,14 @@ footer a { color: var(--teal); }
     .precon-bar { max-width: 200px; }
 }
 
-/* ---- the home page. flat ink instead of the old gradient, with a grain
-   texture and a faint glow behind the search so it doesn't read as a raw
-   css fill. the grain is an inline svg turbulence tile ---- */
+/* ---- the home page. flat ink with a grain texture and a faint glow behind
+   the search so it doesn't read as a raw css fill. the grain is an inline svg
+   turbulence tile ---- */
 
-/* svh, not vh: on ios vh is the URL-bar-hidden height, so a page built to
-   fill 100vh overflows by exactly the bar's height whenever the bar is
-   showing. that was the slight vertical scroll on ipad. svh is the small
-   (bar-visible) viewport, so the page fits in both states */
+/* svh, not vh: on ios vh is the URL-bar-hidden height, so a page built to fill
+   100vh overflows by exactly the bar's height whenever the bar is showing, which
+   is a slight vertical scroll on ipad. svh is the small (bar-visible) viewport,
+   so the page fits in both states */
 body.home {
     background-color: var(--ink);
     background-image:
@@ -2656,9 +2652,8 @@ body.home main {
     opacity: 0.9;
 }
 
-/* no tilt. it used to lean a couple of degrees each way, and at that size
-   it never read as a deliberate scatter, only as something slightly wrong
-   with the page. straight is cleaner */
+/* no tilt. a couple of degrees each way at this size never reads as a
+   deliberate scatter, only as something slightly wrong with the page */
 
 .float-chip:hover {
     color: #fff;

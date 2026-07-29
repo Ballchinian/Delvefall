@@ -1,20 +1,18 @@
 //the change blocks on /deck/view.
 //
 //the cards on that page are server rendered, because the server knows what a
-//decklist holds. what CHANGED is a different kind of fact: a swap session never
+//decklist holds. what changed is a different kind of fact: a swap session never
 //reaches the server, so the only record of it is the shelf in this browser.
 //that is why these blocks arrive empty and are filled in here, and why a deck
 //opened in a browser that never swapped it correctly shows nothing.
 //
 //the drawing itself is js/changes.js, shared with the end of /deck/swap. this
-//file is now only the two things that are this page's own: finding the shelf
-//entry, and putting a card back.
+//file is the two things that are this page's own: finding the shelf entry, and
+//putting a card back.
 //
-//IT WRITES TO THE SHELF NOW, and that is a deliberate reversal. it used to only
-//read, on the reasoning that reaching this page is not an event in a deck's
-//history. putting a card back IS an event, and it was offered on the swap page
-//and nowhere else, which meant the only way to undo a swap you regretted was to
-//still be standing in the session that made it.
+//it writes to the shelf as well as reading it, because putting a card back is
+//an event in a deck's history. offered only on the swap page, the sole way to
+//undo a swap would be to still be standing in the session that made it.
 
 import { paintChanges, rebuild, addedList, carryList } from "changes";
 import { find, patch } from "decks";
