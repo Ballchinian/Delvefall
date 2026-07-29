@@ -152,6 +152,17 @@ def concept_raw_gate(pct):
 MECH_CALIBRATION = [(0.0, 0), (0.30, 30), (0.42, 45), (0.62, 65), (0.76, 80), (0.90, 92), (1.0, 100)]
 
 
+#has the database actually been asked yet? this runs ONCE at import, and a boot
+#that lands during a database blip used to pin the seed maps for the entire life
+#of the worker: every percent the site printed until the next redeploy came from
+#the seeds while the real maps sat in meta unread. the error is bounded (the
+#seeds are drift checked against their sources) but it is silent and it lasts,
+#which is the combination worth closing. the web app retries off this flag on
+#the next request that arrives, so a blip costs one request's worth of seeds
+#rather than a deploy's worth
+CALIBRATED = False
+
+
 def load_calibration():
     #the maps the ingest wrote into meta replace the seeds above, so the
     #percents the site shows always belong to the model that made the
@@ -165,7 +176,7 @@ def load_calibration():
     #shared one where a trial has not been calibrated yet. measured
     #2026-07-22: without this a near verbatim match read 62% under the trial
     #model where the refit puts it at 77%
-    global CALIBRATION, MECH_CALIBRATION
+    global CALIBRATION, MECH_CALIBRATION, CALIBRATED
     suffix = "" if EMBED_COL == "embedding" else "_" + EMBED_COL
     try:
         with pool.connection() as conn:
@@ -182,6 +193,10 @@ def load_calibration():
                         CALIBRATION = pts
                     else:
                         MECH_CALIBRATION = pts
+        #reaching here means the database answered. it may have answered "no
+        #such rows", which is a virgin database and a real answer: the seeds are
+        #correct then and there is nothing to come back for
+        CALIBRATED = True
     except Exception:
         pass
 

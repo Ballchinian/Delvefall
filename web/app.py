@@ -31,6 +31,7 @@ from db import pool
 from prefix_words import PREFIX_WORDS
 #the copies web/ does not own, kept in one file so tools/check_sync.py has one
 #place to compare against the rest of the repo. see mirror.py for the list
+import mirror
 from mirror import (REMINDER_KEYWORDS, reminder_is_the_rule, clean_line, line_weight,
                     EMBED_COLUMNS, embed_column, EMBED_COL,
                     concept_display, concept_raw_gate, mech_display)
@@ -1053,6 +1054,17 @@ def read_currency():
     if cur is None:
         cur = request.cookies.get("cur", "usd")
     return cur if cur in CURRENCY_SIGNS else "usd"
+
+
+@app.before_request
+def retry_calibration():
+    #mirror.load_calibration runs once at import, and a worker that booted while
+    #the database was briefly unreachable would otherwise serve the seed maps
+    #until the next deploy. one boolean per request until it succeeds, then
+    #nothing. the functions that read the maps look them up on the module at
+    #call time, so a late load reaches the imported names here too
+    if not mirror.CALIBRATED:
+        mirror.load_calibration()
 
 
 @app.after_request
