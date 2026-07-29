@@ -3984,11 +3984,19 @@ body.home main {
     color: var(--muted);
 }
 
+/* --panel, not --bg: there has never been a --bg in the palette, so this said
+   var() of a name nothing defines. an undefined custom property with no
+   fallback is invalid at computed-value time rather than ignored, and
+   background-color does not inherit, so the box fell all the way back to
+   transparent and picked up whatever was behind it. the row it sits on is
+   paper and turns to wash on hover, so the control quietly changed colour
+   under the pointer. --panel is the surface every other control on the site
+   stands on */
 .deck-mode-axis select {
     margin-left: 6px;
     font: inherit;
     color: var(--ink);
-    background: var(--bg);
+    background: var(--panel);
     border: 1px solid var(--line-strong);
     border-radius: 3px;
     padding: 2px 4px;
