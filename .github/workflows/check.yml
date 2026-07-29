@@ -75,6 +75,15 @@ jobs:
           done
           node --check web/static/cards.js
 
+      #and whether it WORKS, for the parts that can be asked. the browser code
+      #had no tests at all while the python had 157, and every javascript bug
+      #found so far was found by reading: a swap rewriting the wrong card, a
+      #report filed twice, a deck line added twice. node's own runner, no
+      #install, no browser. tests/js/resolve.mjs is node's half of the importmap
+      #in base.html, which is what lets these modules be imported at all
+      - name: run the javascript tests
+        run: node --import ./tests/js/register.mjs --test tests/js/
+
       #stdlib only, nothing to install
       - run: python tools/check_sync.py
 
