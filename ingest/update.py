@@ -22,15 +22,15 @@ import hashlib
 
 import requests
 import psycopg
-import ijson
 from pgvector.psycopg import register_vector
 
-from common.cards import HEADERS, keep_card, split_lines, get_text, get_image, get_back_image
+from common.cards import (HEADERS, keep_card, split_lines, get_text, get_image, get_back_image,
+                          bulk_uri, bulk_size, read_bulk)
 from common.concept import CALIBRATION as CONCEPT_CALIBRATION
 
 BULK_URL = "https://api.scryfall.com/bulk-data"
-DOWNLOAD_FILE = "oracle-cards.json"
-PRICES_FILE = "default-cards.json"
+DOWNLOAD_FILE = "oracle-cards.jsonl.gz"
+PRICES_FILE = "default-cards.jsonl.gz"
 
 #my fine tuned embeddinggemma (a sentence-transformers model), taught to score
 #a line against what it is about. it sits in a private repo on hugging face, so
@@ -78,14 +78,15 @@ def get_with_retries(url, tries=3):
 
 
 def download_bulk(item, path):
-    #stream the file straight to disk instead of holding the raw json in
-    #memory on top of the parsed version. item is one entry from the
-    #bulk-data listing, it knows its own size
-    print("downloading " + item["download_uri"])
-    print("(its about " + str(item.get("size", 0) // (1024 * 1024)) + "mb so this can take a while)")
+    #stream the file straight to disk rather than holding it in memory on top of
+    #the objects parsed out of it. item is one entry from the bulk-data listing,
+    #which knows its own url and its own size
+    url = bulk_uri(item)
+    print("downloading " + url)
+    print("(its about " + str(bulk_size(item) // (1024 * 1024)) + "mb compressed so this can take a while)")
     for attempt in range(3):
         try:
-            with requests.get(item["download_uri"], headers=HEADERS, timeout=300, stream=True) as r:
+            with requests.get(url, headers=HEADERS, timeout=300, stream=True) as r:
                 r.raise_for_status()
                 with open(path, "wb") as f:
                     for chunk in r.iter_content(chunk_size=1024 * 1024):
@@ -114,45 +115,43 @@ def finish_price(prices, keys):
 def cheapest_prices(item):
     #oracle_id -> [usd, eur], the lowest price across every paper printing,
     #plus oracle_id -> the earliest released_at, when the card first existed.
-    #the default_cards file is a couple of gigabytes, so ijson streams it one
-    #card at a time instead of parsing the whole thing into memory the way
-    #the oracle file is
+    #the default_cards file is a couple of gigabytes opened up, so read_bulk
+    #walks it a line at a time instead of holding the whole thing
     download_bulk(item, PRICES_FILE)
     print("scanning every printing for the cheapest price and first release...")
     best = {}
     debut = {}
     printings = 0
-    with open(PRICES_FILE, "rb") as f:
-        for c in ijson.items(f, "item"):
-            printings += 1
-            oid = c.get("oracle_id")
-            if not oid and c.get("card_faces"):
-                oid = c["card_faces"][0].get("oracle_id")  #reversible cards keep it per face
-            if not oid:
-                continue
-            #the debut counts every printing, even the ones the price hunt
-            #skips below: a digital only debut is still the card's debut.
-            #iso dates compare fine as strings
-            rel = c.get("released_at")
-            if rel and (oid not in debut or rel < debut[oid]):
-                debut[oid] = rel
-            #versions you cant actually buy as the real paper card dont
-            #count: arena/mtgo printings, oversized promos, and memorabilia
-            #(gold border world championship decks would underprice half the
-            #expensive staples in the game)
-            if c.get("digital") or c.get("oversized") or c.get("set_type") == "memorabilia":
-                continue
-            prices = c.get("prices", {})
-            usd = finish_price(prices, ("usd", "usd_foil", "usd_etched"))
-            eur = finish_price(prices, ("eur", "eur_foil", "eur_etched"))
-            low = best.get(oid)
-            if low is None:
-                best[oid] = [usd, eur]
-            else:
-                if usd is not None and (low[0] is None or usd < low[0]):
-                    low[0] = usd
-                if eur is not None and (low[1] is None or eur < low[1]):
-                    low[1] = eur
+    for c in read_bulk(PRICES_FILE):
+        printings += 1
+        oid = c.get("oracle_id")
+        if not oid and c.get("card_faces"):
+            oid = c["card_faces"][0].get("oracle_id")  #reversible cards keep it per face
+        if not oid:
+            continue
+        #the debut counts every printing, even the ones the price hunt
+        #skips below: a digital only debut is still the card's debut.
+        #iso dates compare fine as strings
+        rel = c.get("released_at")
+        if rel and (oid not in debut or rel < debut[oid]):
+            debut[oid] = rel
+        #versions you cant actually buy as the real paper card dont
+        #count: arena/mtgo printings, oversized promos, and memorabilia
+        #(gold border world championship decks would underprice half the
+        #expensive staples in the game)
+        if c.get("digital") or c.get("oversized") or c.get("set_type") == "memorabilia":
+            continue
+        prices = c.get("prices", {})
+        usd = finish_price(prices, ("usd", "usd_foil", "usd_etched"))
+        eur = finish_price(prices, ("eur", "eur_foil", "eur_etched"))
+        low = best.get(oid)
+        if low is None:
+            best[oid] = [usd, eur]
+        else:
+            if usd is not None and (low[0] is None or usd < low[0]):
+                low[0] = usd
+            if eur is not None and (low[1] is None or eur < low[1]):
+                low[1] = eur
     os.remove(PRICES_FILE)
     print("checked " + str(printings) + " printings of " + str(len(best)) + " cards")
     return best, debut
@@ -330,15 +329,16 @@ def main():
 
     download_bulk(bulk, DOWNLOAD_FILE)
     print("loading cards...")
-    with open(DOWNLOAD_FILE, encoding="utf-8") as f:
-        all_cards = json.load(f)
-    os.remove(DOWNLOAD_FILE)
-    print("scryfall gave us " + str(len(all_cards)) + " cards")
-
+    #filtered while the file is read rather than after, so the two thirds of
+    #scryfall's list that keep_card throws out are never all in memory at once
+    offered = 0
     cards = []
-    for c in all_cards:
+    for c in read_bulk(DOWNLOAD_FILE):
+        offered += 1
         if keep_card(c):
             cards.append(c)
+    os.remove(DOWNLOAD_FILE)
+    print("scryfall gave us " + str(offered) + " cards")
     print("kept " + str(len(cards)) + " real cards that have rules text")
 
     cheapest, debut = cheapest_prices(prices_bulk)

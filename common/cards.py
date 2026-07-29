@@ -1,11 +1,41 @@
 #card handling helpers shared between the web app and the update pipeline
 
 import re
+import gzip
+import json
 
 from common.prefix_words import PREFIX_WORDS
 
 #scryfall's docs say to send a real user agent with api requests
 HEADERS = {"User-Agent": "Delvefall/1.0 (personal project)", "Accept": "application/json"}
+
+
+def bulk_uri(item):
+    #where one entry of scryfall's bulk-data listing says its file lives. read
+    #through here rather than by key, because two ingests and both finetune
+    #miners ask the same question and the key name belongs to scryfall
+    return item["jsonl_download_uri"]
+
+
+def bulk_size(item):
+    #the download's size in bytes, for the "this will take a while" line
+    return item.get("compressed_size", 0)
+
+
+def read_bulk(path):
+    #every object in a downloaded bulk file, one at a time.
+    #
+    #the files are gzipped json lines: one complete card, or tag, per line. the
+    #body is the gzip itself and not a gzip content-encoding, so nothing
+    #decompresses it in transit and it lands on disk still compressed.
+    #
+    #a generator because default_cards is a couple of gigabytes opened up, and
+    #line by line means the whole thing never has to be in memory at once
+    with gzip.open(path, "rt", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                yield json.loads(line)
 
 #layouts that arent actual playable cards
 SKIP_LAYOUTS = ["token", "double_faced_token", "emblem", "art_series", "planar", "scheme", "vanguard"]

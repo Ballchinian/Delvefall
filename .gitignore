@@ -1,5 +1,7 @@
-#the ingest script downloads this fresh every run
-oracle-cards.json
+#the ingest downloads these fresh every run and deletes them after
+oracle-cards.jsonl.gz
+default-cards.jsonl.gz
+oracle-tags.jsonl.gz
 
 __pycache__/
 *.pyc

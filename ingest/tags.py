@@ -19,7 +19,10 @@ import json
 
 import psycopg
 
-from ingest.update import BULK_URL, get_with_retries
+from common.cards import read_bulk
+from ingest.update import BULK_URL, get_with_retries, download_bulk
+
+TAGS_FILE = "oracle-tags.jsonl.gz"
 
 #subtree roots whose tags say nothing about what a card does: naming schemes,
 #set-design cycles (unrelated to the cycling mechanic, which has no bare tag
@@ -81,8 +84,13 @@ def main():
         conn.close()
         return
 
-    print("downloading " + bulk["download_uri"] + " (~18mb)")
-    all_tags = get_with_retries(bulk["download_uri"]).json()
+    #to disk and back rather than straight into memory, because the file arrives
+    #gzipped and read_bulk is what knows how to open one. the whole tag list is
+    #held either way: the tree walk below needs every tag before it can decide
+    #which subtrees to drop
+    download_bulk(bulk, TAGS_FILE)
+    all_tags = list(read_bulk(TAGS_FILE))
+    os.remove(TAGS_FILE)
     print("scryfall gave us " + str(len(all_tags)) + " oracle tags")
 
     #walk the hierarchy down from every blocked root and drop whole subtrees

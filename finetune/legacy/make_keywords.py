@@ -16,7 +16,7 @@ sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 #two levels up, because this lives in legacy/ and still needs the repo root
 #on the path to reach common/
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
-from common.cards import HEADERS, keep_card, get_text
+from common.cards import HEADERS, keep_card, get_text, bulk_uri, read_bulk
 
 import requests
 
@@ -36,12 +36,18 @@ def main():
     for item in requests.get("https://api.scryfall.com/bulk-data", headers=HEADERS, timeout=120).json()["data"]:
         if item["type"] == "oracle_cards":
             bulk = item
-    cards = requests.get(bulk["download_uri"], headers=HEADERS, timeout=300).json()
+    #gzipped json lines, so it lands on disk and read_bulk walks it
+    path = os.path.join(OUT_DIR, "oracle-cards.jsonl.gz")
+    with requests.get(bulk_uri(bulk), headers=HEADERS, timeout=300, stream=True) as r:
+        r.raise_for_status()
+        with open(path, "wb") as f:
+            for chunk in r.iter_content(chunk_size=1024 * 1024):
+                f.write(chunk)
 
     #count every (keyword phrase, reminder) sighting so the most common
     #reminder wording wins for each keyword
     sightings = {}
-    for c in cards:
+    for c in read_bulk(path):
         if not keep_card(c):
             continue
         for line in get_text(c).split("\n"):

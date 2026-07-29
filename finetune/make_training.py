@@ -26,7 +26,7 @@ import collections
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-from common.cards import HEADERS, keep_card, split_lines
+from common.cards import HEADERS, keep_card, split_lines, bulk_uri, read_bulk
 
 from bakeoff_lines import TRIPLETS
 from common.cards import clean_line
@@ -53,12 +53,20 @@ def load_lines_from_scryfall():
     for item in requests.get("https://api.scryfall.com/bulk-data", headers=HEADERS, timeout=120).json()["data"]:
         if item["type"] == "oracle_cards":
             bulk = item
-    cards = requests.get(bulk["download_uri"], headers=HEADERS, timeout=300).json()
+    #the bulk file is gzipped json lines, so it goes to disk and read_bulk opens
+    #it. only the cleaned lines are kept, which is a fraction of what arrives
+    path = os.path.join(OUT_DIR, "oracle-cards.jsonl.gz")
+    with requests.get(bulk_uri(bulk), headers=HEADERS, timeout=300, stream=True) as r:
+        r.raise_for_status()
+        with open(path, "wb") as f:
+            for chunk in r.iter_content(chunk_size=1024 * 1024):
+                f.write(chunk)
     lines = set()
-    for c in cards:
+    for c in read_bulk(path):
         if keep_card(c):
             for line, face in split_lines(c):
                 lines.add(line)
+    os.remove(path)
     return sorted(lines)
 
 
