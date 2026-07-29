@@ -20,16 +20,50 @@ var $ = function (id) { return document.getElementById(id); };
 //same arithmetic the moment it can put a card back: undoing a swap means
 //rebuilding the list without it, and rebuilding from the CURRENT list would
 //leave the card that was put back in there twice.
+/*
+    the name part of one line: the count off the front, the exporter's trailers
+    off the back. the same shapes parse_decklist strips server side, so a line
+    reads here as the card it names and nothing else
+*/
+var LINE_SB = /^\s*SB:\s*/i;
+var LINE_COUNT = /^\s*\d+\s*[xX]?\s+/;
+var LINE_TRAILERS = /\s*(\([^)]*\)|\[[^\]]*\]|\*[^*]*\*|<[^>]*>)\s*/g;
+var LINE_HASH = /\s+#.*$/;
+
+function nameOf(line) {
+    return line.replace(LINE_HASH, "").replace(LINE_SB, "").replace(LINE_COUNT, "")
+               .replace(LINE_TRAILERS, " ").trim().toLowerCase();
+}
+
 export function rebuild(text, swaps) {
     text = text || "";
     (swaps || []).forEach(function (s) {
         var out = s.out.name, into = s["in"].name;
+        var want = out.toLowerCase();
         var lines = text.split("\n");
         var hit = -1;
+        /*
+            THE LINE THAT IS THAT CARD, not the first line the name appears
+            anywhere inside. it used to scan for a substring, which rewrote the
+            wrong card whenever one name contained another and the longer one
+            came first. exports grouped by type put them in exactly that order:
+            with Fog Bank under creatures and Fog under instants, swapping out
+            Fog turned "1 Fog Bank" into "1 Moment's Peace Bank" and left the
+            real Fog in the deck. swapping Opt produced "Brainstormimus Prime".
+            both are cards that do not exist, in somebody's exported list
+        */
         for (var i = 0; i < lines.length; i++) {
-            //case insensitive, because an export may not match our
-            //capitalisation and the parser normalised it away anyway
-            if (lines[i].toLowerCase().indexOf(out.toLowerCase()) !== -1) { hit = i; break; }
+            if (nameOf(lines[i]) === want) { hit = i; break; }
+        }
+        /* only when no line IS that card: a face name, or a shape nameOf cannot
+           read. a substring is a guess, so it is what we fall back to rather
+           than what we start from */
+        if (hit === -1) {
+            for (i = 0; i < lines.length; i++) {
+                //case insensitive, because an export may not match our
+                //capitalisation and the parser normalised it away anyway
+                if (lines[i].toLowerCase().indexOf(want) !== -1) { hit = i; break; }
+            }
         }
         if (hit === -1) {
             //a name we cannot find in the raw text (a face name, or a collector
