@@ -82,8 +82,14 @@ def visitor_token(ip):
 #CAREFUL: these are flask ENDPOINT names, and a route moved into a blueprint
 #is renamed to "blueprint.name". moving /search into a blueprint without
 #writing "search.search" here does not raise anything, it just silently stops
-#counting that page. the numbers would keep arriving, only smaller
-PAGE_ENDPOINTS = {"home", "search", "unique", "precons", "precon", "deck", "guide", "privacy"}
+#counting that page. the numbers would keep arriving, only smaller.
+#
+#"support" is here now, and its absence was that warning coming true rather
+#than a decision: the tip jar is a page a person reads, it is linked from the
+#footer and it is in the sitemap, so a visitor who arrives on it and nowhere
+#else was not being counted at all. every other human page was
+PAGE_ENDPOINTS = {"home", "search", "unique", "precons", "precon", "deck", "guide",
+                  "privacy", "support"}
 
 
 #the tokens this worker has already written today, so a visitor's second and
