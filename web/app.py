@@ -464,16 +464,26 @@ def anchor_chips(conn, oracle_id, dropped, picked=(), forced=()):
 
 def concept_between(conn, oracle_a, oracle_b, dropped=(), picked=(), forced=()):
     #the calibrated concept percent between two specific cards, for the
-    #feedback path. 0 when either card carries no tags at all. oracle_a is
-    #the anchor, so EVERY control that narrowed its vector on the page applies
-    #here too: dropped tags, picked lines and tags forced back on. the report
-    #says what the user was actually looking at, and it only does that if this
-    #vector is the one the badge was scored against. handing over the dropped
-    #tags alone answered a line-picked search with a percent off the card's
-    #FULL tag set, a number the page had never printed anywhere
+    #feedback path. oracle_a is the anchor, so EVERY control that narrowed its
+    #vector on the page applies here too: dropped tags, picked lines and tags
+    #forced back on. the report says what the user was actually looking at, and
+    #it only does that if this vector is the one the badge was scored against.
+    #handing over the dropped tags alone answered a line-picked search with a
+    #percent off the card's FULL tag set, a number the page never printed.
+    #
+    #NONE AND 0 ARE DIFFERENT ANSWERS. none means the concept axis sat the
+    #round out, because the anchor has no vector to score anything against:
+    #that is what picking a keyword line leaves behind, and find_similar ranks
+    #and badges on rules text ALONE in exactly that case (the atags check that
+    #guards the ranking). a caller that blended a zero in instead would answer
+    #50% about a card the page had just badged 100%. 0 means the axis is very
+    #much in play and this card simply shares none of the anchor's concepts,
+    #which is the same 0 the ranking scores it at
     tags, weights, norm = anchor_vector(conn, oracle_a, dropped, picked, forced)
+    if not tags:
+        return None
     other = conn.execute("SELECT norm FROM card_tag_norms WHERE oracle_id = %s", (oracle_b,)).fetchone()
-    if not tags or other is None:
+    if other is None:
         return 0
     shared = conn.execute("""
         SELECT coalesce(sum(a.weight * cb.weight), 0) AS s
@@ -4822,8 +4832,12 @@ def feedback():
             shown_pct = expected_pct
             if w > 0:
                 cpct = concept_between(conn, card["oracle_id"], expected["oracle_id"], dropped, picked, forced)
-                snap["concept_pct"] = cpct
-                shown_pct = int(round((1 - w) * expected_pct + w * cpct))
+                #none means the anchor had no vector, so the page ranked on
+                #rules text alone and the quoted number has to do the same.
+                #the same condition the ranking uses, reached the same way
+                if cpct is not None:
+                    snap["concept_pct"] = cpct
+                    shown_pct = int(round((1 - w) * expected_pct + w * cpct))
             full = conn.execute("""SELECT color_identity, price_usd, price_eur, cmc, type_line, game_changer, legal_commander, oracle_text, salt
                                    FROM cards WHERE oracle_id = %s""", (expected["oracle_id"],)).fetchone()
             reasons = filter_reasons(full, filters)
@@ -4911,13 +4925,17 @@ def feedback():
         shown_pct = got_pct
         if blend > 0:
             cpct = concept_between(conn, card["oracle_id"], got["oracle_id"], dropped, picked, forced)
-            snap["concept_pct"] = cpct
-            #None means the card has no searchable lines, which cannot happen
-            #for a card that was ON the page, but blending it would 500 rather
-            #than say something odd, so the raw value stands
-            if got_pct is not None:
-                w = BLEND_WEIGHTS[blend]
-                shown_pct = int(round((1 - w) * got_pct + w * cpct))
+            #a None cpct is the anchor having no vector at all, which is the
+            #ranking's own signal to score on rules text alone, so the mech
+            #percent stands as the number the page showed.
+            #a None got_pct is the card having no searchable lines, which cannot
+            #happen for a card that was ON the page, but blending it would 500
+            #rather than say something odd, so the raw value stands there too
+            if cpct is not None:
+                snap["concept_pct"] = cpct
+                if got_pct is not None:
+                    w = BLEND_WEIGHTS[blend]
+                    shown_pct = int(round((1 - w) * got_pct + w * cpct))
         conn.execute("""INSERT INTO feedback (kind, anchor_id, anchor_name, got_id, got_name,
                                               got_pct, reason, picked_lines, filters, embed_model, ip)
                         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
