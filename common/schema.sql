@@ -323,10 +323,19 @@ CREATE INDEX IF NOT EXISTS deck_cards_oracle ON deck_cards (oracle_id);
 --only the tags a human typed get attributed, the inherited ancestors follow
 --from the tree at query time exactly as they do for a whole card.
 --
---card_level marks a tag no single line explains: invitational-card, or
---anything describing the card rather than one of its abilities. those stay
---attached to every line, so picking a line never loses them. filled by
---ingest/attribute.py, rebuilt whenever lines or tags change
+--card_level was for a tag no single line explains: invitational-card, or
+--anything describing the card rather than one of its abilities. the idea was
+--that those ride EVERY line, so picking a line never loses them.
+--
+--IT IS ALWAYS FALSE NOW, and the column is kept only so this note has somewhere
+--to live. attaching those tags everywhere turned out to be the single largest
+--source of false positives on the hand labelled cards, for the reason the idea
+--was meant to serve: a tag that is about no ability should be ABSENT once you
+--pick an ability. ingest/attribute.py drops them instead, and a whole-card
+--search never reads this table, so nothing is lost. see the note in its
+--assign() for the measurement.
+--
+--filled by ingest/attribute.py, rebuilt whenever lines or tags change
 CREATE TABLE IF NOT EXISTS line_tags (
     line_id    bigint NOT NULL REFERENCES lines(id) ON DELETE CASCADE,
     tag        text NOT NULL,

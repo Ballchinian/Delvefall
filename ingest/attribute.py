@@ -263,10 +263,13 @@ def main():
     conn.commit()
 
     covered = conn.execute("SELECT count(DISTINCT line_id) FROM line_tags").fetchone()[0]
-    card_level = conn.execute("SELECT count(*) FROM line_tags WHERE card_level").fetchone()[0]
     conn.close()
-    print("done! " + str(covered) + "/" + str(len(ids)) + " lines carry tags, "
-          + str(card_level) + " rows are card-level")
+    #the card-level count used to be printed beside this and it was always 0,
+    #because assign() stopped attributing those tags anywhere (see the note
+    #there, and the one on the column in common/schema.sql). a statistic that
+    #can only ever say zero reads as a feature returning nothing rather than as
+    #one that was deliberately removed
+    print("done! " + str(covered) + "/" + str(len(ids)) + " lines carry tags")
 
 
 if __name__ == "__main__":
