@@ -65,7 +65,6 @@ import { find, patch } from "decks";
        made. the ones carried in are already applied to the list the page is
        holding, which is what the rebuild below has to account for */
     var swaps = (entry && entry.swaps ? entry.swaps.slice() : []);
-    var carried = swaps.length;
 
     /* the deck as it was IMPORTED, which is what a rebuild starts from. the
        list this page is holding already has the carried swaps in it, so
@@ -508,7 +507,6 @@ import { find, patch } from "decks";
         var at_in = deck.indexOf(s["in"].oracle_id);
         if (at_in > -1) deck.splice(at_in, 1);
         swaps.splice(i, 1);
-        if (i < carried) carried--;
         /* the trail records the DECISION, so undoing one from the review has to
            take its step with it or going back afterwards would try to unwind a
            swap that is no longer there. matched on the card it was made at,
