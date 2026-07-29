@@ -721,6 +721,14 @@ def compile_fq(fq, currency="usd"):
         return t
 
     def parse_unary():
+        #the end of the tokens is a real place to be standing, and the only
+        #caller that checks first is parse_and's loop. a "-" recurses straight
+        #back in here for the thing it negates, so a filter box ending in one
+        #(o:draw -, or a bare -, which is every half typed negation) walked off
+        #the end of the list and 500'd the whole search. nothing to negate is a
+        #skipped token like any other, which is what fail-soft means here
+        if pos[0] >= len(tokens):
+            return None
         kind, payload = take()
         if kind == "-":
             inner = parse_unary()
