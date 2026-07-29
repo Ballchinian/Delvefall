@@ -26,10 +26,27 @@
         var step = parseInt(grid.dataset.step, 10) || 20;
         var btn = more.querySelector(".deck-card-more-btn");
         var left = more.querySelector(".deck-card-more-left");
-        var cards = Array.prototype.slice.call(grid.children);
         var shown = step;
 
+        /*
+            the tiles as they stand, read every time rather than captured once
+            at load.
+
+            both pages that include this fold REPLACE tiles in the grid: the
+            swap tool redraws the one whose card has just been swapped out, and
+            /deck/view redraws it again when the card is put back. a list taken
+            at load is a list of nodes that are no longer on the page by then,
+            so every class landed on a detached div while the tile actually on
+            screen kept whatever it was born with. the visible symptom was a
+            swapped card sitting past the first batch that "load more" could
+            never reveal, because the class hiding it was never taken off
+        */
+        function tiles() {
+            return Array.prototype.slice.call(grid.children);
+        }
+
         function paint() {
+            var cards = tiles();
             cards.forEach(function (card, i) {
                 card.classList.toggle("is-over", i >= shown);
             });
@@ -47,7 +64,7 @@
                because the hidden attribute was not hiding this button and the
                presses kept landing: the label counted down through zero and
                the button offered to "load the last -44" */
-            shown = Math.min(shown + step, cards.length);
+            shown = Math.min(shown + step, grid.children.length);
             paint();
             /* the frames that just appeared need wiring for the rotate and flip
                overlay. enhanceCardFrames marks what it has already done, so
