@@ -333,4 +333,16 @@ try {
 var cardName = window.CARD_NAME;
 recent = recent.filter(function(n) { return n != cardName; });
 recent.unshift(cardName);
-localStorage.setItem("recent_searches", JSON.stringify(recent.slice(0, 8)));
+/* the write is caught like the read above it, and like every other write to
+   this browser's storage (see decks.js). private browsing, a full quota or
+   storage switched off make setItem throw, and the read was already guarded
+   while the write next to it was not.
+   it costs nothing today because this is the last statement in the file, so
+   the throw lands after every control on the page is wired and only reaches
+   the console. that is luck rather than design: it is one appended line away
+   from taking the rest of the module with it, and a home page with no recent
+   cards is the honest outcome of a browser that will not remember any */
+try {
+    localStorage.setItem("recent_searches", JSON.stringify(recent.slice(0, 8)));
+} catch (e) {
+}
