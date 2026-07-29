@@ -76,7 +76,17 @@
         });
     });
 
+    /* one flight per ROW, not per box: two unmatched lines can be fixed at the
+       same time and neither should wait on the other.
+       without it, two quick presses of enter sent two posts and addLine ran
+       twice on the way back, so the card the user was recovering landed in
+       their decklist twice. the fix row is only hidden once an answer arrives,
+       so the input stays live for the whole round trip */
     function take(row, raw, name) {
+        if (row.dataset.sending) {
+            return;
+        }
+        row.dataset.sending = "1";
         var said = row.querySelector(".deck-missing-said");
         said.textContent = "adding…";
         fetch("/deck/found", {
@@ -105,6 +115,9 @@
             }
         }).catch(function () {
             said.textContent = "Couldn't reach the card database. Try again in a moment.";
+        }).finally(function () {
+            /* released either way, so a row that failed can be tried again */
+            delete row.dataset.sending;
         });
     }
 
