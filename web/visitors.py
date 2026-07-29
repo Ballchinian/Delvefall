@@ -79,32 +79,29 @@ def visitor_token(ip):
 #absent: /suggest alone fires on every keystroke and would swamp the number,
 #and /more, the unique dealer and the report post are not visits.
 #
-#CAREFUL: these are flask ENDPOINT names, and a route moved into a blueprint
-#is renamed to "blueprint.name". moving /search into a blueprint without
-#writing "search.search" here does not raise anything, it just silently stops
-#counting that page. the numbers would keep arriving, only smaller.
+#these are flask endpoint names, and a route moved into a blueprint is renamed
+#to "blueprint.name", so /search under one would have to be written
+#"search.search". a name that matches nothing raises nothing, it just stops
+#counting that page and the numbers keep arriving, only smaller.
 #
-#"support" is here now, and its absence was that warning coming true rather
-#than a decision: the tip jar is a page a person reads, it is linked from the
-#footer and it is in the sitemap, so a visitor who arrives on it and nowhere
-#else was not being counted at all. every other human page was
+#"support" belongs here for the same reason as the rest: the tip jar is a page a
+#person reads, it is linked from the footer and it is in the sitemap
 PAGE_ENDPOINTS = {"home", "search", "unique", "precons", "precon", "deck", "guide",
                   "privacy", "support"}
 
 
 #the tokens this worker has already written today, so a visitor's second and
-#twentieth page view cost nothing. every page view used to borrow one of the
-#pool's four connections before the handler had even started, on a search that
+#twentieth page view cost nothing. without it every page view borrows one of the
+#pool's connections before the handler has even started, on a search that
 #already borrows three for its line scans.
 #
-#the count stays correct because correctness was never here: the primary key
-#on (day, token) is what makes a repeat visit one row, and this only skips
-#inserts that would have hit that key and done nothing.
+#correctness does not live here: the primary key on (day, token) is what makes
+#a repeat visit one row, and this only skips inserts that would have hit that
+#key and done nothing.
 #
 #one entry per unique visitor per day per worker, dropped when the day rolls
 #over. the cap is a floor under the worst case rather than a real limit, since
-#past it the memo stops growing and the inserts go back to being paid for,
-#which is what happened before any of this existed
+#past it the memo stops growing and the inserts go back to being paid for
 VISIT_MEMO_MAX = 50000
 
 _visit_memo = {"day": None, "seen": set()}

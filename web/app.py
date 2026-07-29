@@ -1,7 +1,6 @@
-#the actual website. the old version loaded a 90mb embedding matrix into
-#memory at startup, this one just asks postgres. the embeddings live in the
-#database and pgvector does the similarity math right where the data is, so
-#this process stays tiny and never touches torch
+#the actual website. the embeddings live in the database and pgvector does the
+#similarity math right where the data is, so this process stays tiny, holds no
+#matrix in memory and never touches torch
 
 import io
 import re
@@ -45,12 +44,11 @@ from views.meta import bp as meta_bp
 #python reads its mime table from the host: linux says text/javascript, but a
 #windows box reads the registry and plenty of them answer text/plain.
 #
-#that used to be survivable, because a classic <script> sniffs the body and
-#runs it regardless. it is NOT survivable now that the pages load
-#<script type="module">: module scripts are strictly mime checked per spec,
-#and a browser hard refuses text/plain with nothing rendered and one console
-#line to explain it. this made the site look broken on a windows dev box and
-#fine on railway, which is the worst shape a bug can take
+#a classic <script> would survive that by sniffing the body and running it
+#regardless. the pages load <script type="module">, which is strictly mime
+#checked per spec: a browser hard refuses text/plain, renders nothing and gives
+#one console line to explain it. without this line the site looks broken on a
+#windows dev box and fine on railway, which is the worst shape a bug can take
 mimetypes.add_type("text/javascript", ".js")
 
 app = Flask(__name__)
@@ -107,13 +105,12 @@ def static_url(filename):
     #the hash is memoised against the file's mtime and size rather than against
     #its name alone, and the stat is the whole point of this function working.
     #
-    #memoised on the name alone, an edited file kept the hash it had when the
-    #process started, so the page went on emitting ?v=<old> while the file
-    #underneath changed. static files are cached for a year, so every browser
-    #that had already loaded that url never asked again: the fix was on disk,
-    #served by the server, and reaching nobody. it cost an afternoon of testing
-    #javascript that had been replaced hours earlier, and it only ever bites in
-    #development, which is exactly where it is hardest to notice.
+    #memoised on the name alone, an edited file would keep the hash it had when
+    #the process started, so the page goes on emitting ?v=<old> while the file
+    #underneath changes. static files are cached for a year, so a browser that
+    #already loaded that url never asks again: the fix sits on disk, gets served,
+    #and reaches nobody. it only bites in development, which is where it is
+    #hardest to notice.
     #
     #in production the process restarts on deploy and the stat changes nothing.
     path = os.path.join(app.static_folder, filename)
@@ -165,16 +162,15 @@ _mana_urls = {"stamp": None, "map": {}}
 def mana_urls():
     #memoised against the FOLDER, not built once and kept for the life of the
     #process. that is the same call static_url makes about the file it stamps,
-    #and for the same reason: a map built at the first request pins every symbol
-    #to the hash it had then, so an edited svg goes on being served under its old
-    #url, behind a year long cache, exactly like the bug static_url is written up
-    #for. one escape hatch from the stamping discipline is one place it does not
-    #hold.
+    #and for the same reason: a map built once at the first request pins every
+    #symbol to the hash it had then, so an edited svg goes on being served under
+    #its old url behind a year long cache. one escape hatch from the stamping
+    #discipline is one place it does not hold.
     #
     #scandir hands back the sizes and mtimes along with the names, so the check
     #is one directory walk rather than a stat per file. in production the symbols
     #never move, so this builds once at the first request and every one after
-    #compares a tuple, which is what it effectively did before
+    #compares a tuple
     folder = os.path.join(app.static_folder, "symbols")
     with os.scandir(folder) as entries:
         stamp = tuple(sorted((e.name, e.stat().st_mtime_ns, e.stat().st_size)
@@ -234,12 +230,12 @@ with pool.connection() as _conn:
         PRIMARY KEY (day, token)
     )""")
     _conn.execute("CREATE TABLE IF NOT EXISTS visit_daily (day date PRIMARY KEY, uniques int NOT NULL)")
-    #reports filed before the token change stored a real ip, and /privacy says
-    #plainly that an ip address is never stored, so the old rows have to go or
-    #that page is not telling the truth about what is on disk. length tells
-    #them apart with nothing left over: a token is a sha256 hex digest, exactly
-    #64 characters, and no address of either family reaches that. the rate
-    #limit only ever looks an hour back, so clearing them costs nothing.
+    #/privacy says plainly that an ip address is never stored, so any row still
+    #holding a real one has to go or that page is not telling the truth about
+    #what is on disk. length tells them apart with nothing left over: a token is
+    #a sha256 hex digest, exactly 64 characters, and no address of either family
+    #reaches that. the rate limit only ever looks an hour back, so clearing them
+    #costs nothing.
     #
     #this is in common/schema.sql too. it runs here as well so it lands on the
     #next deploy instead of waiting for an ingest, and after the first run it
@@ -271,15 +267,12 @@ CARD_TYPES = ["Creature", "Instant", "Sorcery", "Artifact", "Enchantment", "Plan
 #counterpart to scryfall's random card button
 UNIQUE_PAGE = 1
 
-#how the dealer picks. it used to take the 100 most unique unseen cards and
-#draw from those, which is fine while the pool is deep and wrong as soon as it
-#is not: with filters on, or a long trail, the hundredth card can sit miles
-#below the first, so a 25% would be followed by a 3% and the page stopped
-#looking like it was dealing unique cards at all.
-#
-#so the window is relative now. whatever the best available card scores, the
-#draw happens among cards within UNIQUE_BAND of it, which keeps every deal
-#near the top of what is actually left.
+#how the dealer picks. the window is relative: whatever the best available card
+#scores, the draw happens among cards within UNIQUE_BAND of it, which keeps
+#every deal near the top of what is actually left. a fixed "top 100 unseen"
+#works only while the pool is deep, and with filters on or a long trail the
+#hundredth card can sit miles below the first, so a 25% follows a 3% and the
+#page stops looking like it deals unique cards at all.
 #
 #the two bounds under it pull against each other on purpose. MIN_POOL widens
 #a thin band so the page does not become a fixed running order that every
@@ -295,7 +288,7 @@ UNIQUE_WINDOW = 80
 
 
 #the mechanics <-> concepts slider maps its detents to these axis-2 weights
-#(a 5% step existed once and changed nothing visible, so it went). results
+#(a 5% step is too fine to see on the page, so the detents are coarser). results
 #are ordered by (1-w) * mech percent + w * concept percent, and once the
 #slider moves the badge shows that same blend, so the list always reads in
 #descending order of the number on it
@@ -322,18 +315,18 @@ BLEND_DEFAULT = 2
 #full-card denominator and quietly deflate every score, which would move the
 #cutoff without moving the calibration. with nothing dropped this returns the
 #baked norm to the digit, so the default path is a true no-op
-#the line -> tag attribution, SHIPPED 2026-07-22. it was dark for months at
-#88% precision / 82% recall, on the grounds that a concepts side quietly
-#ignoring the right tag is worse than one ignoring nothing. the line-to-tag
-#model took it to 94%/82%, and picking a line now moves both axes.
+#the line -> tag attribution, running at 94% precision / 82% recall, so picking
+#a line moves both axes. it stayed dark below that, on the grounds that a
+#concepts side quietly ignoring the right tag is worse than one ignoring
+#nothing.
 #
-#ON BY DEFAULT rather than switched on by a railway variable: a shipped
-#feature that depends on remembering an env var disappears the first time one
-#gets reset, silently, with the site still returning 200s. set LINE_TAGS=0 to
-#turn it off, which is the kill switch if the attribution ever regresses.
+#on by default rather than switched on by a railway variable: a shipped feature
+#depending on an env var disappears the first time one gets reset, silently,
+#with the site still returning 200s. set LINE_TAGS=0 to turn it off, which is
+#the kill switch if the attribution ever regresses.
 #
-#with it off every path below falls through to the behaviour that shipped
-#before the attribution landed: picking a line moves the rules-text side only,
+#with it off every path below falls through to the same behaviour as no
+#attribution at all: picking a line moves the rules-text side only,
 #and the concepts side reads the whole card. those fallbacks are the ones
 #already written for a database whose line_tags was never built, so it stays
 #safe on a database the attribution has never run against
@@ -547,16 +540,14 @@ YEAR_DAYS = 365.25
 
 
 def age_label(released):
-    #how long ago this card was FIRST printed, the fourth number on the row
-    #under a card. it used to be the one metric with no reading of its own on
-    #the results grid: the date sorts reordered the page and nothing on any card
-    #said why, because there was nothing there to say it with.
+    #how long ago this card was first printed, the fourth number on the row
+    #under a card, and what the date sorts reorder the page by.
     #
     #the word "years" is not decoration. a bare "12.4" sitting between a price
-    #and a #rank has to say what KIND of number it is before it says anything
+    #and a #rank has to say what kind of number it is before it says anything
     #else, which is the same reason the salt figure wears a mark.
     #
-    #released_at is scryfall's EARLIEST printing, so a reprint does not make an
+    #released_at is scryfall's earliest printing, so a reprint does not make an
     #old card new. that is the whole point of the measurement and the reason a
     #deck stuffed with reprints still reads old. a card with no date shows
     #nothing at all, exactly like an unpriced or unvoted one: absent is not zero
@@ -616,15 +607,15 @@ def gbp_rates():
     #caller is answered straight away with whatever is already in hand, which is
     #yesterday's rates, or the seeds above on the first call of a process.
     #
-    #it used to fetch inline, so one visitor a day paid up to three seconds mid
+    #fetching inline would make one visitor a day pay up to three seconds mid
     #page for a number that moves by a fraction of a penny. rates one day stale
     #are wrong by less than the rounding on the price they are about to be
     #multiplied into, and every pound figure on the site already says
-    #approximate, so serving the old ones costs nothing worth having.
+    #approximate, so serving yesterday's costs nothing worth having.
     #
-    #the clock still moves BEFORE the work starts, which is doing two jobs: a
-    #dead rate api is retried daily rather than on every request, and only one
-    #thread is ever started per day no matter how many requests arrive together
+    #the clock moves before the work starts, which does two jobs: a dead rate
+    #api is retried daily rather than on every request, and only one thread is
+    #ever started per day no matter how many requests arrive together
     now = time.time()
     if now - _gbp_rates["at"] > 60 * 60 * 24:
         _gbp_rates["at"] = now
@@ -666,12 +657,10 @@ def price_label(c, currency):
     #the price string under a card, in whichever currency the toggle picked.
     #empty when the card has no price there.
     #
-    #ALWAYS two decimal places. printing the stored number as it came back
-    #wrote "$0.2" for a twenty cent card, because that is what str() does to a
-    #Decimal that happens to end in a zero, and a money column where some rows
-    #have two digits and some have one reads as a bug in the number rather than
-    #a bug in the formatting. pounds were already pinned this way and the other
-    #two are now
+    #always two decimal places. printing the stored number as it comes back
+    #writes "$0.2" for a twenty cent card, because that is what str() does to a
+    #Decimal ending in a zero, and a money column where some rows have two digits
+    #and some have one reads as a bug in the number rather than in the formatting
     p = price_in(c, currency)
     return "" if p is None else CURRENCY_SIGNS[currency] + "%.2f" % p
 
@@ -883,10 +872,9 @@ def read_filters():
     f["mvmax"] = read_number("mvmax", "maximum mana value", f["errors"])
     f["smin"] = read_number("smin", "minimum salt", f["errors"])
     f["smax"] = read_number("smax", "maximum salt", f["errors"])
-    #an inverted range used to hand back an empty page with no explanation,
-    #which read as the site breaking rather than the bounds disagreeing.
-    #the filter still applies exactly as typed, the page just says why
-    #nothing can match
+    #an inverted range matches nothing, and an empty page with no explanation
+    #reads as the site breaking rather than as the bounds disagreeing. the filter
+    #still applies exactly as typed, the page just says why nothing can match
     if f["pmin"] is not None and f["pmax"] is not None and f["pmin"] > f["pmax"]:
         f["errors"].append("your minimum price is above your maximum, so no card can fit between them")
     if f["mvmin"] is not None and f["mvmax"] is not None and f["mvmin"] > f["mvmax"]:
@@ -899,10 +887,8 @@ def read_filters():
     f["types"] = [t for t in request.args.getlist("type") if t in CARD_TYPES]
     f["cmdr"] = request.args.get("cmdr") == "1"
     f["gc"] = request.args.get("gc") == "1"
-    #flipped from the launch version: most visitors are commander players, so
-    #cards that arent legal stay hidden unless this asks for them. old shared
-    #links with legal=1 wanted exactly what the default now does, so they
-    #still mean the same thing
+    #most visitors are commander players, so cards that arent legal stay hidden
+    #unless this asks for them
     f["illegal"] = request.args.get("illegal") == "1"
     #which currency the price bounds (and the filter box's bare price) mean
     f["cur"] = read_currency()
@@ -913,9 +899,9 @@ def read_filters():
 
 
 def read_number(name, label, errors):
-    #a number box's value, None when empty. junk (a doctored url, pasted
-    #text) used to vanish silently, so a filter that "didn't work" gave no
-    #hint why; now the page says what was ignored
+    #a number box's value, None when empty. junk (a doctored url, pasted text)
+    #is named on the page rather than dropped, so a filter that "didn't work"
+    #says what was ignored
     s = request.args.get(name, "").strip()
     if not s:
         return None
@@ -927,30 +913,28 @@ def read_number(name, label, errors):
 
 
 def tier_cut(blend):
-    #where the strong tier ends, in calibrated display units. the "hide
-    #below X%" box that exposed this went away: a knob for "how similar" on
-    #a similarity site was bloat, and its real job (keeping the price sorts
-    #meaningful) is done by the split itself, since everything under the cut
-    #pages in behind the weaker-matches button instead of joining the
-    #sorts. 80 at both ENDS of the slider: pure mechanics pins the model's
-    #real quality boundary there (same set of cards the old raw-90 cutoff
-    #kept), and pure concepts shows the calibrated concept score, where good
-    #matches also read 80+. the mixed detents show an average of two axes,
-    #and averages rarely reach 80, so they sit at 70.
+    #where the strong tier ends, in calibrated display units. nothing on the page
+    #exposes it: a knob for "how similar" on a similarity site is bloat, and its
+    #real job of keeping the price sorts meaningful is done by the split itself,
+    #since everything under the cut pages in behind the weaker-matches button
+    #instead of joining the sorts.
     #
-    #since the slider was fixed at the middle this only ever returns 70. the
-    #branch stays because it is the reason 70 is right, and deleting it would
-    #leave a bare number nobody could argue with
+    #80 at both ends of the slider: pure mechanics pins the model's real quality
+    #boundary there, and pure concepts shows the calibrated concept score, where
+    #good matches also read 80+. the mixed detents show an average of two axes,
+    #and averages rarely reach 80, so they sit at 70. with the slider fixed at
+    #the middle only the 70 is reachable, and the branch is what makes 70 an
+    #argument rather than a bare number
     return 70 if 0 < blend < len(BLEND_WEIGHTS) - 1 else 80
 
 
-#the sort is a FIELD plus a DIRECTION rather than one entry per combination.
-#as one list it had grown to nine options, and half of them were the same idea
-#backwards: "price low to high" and "price high to low" are not two things to
-#choose between, they are one thing and a switch. scryfall splits them the
-#same way, which is the control this audience already knows.
+#the sort is a field plus a direction rather than one entry per combination. as
+#one list it runs to nine options with half of them the same idea backwards:
+#"price low to high" and "price high to low" are not two things to choose
+#between, they are one thing and a switch. scryfall splits them the same way,
+#which is the control this audience already knows.
 #
-#asc/desc read as the CONCEPT named in the label, not as the column underneath:
+#asc/desc read as the concept named in the label, not as the column underneath:
 #ascending play rate is least played, even though it is descending edhrec rank.
 #nobody sees the words asc and desc, they see the sentence in the option
 SORT_FIELDS = {
@@ -1095,13 +1079,12 @@ def currency_urls():
     #the request's own args so a page does not have to know what its own url
     #looks like, and so every other control on it survives the flip.
     #
-    #REPEATED params are why this walks items(multi=True) rather than taking the
+    #repeated params are why this walks items(multi=True) rather than taking the
     #dict. to_dict() keeps one value per name, and the two controls that send a
     #name more than once are the colour boxes and the type boxes: colors=W&
-    #colors=U came back as colors=W, so the flip quietly dropped every colour but
-    #the first. the board only sends single valued controls, so nothing was
-    #losing anything yet, but the promise above is the whole contract of this
-    #function and it was one caller away from being false
+    #colors=U would come back as colors=W, so the flip drops every colour but the
+    #first. the board only sends single valued controls, so nothing loses
+    #anything today, and the promise above is the whole contract of this function
     out = {}
     keep = [(k, v) for k, v in request.args.items(multi=True) if k != "cur"]
     for code in CURRENCY_SIGNS:
@@ -1110,21 +1093,16 @@ def currency_urls():
 
 
 def read_blend():
-    #FIXED AT THE MIDDLE, 2026-07-22. the slider is gone from the page.
+    #fixed at the middle, with no slider on the page. an even blend of the two
+    #axes beats either end on its own and beats every other detent, so the
+    #choice never needed making, and a control asking readers to make it was the
+    #most misunderstood thing on the site.
     #
-    #it was the site's most misunderstood control: a friend's review read it as
-    #an either/or and suggested replacing it with a radio, which would have
-    #deleted the feature rather than explained it. the answer turned out to be
-    #that the choice never needed making. an even blend of the two axes is
-    #better than either end on its own, and better than any other detent, so
-    #the honest move is to stop asking and just do it.
-    #
-    #the machinery underneath is deliberately left alone: BLEND_WEIGHTS,
-    #tier_cut and the two-axis scoring all still work off this number, so
-    #reviving the slider means putting the input back and restoring the four
-    #lines below, not rebuilding the ranking. a stale blend= in an old link is
-    #ignored rather than honoured, which is what makes every shared url agree
-    #about what it shows
+    #the machinery underneath still works off this number: BLEND_WEIGHTS,
+    #tier_cut and the two-axis scoring. putting the slider back means restoring
+    #the input and the four lines below, not rebuilding the ranking. a stale
+    #blend= in an old link is ignored rather than honoured, which is what makes
+    #every shared url agree about what it shows
     return BLEND_DEFAULT
 
 
@@ -1350,12 +1328,11 @@ def age_verdict(released, anchor):
     return "older" if diff > 0 else "newer"
 
 
-#everything under the cut used to be one undivided pile that the sorts ran
-#over whole, which made "cheapest first" useless the moment you opened it: the
-#cheapest card in a pile that reaches down to 0% is a 0% card, so the sort
-#answered a question nobody asked. the pile is now cut into 10 point bands and
-#only one is ever on the page at a time, so a sort inside it is a sort among
-#cards that match about as well as each other
+#everything under the cut is split into 10 point bands, and only one is ever on
+#the page at a time, so a sort inside it is a sort among cards that match about
+#as well as each other. left as one undivided pile the sorts run over the whole
+#thing, and "cheapest first" is useless the moment it opens: the cheapest card
+#in a pile reaching down to 0% is a 0% card
 WEAK_BAND = 10
 
 
@@ -1486,14 +1463,13 @@ def find_similar(oracle_id, picked, filters, min_pct, sort, offset=0, how_many=2
         #concept side has nothing to say, so it sits the round out rather than
         #dividing by a zero norm
         atags, aweights, anorm = anchor_vector(conn, oracle_id, dropped, picked, forced) if blend > 0 else ([], [], 0.0)
-        #NO ANCHOR VECTOR MEANS THE CONCEPT AXIS SITS OUT ENTIRELY, rather than
+        #no anchor vector means the concept axis sits out entirely, rather than
         #scoring every candidate at zero and dragging the blend down with it.
-        #that used to be unreachable, since an anchor with no tags has no
-        #concept side to speak of anyway. picking a keyword line reaches it: the
-        #line owns no tags, so there is no vector, and the old behaviour halved
-        #every card's score and returned nothing at all above the cutoff.
-        #ranking on rules text alone is both what survives and what the person
-        #who clicked "Vigilance, trample, haste" was asking for
+        #picking a keyword line is how that happens: the line owns no tags, so
+        #there is no vector, and scoring it as zero halves every card's score and
+        #returns nothing at all above the cutoff. ranking on rules text alone is
+        #both what survives and what the person who clicked "Vigilance, trample,
+        #haste" was asking for
         if blend > 0 and atags:
             have = {oid for oid, pairs in ranked}
             #cards the lines never found, injected as candidates when their
@@ -1617,10 +1593,10 @@ def find_similar(oracle_id, picked, filters, min_pct, sort, offset=0, how_many=2
             #
             #the concept injection carries salt the same way it carries price,
             #rank and date, so a card the lines never found sorts on the number
-            #its own frame prints. salt used to be the one it left out: the card
-            #reads its figure off the cards row either way, so a concept find
-            #with a real salt score sank into the unvoted pile while the card
-            #sitting there showed the number that should have floated it
+            #its own frame prints. leave salt out of that and a concept find with
+            #a real score sinks into the unvoted pile while the card sitting
+            #there shows the number that should have floated it, since the frame
+            #reads its figure off the cards row either way
             salted = []
             unsalted = []
             for entry in wanted:
@@ -1965,9 +1941,8 @@ def support():
 #deck size, against +0.26 at top 20). a fraction is size independent by
 #construction and takes that to +0.19.
 #
-#HALF, and it is fixed. it was a third, adjustable between a third and the
-#whole list from the url, and the control went because it was a control with
-#one right answer, same as the blend slider and the similarity knob before it.
+#half, and fixed. exposing the depth on the url makes it another control with
+#one right answer, same as the blend slider and the similarity knob.
 #
 #half rather than a third because a third of a commander deck is about the
 #lands: 100 cards is roughly 36 of them, so reading a third means reading
@@ -1975,7 +1950,7 @@ def support():
 #the staples every deck brings. half reaches past both and into the cards that
 #actually tell one deck from another, which is the thing being measured.
 #
-#reading deeper does not make the number more ACCURATE, and that was measured:
+#reading deeper does not make the number more accurate, and that is measured:
 #every step costs discrimination (spread 0.143 at a third, 0.103 using every
 #card) because the cards being added are the ones every deck shares. the
 #ranking itself barely moves either, the ends not at all. so the setting only
@@ -2186,7 +2161,7 @@ PRECON_METRICS = [
         #played" under a panel about originality looks like the wrong button on
         #the wrong panel, because it is. so the offer is absent here rather than
         #approximated, same as everywhere else on this site where the honest
-        #answer to "can you do X" turned out to be no
+        #answer to "can you do X" is no
         "decimals": 3, "best": "desc", "cards": "Most original cards",
         "noun": "originality",
         "settling": "A new deck reads as more original than it will look in five years, and that is half real: design space fills up, so a card printed today has had nobody to copy it yet.",
@@ -2303,10 +2278,10 @@ PRECON_METRICS = [
     },
     {
         "key": "played", "figure": "play_median", "drivers": "play_drivers",
-        #"Play rate", the name /search's sort already uses and the name every
-        #tooltip on the site already says. it was "Played cards" here, which
-        #was both a second name for one metric and nearly its own readings'
-        #names ("most played cards", "least played cards") a word short
+        #"Play rate", the name /search's sort uses and the name every tooltip on
+        #the site says. "Played cards" here would be both a second name for one
+        #metric and nearly its own readings' names ("most played cards", "least
+        #played cards") a word short
         "label": "Play rate",
         "decimals": 0, "best": "asc", "cards": "Most played cards",
         "noun": "median play rate",
@@ -2431,9 +2406,7 @@ def figure_units(key, cur):
 #cold board is a visibly slow page rather than an imperceptibly slow one.
 #
 #keyed by currency, and only the three in CURRENCY_SIGNS can ever get in, so
-#three entries is the ceiling and the url cannot grow this without bound. it
-#used to be keyed by depth too, and dropping that control took the cache from
-#twelve possible entries to three
+#three entries is the ceiling and the url cannot grow this without bound
 _precon_cache = {}
 
 
@@ -2630,10 +2603,10 @@ def metric_cards(conn, oracle_ids, key, currency, limit=DECK_EVIDENCE_MAX):
         #can only cut one of them off. a deck is at most DECK_MAX_CARDS rows,
         #so the whole ordered list is cheap to hold and the slice below takes
         #the cap off each end of it.
-        #it used to ask for twice the cap, which quietly made the dedupe below
-        #unreachable and read the bottom end out of the MIDDLE of the list: a
-        #pasted pile with more than 96 qualifying cards offered rows 49 to 96
-        #as its mildest, cheapest and newest, none of which were
+        #asking for twice the cap instead makes the dedupe below unreachable and
+        #reads the bottom end out of the middle of the list: a pasted pile with
+        #more than 96 qualifying cards would offer rows 49 to 96 as its mildest,
+        #cheapest and newest, none of which they are
         rows = conn.execute(sql, ([str(o) for o in oracle_ids],)).fetchall()
     except Exception:
         return []
@@ -2692,10 +2665,10 @@ def deck_uniqueness(oracle_ids):
     #back from deck_metrics as single numbers, and this one is an average over
     #a SLICE of the deck, so the slice has to be picked here.
     #
-    #the predicate matches PRECON_SQL's scored CTE exactly. it used to come off
-    #the all-pairs lens query, which additionally required a card to have rules
-    #LINES; that made no difference (uniqueness is derived from lines, so a card
-    #without any has none) but it did mean two different rules for one number
+    #the predicate matches PRECON_SQL's scored CTE exactly, so one number is not
+    #computed under two different rules. the lens query also requires a card to
+    #have rules lines, which changes nothing (uniqueness is derived from lines,
+    #so a card without any has none) and is still a second rule
     if not oracle_ids:
         return []
     try:
@@ -2787,7 +2760,7 @@ def deck_panels(conn, oracle_ids, figures, board, cur, slug=None):
                                #the offer is the axis pointing AWAY from the end
                                #on screen. reading "saltiest" and being offered
                                #"saltier" is the tool agreeing with you rather
-                               #than helping, which is what it used to do
+                               #than helping
                                swap=({"axis": r["swap"][0], "dir": r["swap"][1],
                                       "goal": SWAP_AXES[r["swap"]]["goal"]}
                                      if r["swap"] else None))
@@ -2843,9 +2816,9 @@ def precon(slug):
                "price": deck_row["price"], "played": deck_row["play_median"],
                "age": deck_row["age_mean"], "age_total": deck_row["age_total"],
                "age_cards": deck_row["age_cards"]}
-    #ONE borrow for both, because both are this page's and the page is drawn
-    #once. it was two blocks running back to back, which is two trips to a pool
-    #of four for a handler that was never going to let go in between
+    #one borrow for both, because both are this page's and the page is drawn
+    #once. two blocks running back to back is two trips to the pool for a handler
+    #that is never going to let go in between
     with pool.connection() as conn:
         panels = deck_panels(conn, ids, figures, board, cur, slug=slug)
         #the deck's cards, for the plain list the "run it through the lens" and
@@ -2921,10 +2894,10 @@ DECK_MAX_CARDS = 250
 DECK_MAX_CHARS = 60000
 
 #below this many nonland cards the precon comparison is not offered. scoring
-#on a FRACTION means a short list is at least measured on the same share of
-#itself as the decks it is ranked against, so this is no longer about unequal
-#counts. it is about noise: a third of a six card list is two cards, and a
-#two card mean says nothing about a deck. the SECTIONS still work at any size,
+#on a fraction means a short list is measured on the same share of itself as
+#the decks it is ranked against, so this is not about unequal counts. it is
+#about noise: a third of a six card list is two cards, and a two card mean says
+#nothing about a deck. the sections still work at any size,
 #being statements about the list itself rather than about where it stands
 DECK_MIN_FOR_RANK = 20
 
@@ -3082,11 +3055,10 @@ def parse_decklist(text):
         #trying the untouched line first can only ADD matches: for it to hit,
         #a card has to really be named with digits in front.
         #
-        #DORMANT AS OF 2026-07-29, and worth writing down so it is not deleted as
-        #dead weight: NO card in the pool starts with a digit, so over 800 real
-        #names across 8 line shapes this changes not one result. it is one dict
-        #lookup, and the shape it still covers is a real one: an UNCOUNTED line
-        #naming such a card. "1 1996 World Champion" is fine without it, because
+        #dormant, and worth writing down so it is not read as dead weight: no
+        #card in the pool starts with a digit, so over 800 real names across 8
+        #line shapes this changes not one result. it is one dict lookup, and the
+        #shape it covers is a real one: an uncounted line naming such a card. "1 1996 World Champion" is fine without it, because
         #the count comes off and the name is left; a bare "1996 World Champion"
         #is the case that degrades to looking up "World Champion". the card is
         #real, it is just not in scryfall's oracle set, so this is waiting rather
@@ -3265,11 +3237,11 @@ def deck_did():
     #it rides the form like the list and the name do, for the same reason: there
     #is no session and no account, so every request states its own everything.
     #
-    #it replaced the whole DECKLIST being carried in a second hidden field on
-    #every form, which is what the browser used to key its shelf on. that key
-    #moved whenever a swap changed the deck, so each page carried the list twice,
-    #once as it stands and once as it was imported, and every lookup was a guess
-    #about which one it was holding.
+    #keying the shelf on the decklist itself is the alternative, and it means a
+    #second hidden field on every form plus a key that moves whenever a swap
+    #changes the deck: each page carries the list twice, once as it stands and
+    #once as it was imported, and every lookup is a guess about which one it
+    #holds.
     #
     #trimmed to a length no id will ever reach. it is echoed into html, so what
     #matters is that it cannot be a decklist smuggled through the field that was
@@ -3464,9 +3436,9 @@ def deck_view():
     #`missing` goes no further than that error above, and neither does `seen`.
     #this page does NOT draw the unmatched lines: the question is asked once,
     #when the deck arrives, on the modes page, and /deck/read says the same about
-    #itself. the route used to honour seen and hand missing to the template
-    #anyway, which read as though the box were about to appear here and never
-    #could, since view.html includes no partial that draws one.
+    #itself. passing them through anyway reads as though the box were about to
+    #appear here, and it never could: view.html includes no partial that draws
+    #one.
     #
     #currency is the same story. it decides what deck_cards formats the prices
     #as, and the template never sees it: every figure arrives already written
@@ -3474,10 +3446,9 @@ def deck_view():
     name, commander = deck_identity()
     with pool.connection() as conn:
         cards = deck_cards(conn, ids, cur)
-    #no matched count: the page used to open with "71 cards, every one of them
-    #below" and the fold under it already says "View every card image 71 cards".
-    #it was also the one number on the page a revert could not correct, since
-    #the count is the server's and the revert is the browser's
+    #no matched count. the fold under it already says "View every card image 71
+    #cards", and a second count is the one number on the page a revert cannot
+    #correct, since the count is the server's and the revert is the browser's
     return render_template("deck/view.html", cards=cards,
                            section=DECK_SECTION,
                            deck_name=name,
@@ -3890,31 +3861,29 @@ def swap_column(field, currency):
 #the match a suggestion has to clear before the page will offer it, IN BLENDED
 #DISPLAY UNITS, the same number /search badges.
 #
-#it was 80 and that was not a stricter setting, it was a different SCALE: this
-#tool scored on rules text alone, where 80 is the calibrated boundary (see
-#tier_cut, which returns 80 at either end of the old slider for exactly this
-#reason). now that a suggestion is scored on both axes like everything else,
-#the comparable boundary is /search's mixed cut of 70, because an average of
-#two axes rarely reaches 80.
+#80 would be a different scale rather than a stricter setting: that is the
+#calibrated boundary for rules text alone (see tier_cut, which returns it at
+#either end of the blend for exactly this reason). scored on both axes like
+#everything else, the comparable boundary is /search's mixed cut of 70, because
+#an average of two axes rarely reaches 80.
 #
-#75 rather than 70 is Ethan's call and a deliberate one: this is the page that
-#PROPOSES a card for a slot rather than handing back a list to browse, so it
-#should want better answers than a search does. it is the only number on the
-#site set above its calibrated boundary, and it is set there on purpose.
+#75 rather than 70 because this is the page that proposes a card for a slot rather than handing back a list to browse, so it
+#wants better answers than a search does. it is the only number on the site set
+#above its calibrated boundary.
 #
-#it is a REAL tightening and not a nominal one, measured over 224 queue cards
-#across 14 precons on both the salt and the price axes:
+#a real tightening and not a nominal one, measured over 224 queue cards across
+#14 precons on both the salt and the price axes:
 #
 #  rule            skipped   median offer
-#  rules >= 80        10%          14      (what this used to do)
+#  rules >= 80        10%          14
 #  blend >= 70         5%          13      (/search's boundary)
-#  blend >= 75        18%           8      (shipped)
+#  blend >= 75        18%           8      (this)
 #  blend >= 80        32%           5
 #
-#so a fifth of queue cards now get passed over, against a tenth before. that is
-#the price of the bar and it is paid honestly: a skipped card is NAMED under
-#"nothing close enough" rather than quietly vanishing. drop to 70 if that reads
-#as too harsh in use; the numbers above are what the choice costs.
+#so a fifth of queue cards get passed over. that is the price of the bar and it
+#is paid openly: a skipped card is named under "nothing close enough" rather
+#than quietly vanishing. 70 is the setting if that reads as too harsh in use,
+#and the table is what the choice costs.
 #
 #there is NO looser pass and no strict-mode toggle. this had a "show weaker
 #matches" button borrowed from /search's band walking, on the reasoning that
@@ -3924,22 +3893,20 @@ def swap_column(field, currency):
 #rather than the user choosing to. so a card with no suggestions is skipped,
 #and the page says which cards it skipped instead of letting them vanish.
 #
-#that also makes four controls this site has now deleted for having one right
-#answer, after the blend slider, the uniqueness bar and the search threshold
+#that makes four controls this site does without for having one right answer,
+#alongside the blend slider, the uniqueness bar and the search threshold
 SWAP_GATE = 75
 
-#the swap tool scores on BOTH axes, same as /search, and for the same reason:
-#an even split beat every other setting when it was measured, and either axis
-#alone is a specialist's view. it is a constant rather than a request parameter
-#because the slider is gone from the whole site
+#the swap tool scores on both axes, same as /search, and for the same reason:
+#an even split beats every other setting when measured, and either axis alone is
+#a specialist's view. a constant rather than a request parameter, because no
+#page on the site carries the slider
 SWAP_BLEND = 0.5
 
-#how many cards the queue offers BEFORE asking whether to keep going. it used
-#to be how many it offered full stop, and stopping a working tool at twelve was
-#the wrong call: somebody who has walked twelve cards and wants a thirteenth is
-#exactly the person this is for.
-#
-#so it is a batch now, not a lid. the page holds SWAP_DEEP cards in queue order
+#how many cards the queue offers before asking whether to keep going. a batch
+#rather than a lid: somebody who has walked twelve cards and wants a thirteenth
+#is exactly the person this is for.
+# the page holds SWAP_DEEP cards in queue order
 #and reveals them a batch at a time, which costs one extra column of json and
 #no extra database work: the candidates for a card are still fetched only when
 #the user actually reaches it
@@ -3950,14 +3917,13 @@ SWAP_QUEUE = 12
 #nobody reaches it by accident and shallow enough that the json stays small
 SWAP_DEEP = 48
 
-#how many replacements are REVEALED per card, and how many the answer holds.
+#how many replacements are revealed per card, and how many the answer holds.
 #
-#it was five, full stop, on the reasoning that past about six the tail is
-#padding. that is the same call that capped the queue at twelve and it was wrong
-#the same way: somebody who has read five and wants a sixth is exactly who this
-#is for, and the deeper list is FREE. the query already scans 200 rows per line
-#and cuts at the very end, so holding 48 costs one bigger json and no extra
-#database work.
+#a hard five reads as "past about six the tail is padding", and it is the same
+#mistake as capping the queue: somebody who has read five and wants a sixth is
+#exactly who this is for, and the deeper list is free. the query already scans
+#200 rows per line and cuts at the very end, so holding 48 costs one bigger json
+#and no extra database work.
 #
 #twelve is the batch every other list on this site reveals at a time
 SWAP_OFFER = 12
@@ -3969,13 +3935,12 @@ SWAP_OFFER_DEEP = 48
 #judges. here the page is proposing a card for a specific slot, and a curve is
 #a real constraint that the text cannot see.
 #
-#it is not one FLAT number any more, and that was the bug. two either way
-#reaches 89% of the format at three mana and 10.7% of it at eight, because the
+#not one flat number, because a flat one is barely a constraint at the bottom
+#of the curve and close to a blackout at the top. two either way reaches 89% of
+#the format at three mana and 10.7% of it at eight, because the
 #format thins out fast past five: 7,497 nonland commander-legal cards cost
-#three and 292 cost eight. so the single band was barely a constraint in the
-#middle of the curve and close to a blackout at the top, where Ancient Silver
-#Dragon's "less salty" list came back holding one card while /search showed
-#fourteen of them.
+#three and 292 cost eight, which is how Ancient Silver Dragon's "less salty"
+#list comes back holding one card while /search shows fourteen of them.
 #
 #past five it widens to three. past eight it stops measuring distance
 #downwards at all and just reaches to five: up there everything is a finisher,
@@ -4011,14 +3976,13 @@ SWAP_ANCHOR_FRAC = 0.9
 #lines is worth searching, this catches a candidate answering a rare line of
 #ours with a line of theirs that half the format shares.
 #
-#deliberately low, and 0.75 is the value it was tried at first. at that value
-#it was not a backstop but a second gate, and it removed every mana rock in the
-#game from
-#"find me a less played Sol Ring", whose correct answers are all mana rocks
-#sharing one very common line. an exclusion that fires on the honest case is
-#worse than the bug it was added for.
+#low on purpose. at 0.75 this stops being a backstop and becomes a second gate:
+#it removes every mana rock in the game from "find me a less played Sol Ring",
+#whose correct answers are all mana rocks sharing one very common line. an
+#exclusion that fires on the honest case is worse than the thing it guards
+#against.
 #
-#always an EXCLUSION, never the number on screen: the badge stays the display
+#always an exclusion, never the number on screen: the badge stays the display
 #score and the list still reads in descending order of the figure the user can
 #actually see, which is the promise the whole site runs on
 SWAP_PAIR_CUT = 0.2
@@ -4162,11 +4126,12 @@ def swap_candidates(conn, card, deck_ids, colors, field, direction, currency="us
     #Sunken City perfectly on its upkeep tax while the untap lock, the entire
     #reason anyone plays or hates the card, went unexamined.
     #
-    #RELATIVE to the card's own best line, never an absolute bar. Sol Ring is
-    #one common line and nothing else, so its defining line IS the common one
-    #and mana rocks are the honest answer. an absolute cut threw all of them
-    #out and returned nothing at all, which is worse than the bug it fixed
-    #a line the USER picked wins outright, and the anchoring below is skipped
+    #relative to the card's own best line, never an absolute bar. Sol Ring is one
+    #common line and nothing else, so its defining line is the common one and
+    #mana rocks are the honest answer. an absolute cut throws all of them out and
+    #returns nothing at all.
+    #
+    #a line the user picked wins outright, and the anchoring below is skipped
     #for it. the fraction exists to guess which line makes this card this card;
     #somebody who has clicked a line has answered that question themselves, and
     #re-narrowing their pick would be the tool overruling the control it just
@@ -4257,12 +4222,10 @@ def swap_candidates(conn, card, deck_ids, colors, field, direction, currency="us
     for pairs in pairs_by_card.values():
         pairs.sort(reverse=True)
 
-    #the CONCEPTS half, and this is the change that makes a suggestion scored
-    #the way everything else on the site is scored. it was rules text alone,
-    #which quietly made this the one page that had never adopted the even blend
-    #the rest of the site settled on.
+    #the concepts half, which is what makes a suggestion scored the way
+    #everything else on the site is scored rather than on rules text alone.
     #
-    #it re-ranks the candidates the LINES found, and never adds any of its own.
+    #it re-ranks the candidates the lines found, and never adds any of its own.
     #that is not a shortcut, it is the Stasis rule holding: a replacement for a
     #slot has to share a real line with the card leaving, where a search result
     #only has to be about the same thing. a concept-only card could not clear
@@ -4421,12 +4384,10 @@ def deck_swap():
     ids, missing = parse_decklist(text)
     if not ids:
         #through deck_hub like the other two, rather than rendering hub.html
-        #here. this route used to build the front door itself, which is one
-        #board lookup for a page that shows one and one set of arguments that
-        #could quietly stop matching the function whose whole job is that an
-        #error state never drifts into looking like a different page. it had
-        #already started: the url the import was typed into was not passed on,
-        #so a failed link came back to an empty box
+        #here. building the front door inline instead means a second board
+        #lookup and a second set of arguments that can quietly stop matching the
+        #function whose whole job is that an error state never drifts into
+        #looking like a different page
         return deck_hub(error=("None of those lines matched a card." if text.strip()
                                else "Paste a decklist first."),
                         pasted=text[:DECK_MAX_CHARS], missing=missing)
@@ -4437,8 +4398,8 @@ def deck_swap():
         #the whole deck as pictures, for the fold at the END of a session. the
         #same rows /deck/view draws from, through the same helper, so the two
         #folds cannot be two different ideas of what a deck looks like. it is
-        #one more query on a page that already runs three, and it buys the
-        #finished session the thing it used to send people to another page for
+        #one more query on a page that already runs three, and it saves the
+        #finished session a trip to another page
         deck_pictures = deck_cards(conn, ids, cur)
     #flattened here rather than picked apart in the template: the page hands
     #the whole queue to the browser as json, and building that out of five
@@ -4515,9 +4476,9 @@ def deck_swap_cards():
         #columns: this row is the ANCHOR every candidate's verdict is measured
         #against, so it has to answer the same questions a candidate does.
         #
-        #the full CARD_FIELDS rather than the seven numbers it used to take,
-        #because the panel above the suggestions is now the same one /search
-        #draws and that wants the oracle text, the art and the layout
+        #the full CARD_FIELDS rather than the seven numbers a verdict needs,
+        #because the panel above the suggestions is the same one /search draws
+        #and that wants the oracle text, the art and the layout
         row = conn.execute("SELECT " + ", ".join("c." + f for f in CARD_FIELDS.split(", ")) +
                            ", c.cmc, " + price_col(cur) +
                            " AS price FROM cards c WHERE c.oracle_id = %s",
@@ -4979,15 +4940,14 @@ def feedback():
 
         got_pct = best_sim(conn, card["oracle_id"], got["oracle_id"], picked)
         #the same split the missing branch makes, and for the same reason. the
-        #DATABASE keeps the mechanical percent and the snapshot keeps the
-        #concept half, because the review needs the two axes apart to route a
-        #report. the SENTENCE quotes the number the page actually badged, which
-        #past detent 0 is the blend of the two.
-        #it used to quote the mech half here, so flagging Professor Hulk under
-        #Ancient Silver Dragon answered "shows at 92% right now" about a card
-        #the page had just badged 78%: the site contradicting its own results
-        #by fourteen points, at the exact moment somebody had told it that
-        #number was wrong
+        #database keeps the mechanical percent and the snapshot keeps the concept
+        #half, because the review needs the two axes apart to route a report.
+        #
+        #the sentence quotes the number the page actually badged, which past
+        #detent 0 is the blend of the two. quoting the mech half instead answers
+        #"shows at 92% right now" about a card the page badged 78%, which is the
+        #site contradicting its own results at the exact moment somebody has told
+        #it that number is wrong
         shown_pct = got_pct
         if blend > 0:
             cpct = concept_between(conn, card["oracle_id"], got["oracle_id"], dropped, picked, forced)

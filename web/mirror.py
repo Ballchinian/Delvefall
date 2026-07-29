@@ -62,7 +62,7 @@ def clean_line(line, card_name):
     #flavour prefixes go, exactly like the ingest side: table rows ("1—9 |",
     #"10+ |", "20 |", "1-9 |"), saga chapters, and scryfall's catalog of
     #ability/flavor words before a dash. see common/cards.py for the count of
-    #each shape, and for which two the pattern used to miss
+    #each shape
     line = re.sub(r"^\d+(?:\s*[-–—]\s*\d+|\+)?\s*\|\s*", "", line)
     line = re.sub(r"^[IVX]+(?:, [IVX]+)*\s+—\s+", "", line)
     m = re.match(r"^([^—•|]{1,40}?)\s+—\s+(?=\S)", line)
@@ -79,10 +79,10 @@ def clean_line(line, card_name):
 #and the results are useless. so common lines get weighted down when ranking.
 #basically a homemade version of idf from search engines.
 #
-#the old curve started punishing at count 2, which buried exactly the best
-#results: a line shared by 2 cards means someone printed a functional reprint
-#of it, and that reprint is the match people came for. so nothing gets
-#punished until a line is on more than 5 cards, then it falls off gently
+#nothing gets punished until a line is on more than 5 cards, then it falls off
+#gently. punishing from count 2 buries exactly the best results: a line shared
+#by 2 cards means someone printed a functional reprint of it, and that reprint
+#is the match people came for
 def line_weight(count):
     if count <= 5:
         return 1.0
@@ -94,12 +94,12 @@ def line_weight(count):
 #embedding_v2 (see common/schema.sql), this flips the site over to them, and
 #unsetting it flips straight back with the old numbers still sitting there.
 #
-#the value lands INSIDE sql strings, so it is checked against a fixed list
+#the value lands inside sql strings, so it is checked against a fixed list
 #rather than trusted. anything else and we would be one typo in a railway
 #variable away from an injection point on every search.
 #
-#defined UP HERE, above the calibration, because load_calibration reads it to
-#decide which map belongs to the column being served
+#defined above the calibration because load_calibration reads it to decide which
+#map belongs to the column being served
 EMBED_COLUMNS = ("embedding", "embedding_v2")
 
 
@@ -152,14 +152,13 @@ def concept_raw_gate(pct):
 MECH_CALIBRATION = [(0.0, 0), (0.30, 30), (0.42, 45), (0.62, 65), (0.76, 80), (0.90, 92), (1.0, 100)]
 
 
-#has the database actually been asked yet? this runs ONCE at import, and a boot
-#that lands during a database blip used to pin the seed maps for the entire life
-#of the worker: every percent the site printed until the next redeploy came from
-#the seeds while the real maps sat in meta unread. the error is bounded (the
-#seeds are drift checked against their sources) but it is silent and it lasts,
-#which is the combination worth closing. the web app retries off this flag on
-#the next request that arrives, so a blip costs one request's worth of seeds
-#rather than a deploy's worth
+#has the database actually been asked yet? the load runs once at import, so a
+#boot landing during a database blip would otherwise pin the seed maps for the
+#life of the worker: every percent the site printed until the next redeploy
+#would come from the seeds while the real maps sat in meta unread. bounded (the
+#seeds are drift checked against their sources) but silent and lasting, which is
+#the combination worth closing. the app retries off this flag on the next
+#request, so a blip costs one request's worth of seeds rather than a deploy's
 CALIBRATED = False
 
 
@@ -169,13 +168,12 @@ def load_calibration():
     #vectors. a database the ingest has never run against has no meta rows
     #(maybe no meta table), then the seeds hold.
     #
-    #a trial column needs its OWN map, or every percent on the page is a lie:
+    #a trial column needs its own map, or every percent on the page is a lie:
     #cosines sit in a different band per model, and the meta row belongs to
     #whichever model filled lines.embedding. so when EMBED_COLUMN points
-    #somewhere else, prefer a key suffixed with it, and fall back to the
-    #shared one where a trial has not been calibrated yet. measured
-    #2026-07-22: without this a near verbatim match read 62% under the trial
-    #model where the refit puts it at 77%
+    #somewhere else, prefer a key suffixed with it, and fall back to the shared
+    #one where a trial has not been calibrated yet. without this a near verbatim
+    #match reads 62% under a trial model where the refit puts it at 77%
     global CALIBRATION, MECH_CALIBRATION, CALIBRATED
     suffix = "" if EMBED_COL == "embedding" else "_" + EMBED_COL
     try:
