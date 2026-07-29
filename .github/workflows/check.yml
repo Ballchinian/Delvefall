@@ -51,6 +51,13 @@ jobs:
         with:
           python-version: "3.12"
 
+      #pinned, because the runner's own node moves under us. it arrived as 22
+      #while this was developed against 20, and the two disagree about what
+      #`--test <directory>` means, so the suite passed locally and died here
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+
       #every python file in the repo, not just the ones the drift check reads.
       #-q keeps the log to the failures. no imports and no database: this asks
       #whether the source parses, which is the failure that takes the site down
@@ -61,9 +68,9 @@ jobs:
       #the browser modules get the same treatment. they are what draws the
       #results grid, the swap tool and the deck pages, and a parse error in one
       #is a page that renders and then does nothing, which is harder to notice
-      #than a 500. node is already on the runner. --input-type=module because
-      #these are es modules and the default check reads them as commonjs, where
-      #every import line is a syntax error
+      #than a 500. --input-type=module because these are es modules and the
+      #default check reads them as commonjs, where every import line is a
+      #syntax error
       - name: check the javascript parses
         run: |
           for f in web/static/js/*.js; do
@@ -71,14 +78,18 @@ jobs:
           done
           node --check web/static/cards.js
 
-      #and whether it WORKS, for the parts that can be asked. the browser code
-      #had no tests at all while the python had 157, and every javascript bug
-      #found so far was found by reading: a swap rewriting the wrong card, a
+      #and whether it works, for the parts that can be asked. the bugs this
+      #catches are the ones reading found: a swap rewriting the wrong card, a
       #report filed twice, a deck line added twice. node's own runner, no
       #install, no browser. tests/js/resolve.mjs is node's half of the importmap
-      #in base.html, which is what lets these modules be imported at all
+      #in base.html, which is what lets these modules be imported at all.
+      #
+      #the files by name, not the folder. handed a directory, node 22 puts it
+      #through module resolution, resolve.mjs passes it on, and the default
+      #resolver refuses to import a directory. the shell expands this to the test
+      #files, so nothing but a real module ever reaches the hook
       - name: run the javascript tests
-        run: node --import ./tests/js/register.mjs --test tests/js/
+        run: node --import ./tests/js/register.mjs --test tests/js/*.test.mjs
 
       #stdlib only, nothing to install
       - run: python tools/check_sync.py
