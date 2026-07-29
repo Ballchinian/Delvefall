@@ -166,10 +166,33 @@ def cheapest_prices(item):
 
 
 def card_hash(card):
-    #the name is part of the hash on purpose: clean_line swaps the card's own
-    #name for "this card" inside the text, so a renamed card needs its lines
-    #rebuilt even if the text itself looks the same
-    return hashlib.sha256((card["name"] + "\n" + get_text(card)).encode("utf-8")).hexdigest()
+    #hashed over the CLEANED LINES, which is what actually gets embedded, rather
+    #than over the raw oracle text they are derived from.
+    #
+    #the raw text is only a PROXY for that input, and the day the two came apart
+    #it cost 1,607 cards. REMINDER_KEYWORDS shipped, clean_line started keeping
+    #the reminder on lines like "Cycling {B}", and not one card's raw text had
+    #changed, so nothing was ever reembedded. the database went on holding
+    #"Cycling {B}" while the site computed "Cycling {B} {B}, Discard this card:
+    #Draw a card." for that same line, and since the line picker matches page
+    #lines to rows BY TEXT, picking one silently searched the whole card. that
+    #is the failure tools/check_sync.py is written to prevent, and it could not
+    #see this one: both copies of clean_line agreed perfectly with each other
+    #and disagreed with what was on disk.
+    #
+    #hashing the real input closes it for good. a change to clean_line, to
+    #REMINDER_KEYWORDS or to the prefix word catalogs now moves the hash of
+    #exactly the cards it affects and they rebuild on the next run, with nobody
+    #having to remember to force one.
+    #
+    #the FACE rides along too, so a line moving from front to back is a change
+    #even when its text is identical. the name still rides along because
+    #clean_line swaps it for "this card" inside the text, so a rename rewrites
+    #every line without touching the raw text either
+    parts = [card["name"]]
+    for line, face in split_lines(card):
+        parts.append(str(face) + ":" + line)
+    return hashlib.sha256("\n".join(parts).encode("utf-8")).hexdigest()
 
 
 def recompute_uniqueness(conn):
