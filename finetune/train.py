@@ -1,27 +1,25 @@
 #fine tunes an embedding model on the generated mtg training data.
 #
-#TWO OBJECTIVES LIVE HERE, pick with --objective:
-#   lines  the original: what the site shipped. lines that mean the same thing
-#          land close together, and attribution recovers tags from that
-#          indirectly, which is what its 88%/82% costs
-#   tags   the retarget: a line lands close to the TEXT OF ITS TAGS. trained on
-#          the single-line cards where a human's tag belongs to that one line
-#          with no inference. this is the one meant to replace the other
-#   both   mix them, an experiment rather than a plan
+#--objective picks what it learns:
+#   lines  lines that mean the same thing land close together. what the site
+#          shipped. attribution reads tags off it indirectly, at 88%/82%
+#   tags   a line lands close to the text of its tags. trained on single-line
+#          cards, where a human's tag can only belong to that line. the
+#          replacement for lines
+#   both   a mix, experimental
 #
-#the exam triplets only appear in here as a held out evaluator, never as
-#training data. the line objective mixes three lessons with three losses:
-#   pairs (mined variants + keyword meanings + rewordings) -> pull together
-#   triplets (anchor, variant, flipped anchor)             -> pull + push apart
-#   labeled flips (anchor vs flipped, label 0)             -> push apart hard
+#three losses under --objective lines:
+#   pairs          mined variants, keyword meanings, rewordings   pull together
+#   triplets       anchor, variant, flipped anchor                pull and push
+#   labeled flips  anchor vs flipped, label 0                     push apart
 #
-#under --objective tags the bakeoff triplets stop being the target and become a
-#regression guard. no count named on purpose: the list started at 26 and grows
-#whenever a user report turns into a question worth keeping, so a number written
-#here is only ever right until the next one lands. it is len(TRIPLETS). the number that matters is recall @10 on the held
-#out cards, printed here during training and measured properly afterwards by
+#the exam triplets are a held out evaluator, never training data. under
+#--objective tags they are a regression guard instead.
+#
+#the judge is recall @10 on the held out cards, printed during training and
+#measured properly by
 #    python -m finetune.exam_tags
-#which is the real judge, the same way bakeoff_lines.py is for the line objective.
+#as bakeoff_lines.py is for --objective lines.
 
 import os
 import sys
@@ -35,30 +33,26 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 random.seed(7)
 HERE = os.path.dirname(os.path.abspath(__file__))
 
-#the rare classes that matter most (the loot order flip especially) get
-#oversampled, the bloated ones get capped so enters/dies and may/can't dont
-#drown everything else out. the round-3 classes are all rare: they exist
-#because users caught the model failing them
+#rare classes get oversampled, bloated ones capped, so enters/dies and
+#may/can't do not drown the rest out. the round-3 classes are rare because
+#users caught the model failing them
 CAP = 1500
 OVERSAMPLE = {"loot order flip": 5, "attack/block flip": 2, "hand/battlefield flip": 2,
               "self/general flip": 5, "mana amount variant": 5, "subtype variant": 3,
               "etb wrapper": 2,
-              #round 4, from the 2026-07-19 ranking audit rather than user
-              #reports. both mine rare, and both answer a failure sitting at
-              #rank 1 or filling half a top 20, so they get lifted into the
-              #same 500-800 band the loot order flip sits in
+              #round 4, from the 2026-07-19 ranking audit. both mine rare and
+              #both answer a failure at rank 1, so both get lifted into the
+              #500-800 band
               "restriction target flip": 5, "toughness null": 2,
-              #the qualifier class mines only 179 after the guards that keep it
-              #off pairs of removal spells, but it answers 8% of the harvested
-              #false positives, so it gets lifted alongside them. its partner
-              #"same trigger, different effect" needs no lift, it hits the cap
+              #mines only 179 after the guards keeping it off removal pairs,
+              #but answers 8% of the harvested false positives. its partner
+              #"same trigger, different effect" hits the cap unaided
               "same opening, conflicting qualifier": 3}
 
-#the tag objective needs its own flattening, for a different reason. seven tags
-#carry 23% of the 36k pairs (activated-ability alone is 5.1%, 1843 of them), so
-#without a cap the model spends a quarter of its time on a handful of labels
-#that say almost nothing about a card. the tail is the opposite shape: 296 of
-#the 654 tags have under 20 pairs and every one of those is precious
+#the tag objective flattens for a different reason: seven tags carry 23% of the
+#36k pairs (activated-ability alone is 1843), so uncapped the model spends a
+#quarter of its time on labels that say little. the tail is the opposite, 296
+#of 654 tags have under 20 pairs each
 TAG_CAP = 300
 
 
@@ -80,15 +74,11 @@ def load_tag_pairs():
     return out
 
 
-#the line objective's six training files live in legacy/traindata now, because
-#the site retrained on tags in july 2026 and they only feed --objective lines.
-#looked up in BOTH places rather than moved back, so the folder can say which
-#era a file belongs to without the trainer caring.
+#the line objective's six training files sit in legacy/traindata since the july
+#2026 retarget. both folders are searched so neither has to move.
 #
-#the miss below is deliberately soft, and that is the trap worth knowing about:
-#a file this cannot find does not stop a run, it quietly trains on less. so a
-#file that MOVES has to be findable here or the next lines run produces a model
-#that looks fine and learned nothing
+#a missing file is skipped, not fatal: it trains on less and looks fine. move a
+#file somewhere neither branch looks and the next lines run learns nothing
 def load_jsonl(name):
     for folder in (os.path.join(HERE, "traindata"),
                    os.path.join(HERE, "legacy", "traindata")):
@@ -116,18 +106,16 @@ def balance(rows):
 
 def main():
     ap = argparse.ArgumentParser()
-    #the tuned line-to-line model, not a stock one. decided 2026-07-21: it is
-    #already 768 dims so nothing downstream moves, it already knows tap from
-    #untap and the rest of the vocabulary bakeoff_lines.py tests, and keeping that
-    #knowledge is what lets the guards detect the umbrella-tag problem rather
-    #than just measuring a model relearning magic from scratch.
+    #the tuned line-to-line model, not a stock base. decided 2026-07-21: it is
+    #already 768 dims so nothing downstream moves, and it already knows tap from
+    #untap, which is what lets the guards see the umbrella-tag problem instead
+    #of a model relearning magic from scratch.
     #
-    #the tag bakeoff put five stock bases inside a 2.5 point band zero shot,
-    #which is not a ranking, and the leader was 384 dims: choosing it would
-    #mean changing EMBED_DIMS, the column type and the hnsw index to chase a
-    #lead that almost certainly does not survive fine tuning.
+    #the tag bakeoff put five stock bases in a 2.5 point band zero shot, and the
+    #leader was 384 dims: taking it would mean changing EMBED_DIMS, the column
+    #type and the hnsw index for a lead unlikely to survive fine tuning.
     #
-    #for a laptop smoke test pass --model sentence-transformers/all-MiniLM-L6-v2
+    #laptop smoke test: --model sentence-transformers/all-MiniLM-L6-v2
     ap.add_argument("--model", default="BallchinianMan/mtg-tuned-embeddinggemma-300m")
     ap.add_argument("--epochs", type=int, default=1)
     ap.add_argument("--batch", type=int, default=0, help="0 picks one based on model size")
@@ -182,11 +170,9 @@ def main():
             "positive": [prefix + r["positive"] for r in tag_pairs],
         })
 
-        #the near misses, as explicit negatives rather than whatever the batch
-        #happened to contain: a line tagged attack-trigger is NOT block-trigger
-        #or death-trigger, one tagged discard is NOT random-discard. these are
-        #the distinctions in-batch negatives are least likely to serve up,
-        #because a random other row is usually nothing like the anchor
+        #near misses as explicit negatives: attack-trigger is not block-trigger,
+        #discard is not random-discard. in-batch negatives rarely supply these,
+        #since a random other row is usually nothing like the anchor
         tag_trips = load_jsonl("train_tag_triplets.jsonl")
         if tag_trips:
             print("  plus " + str(len(tag_trips)) + " sibling triplets")
@@ -225,10 +211,9 @@ def main():
             "label": [0] * len(negatives) + [1] * len(ones),
         })
 
-    #the exam triplets, held out from all training data. under the line
-    #objective this is the target; under the tag objective it is a REGRESSION
-    #GUARD, there to catch the retrain forgetting what lines mean, not to be
-    #maximised. the real judge stays bakeoff_lines.py either way
+    #the exam triplets, held out from all training data. the target under
+    #--objective lines, a regression guard under tags: there to catch the
+    #retrain forgetting what lines mean, not to be maximised
     ev_a, ev_p, ev_n = [], [], []
     for num, name, anchor, pos, neg in TRIPLETS:
         ev_a.append(prefix + clean_line(anchor[1], anchor[0]))
@@ -236,11 +221,10 @@ def main():
         ev_n.append(prefix + clean_line(neg[1][0], neg[0]))
     evaluator = TripletEvaluator(anchors=ev_a, positives=ev_p, negatives=ev_n, name="exam")
 
-    #and the number that actually decides the retrain: given a held out line and
-    #every trainable tag, are the right tags in its top ten? this is the ship
-    #bar in exam_tags.py, computed here so a run reports it as it goes rather
-    #than only after the upload. the tag texts come out of the training file
-    #so this needs no database
+    #the number that decides the retrain: given a held out line and every
+    #trainable tag, are the right tags in its top ten? the ship bar from
+    #exam_tags.py, computed here so a run reports it as it goes. tag texts come
+    #from the training file, so this needs no database
     tag_ir = None
     if args.objective in ("tags", "both"):
         held = load_jsonl("tag_testset.jsonl")
@@ -261,8 +245,8 @@ def main():
             print("tag retrieval evaluator: " + str(len(queries)) + " held out lines against "
                   + str(len(corpus)) + " tags")
 
-    #a real run is hours on a gpu box, so --limit exists to prove the wiring
-    #end to end in minutes on a laptop before spending any of that
+    #a real run is hours on a gpu box. --limit proves the wiring in minutes
+    #on a laptop first
     if args.limit:
         train_sets = {k: v.select(range(min(args.limit, len(v)))) for k, v in train_sets.items()}
         print("LIMIT: " + str(args.limit) + " rows per dataset, this is a smoke test not a run")
@@ -273,9 +257,8 @@ def main():
     if tag_ir:
         print("tags before training:", tag_ir(model))
 
-    #the base is usually already a tuned model, so name the output for the
-    #OBJECTIVE rather than stacking another mtg-tuned- on the front and
-    #producing mtg-tuned-mtg-tuned-embeddinggemma-300m
+    #the base is usually already tuned, so name the output for the objective
+    #instead of stacking prefixes into mtg-tuned-mtg-tuned-embeddinggemma-300m
     stem = args.model.split("/")[-1]
     for old in ("mtg-tuned-", "mtg-tagtuned-"):
         if stem.startswith(old):
@@ -293,31 +276,27 @@ def main():
         num_train_epochs=args.epochs,
         per_device_train_batch_size=batch,
         learning_rate=2e-5,
-        #a float here means a RATIO, an int would mean a literal step count.
-        #transformers v5 deprecated warmup_ratio and folded it into this one
-        #argument, so 0.1 is still "warm up over the first 10% of training"
+        #a float is a ratio, an int a literal step count. transformers v5 folded
+        #warmup_ratio into this argument, so 0.1 is the first 10% of training.
+        #on v4 it is not, which is why requirements.txt pins the version
         warmup_steps=0.1,
         fp16=torch.cuda.is_available() and not is_gemma,  #T4 has no bf16, keep gemma in fp32
         eval_strategy="no",
         save_strategy="no",
         logging_steps=100,
         report_to=[],
-        #THE LOAD BEARING LINE FOR THE TAG OBJECTIVE. MultipleNegativesRanking
-        #treats every other row's positive in a batch as this row's negative,
-        #which is fine when positives are unique and actively wrong here: the
-        #same line appears 4.3 times carrying different true tags, and
-        #activated-ability is 5.1% of the pool, so a batch of 64 expects around
-        #three copies of it. left alone the loss spends its time pushing a line
-        #away from tags it genuinely has. NO_DUPLICATES builds batches with no
-        #repeated value in any column, which kills the worst of it (the same
-        #tag text can no longer sit in a batch as one row's positive and
-        #another's negative).
+        #load bearing for the tag objective. MultipleNegativesRanking treats
+        #every other row's positive as this row's negative, which is wrong here:
+        #the same line appears 4.3 times under different true tags, and a batch
+        #of 64 expects three copies of activated-ability. uncorrected the loss
+        #pushes a line away from tags it has. NO_DUPLICATES bars a repeated
+        #value in any column, so one tag text cannot be positive and negative in
+        #the same batch.
         #
-        #what it does NOT kill: line A batched with a row whose positive is a
-        #DIFFERENT tag A also carries. that pair is still a false negative,
-        #it is just rarer (654 tags against batches of 16 to 64). if the
-        #retrain plateaus below the bar, masking those with the (line, tag)
-        #truth table from train_tags.jsonl is the next lever to pull
+        #it does not catch line A batched against a row whose positive is a
+        #different tag A also carries. rarer (654 tags, batches of 16 to 64) but
+        #still a false negative. if a retrain plateaus, mask those with the
+        #(line, tag) table from train_tags.jsonl
         batch_sampler=BatchSamplers.NO_DUPLICATES,
     )
     trainer = SentenceTransformerTrainer(
