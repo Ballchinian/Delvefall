@@ -55,9 +55,22 @@
         /* typing the whole name and pressing enter works too. wireSuggest only
            answers enter when one of its own rows is highlighted, and the
            server resolves a typed name the same forgiving way the search bar
-           does, so there is nothing to be gained by insisting on the dropdown */
+           does, so there is nothing to be gained by insisting on the dropdown.
+
+           it asks the EVENT whether that already happened, rather than looking
+           at whether the dropdown is open. those are not the same question and
+           the difference was the common case: type a full card name, the
+           suggestions appear because they always do, and enter did nothing at
+           all, because wireSuggest ignores enter with no row highlighted and
+           this handler bowed out to it anyway.
+
+           the state cannot be read off the dom either. wireSuggest hides the box
+           and clears the highlight BEFORE this listener runs, so by the time we
+           look, every trace of it having acted is already gone and we would fire
+           a second time on top of it. defaultPrevented is the one flag that
+           survives, because it lives on the event both handlers are holding */
         input.addEventListener("keydown", function (e) {
-            if (e.key !== "Enter" || drop.style.display === "block") return;
+            if (e.key !== "Enter" || e.defaultPrevented) return;
             e.preventDefault();
             take(row, btn.dataset.raw, input.value.trim());
         });
