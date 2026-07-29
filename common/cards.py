@@ -99,12 +99,17 @@ def clean_line(line, card_name):
     #what happens, so they go. the word list is scryfall's own catalogs, so
     #keywords that genuinely use the dash (Boast, Companion) stay whole.
     #
-    #the row pattern was written for "1—9 |" with an em dash and matched not one
-    #line in the game: scryfall prints a d20 range with a plain HYPHEN, and a
-    #spacecraft's station thresholds as "8+ |". 49 rows kept their prefix, so
-    #"8+ | Flying, deathtouch" was embedded as its own text instead of joining
-    #the two and a half thousand cards that just say flying. the em dash stays
-    #in the class because it costs nothing and card text really does use one
+    #the row pattern reads FOUR shapes because scryfall prints four. measured
+    #over the 150 table rows in the pool:
+    #    75  "1—9 |"    an em dash range, the commonest by far
+    #    47  "10+ |"    a spacecraft's station thresholds
+    #    26  "20 |"     a bare number, the top of a d20 table
+    #     2  "1-9 |"    a plain hyphen range
+    #it used to read only the em dash and the bare number, which is 101 of them,
+    #and the other 49 kept their prefix: "8+ | Flying, deathtouch" was embedded
+    #as its own text instead of joining the two and a half thousand cards that
+    #just say flying, drawing the full idf weight of a unique line for an ability
+    #thousands of cards share
     line = re.sub(r"^\d+(?:\s*[-–—]\s*\d+|\+)?\s*\|\s*", "", line)
     line = re.sub(r"^[IVX]+(?:, [IVX]+)*\s+—\s+", "", line)
     m = re.match(r"^([^—•|]{1,40}?)\s+—\s+(?=\S)", line)
