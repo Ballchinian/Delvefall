@@ -78,10 +78,16 @@ the live one learned.
 
 You can't pick a model on vibes, and the public leaderboards test the wrong
 thing (search engines, not "do these two abilities mean the same thing"). So the
-first artifact is an exam: 26 hand-reviewed triplets, each one an anchor line, a
+first artifact is an exam: hand-reviewed triplets, each one an anchor line, a
 line that *should* match it, and a trap line that looks nearly identical but
 means something else. Rummaging Goblin is Merfolk Looter's trap. Refocus (untap)
 is Pressure Point's (tap), and they differ by two letters.
+
+It started at 26 and has grown since, because a user report that catches the
+model out is exactly the shape of an exam question: five more went in on
+2026-07-15 from the reports, and every score below was measured against the
+original 26, so those are records of that run rather than of the exam today.
+`bakeoff_lines.py` counts the list rather than being told how long it is.
 
 The review settled the site's philosophy of similarity in writing: **same
 mechanism, flexible parameters**. Numbers, colors and riders are forgivable; a

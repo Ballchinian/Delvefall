@@ -15,8 +15,10 @@
 #   triplets (anchor, variant, flipped anchor)             -> pull + push apart
 #   labeled flips (anchor vs flipped, label 0)             -> push apart hard
 #
-#under --objective tags the 26 bakeoff triplets stop being the target and
-#become a regression guard. the number that matters is recall @10 on the held
+#under --objective tags the bakeoff triplets stop being the target and become a
+#regression guard. no count named on purpose: the list started at 26 and grows
+#whenever a user report turns into a question worth keeping, so a number written
+#here is only ever right until the next one lands. it is len(TRIPLETS). the number that matters is recall @10 on the held
 #out cards, printed here during training and measured properly afterwards by
 #    python -m finetune.exam_tags
 #which is the real judge, the same way bakeoff_lines.py is for the line objective.
@@ -223,7 +225,7 @@ def main():
             "label": [0] * len(negatives) + [1] * len(ones),
         })
 
-    #the 26 exam triplets, held out from all training data. under the line
+    #the exam triplets, held out from all training data. under the line
     #objective this is the target; under the tag objective it is a REGRESSION
     #GUARD, there to catch the retrain forgetting what lines mean, not to be
     #maximised. the real judge stays bakeoff_lines.py either way
