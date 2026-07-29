@@ -66,9 +66,8 @@ def main():
     schema_path = os.path.join(os.path.dirname(__file__), "..", "common", "schema.sql")
     with open(schema_path, encoding="utf-8") as f:
         conn.execute(f.read())
-    #schema.sql stopped creating the trial column once the last one was cut
-    #over, so a fresh trial makes its own rather than needing that line
-    #uncommented first
+    #the trial column is made here rather than in schema.sql, so it only exists
+    #while a trial is running and a finished one can drop it cleanly
     conn.execute("ALTER TABLE lines ADD COLUMN IF NOT EXISTS " + TARGET + " vector(768)")
     conn.commit()
 
@@ -114,13 +113,13 @@ def main():
         if left:
             print("not building the index, " + str(left) + " rows are still empty")
         else:
-            #SERIAL BUILD ON PURPOSE. a parallel maintenance worker allocates a
-            #shared memory segment, and railway's container cannot grow
-            #/dev/shm to the ~61mb one asks for: the build dies with DiskFull
-            #"could not resize shared memory segment", which reads like the
-            #disk is full when there is plenty of room (847mb database, and it
-            #was the fill that needed the space, not this). zero workers means
-            #no segment, no failure, and a build that is slower but finishes.
+            #the build is serial on purpose. a parallel maintenance worker
+            #allocates a shared memory segment, and railway's container cannot
+            #grow /dev/shm to the ~61mb one asks for: the build dies with
+            #DiskFull "could not resize shared memory segment", which reads like
+            #the disk is full when there is plenty of room (847mb database).
+            #zero workers means no segment, no failure, and a build that is
+            #slower but finishes.
             #
             #maintenance_work_mem is raised for this session too where the plan
             #allows it. 64mb cannot hold a 60k by 768 graph, so pgvector spills

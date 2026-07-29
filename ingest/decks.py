@@ -49,12 +49,9 @@ def fetch_decks(entries):
     #one file per deck, keyed by the mtgjson fileName. a deck that fails to
     #download is skipped rather than fatal: 189 of 190 still calibrates fine.
     #
-    #returns (decks, missed) because the CALLER has to know, and for a while it
-    #did not. this was the only fetch in the pipeline with no retry at all, so
-    #one blip dropped a deck, and the version marker then went in as though the
-    #run had been complete. the gate reads that marker, so the next run said
-    #"already processed" and the board sat a deck short until mtgjson happened
-    #to publish a new version. the comment here promised the opposite
+    #the misses come back with the decks because main() has to know. it holds
+    #the version marker back when the list is short, and a marker written over
+    #an incomplete run leaves the board a deck down until mtgjson publishes again
     session = requests.Session()
     session.headers.update(HEADERS)
     out = {}
@@ -84,7 +81,7 @@ def fetch_decks(entries):
 def deck_cards(deck):
     #the cards in one deck as (oracle_id, count, is_commander). counts are kept
     #because a deck is not 100 distinct cards, it is 63 spells and 37 lands, and
-    #anything measuring the mana base later will want to know. the ORIGINALITY
+    #anything measuring the mana base later will want to know. the originality
     #query does not use them: nine Islands say nothing about a deck's ideas that
     #one Island does not, so it reads distinct rows
     leaders = {c.get("identifiers", {}).get("scryfallOracleId")
@@ -108,7 +105,7 @@ def drop_reprint_editions(decks):
     #collector's edition decks are the same 100 cards in a different treatment,
     #and mtgjson lists them separately: 16 of the 190 on the 2026-07-22 file.
     #left in they would count twice in every average and hand the leaderboard
-    #duplicate rows. two decks holding the identical set of cards ARE the same
+    #duplicate rows. two decks holding the identical set of cards are the same
     #deck for our purposes, so the card set is the identity. the shorter name
     #wins because "Tyranid Swarm" is the deck and "Tyranid Swarm Collector's
     #Edition" is a product listing
@@ -144,10 +141,10 @@ def main():
     #DECK_FIELDS is the third condition, and it is what forces the one rerun a
     #new column needs: schema.sql adds the column empty, mtgjson's version has
     #not moved, and without this it stays empty until mtgjson happens to
-    #publish. the obvious way to write that check asks the DATA instead, "is
-    #any deck's source empty?", which reads right and is a trap. the day
-    #mtgjson ships one Commander deck with no source field the answer is yes
-    #forever, and this redownloads all 190 files every night for nothing
+    #publish. it asks the marker rather than the data. "is any deck's source
+    #empty?" reads like the same question, but the day mtgjson ships one
+    #Commander deck with no source field the answer is yes forever and this
+    #redownloads all 190 files every night for nothing
     row = conn.execute("SELECT value FROM meta WHERE key = 'mtgjson_version'").fetchone()
     fields = conn.execute("SELECT value FROM meta WHERE key = 'mtgjson_deck_fields'").fetchone()
     if (row and row[0] == version
@@ -203,10 +200,9 @@ def main():
         cur.executemany("""INSERT INTO deck_cards (deck_slug, oracle_id, count, is_commander)
                            VALUES (%s, %s, %s, %s)""", card_rows)
         rows = len(card_rows)
-        #the version marker only goes in when EVERY deck landed, because that is
+        #the version marker only goes in when every deck landed, because that is
         #the whole claim it makes: "this run processed mtgjson <version>". a run
-        #that lost a deck did not, and recording it anyway is what turned a
-        #single timeout into a permanently short board.
+        #that lost a deck did not.
         #
         #the cost of leaving it out is that tomorrow redownloads all 190 files,
         #about twenty seconds of small requests next to the two gigabytes this

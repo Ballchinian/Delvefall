@@ -32,36 +32,29 @@ BULK_URL = "https://api.scryfall.com/bulk-data"
 DOWNLOAD_FILE = "oracle-cards.json"
 PRICES_FILE = "default-cards.json"
 
-#my fine tuned embeddinggemma (a sentence-transformers model). it sits in a
-#private repo on hugging face, so HF_TOKEN has to be set or the download 401s.
-#the prompt was glued to the front of every line during training, encoding
-#without it gives useless vectors. swapping EMBED_MODEL for something else
-#makes the next run rebuild every vector on its own
-#the line-to-tag model, live since 2026-07-22. it scores 78% recall @10 on the
-#tag exam against the old model's 47%, keeps the same 26/31 on the line-to-line
-#regression guard, and lifts line attribution from 88% to 94% precision.
+#my fine tuned embeddinggemma (a sentence-transformers model), taught to score
+#a line against what it is about. it sits in a private repo on hugging face, so
+#HF_TOKEN has to be set or the download 401s. the prompt was glued to the front
+#of every line during training, encoding without it gives useless vectors.
+#pointing EMBED_MODEL at anything else makes the next run rebuild every vector
+#on its own.
 #
-#its predecessor, BallchinianMan/mtg-tuned-embeddinggemma-300m, is the rollback:
-#the repo tag v1-rules-text marks the last commit before the swap, and the
-#vectors it produced are still in lines.embedding_v1
+#it scores 78% recall @10 on the tag exam, 26/31 on the line-to-line regression
+#guard and 94% precision on line attribution. lines.embedding_v1 still holds the
+#vectors the model before it produced
 EMBED_MODEL = "BallchinianMan/mtg-tagtuned-embeddinggemma-300m"
 EMBED_PROMPT = "task: sentence similarity | query: "
 EMBED_DIMS = 768
 
-#axis 1's calibration map: raw cosine -> the percent the site shows,
-#piecewise linear. raw cosine is arbitrary per model, so this map is ANCHORED
-#TO THE MODEL ABOVE and lives right next to it: swapping models means refitting
-#these anchors, and forgetting to is why a near verbatim match read 62% for an
-#afternoon.
+#axis 1's calibration map: raw cosine -> the percent the site shows, piecewise
+#linear. raw cosine is arbitrary per model, so this map belongs to the model
+#above and lives right next to it. a swap needs the anchors refitted, and a map
+#left behind on the wrong model reads a near verbatim match as 62%.
 #
-#refitted 2026-07-22 for the line-to-tag model, in two steps. first by quantile
-#mapping the old anchors, which put a hand judged "yes these match" at exactly
-#80, the boundary a human had set, from a method that never saw the exam.
-#then lifted deliberately on Ethan's call after browsing: too many results sat
-#in the 60-70 band and the axis read stingy next to concepts. the lift moves a
-#human's "yes" to 88 and their "no" to 59, so the two still separate by nearly
-#thirty points, and it takes the share of results above the 70 gate from about
-#half to about three quarters.
+#the anchors put a hand judged "yes these match" at 88 and a "no" at 59, so the
+#two separate by nearly thirty points, and about three quarters of results clear
+#the 70 gate. sat lower, too many results land in the 60-70 band and the axis
+#reads stingy next to concepts.
 #
 #both maps ride to the website through the meta table (written in main
 #below, next to the model name they belong to), so the site and the
@@ -166,29 +159,24 @@ def cheapest_prices(item):
 
 
 def card_hash(card):
-    #hashed over the CLEANED LINES, which is what actually gets embedded, rather
-    #than over the raw oracle text they are derived from.
+    #hashed over the cleaned lines, which is what actually gets embedded, rather
+    #than over the raw oracle text they come from. a change to clean_line, to
+    #REMINDER_KEYWORDS or to the prefix word catalogs moves the hash of exactly
+    #the cards it affects, and they rebuild on the next run without anyone
+    #having to force one.
     #
-    #the raw text is only a PROXY for that input, and the day the two came apart
-    #it cost 1,607 cards. REMINDER_KEYWORDS shipped, clean_line started keeping
-    #the reminder on lines like "Cycling {B}", and not one card's raw text had
-    #changed, so nothing was ever reembedded. the database went on holding
-    #"Cycling {B}" while the site computed "Cycling {B} {B}, Discard this card:
-    #Draw a card." for that same line, and since the line picker matches page
-    #lines to rows BY TEXT, picking one silently searched the whole card. that
-    #is the failure tools/check_sync.py is written to prevent, and it could not
-    #see this one: both copies of clean_line agreed perfectly with each other
-    #and disagreed with what was on disk.
+    #the raw text is only a proxy for that input, and the two come apart the
+    #moment the cleaner changes: the text sits still, nothing reembeds, and the
+    #database goes on holding a line the site no longer computes. since the line
+    #picker matches page lines to rows by text, picking one then silently
+    #searches the whole card. tools/check_sync.py cannot catch that either, since
+    #both copies of clean_line agree with each other and only disagree with what
+    #is already on disk.
     #
-    #hashing the real input closes it for good. a change to clean_line, to
-    #REMINDER_KEYWORDS or to the prefix word catalogs now moves the hash of
-    #exactly the cards it affects and they rebuild on the next run, with nobody
-    #having to remember to force one.
-    #
-    #the FACE rides along too, so a line moving from front to back is a change
-    #even when its text is identical. the name still rides along because
-    #clean_line swaps it for "this card" inside the text, so a rename rewrites
-    #every line without touching the raw text either
+    #the face rides along too, so a line moving from front to back is a change
+    #even when its text is identical. the name rides along because clean_line
+    #swaps it for "this card" inside the text, so a rename rewrites every line
+    #without touching the raw text either
     parts = [card["name"]]
     for line, face in split_lines(card):
         parts.append(str(face) + ":" + line)
@@ -203,17 +191,16 @@ def recompute_uniqueness(conn):
     #
     #everything gets recomputed from scratch whenever lines changed, same
     #philosophy as line_stats. incremental sounds tempting until you notice a
-    #NEW card can make an OLD card less unique (it might be its new nearest
-    #neighbor), and a DELETED card can make its old neighbors MORE unique, so
+    #new card can make an old card less unique (it might be its new nearest
+    #neighbor), and a deleted card can make its old neighbors more unique, so
     #patching only the changed rows would quietly rot every score around them.
     #
-    #and yes, this pulls every embedding out of postgres and does the math in
-    #numpy, the exact thing the web app was rescued from. the difference is
-    #WHERE: asking pgvector for 31k exact nearest neighbors takes ~370ms each
-    #on the railway box (measured), call it three hours of pegged production
-    #database, while one big matrix multiply on the ingest runner takes about
-    #a minute. all-pairs work belongs next to the big cpu, one-query-at-a-time
-    #work belongs next to the data. the web server still never touches this
+    #this pulls every embedding out of postgres and does the math in numpy,
+    #which is fine here and would not be in the web app. asking pgvector for 31k
+    #exact nearest neighbors takes ~370ms each on the railway box (measured),
+    #call it three hours of pegged production database, while one big matrix
+    #multiply on the ingest runner takes about a minute. all-pairs work belongs
+    #next to the big cpu, one-query-at-a-time work belongs next to the data
     print("recomputing uniqueness scores...")
     import numpy as np  #late import like torch below, the no-op runs skip it
 
@@ -361,19 +348,16 @@ def main():
     for oracle_id, text_hash in conn.execute("SELECT oracle_id, text_hash FROM cards"):
         have[str(oracle_id)] = text_hash
 
-    #WHICH cards the database is holding, kept separately because the model
-    #check below empties the hash map and the stale scan needs the ids. read off
-    #the same query rather than asked for again: they are the same fact
+    #which cards the database is holding, off the same query rather than asked
+    #for again. kept separately because the model check below empties the hash
+    #map and the stale scan still needs the ids
     held = set(have)
 
     if model_changed:
         #forget the stored hashes so every card counts as new and gets
         #embedded again. the old vectors stay put for now, the site keeps
-        #searching on them while the new ones compute.
-        #
-        #only the HASHES go. the stale scan below used to walk this same map, so
-        #on a swap run it found nothing to remove and a card scryfall had dropped
-        #stayed in search results until an ordinary run came round
+        #searching on them while the new ones compute. only the hashes go, so a
+        #swap run still removes the cards scryfall dropped
         have = {}
 
     new_cards = []
@@ -506,40 +490,28 @@ def main():
                 #the truncate lives down here on purpose: doing it before the
                 #slow encode above would hold the table lock the whole time
                 #and hang every search on the site. the alter resizes the
-                #column, the old model was 384 dims
+                #column to the new model's dims.
                 #
-                #CASCADE, and it is not optional: line_tags carries a foreign key
-                #onto lines(id), and postgres refuses to truncate a table that is
-                #referenced by one whether or not the referencing table holds a
-                #single row. a bare TRUNCATE raised here, AFTER the download and
-                #the full reembed, so a model swap burned the entire slow half of
-                #the run and then rolled back to nothing. worse, it could not get
-                #past itself: embed_model is only written at the very end, so the
-                #next day's run saw the same changed model and did it all again.
+                #CASCADE is required, not decoration. line_tags carries a foreign
+                #key onto lines(id), and postgres refuses to truncate a table
+                #that is referenced by one whether or not the referencing table
+                #holds a single row. dropping the attribution is right anyway:
+                #line ids are bigserial and every row is about to be rebuilt, so
+                #the old line_tags point at ids that stop meaning anything.
+                #ingest/attribute.py builds them again from the new lines.
                 #
-                #dropping the attribution is the right thing to do rather than a
-                #price paid to make the statement legal. line ids are bigserial
-                #and every row is about to be rebuilt, so the old line_tags point
-                #at ids that no longer mean anything. ingest/attribute.py builds
-                #them again from the new lines, which is what a model swap asks
-                #for anyway.
-                #
-                #WHAT THIS STILL COSTS, because moving it down here shortened the
-                #window rather than closing it: TRUNCATE takes an ACCESS
+                #what this costs even down here: TRUNCATE takes an ACCESS
                 #EXCLUSIVE lock on lines and holds it until this transaction
                 #commits, and the commit is after all 61k rows have gone in from
                 #a github runner over the network. every search on the site
                 #blocks for that whole stretch, because every search reads lines.
                 #the COPY below is what keeps it to seconds instead of minutes.
                 #
-                #this is only reachable by pointing EMBED_MODEL at something new
-                #and running the pipeline against a populated database. THE
-                #SUPPORTED WAY TO TRY A MODEL IS NOT THIS: fill embedding_v2 with
-                #ingest/backfill_embeddings.py and flip the site over with
-                #EMBED_COLUMN, which touches a column nothing is reading yet and
-                #takes no lock anybody waits on. that path exists precisely so
-                #this one does not have to be taken, and it is also the only one
-                #of the two you can undo
+                #this branch is for a model already chosen. trying one out goes
+                #through ingest/backfill_embeddings.py instead: it fills
+                #embedding_v2, which nothing is reading yet, the site flips over
+                #with EMBED_COLUMN, no lock anybody waits on, and it can be
+                #put back
                 cur.execute("TRUNCATE lines CASCADE")
                 cur.execute("ALTER TABLE lines ALTER COLUMN embedding TYPE vector(" + str(EMBED_DIMS) + ")")
             #changed cards get their old lines thrown out and rebuilt fresh
@@ -557,7 +529,7 @@ def main():
             #COPY, like the uniqueness pass above and the salt and tag ingests.
             #executemany pipelines its round trips and is fine for the handful of
             #rows a normal day brings, but a full reseed is 61k of them carrying
-            #a 3kb vector each, and this was the last slow write in the pipeline.
+            #a 3kb vector each.
             #
             #TEXT format on purpose, not binary. binary wants a real uuid object
             #per row and scryfall hands us strings, so it would mean converting
@@ -581,14 +553,15 @@ def main():
         #recount how common every line is. its one group by over ~61k rows,
         #way easier than trying to patch the counts incrementally.
         #
-        #counted per SHAPE, not per exact text: a run of mana symbols collapses
+        #counted per shape, not per exact text: a run of mana symbols collapses
         #to one placeholder first, so "Overload {4}{R}" and "Overload {2}{R}"
-        #share a bucket. counting exact text let any keyword with a varying cost
-        #dodge the idf weighting, fragmenting into one and two card texts that
-        #each drew the full 1.0 weight a unique ability gets (overload: 27
-        #card-lines, 22 texts, biggest on 2), which is how Vandalblast matched
-        #Dynacharge at 99% on the keyword alone. still KEYED by exact text,
-        #which is what the search joins on. no braces, no change: Flying = 2517
+        #share a bucket. count exact text and any keyword with a varying cost
+        #dodges the idf weighting, fragmenting into one and two card texts that
+        #each draw the full 1.0 weight a unique ability gets (overload: 27
+        #card-lines, 22 texts, biggest on 2), which is enough to match
+        #Vandalblast to Dynacharge at 99% on the keyword alone. still keyed by
+        #exact text, which is what the search joins on. no braces, no change:
+        #Flying = 2517
         print("recounting how common every line is...")
         conn.execute("TRUNCATE line_stats")
         conn.execute(r"""

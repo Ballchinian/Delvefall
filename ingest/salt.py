@@ -7,7 +7,7 @@
 #with DATABASE_URL set. reruns are free: the meta gate skips the work unless
 #mtgjson published a newer version.
 #
-#it is the only OPINION in the database. every other number here is derived
+#it is the only opinion in the database. every other number here is derived
 #from what a card does, and this one is what players think of facing it, which
 #no amount of reading rules text will ever produce. the votes are stored as
 #cast: protest votes are still votes, and dropping the ones that look wrong
@@ -33,9 +33,9 @@ META_URL = "https://mtgjson.com/api/v5/Meta.json"
 ATOMIC_URL = "https://mtgjson.com/api/v5/AtomicCards.json.xz"
 ATOMIC_FILE = "AtomicCards.json.xz"
 
-#its own meta key, NOT the one ingest/decks.py writes. sharing 'mtgjson_version'
-#would mean whichever script ran second saw the version already recorded and
-#skipped itself forever
+#its own meta key, separate from the one ingest/decks.py writes. sharing
+#'mtgjson_version' would mean whichever script ran second saw the version
+#already recorded and skipped itself forever
 META_KEY = "mtgjson_salt_version"
 
 
@@ -86,9 +86,9 @@ def main():
         conn.execute(f.read())
     conn.commit()
 
-    #through the retrier like every other version check in the ingest. one 502
-    #from mtgjson used to fail the whole step, and the step it fails is the one
-    #that decides whether there is any work to do
+    #through the retrier like every other version check in the ingest. a single
+    #502 from mtgjson would otherwise fail the step that decides whether there
+    #is any work to do at all
     print("asking mtgjson for its version...")
     version = get_with_retries(META_URL).json()["data"]["version"]
 

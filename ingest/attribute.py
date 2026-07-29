@@ -1,15 +1,15 @@
-#works out which tags each LINE of a card is about, so the search page can
+#works out which tags each line of a card is about, so the search page can
 #narrow the concept axis to the ability you picked instead of always scoring
 #the whole card's tag vector.
 #
-#the problem this solves: tagger tags CARDS. a card tagged donate-token,
-#gives-pp-counters-to-all and evasion offers no way to know that the first
-#belongs to its token mode and the last to its "Flying, double strike" line,
-#so picking one line used to change the rules-text axis and leave the concept
-#axis searching all of them at once.
+#the problem this solves: tagger tags cards, not lines. a card tagged
+#donate-token, gives-pp-counters-to-all and evasion offers no way to know that
+#the first belongs to its token mode and the last to its "Flying, double strike"
+#line, so without this the concept axis searches all of them at once no matter
+#which line you pick.
 #
 #the inference is corpus-shaped rather than semantic. for a line, pull its
-#nearest neighbour lines from every OTHER card, then ask of each of its card's
+#nearest neighbour lines from every other card, then ask of each of its card's
 #tags: what share of those neighbour cards carry this tag, against the share
 #the whole game carries it? that ratio is the lift, and a high one means this
 #line is why the card got the tag. it needs no model and no understanding:
@@ -36,9 +36,9 @@ NEIGHBOURS = 200
 
 #a tag has to appear in a line's neighbourhood at least this many times more
 #often than in the game at large before that line is credited with it. 1.5 is
-#deliberately low: the ratio decides which line OWNS a tag, and the floor only
-#exists to reject lines whose neighbourhood is indifferent to it. evergreen
-#tags sit near the bottom of this range on purpose ("Flying, double strike"
+#low because the ratio is what decides which line owns a tag, and the floor
+#only exists to reject lines whose neighbourhood is indifferent to it.
+#evergreen tags sit near the bottom of this range ("Flying, double strike"
 #lifts evasion 2.4x, which is weak but still the right line for it)
 FLOOR = 1.5
 
@@ -57,8 +57,8 @@ NOISE = 1.15
 #clicked back on (the page's yestags), so a miss costs one click, while a
 #wrong tag quietly drags the whole search sideways. measured against a
 #hand-labelled Shadrix Silverquill, 0.4 gives 88% precision / 82% recall and
-#0.6 gives 93% / 76%. that is ONE card, so re-measure on a second labelled
-#card before trusting the third digit
+#0.6 gives 93% / 76%. one card is a thin measurement, so the third digit here
+#carries no weight
 RATIO = 0.6
 
 #which column the vectors come out of, so a trial model's attribution can be
@@ -92,7 +92,7 @@ def main():
         print("no cards yet, nothing to attribute")
         return
 
-    #every tag a card carries, rolled up, is what the neighbours vote WITH.
+    #every tag a card carries, rolled up, is what the neighbours vote with.
     #only the typed ones get attributed though: the inherited ancestors follow
     #from the tree at query time, the same way they do for a whole card
     print("reading tags...")
@@ -158,15 +158,13 @@ def main():
         #per card and per tag, which of its lines earned it. the best line
         #sets the bar and everything within RATIO of it shares the credit.
         #
-        #a tag no line shows any evidence for is attributed to NOTHING, and
-        #that is deliberate. it used to ride every line instead, on the theory
-        #that tags like invitational-card describe the card rather than an
-        #ability - but that is exactly why they should be absent: they are not
-        #about any ability, so picking an ability should drop them. whole-card
-        #searches never read this table, so nothing is lost there, and Omnath's
-        #unique-mana-cost stops turning up under "when this card enters, draw a
-        #card". attaching them everywhere was the single largest source of
-        #false positives on the hand-labelled cards
+        #a tag no line shows any evidence for lands on no line at all. tags like
+        #invitational-card describe the card rather than an ability, so picking
+        #an ability should drop them: Omnath's unique-mana-cost has no business
+        #turning up under "when this card enters, draw a card". whole-card
+        #searches never read this table, so nothing is lost there. parking such
+        #a tag on every line instead is the single largest source of false
+        #positives on the hand-labelled cards
         out = {}
         for oid, line_idxs in rows_of_card.items():
             for tag in typed_tags.get(oid, ()):
@@ -174,9 +172,9 @@ def main():
                 best = max(l for _, l in lifts)
                 #a lift of 1.0 means the neighbourhood carries the tag at
                 #exactly the rate the whole game does, which is no evidence
-                #whatsoever. Omnath's unique-mana-cost sat at 1.0x on "when
-                #this card enters, draw a card" and got attributed anyway,
-                #because the only bar was "above zero"
+                #whatsoever. a bar of "above zero" is not enough: Omnath's
+                #unique-mana-cost sits at 1.0x on "when this card enters, draw
+                #a card" and would clear it
                 if best < NOISE:
                     continue
                 #near-best only when the signal is weak, since RATIO of a
@@ -187,12 +185,12 @@ def main():
                         out[(i, tag)] = l
         return out
 
-    #pass one: neighbours vote with their whole CARD's tags, because
-    #card-level tags are all there is to start from. that is also its flaw - a
+    #pass one: neighbours vote with their whole card's tags, because card-level
+    #tags are all there is to start from. that is also its flaw, since a
     #neighbour card with five lines donates all five lines' worth of tags to
-    #whichever one line matched - so each neighbour's vote is damped by how
-    #many lines it has. a one-line card knows exactly which line earned its
-    #tags and speaks at full volume
+    #whichever one line matched, so each neighbour's vote is damped by how many
+    #lines it has. a one-line card knows exactly which line earned its tags and
+    #speaks at full volume
     print("scoring, pass one (cards vote)...")
     lift_of = {}
     for i in range(len(ids)):
@@ -216,7 +214,7 @@ def main():
     first = assign(lift_of)
 
     #pass two: now that every line has a provisional guess, neighbours vote
-    #with their own LINE's tags instead of their card's, which is the thing
+    #with their own line's tags instead of their card's, which is the thing
     #pass one could not do. measured against a hand-labelled card this lifts
     #precision from 60% to 88% at the same neighbourhood, because a line that
     #merely sits on a card with an unrelated ability stops donating it
@@ -239,11 +237,11 @@ def main():
                     hits += 1
             lift2[(i, tag)] = (hits / len(nb)) / base_rate.get(tag, 1.0)
 
-    #pass two sharpens, it does not get to erase. a rare tag can be real on
-    #one line and still have no neighbour line carrying it yet, and pass two
-    #reads zero for that - Omnath's sweeper-one-sided is the case that caught
-    #it. so pass two's answer wins wherever it found anything at all for a
-    #tag, and pass one's stands where it found nothing
+    #pass two sharpens, it does not get to erase. a rare tag can be real on one
+    #line and still have no neighbour line carrying it yet (Omnath's
+    #sweeper-one-sided), and pass two reads zero for that. so pass two's answer
+    #wins wherever it found anything at all for a tag, and pass one's stands
+    #where it found nothing
     print("assigning...")
     second = assign(lift2)
     seen_in_second = {(owners[i], tag) for i, tag in second}
@@ -264,11 +262,6 @@ def main():
 
     covered = conn.execute("SELECT count(DISTINCT line_id) FROM line_tags").fetchone()[0]
     conn.close()
-    #the card-level count used to be printed beside this and it was always 0,
-    #because assign() stopped attributing those tags anywhere (see the note
-    #there, and the one on the column in common/schema.sql). a statistic that
-    #can only ever say zero reads as a feature returning nothing rather than as
-    #one that was deliberately removed
     print("done! " + str(covered) + "/" + str(len(ids)) + " lines carry tags")
 
 

@@ -8,8 +8,8 @@
 #with DATABASE_URL set. reruns are free: the meta gate skips the work unless
 #scryfall published a newer bulk file.
 #
-#everything gets ingested except the trivia subtrees below - curation is a
-#blocklist, not an allowlist, because rare tags are the high-precision signal
+#everything gets ingested except the trivia subtrees below, so curation is a
+#blocklist rather than an allowlist. rare tags are the high-precision signal
 #(two cards sharing "wheel" says more than two sharing "removal") and idf
 #weighting already mutes the mega-broad ones
 
@@ -21,9 +21,9 @@ import psycopg
 
 from ingest.update import BULK_URL, get_with_retries
 
-#subtree roots whose tags say nothing about what a card DOES: naming schemes,
+#subtree roots whose tags say nothing about what a card does: naming schemes,
 #set-design cycles (unrelated to the cycling mechanic, which has no bare tag
-#of its own - taggers only tag interactions like synergy-cycling), wordplay,
+#of its own, taggers only tag interactions like synergy-cycling), wordplay,
 #vanilla-ness, templating syntax, and type-line trivia
 BLOCKED_ROOTS = [
     "card-names",
@@ -132,7 +132,7 @@ def main():
 
     #the rolled up set is what the whole axis scores on. tagger expects tools
     #to climb: gives-nimble and gives-unblockable are both gives-evasion, and
-    #matching tag names exactly scored those two zero against each other
+    #matching tag names exactly scores those two zero against each other
     rolled = set()
     for oid, slug in links:
         for a in ancestors(slug):
@@ -179,7 +179,7 @@ def main():
     conn.commit()
 
     #concept uniqueness, the tag-space counterpart of lines.nn_sim: 1 minus
-    #the best cosine any OTHER card's idf-weighted tag vector manages. same
+    #the best cosine any other card's idf-weighted tag vector manages. same
     #all-pairs-in-blocks trick as the ingest's uniqueness pass. untagged
     #cards stay NULL, unknown is not the same as unique
     print("computing concept uniqueness...")

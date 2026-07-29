@@ -1,6 +1,4 @@
-#card handling helpers shared between the web app and the update pipeline.
-#all of this is lifted straight out of the old build_index.py so the results
-#stay identical to the file based version
+#card handling helpers shared between the web app and the update pipeline
 
 import re
 
@@ -44,18 +42,17 @@ def get_back_image(card):
     return ""
 
 
-#mechanics whose reminder text IS the rule. "Overload {6}{U}" says nothing on
+#mechanics whose reminder text is the rule. "Overload {6}{U}" says nothing on
 #its own, so stripping the parens stored Cyclonic Rift as a plain one-target
 #bounce spell and it matched Perilous Voyage at 91%, missing the one-sided
 #board wipe that makes the card worth $30.
 #
-#evergreen abilities are deliberately absent. 2442 cards print a bare "Flying"
-#against 75 that spell the reminder out, so keeping those 75 would orphan them
-#from the other 2442 - the exact opposite of the fix. every keyword here was
-#measured to be printed WITH its reminder at least ~88% of the time, so the
-#whole population moves together instead of splitting in half. equip (242 with
-#against 332 without) and menace and trample fail that test and stay stripped.
-#check the ratio before adding to this list
+#evergreen abilities are not in here. 2442 cards print a bare "Flying" against
+#75 that spell the reminder out, so keeping those 75 would orphan them from the
+#other 2442. every keyword in this list is printed with its reminder at least
+#~88% of the time, so the whole population moves together instead of splitting
+#in half. equip (242 with against 332 without), menace and trample fail that
+#test and stay stripped.
 REMINDER_KEYWORDS = {
     "overload", "cascade", "storm", "cycling", "flashback", "morph", "disguise",
     "madness", "convoke", "delve", "buyback", "entwine", "replicate", "embalm",
@@ -99,14 +96,13 @@ def clean_line(line, card_name):
     #what happens, so they go. the word list is scryfall's own catalogs, so
     #keywords that genuinely use the dash (Boast, Companion) stay whole.
     #
-    #the row pattern reads FOUR shapes because scryfall prints four. measured
+    #the row pattern reads four shapes because scryfall prints four. measured
     #over the 150 table rows in the pool:
     #    75  "1—9 |"    an em dash range, the commonest by far
     #    47  "10+ |"    a spacecraft's station thresholds
     #    26  "20 |"     a bare number, the top of a d20 table
     #     2  "1-9 |"    a plain hyphen range
-    #it used to read only the em dash and the bare number, which is 101 of them,
-    #and the other 49 kept their prefix: "8+ | Flying, deathtouch" was embedded
+    #miss one and its rows keep their prefix: "8+ | Flying, deathtouch" embeds
     #as its own text instead of joining the two and a half thousand cards that
     #just say flying, drawing the full idf weight of a unique line for an ability
     #thousands of cards share
@@ -126,8 +122,8 @@ def clean_line(line, card_name):
 
 
 def keep_card(card):
-    #same filters the old builder used, plus a check that scryfall actually
-    #gave us an oracle_id since thats the primary key in the database now
+    #everything that isnt a real playable paper card goes. oracle_id is the
+    #primary key in the database, so a card without one cannot be stored
     if not card.get("oracle_id"):
         return False
     if card.get("set_type") in ("funny", "memorabilia"):

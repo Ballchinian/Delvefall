@@ -11,18 +11,16 @@
 #"80 means a good match" never does
 
 #raw cosine -> displayed percent, piecewise linear through hand-judged pairs.
-#refit 2026-07-18 for the rolled up tag vectors (ingest/tags.py walks the tag
-#tree now, so every pair shares more mass and the same judgement lands on a
-#higher raw number). the judged pairs did not move, the map under them did:
+#the anchors are fitted to the rolled up vectors ingest/tags.py builds, where
+#a pair shares mass through the whole tag tree rather than on exact tags only:
 #  0.59 Shadrix/Gluntch          real concept match, must clear the gate
 #  0.68 Boots/Greaves            near-substitutes
 #  0.45 Shadrix/Font of Mythos   close but generic (selective vs blanket hug)
 #  0.26 Bolt/Murder              same family, different everything else
 #  0.13 and below                shared-tag noise
-#the noise anchor is the only one not measured, its the old 0.10 scaled by
-#the shift the Bolt/Murder anchor took. provisional seed from 8 judged pairs
-#- refine as axis-2 reports accumulate, the exam in finetune/exam_concepts.py
-#keeps it honest
+#the noise anchor is the only one not measured, it rides on the Bolt/Murder
+#one. eight judged pairs is a thin seed, so the exam in
+#finetune/exam_concepts.py keeps the map honest as axis-2 reports accumulate
 CALIBRATION = [(0.0, 0), (0.13, 35), (0.26, 55), (0.45, 70), (0.59, 82), (0.68, 90), (1.0, 100)]
 MIN_CONCEPT = 80
 
