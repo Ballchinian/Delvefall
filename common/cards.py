@@ -93,12 +93,19 @@ def clean_line(line, card_name):
         line = line.replace("(", "").replace(")", "")
     else:
         line = stripped
-    #flavour prefixes must not beat meaning (testing_list CA): die-roll table
-    #rows ("1—9 |"), saga chapter markers ("I, II —") and ability/flavor
+    #flavour prefixes must not beat meaning (testing_list CA): table rows
+    #("10-19 |", "12+ |"), saga chapter markers ("I, II —") and ability/flavor
     #words ("Landfall —", "Siege Monster —") say when or in what style, not
     #what happens, so they go. the word list is scryfall's own catalogs, so
-    #keywords that genuinely use the dash (Boast, Companion) stay whole
-    line = re.sub(r"^\d+(?:—\d+)?\s*\|\s*", "", line)
+    #keywords that genuinely use the dash (Boast, Companion) stay whole.
+    #
+    #the row pattern was written for "1—9 |" with an em dash and matched not one
+    #line in the game: scryfall prints a d20 range with a plain HYPHEN, and a
+    #spacecraft's station thresholds as "8+ |". 49 rows kept their prefix, so
+    #"8+ | Flying, deathtouch" was embedded as its own text instead of joining
+    #the two and a half thousand cards that just say flying. the em dash stays
+    #in the class because it costs nothing and card text really does use one
+    line = re.sub(r"^\d+(?:\s*[-–—]\s*\d+|\+)?\s*\|\s*", "", line)
     line = re.sub(r"^[IVX]+(?:, [IVX]+)*\s+—\s+", "", line)
     m = re.match(r"^([^—•|]{1,40}?)\s+—\s+(?=\S)", line)
     if m and m.group(1) in PREFIX_WORDS:

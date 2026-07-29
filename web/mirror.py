@@ -59,9 +59,11 @@ def clean_line(line, card_name):
         line = line.replace("(", "").replace(")", "")
     else:
         line = stripped
-    #flavour prefixes go, exactly like the ingest side: die-roll rows, saga
-    #chapters, and scryfall's catalog of ability/flavor words before a dash
-    line = re.sub(r"^\d+(?:—\d+)?\s*\|\s*", "", line)
+    #flavour prefixes go, exactly like the ingest side: table rows ("10-19 |",
+    #"12+ |"), saga chapters, and scryfall's catalog of ability/flavor words
+    #before a dash. see common/cards.py for why the row pattern takes a hyphen
+    #and a plus as well as the em dash it was originally written with
+    line = re.sub(r"^\d+(?:\s*[-–—]\s*\d+|\+)?\s*\|\s*", "", line)
     line = re.sub(r"^[IVX]+(?:, [IVX]+)*\s+—\s+", "", line)
     m = re.match(r"^([^—•|]{1,40}?)\s+—\s+(?=\S)", line)
     if m and m.group(1) in PREFIX_WORDS:
