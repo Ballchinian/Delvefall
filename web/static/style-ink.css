@@ -915,102 +915,6 @@ h2 {
     cursor: help; /* it has a hover tooltip, match the concept line's ? cursor */
 }
 
-/* the mechanics <-> concepts slider in the filter bar, drawn by hand so
-   the track and thumb carry the palette instead of the browser's chrome.
-   webkit and firefox each need their own pseudo-element pair */
-/* the ticks are the answer to "shouldn't this be a radio?": it looked like
-   a two-ended either/or, so five visible detents say it's a blend you can
-   sit anywhere along. drawn as a repeating gradient on the track rather
-   than a datalist, which browsers style inconsistently */
-.blend-slider input[type="range"] {
-    -webkit-appearance: none;
-    appearance: none;
-    width: 116px;
-    height: 14px;
-    background: transparent;
-}
-
-.blend-slider {
-    gap: 6px;
-}
-
-/*
-    the tick geometry, shared by both engines below. the thumb is 14px on a
-    116px input, so its centre can only travel 7px to 109px: it can never
-    reach either edge, because half a thumb always hangs off the end. the
-    five detents therefore sit at 7, 32.5, 58, 83.5 and 109.
-
-    that is why the track is PAINTED rather than coloured. a full-width
-    116px line against marks at 32.5/58/83.5 leaves 31.5px at each end
-    against 23.5px between them, and no arrangement of marks on a full
-    width track can ever come out even (the gap the thumb's own width
-    creates is always there). so the line is a gradient that runs 7 to 109,
-    exactly the thumb's travel, and every gap lands at 25.5px.
-
-    two background layers, notches over line, listed in that order.
-*/
-.blend-slider input[type="range"]::-webkit-slider-runnable-track {
-    height: 4px;
-    border-radius: 2px;
-    /* the three INNER detents only. the two ends are already marked by the
-       ends of the line and by the words either side, so notching them too
-       drew a mark on top of a mark */
-    background-image:
-        repeating-linear-gradient(to right, #a89d84 0 2px, transparent 2px 25.5px),
-        linear-gradient(to right, transparent 0 7px, var(--line-strong) 7px 109px, transparent 109px);
-    background-repeat: no-repeat, no-repeat;
-    background-position: 31.5px 0, 0 0;
-    background-size: 53px 100%, 100% 100%;
-}
-
-.blend-slider input[type="range"]::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    appearance: none;
-    width: 14px;
-    height: 14px;
-    margin-top: -5px; /* (thumb - track) / 2, webkit doesn't center it for you */
-    border-radius: 50%;
-    background: var(--teal);
-    cursor: pointer;
-}
-
-.blend-slider input[type="range"]:hover::-webkit-slider-thumb { background: var(--teal-hover); }
-
-/* same geometry as the webkit block above, see the note there */
-.blend-slider input[type="range"]::-moz-range-track {
-    height: 4px;
-    border-radius: 2px;
-    background-image:
-        repeating-linear-gradient(to right, #a89d84 0 2px, transparent 2px 25.5px),
-        linear-gradient(to right, transparent 0 7px, var(--line-strong) 7px 109px, transparent 109px);
-    background-repeat: no-repeat, no-repeat;
-    background-position: 31.5px 0, 0 0;
-    background-size: 53px 100%, 100% 100%;
-}
-
-.blend-slider input[type="range"]::-moz-range-thumb {
-    width: 14px;
-    height: 14px;
-    border: 0;
-    border-radius: 50%;
-    background: var(--teal);
-    cursor: pointer;
-}
-
-.blend-slider input[type="range"]:hover::-moz-range-thumb { background: var(--teal-hover); }
-
-.blend-slider input[type="range"]:focus-visible {
-    outline: 2px solid var(--teal);
-    outline-offset: 2px;
-}
-
-/* the bar lays out in rows, the same shape on /search and /unique: the
-   filter box alone on top, then the extra-filters fold with the blend
-   slider beside it at the left, and (on /search only) sort and apply as a
-   cluster at the right. flex order does the arranging so the shared markup
-   and its tab order stay put */
-.blend-slider { order: 2; }
-
 /* the filter box: scryfall syntax applied to the results. the headline
    control, so the full-width basis gives it the top row to itself */
 .filter-query {
@@ -1029,13 +933,15 @@ h2 {
     border-color: var(--teal);
 }
 
-/* the fold-out filters panel. the summary sits at the left of the middle row
-   with the slider next to it, and the panel itself hangs BELOW as a dropdown
-   rather than growing the box: an inline panel made the details element as
-   wide as its widest row the moment it opened, which shoved the slider across
-   the bar and sometimes onto another line. the slider is the control people
-   are least sure of, and having it jump whenever the filters opened was the
-   disorienting part. absolute means the box is the summary's size, always */
+/* the fold-out filters panel, and the left of the three things the bar lays
+   out by flex order: the guide pointer takes the line under the filter box at
+   order 0, this sits at order 1, and sort and apply cluster at the right at
+   order 3. ordering rather than markup order, so the shared markup and its tab
+   order stay put on both /search and /unique.
+   the panel itself hangs BELOW as a dropdown rather than growing the box: an
+   inline panel made the details element as wide as its widest row the moment it
+   opened, which shoved the rest of the bar across and sometimes onto another
+   line. absolute means the box is the summary's size, always */
 .adv-filters {
     position: relative;
     flex: 0 0 auto;
@@ -1075,7 +981,7 @@ h2 {
 
 /* sort and apply, one cluster at the right end of the row with apply
    last. the auto margin is the gap: it eats the leftover width that
-   nothing else wants, so the fold and the slider stay put at the left */
+   nothing else wants, so the filters fold stays put at the left */
 .filter-actions {
     display: inline-flex;
     align-items: center;
@@ -1629,7 +1535,7 @@ footer a { color: var(--teal); }
 
 .deck-paste button:hover { background: var(--teal-hover); }
 
-.deck-paste-note, .deck-missing-why, .deck-hub-note {
+.deck-missing-why, .deck-hub-note {
     font-size: 12.5px;
     color: var(--muted);
 }
@@ -2102,48 +2008,6 @@ footer a { color: var(--teal); }
     word-break: break-word;
 }
 
-.deck-lens-sections {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-    gap: 14px;
-    margin: 14px 0 8px;
-}
-
-.deck-lens-card {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    padding: 16px 18px;
-    border: 1px solid var(--line);
-    border-radius: 3px;
-    background: var(--panel);
-    text-decoration: none;
-    color: var(--text);
-}
-
-.deck-lens-card:hover {
-    background: var(--wash);
-    border-color: var(--line-strong);
-}
-
-.deck-lens-title {
-    font-family: var(--serif);
-    font-weight: 600;
-    font-size: 17px;
-}
-
-.deck-lens-body {
-    font-size: 14px;
-    color: var(--muted);
-    line-height: 1.45;
-}
-
-.deck-lens-go {
-    color: var(--teal);
-    font-size: 13px;
-    font-weight: 600;
-}
-
 /* the deck name is the way in to its detail page, so it reads as ink rather
    than as a link until hovered: 166 teal headings would turn the board into a
    wall of link colour and bury the scores, which are what the page is for */
@@ -2207,11 +2071,6 @@ footer a { color: var(--teal); }
     font-size: 14px;
     line-height: 1.5;
 }
-
-/* salt gets its own colour so it never reads as another originality score.
-   the two numbers sit in identical blocks and mean completely different
-   things, one measured and one voted on */
-.salt-standing .deck-standing-figure { color: var(--gold); }
 
 .deck-section-note {
     color: var(--muted);
@@ -2341,14 +2200,6 @@ footer a { color: var(--teal); }
     font-size: 10.5px;
     color: var(--muted);
 }
-
-.swap-out-name {
-    color: var(--teal);
-    font-size: 17px;
-    text-decoration: none;
-}
-
-.swap-out-name:hover { text-decoration: underline; }
 
 .swap-grid { margin-bottom: 14px; }
 
@@ -2527,10 +2378,6 @@ footer a { color: var(--teal); }
     border-color: var(--ink);
     color: var(--paper);
 }
-
-/* the depth row carries a label, since "Top third" on its own does not say
-   what it is the top third OF */
-.precon-depths { align-items: center; }
 
 .precon-depth-label {
     font-size: 13px;
@@ -3426,14 +3273,6 @@ body.home main {
 
 .deck-board-link a:hover { text-decoration: underline; }
 
-/* the sentence that says what the number on screen actually means. quieter
-   than the standing above it, because it is the footnote to a fact rather
-   than the fact */
-.deck-standing-means {
-    max-width: 62ch;
-    line-height: 1.5;
-}
-
 /* the evidence, opened. a plain summary rather than a button: it works with
    no script, it keeps the pictures out of the way until they are wanted, and
    the browser does not download them while it is shut */
@@ -3728,16 +3567,6 @@ body.home main {
 .precon-count-new { display: block; margin-top: 4px; }
 
 .precon-count-new .precon-new { cursor: default; margin-right: 4px; }
-
-/* what is still moving about the number on screen. it sits under the
-   explanation and reads as a qualifier on it, not as a warning */
-.deck-standing-settling {
-    max-width: 62ch;
-    line-height: 1.5;
-    margin-top: 8px;
-}
-
-.deck-standing-settling strong { color: var(--gold); }
 
 /* the currency row sits with the sort and era rows and is drawn like them,
    because it is the same kind of thing: a control over what the board shows */
