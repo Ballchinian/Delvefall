@@ -79,19 +79,17 @@ same("MECH_CALIBRATION seed", assign_value(MIRROR, "MECH_CALIBRATION"), assign_v
 #the report bakeoff scores pairs the way the site does, with its own copies
 #of the two scoring functions.
 #
-#finetune/ is deliberately not on github (it is the training data and the hand
-#judged verdicts, ie the method), so this pair only runs where the folder
-#actually is. locally that is every time and the drift is still caught; in the
-#check workflow the folder is absent and there is nothing to compare, which
-#must not read as a failure
+#guarded on the file being there rather than assumed, because finetune/ ships
+#its scripts but not its data: a clone that has the folder gets exam_pairs.py
+#and this runs, and a checkout without it has nothing to compare, which must
+#not read as a failure
 if os.path.exists(os.path.join(ROOT, "finetune", "exam_pairs.py")):
     for fn in ("line_weight", "mech_display"):
         same(fn, func_dump("finetune/exam_pairs.py", fn), func_dump(MIRROR, fn),
              "between finetune/exam_pairs.py and web/mirror.py")
 else:
-    #NOTE this branch PASSES. that is deliberate (the check workflow has no
-    #finetune/ and a missing folder is not a drift), but it does mean renaming
-    #or moving exam_pairs.py silently disables the guard rather than failing
+    #this branch passes, since a missing folder is not a drift. it does mean
+    #renaming or moving exam_pairs.py disables the guard rather than failing
     #loudly, so the path above is one to update with the file
     print("no finetune/ here, skipping the exam_pairs drift check")
 
