@@ -47,23 +47,38 @@ REQUEST_PAUSE = 0.1
 
 def fetch_decks(entries):
     #one file per deck, keyed by the mtgjson fileName. a deck that fails to
-    #download is skipped rather than fatal: 189 of 190 still calibrates fine,
-    #and the next run picks the straggler up
+    #download is skipped rather than fatal: 189 of 190 still calibrates fine.
+    #
+    #returns (decks, missed) because the CALLER has to know, and for a while it
+    #did not. this was the only fetch in the pipeline with no retry at all, so
+    #one blip dropped a deck, and the version marker then went in as though the
+    #run had been complete. the gate reads that marker, so the next run said
+    #"already processed" and the board sat a deck short until mtgjson happened
+    #to publish a new version. the comment here promised the opposite
     session = requests.Session()
     session.headers.update(HEADERS)
     out = {}
+    missed = []
     for i, entry in enumerate(entries):
         slug = entry["fileName"]
-        try:
-            r = session.get(DECK_URL % slug, timeout=60)
-            r.raise_for_status()
-            out[slug] = r.json()["data"]
-        except Exception as e:
-            print("  skipped " + slug + " (" + str(e) + ")")
+        #three goes, like get_with_retries does for every other request here.
+        #a straggler is nearly always one timeout rather than a missing file
+        for attempt in range(3):
+            try:
+                r = session.get(DECK_URL % slug, timeout=60)
+                r.raise_for_status()
+                out[slug] = r.json()["data"]
+                break
+            except Exception as e:
+                if attempt == 2:
+                    print("  skipped " + slug + " (" + str(e) + ")")
+                    missed.append(slug)
+                else:
+                    time.sleep(2 * (attempt + 1))
         if i and i % 50 == 0:
             print("  " + str(i) + "/" + str(len(entries)) + "...")
         time.sleep(REQUEST_PAUSE)
-    return out
+    return out, missed
 
 
 def deck_cards(deck):
@@ -144,7 +159,7 @@ def main():
 
     entries = [d for d in listing["data"] if d["type"] == DECK_TYPE]
     print("mtgjson " + version + " lists " + str(len(entries)) + " " + DECK_TYPE + "s, downloading...")
-    raw = fetch_decks(entries)
+    raw, missed = fetch_decks(entries)
 
     decks = {}
     for slug, deck in raw.items():
@@ -188,8 +203,23 @@ def main():
         cur.executemany("""INSERT INTO deck_cards (deck_slug, oracle_id, count, is_commander)
                            VALUES (%s, %s, %s, %s)""", card_rows)
         rows = len(card_rows)
-        cur.execute("""INSERT INTO meta (key, value) VALUES ('mtgjson_version', %s)
-                       ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value""", (version,))
+        #the version marker only goes in when EVERY deck landed, because that is
+        #the whole claim it makes: "this run processed mtgjson <version>". a run
+        #that lost a deck did not, and recording it anyway is what turned a
+        #single timeout into a permanently short board.
+        #
+        #the cost of leaving it out is that tomorrow redownloads all 190 files,
+        #about twenty seconds of small requests next to the two gigabytes this
+        #same workflow already pulls. if a deck file is broken at mtgjson's end
+        #rather than in transit that repeats nightly, which is the right way
+        #round: the log names the deck every time instead of the board quietly
+        #being wrong
+        if missed:
+            print("NOT recording the version: " + str(len(missed))
+                  + " deck(s) did not download, so tomorrow will try them again")
+        else:
+            cur.execute("""INSERT INTO meta (key, value) VALUES ('mtgjson_version', %s)
+                           ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value""", (version,))
         #written in the same transaction as the rows it describes, so a run
         #that dies halfway leaves neither and the next one does the work again
         cur.execute("""INSERT INTO meta (key, value) VALUES ('mtgjson_deck_fields', %s)
