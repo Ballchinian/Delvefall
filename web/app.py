@@ -2768,10 +2768,13 @@ def precon(slug):
     #of four for a handler that was never going to let go in between
     with pool.connection() as conn:
         panels = deck_panels(conn, ids, figures, board, cur, slug=slug)
-        #the deck itself, drawn by the same partial /deck/view uses, plus the
-        #plain list the "run it through the lens" button posts. the list is
-        #built from the card names rather than stored: it only has to be
-        #something parse_decklist can read back, and one name per line is that
+        #the deck's cards, for the plain list the "run it through the lens" and
+        #"view it" buttons post. NOT for a grid: this page draws no whole-deck
+        #fold, because every standing panel above already opens into its own
+        #pictures. the list is built from the names rather than stored, since it
+        #only has to be something parse_decklist can read back, and one name per
+        #line is exactly that. the template also reads `cards` as the guard on
+        #that block, so a deck with none offers no way on rather than an empty one
         cards = deck_cards(conn, ids, cur)
     year = deck_row["release_date"].year if deck_row["release_date"] else 0
     #a deck still inside the settling window carries the note on every panel
@@ -2782,7 +2785,7 @@ def precon(slug):
     return render_template("precons/deck.html", deck=deck_row, year=year, panels=panels,
                            opened=opened, back=arrived["key"], cur=cur, is_new=is_new,
                            cur_urls=currency_urls(), cur_labels=CURRENCY_LABELS,
-                           section=DECK_SECTION, cards=cards, decklist=decklist,
+                           cards=cards, decklist=decklist,
                            counted=len(ids), total=len(board))
 
 
