@@ -155,19 +155,33 @@ def mana(cost):
 
 #the same symbols for the javascript side: rules text that arrives as json
 #(the /more results, the unique dealer) is rendered by manaFill in cards.js,
-#and this token -> cache-busted url map is what it renders from. built once,
-#the symbols folder doesn't change while the app runs
-_mana_urls = None
+#and this token -> cache-busted url map is what it renders from
+_mana_urls = {"stamp": None, "map": {}}
 
 
 @app.template_global()
 def mana_urls():
-    global _mana_urls
-    if _mana_urls is None:
-        _mana_urls = {fn[:-4]: static_url("symbols/" + fn)
-                      for fn in sorted(os.listdir(os.path.join(app.static_folder, "symbols")))
-                      if fn.endswith(".svg")}
-    return _mana_urls
+    #memoised against the FOLDER, not built once and kept for the life of the
+    #process. that is the same call static_url makes about the file it stamps,
+    #and for the same reason: a map built at the first request pins every symbol
+    #to the hash it had then, so an edited svg goes on being served under its old
+    #url, behind a year long cache, exactly like the bug static_url is written up
+    #for. one escape hatch from the stamping discipline is one place it does not
+    #hold.
+    #
+    #scandir hands back the sizes and mtimes along with the names, so the check
+    #is one directory walk rather than a stat per file. in production the symbols
+    #never move, so this builds once at the first request and every one after
+    #compares a tuple, which is what it effectively did before
+    folder = os.path.join(app.static_folder, "symbols")
+    with os.scandir(folder) as entries:
+        stamp = tuple(sorted((e.name, e.stat().st_mtime_ns, e.stat().st_size)
+                             for e in entries if e.name.endswith(".svg")))
+    if _mana_urls["stamp"] != stamp:
+        _mana_urls["map"] = {name[:-4]: static_url("symbols/" + name)
+                             for name, _, _ in stamp}
+        _mana_urls["stamp"] = stamp
+    return _mana_urls["map"]
 
 #user reports from the results page (see the /feedback route). the table
 #really lives in common/schema.sql, but that file ships with the ingest and
