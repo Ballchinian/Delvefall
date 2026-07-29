@@ -197,6 +197,16 @@ with pool.connection() as _conn:
             created_at    timestamptz DEFAULT now()
         )
     """)
+    #the third kind of report, and the one column the CREATE above does not
+    #carry: a 'tag' report says the line picker put a tag on the wrong line, so
+    #its subject is a slug rather than a second card. it is an ALTER in
+    #common/schema.sql because the table shipped before the kind did, and it has
+    #to be one here for the same reason the table itself is here: railway only
+    #deploys web/, so a database the ingest has never touched only ever gets
+    #what this block asks for. without it /feedback 500s on a tag report and
+    #/admin 500s reading the column back, which is the pair of pages that make
+    #the report worth filing
+    _conn.execute("ALTER TABLE feedback ADD COLUMN IF NOT EXISTS tag text NOT NULL DEFAULT ''")
     #privacy-preserving visitor counting. same reason as the feedback table:
     #these live in common/schema.sql too, but railway only deploys web/, so
     #the app makes sure they exist. what each holds is explained at
