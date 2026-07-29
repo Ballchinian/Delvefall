@@ -475,7 +475,23 @@ def main():
                 #slow encode above would hold the table lock the whole time
                 #and hang every search on the site. the alter resizes the
                 #column, the old model was 384 dims
-                cur.execute("TRUNCATE lines")
+                #
+                #CASCADE, and it is not optional: line_tags carries a foreign key
+                #onto lines(id), and postgres refuses to truncate a table that is
+                #referenced by one whether or not the referencing table holds a
+                #single row. a bare TRUNCATE raised here, AFTER the download and
+                #the full reembed, so a model swap burned the entire slow half of
+                #the run and then rolled back to nothing. worse, it could not get
+                #past itself: embed_model is only written at the very end, so the
+                #next day's run saw the same changed model and did it all again.
+                #
+                #dropping the attribution is the right thing to do rather than a
+                #price paid to make the statement legal. line ids are bigserial
+                #and every row is about to be rebuilt, so the old line_tags point
+                #at ids that no longer mean anything. ingest/attribute.py builds
+                #them again from the new lines, which is what a model swap asks
+                #for anyway
+                cur.execute("TRUNCATE lines CASCADE")
                 cur.execute("ALTER TABLE lines ALTER COLUMN embedding TYPE vector(" + str(EMBED_DIMS) + ")")
             #changed cards get their old lines thrown out and rebuilt fresh
             elif changed_cards:
