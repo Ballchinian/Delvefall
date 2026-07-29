@@ -16,6 +16,7 @@ import random
 import hashlib
 import secrets
 import datetime
+import threading
 import unicodedata
 import urllib.request
 from urllib.parse import quote, urlencode
@@ -610,12 +611,23 @@ def _fetch_gbp_rates():
 
 
 def gbp_rates():
+    #NOBODY WAITS ON THIS. the refresh runs on a background thread and the
+    #caller is answered straight away with whatever is already in hand, which is
+    #yesterday's rates, or the seeds above on the first call of a process.
+    #
+    #it used to fetch inline, so one visitor a day paid up to three seconds mid
+    #page for a number that moves by a fraction of a penny. rates one day stale
+    #are wrong by less than the rounding on the price they are about to be
+    #multiplied into, and every pound figure on the site already says
+    #approximate, so serving the old ones costs nothing worth having.
+    #
+    #the clock still moves BEFORE the work starts, which is doing two jobs: a
+    #dead rate api is retried daily rather than on every request, and only one
+    #thread is ever started per day no matter how many requests arrive together
     now = time.time()
     if now - _gbp_rates["at"] > 60 * 60 * 24:
-        #the clock moves before the fetch, so a dead rate api gets retried
-        #daily instead of stalling every request behind the timeout
         _gbp_rates["at"] = now
-        _fetch_gbp_rates()
+        threading.Thread(target=_fetch_gbp_rates, daemon=True).start()
     return _gbp_rates["usd"], _gbp_rates["eur"]
 
 
