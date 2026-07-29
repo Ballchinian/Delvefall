@@ -1,7 +1,7 @@
-#the axis-2 exam runner, bakeoff_lines.py's little sibling. scores the concept
-#engine (common/concept.py over the ingested tagger data) against the
-#testing_list/axis2.md entries plus the judged separation pairs, and shows
-#raw and displayed side by side so the calibration map stays honest.
+#the axis-2 exam runner. scores the concept engine (common/concept.py over the
+#ingested tagger data) against the testing_list/axis2.md entries plus the judged
+#separation pairs, and shows raw and displayed side by side so the calibration
+#map stays honest.
 #run from the repo root with DATABASE_URL set:
 #    python -m finetune.exam_concepts
 
@@ -13,21 +13,21 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 import psycopg
 from common.concept import raw_sim, to_display, MIN_CONCEPT
 
-#(anchor, match) - must display at or above the gate. axis2.md "Pairs"
+#(anchor, match), must display at or above the gate. axis2.md "Pairs"
 PAIRS = [
     ("Shadrix Silverquill", "Gluntch, the Bestower"),
 ]
 
-#(name, anchor, closer, further, known_fail). axis2.md "Triplets" - closer
-#must beat further. B is a known fail: the scorer overweights mechanism
-#flavored tags (removal-destroy), fixing that is v2's job
+#(name, anchor, closer, further, known_fail). axis2.md "Triplets", closer must
+#beat further. B fails because the scorer overweights mechanism flavored tags
+#(removal-destroy)
 TRIPLETS = [
     ("A selective hug", "Shadrix Silverquill", "Gluntch, the Bestower", "Font of Mythos", False),
     ("B role beats verb", "Murder", "Swords to Plowshares", "Day of Judgment", True),
 ]
 
 #judged non-matches, printed for eyeballing: these should sit well under the
-#gate (the concept axis must not blur what axis 1 fought to separate)
+#gate, since the concept axis must not blur what axis 1 keeps apart
 SEPARATION = [
     ("Sol Ring", "Ulvenwald Captive // Ulvenwald Abomination"),
     ("Merfolk Looter", "Rummaging Goblin"),
