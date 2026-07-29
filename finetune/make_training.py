@@ -33,10 +33,8 @@ from common.cards import clean_line
 
 random.seed(7)
 OUT_DIR = os.path.dirname(os.path.abspath(__file__))
-#the TAG objective's jsonl files live here. the six the line objective reads
-#moved to legacy/traindata when the site retrained in july 2026, including the
-#hand written train_rewordings.jsonl that nothing can regenerate, and dump()
-#below sends the line-objective files back there rather than into this folder
+#the tag objective's jsonl files. the line objective's live in
+#legacy/traindata, and dump() below routes them there
 DATA_DIR = os.path.join(OUT_DIR, "traindata")
 
 
@@ -184,9 +182,8 @@ def mine_positives(lines):
 #---- line <-> tag: the supervision tagger already did ----
 
 #every class above needs a regex to guess what similar means. this one does
-#not: a card whose whole rules text is ONE line, paired with the tags a human
-#typed on it, is unambiguous supervision. 11,680 such cards carry 52,708 links,
-#and nobody has to review them.
+#not: a card whose whole rules text is one line, paired with the tags a human
+#typed on it, is unambiguous supervision. 11,680 such cards carry 52,708 links.
 #
 #not every tag is learnable from text. color-break is about the mana cost,
 #vanity-card about the artist, wth-storyline-in-cards is set flavour. no model
@@ -202,11 +199,9 @@ TAG_TEST_FRACTION = 0.15   #single-line cards held back to measure attribution
 
 #one draw of this test is not a measurement. holding back a third of a tag's
 #cards and sampling 800 negatives swings the answer by +/-0.066 between seeds
-#for a tag with 10 to 19 cards, +/-0.050 at 20 to 49, and 114 of the 706 tags
-#sit within 0.05 of the bar, so for a sixth of the pool the seed was deciding
-#the verdict rather than the tag. measured 2026-07-21, and burn-player and
-#lands-matter were both excluded that way while really sitting above the bar.
-#averaging over seeds costs seconds and removes it
+#for a tag with 10 to 19 cards and +/-0.050 at 20 to 49, and 114 of the 706
+#tags sit within 0.05 of the bar. on a sixth of the pool a single draw decides
+#the verdict by seed rather than by tag. averaging costs seconds
 AUC_SEEDS = 15
 
 
@@ -225,16 +220,10 @@ def learnable_tags(conn):
     #vectors already in the database. the current model is the ruler here, not
     #the product: it only picks which labels are worth training on.
     #
-    #typed applications only. counting inherited rows looks right and is not:
-    #they are ancestors, so counting them makes a tag cover its whole subtree.
-    #tried 2026-07-21, it rescued 45 tags and dropped 51. the drops were the
-    #tell: typal-cleric fell 0.965 -> 0.529 and peek-library 0.995 -> 0.639,
-    #because their typed cards are tight where their subtrees are not, and those
-    #tight cards are the training data we want.
-    #
-    #the rule: judge a tag on the population you train on. mine_tag_pairs is
-    #typed, so the judgement is typed. training on inherited pairs as well is a
-    #real question and a different one; change both together or neither.
+    #typed applications only, because a tag is judged on the population it is
+    #trained on and mine_tag_pairs is typed. counting inherited rows would score
+    #each tag over its whole subtree, which is a looser population than the one
+    #the pairs come from
     import numpy as np
     rows = conn.execute("""
         WITH one AS (SELECT oracle_id FROM lines WHERE NOT whole GROUP BY oracle_id HAVING count(*) = 1)
@@ -259,9 +248,9 @@ def learnable_tags(conn):
         for s in range(AUC_SEEDS):
             #a fresh generator per draw rather than one that advances across
             #tags, so a tag's score does not depend on how many tags happened
-            #to be scored before it. NOT seeded off hash(tag): python
-            #randomizes string hashing per process, which would make this
-            #unreproducible between runs for no benefit
+            #to be scored before it. seeded off the draw number, since python
+            #randomizes string hashing per process and hash(tag) would not
+            #reproduce between runs
             rng = np.random.default_rng(1000 + s)
             m = np.array(sorted(members))
             rng.shuffle(m)
@@ -283,13 +272,6 @@ def mine_tag_pairs(conn, exam):
     #(line, tag) positives from cards whose whole text is one line, so the tag
     #belongs to that line with no inference, plus hard negatives from sibling
     #tags (see mine_sibling_negatives below).
-    #
-    #it used to take negatives from the card's nearest neighbours. tried and
-    #rejected 2026-07-21: tagger's coverage is not complete enough for absence
-    #to mean anything. the neighbours of "Whenever this creature attacks or
-    #blocks, ..." offered triggered-ability as a negative for a card that
-    #plainly has one and simply was not tagged. siblings avoid this, because a
-    #tagger choosing between children picks the right one.
     #
     #its own seed, so the held out split does not depend on how many random
     #calls the miners above made. otherwise --tags-only and a full run disagree
@@ -322,12 +304,11 @@ def mine_tag_pairs(conn, exam):
             continue
         bycard.setdefault((oid, lt), set()).add(tag)
 
-    #the split is by line TEXT, not by card, and that distinction is the whole
-    #ballgame. 305 of the held out lines print text that another single-line
-    #card also prints (functional reprints, and the odd rename), so splitting
-    #by card put the same sentence on both sides: the model would have trained
-    #on 18% of its own exam. grouping first means a line is either taught or
-    #tested, never both
+    #the split is by line text, not by card. 305 of the held out lines print
+    #text another single-line card also prints (functional reprints, and the odd
+    #rename), so splitting by card puts the same sentence on both sides and the
+    #model trains on 18% of its own exam. grouping first means a line is either
+    #taught or tested, never both
     bytext = {}
     for (oid, lt), tags in bycard.items():
         bytext.setdefault(lt, []).append((str(oid), tags))
@@ -343,11 +324,11 @@ def mine_tag_pairs(conn, exam):
         #reprinted text higher for no reason
         for t in sorted(set().union(*(tags for _, tags in cards))):
             pos.append((lt, tag_text(t), "line/tag"))
-    #the test side stays one row PER CARD, tags unmerged. two cards printing
-    #the same line can carry different tags, and merging them would invent
+    #the test side stays one row per card, tags unmerged. two cards printing the
+    #same line can carry different tags, and merging them would invent
     #supervision no human typed. the oracle_id is what makes a row traceable
-    #back to its line_tags rows, since the text alone is ambiguous by
-    #definition here
+    #back to its line_tags rows, since the text alone is ambiguous here by
+    #definition
     held = [{"oracle_id": oid, "line": lt, "tags": sorted(tags)}
             for lt, cards in test for oid, tags in cards]
     print("  " + str(len(groups)) + " distinct single-line texts over "
@@ -363,27 +344,26 @@ SIBS_PER_LINE = 4
 
 #a sibling pair is only a real either/or if the two rarely share a card. above
 #this co-occurrence rate the family is overlapping facets rather than a
-#partition (removal-bounce sits WITH spot-removal on 87% of its cards,
+#partition (removal-bounce sits with spot-removal on 87% of its cards,
 #draw-engine with repeatable-pure-draw on 96%), so a card typed with one and
 #not the other is decent odds of being an untyped gap, and "this line is not
-#spot-removal" would be false as often as not. measured 2026-07-21: 15.2% of
-#the unfiltered triplets came from pairs above 10%
+#spot-removal" would be false as often as not. 15.2% of the unfiltered triplets
+#come from pairs above 10%
 SIB_COOCCUR = 0.10
 
 
 def mine_sibling_negatives(conn, train, keep, tag_text):
-    #(line, its tag, a SIBLING tag it does not have). siblings share a parent in
+    #(line, its tag, a sibling tag it does not have). siblings share a parent in
     #tagger's tree, so they are the near misses most in need of separating:
-    #attack-trigger is not block-trigger, discard is not random-discard.
+    #attack-trigger is not block-trigger, discard is not random-discard. a
+    #tagger choosing between children of one parent picks the right child, so
+    #absence of a sibling is a decision rather than a gap.
     #
-    #trustworthy where nearest neighbours were not: a tagger choosing between
-    #children of one parent picks the right child, so absence of a sibling is a
-    #decision rather than a gap. two exceptions, both measured 2026-07-21 and
-    #both filtered below:
+    #two exceptions, both filtered below:
     #  - the tree can contradict the negative. a card typed with a grandchild
-    #    inherits the sibling (mill-any carries mill-opponent), which the
-    #    typed-only view missed on 2.7% of triplets. so the exclusion set is
-    #    every tag the card carries, typed or inherited
+    #    inherits the sibling (mill-any carries mill-opponent), 2.7% of
+    #    triplets. so the exclusion set is every tag the card carries, typed or
+    #    inherited
     #  - hub families overlap instead of partitioning. where siblings co-occur
     #    freely, absence means nothing. see SIB_COOCCUR
     #
@@ -400,9 +380,9 @@ def mine_sibling_negatives(conn, train, keep, tag_text):
                 sibs.setdefault(c, set()).update((children - {c}) & keep)
 
     #everything each single-line card carries, inheritance included, keyed by
-    #line text like the train groups are. the negatives check against THIS, not
-    #the typed trainable view the positives use: a tag does not have to be
-    #trainable, or typed by a human, to make "is not" a lie
+    #line text like the train groups are. the negatives check against this
+    #rather than the typed trainable view the positives use: a tag does not have
+    #to be trainable, or typed by a human, to make "is not" a lie
     all_of = {}
     for lt, tag in conn.execute("""
         WITH one AS (SELECT oracle_id, min(line_text) AS lt FROM lines
@@ -452,9 +432,10 @@ def mine_sibling_negatives(conn, train, keep, tag_text):
 #oracle text: a pair meaning the same thing in very different words, on
 #wizards' authority rather than a regex guess.
 #
-#deliberately absent: bare "cast" -> "play". historically correct, but it would
-#sit "play this spell" beside "play an additional land" and blur casting into
-#land drops. every rename kept is pure, carrying no meaning.
+#every rename here is pure, carrying no meaning of its own. bare "cast" ->
+#"play" is historically correct and still not in the list, because it would sit
+#"play this spell" beside "play an additional land" and blur casting into land
+#drops.
 #
 #the object lands wrong on some ("Remove from the game target creature" where
 #the real card read "Remove target creature from the game"). synthetic word
@@ -477,8 +458,8 @@ RETEMPLATE = [
 
 #10k+ of these are minable, which would make them most of the positive signal
 #on their own, and they are a narrow lesson (one word swapped in an otherwise
-#identical sentence) so they should not outweigh the mined variants. quota is
-#per RENAME rather than per combination: bucketing on the combination makes
+#identical sentence) so they should not outweigh the mined variants. the quota
+#is per rename rather than per combination: bucketing on the combination makes
 #forty-odd buckets and hands "battlefield + dies + exile + mana value" the same
 #allowance as plain "enters", which is backwards
 PER_RENAME = 200
@@ -534,15 +515,15 @@ def _jaccard(a, b):
     return len(ba & bb) / len(ba | bb) if ba and bb else 0.0
 
 
-#measured on the 2026-07-19 harvest: of the false positives where either side
-#has a condition, 77% shared the CONDITION and differed in the effect. "At the
-#beginning of your upkeep" opens three cards that exile your library, sacrifice
-#an aura and add a time counter, and the model called them alike. the trigger is
-#the most repeated text in the game and says the least, so pairing lines that
-#share one and do unrelated things teaches the effect to carry the weight.
+#of the false positives where either side has a condition, 77% share the
+#condition and differ in the effect. "At the beginning of your upkeep" opens
+#three cards that exile your library, sacrifice an aura and add a time counter,
+#and the model calls them alike. the trigger is the most repeated text in the
+#game and says the least, so pairing lines that share one and do unrelated
+#things teaches the effect to carry the weight.
 #
-#it must never say the trigger is irrelevant, only that it is not sufficient.
-#it produces negatives only, so nothing here pulls two triggers together.
+#the lesson is that a trigger is not sufficient, not that it is irrelevant.
+#this class produces negatives only, so nothing here pulls two triggers together.
 EFFECT_DIFF = 0.35   #jaccard above this and the effects are too alike to call different
 PER_TRIGGER = 3      #"when this creature enters" would otherwise flood the class
 TRIGGER_NEG_CAP = 1500
@@ -590,17 +571,17 @@ def mine_trigger_negatives(lines):
 #creature spell". Both tap for green; one gates when you may activate, the
 #other what the mana buys.
 #
-#two guards, and it needed both:
+#two guards, and both are needed:
 #
-#1. a trailing clause that ADDS is a rider, and riders are forgivable. Rout is
+#1. a trailing clause that adds is a rider, and riders are forgivable. Rout is
 #   "Destroy all creatures. They can't be regenerated.", Decree of Pain is that
 #   plus a draw per creature: an upgrade, not a different card. so neither
 #   remainder may contain the other.
-#2. the remainder must GATE the shared effect, not decorate it. "Destroy target
+#2. the remainder must gate the shared effect, not decorate it. "Destroy target
 #   artifact. It can't be regenerated." against "Destroy target artifact. If you
 #   controlled it, create three Goblins." passes guard one and is still a bad
 #   negative, since both are artifact removal. Thornspire differs because both
-#   clauses decide WHETHER the effect is available, so one side must gate.
+#   clauses decide whether the effect is available at all, so one side must gate.
 GATES = ("only if", "only to", "only during", "only when", "only any time",
          "unless you", "unless that", "unless an", "if you don't", "activate only",
          "spend this mana only")
@@ -693,10 +674,10 @@ def flip_loot_order(line):
 
 #a numeric change that crosses a functional threshold. "same mechanism,
 #flexible parameters" holds right until the parameter nulls the effect: -X/-X
-#is a sweeper, -1/-0 kills nothing at all, and the model called them 99%
-#similar and made Hell Swarm the top result for Toxic Deluge. only fires after
-#"get"/"gets" so it never touches "-1/-1 counter", where a -1/-0 counter would
-#be a card that does not exist rather than a card that means something else
+#is a sweeper, -1/-0 kills nothing at all, and untaught the model scores them
+#99% similar and makes Hell Swarm the top result for Toxic Deluge. only fires
+#after "get"/"gets" so it never touches "-1/-1 counter", where a -1/-0 counter
+#would be a card that does not exist rather than one meaning something else
 def null_toughness(line):
     m = re.search(r"(\bgets?\s+-)(\d+|X)/-(\d+|X)", line)
     if not m or m.group(3) == "0":
@@ -704,10 +685,10 @@ def null_toughness(line):
     return line[:m.start()] + m.group(1) + m.group(2) + "/-0" + line[m.end():]
 
 
-#who a restriction points at. Propaganda taxes the OPPONENT's attack, Mogg
-#Toady restricts its OWN body, and ten of Propaganda's top 20 came back as
-#creatures with an attack drawback. the existing flips cover tap/untap and
-#attack/block, but nothing covered direction, and direction is the whole card
+#who a restriction points at, which the tap/untap and attack/block flips do not
+#cover. Propaganda taxes the opponent's attack, Mogg Toady restricts its own
+#body, and untaught ten of Propaganda's top 20 come back as creatures with an
+#attack drawback
 def flip_restriction_target(line):
     if "can't attack you" in line:
         return line.replace("can't attack you", "you control can't attack")
@@ -828,21 +809,19 @@ def main():
             for l in ls:
                 exam.add(clean_line(l, card))
 
-    #pairs.md is an exam too, and holding out only bakeoff's triplets stopped
-    #being enough the moment its entries started naming lines the miners target
-    #on purpose. Toxic Deluge's "-X/-X" is a pairs.md anchor AND exactly what
-    #null_toughness reads, so without this the model would train on a negative
-    #built from the pair it is about to be tested on. both sides go: the anchor
-    #line comes straight out of the file, the other card is named rather than
-    #quoted so its lines are looked up
+    #pairs.md is an exam too, and its entries name lines the miners target on
+    #purpose. Toxic Deluge's "-X/-X" is a pairs.md anchor and exactly what
+    #null_toughness reads, so without this the model trains on a negative built
+    #from the pair it is about to be tested on. both sides go: the anchor line
+    #comes straight out of the file, the other card is named rather than quoted
+    #so its lines are looked up
     exam |= pairs_exam(db_url)
 
     lines = [l for l in lines if l not in exam]
     print(str(len(lines)) + " after holding out the eval lines")
 
-    #the four line-objective files go back to legacy/traindata, where they now
-    #live, so regenerating them does not quietly reseed the live folder with
-    #data for a model the site stopped running in july 2026
+    #the four line-objective files belong to legacy/traindata, so regenerating
+    #them does not seed the live folder with data for the line objective
     LEGACY = {"train_pairs.jsonl", "train_negatives.jsonl",
               "train_triplets.jsonl", "train_retemplate.jsonl"}
 

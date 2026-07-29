@@ -34,15 +34,14 @@ random.seed(7)
 HERE = os.path.dirname(os.path.abspath(__file__))
 
 #rare classes get oversampled, bloated ones capped, so enters/dies and
-#may/can't do not drown the rest out. the round-3 classes are rare because
-#users caught the model failing them
+#may/can't do not drown the rest out. the classes with the biggest multipliers
+#are rare in the mine and each answers a failure users hit
 CAP = 1500
 OVERSAMPLE = {"loot order flip": 5, "attack/block flip": 2, "hand/battlefield flip": 2,
               "self/general flip": 5, "mana amount variant": 5, "subtype variant": 3,
               "etb wrapper": 2,
-              #round 4, from the 2026-07-19 ranking audit. both mine rare and
-              #both answer a failure at rank 1, so both get lifted into the
-              #500-800 band
+              #both mine rare and both answer a failure at rank 1, so both get
+              #lifted into the 500-800 band
               "restriction target flip": 5, "toughness null": 2,
               #mines only 179 after the guards keeping it off removal pairs,
               #but answers 8% of the harvested false positives. its partner
@@ -74,11 +73,10 @@ def load_tag_pairs():
     return out
 
 
-#the line objective's six training files sit in legacy/traindata since the july
-#2026 retarget. both folders are searched so neither has to move.
-#
-#a missing file is skipped, not fatal: it trains on less and looks fine. move a
-#file somewhere neither branch looks and the next lines run learns nothing
+#the tag objective's files are in traindata, the line objective's in
+#legacy/traindata, and both folders are searched so neither has to move. a
+#missing file is skipped rather than fatal, which means a run silently trains on
+#less if one is misplaced
 def load_jsonl(name):
     for folder in (os.path.join(HERE, "traindata"),
                    os.path.join(HERE, "legacy", "traindata")):
@@ -106,13 +104,13 @@ def balance(rows):
 
 def main():
     ap = argparse.ArgumentParser()
-    #the tuned line-to-line model, not a stock base. decided 2026-07-21: it is
-    #already 768 dims so nothing downstream moves, and it already knows tap from
-    #untap, which is what lets the guards see the umbrella-tag problem instead
-    #of a model relearning magic from scratch.
+    #the tuned line-to-line model, not a stock base. it is already 768 dims so
+    #nothing downstream moves, and it already knows tap from untap, which is
+    #what lets the guards see the umbrella-tag problem instead of a model
+    #relearning magic from scratch.
     #
-    #the tag bakeoff put five stock bases in a 2.5 point band zero shot, and the
-    #leader was 384 dims: taking it would mean changing EMBED_DIMS, the column
+    #the tag bakeoff puts five stock bases in a 2.5 point band zero shot, and the
+    #leader is 384 dims: taking it would mean changing EMBED_DIMS, the column
     #type and the hnsw index for a lead unlikely to survive fine tuning.
     #
     #laptop smoke test: --model sentence-transformers/all-MiniLM-L6-v2
@@ -142,10 +140,6 @@ def main():
         from sentence_transformers.losses import MultipleNegativesRankingLoss, ContrastiveLoss
         from sentence_transformers.evaluation import TripletEvaluator, InformationRetrievalEvaluator
         from sentence_transformers.training_args import BatchSamplers
-    #bakeoff_lines, not bakeoff. the file was renamed when the tag bakeoff
-    #arrived beside it and this import kept the old name, so every run of this
-    #trainer died on ModuleNotFoundError the moment the slow ml imports above
-    #had finished. every other mention in this file already says bakeoff_lines
     from bakeoff_lines import TRIPLETS
     from common.cards import clean_line
 
@@ -295,8 +289,8 @@ def main():
         #
         #it does not catch line A batched against a row whose positive is a
         #different tag A also carries. rarer (654 tags, batches of 16 to 64) but
-        #still a false negative. if a retrain plateaus, mask those with the
-        #(line, tag) table from train_tags.jsonl
+        #still a false negative, and maskable with the (line, tag) table from
+        #train_tags.jsonl if a retrain ever plateaus on it
         batch_sampler=BatchSamplers.NO_DUPLICATES,
     )
     trainer = SentenceTransformerTrainer(
@@ -317,25 +311,24 @@ def main():
         print('  ("mtg-tuned", r"' + out_dir + '", ' + (('"' + prefix + '"') if prefix else "None") + "),")
         print("to MODELS in bakeoff_lines.py and rerun it for the real per-triplet exam.")
     else:
-        print("next, in this order. do NOT swap EMBED_MODEL, that overwrites the live")
-        print("vectors in place and they cannot be recovered without rerunning the old")
-        print("model over the whole corpus. the second column exists to avoid exactly that.")
+        print("next, in this order. leave EMBED_MODEL alone: swapping it overwrites the")
+        print("live vectors in place, and they cannot be recovered without rerunning the")
+        print("old model over the whole corpus. the second column exists for this.")
         print("")
-        print("  1. upload to a NEW hugging face repo, from this same colab session")
-        print("     before the runtime dies. the old repo is the rollback, do not")
-        print("     overwrite it:")
+        print("  1. upload to a new hugging face repo, from this same colab session")
+        print("     before the runtime dies. the old repo is the rollback, so leave it:")
         print("       m = SentenceTransformer(r'" + out_dir + "')")
         print("       m.push_to_hub('you/mtg-tagtuned-embeddinggemma-300m', private=True)")
-        print("  2. back on a machine with DATABASE_URL, fill the SECOND column:")
+        print("  2. back on a machine with DATABASE_URL, fill the second column:")
         print("       python -m ingest.backfill_embeddings --model <the new repo> --index")
         print("     this leaves lines.embedding exactly as the site is serving it")
         print("  3. the real judge, against the same column:")
         print("       EMBED_COLUMN=embedding_v2 python -m finetune.exam_tags")
         print("     ship bar is recall @10 at 95%. the model in production sits at 47.0%,")
-        print("     and that is the CENTROID number, so compare like with like: the")
+        print("     which is the centroid number, so compare like with like: the")
         print("     tags_cosine_recall@10 printed above is text retrieval and is not it")
-        print("  4. python finetune/bakeoff_lines.py as a regression guard, NOT a target. a")
-        print("     drop here is the umbrella tags teaching structure over meaning")
+        print("  4. python finetune/bakeoff_lines.py as a regression guard, not a target.")
+        print("     a drop here is the umbrella tags teaching structure over meaning")
         print("  5. only if all that holds: EMBED_COLUMN=embedding_v2 on the web service")
         print("     to browse real searches. unset it to revert instantly")
 

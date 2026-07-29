@@ -5,7 +5,7 @@
 #    python -m finetune.exam_attribution
 #
 #the labels were read off the live site card by card. the rule for adding more:
-#list ONLY the tags a line is genuinely about. a tag the card carries for
+#list only the tags a line is genuinely about. a tag the card carries for
 #reasons outside its rules text (unique-mana-cost is about the mana cost,
 #invitational-card about where the card came from) belongs to no line, so it
 #goes in no set here and attribute.py is expected to leave it out of line_tags.

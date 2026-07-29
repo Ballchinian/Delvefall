@@ -13,16 +13,16 @@ import sys
 import json
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-#two levels up now, because this lives in legacy/. it still needs the repo
-#root on the path to reach common/
+#two levels up, because this lives in legacy/ and still needs the repo root
+#on the path to reach common/
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 from common.cards import HEADERS, keep_card, get_text
 
 import requests
 
-#THIS folder. train_keywords.jsonl only ever fed --objective lines, so it moved
-#into legacy/traindata with the rest of that era and this writes it back there.
-#train.py looks in both folders, so a regenerated file is still found
+#train_keywords.jsonl belongs to --objective lines, so it is written into
+#legacy/traindata beside this script. train.py looks in both folders, so a
+#regenerated file is still found
 OUT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 #a keyword line is a short phrase, maybe a cost, then reminder text in parens

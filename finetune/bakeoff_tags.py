@@ -7,7 +7,7 @@
 #    python finetune/bakeoff_tags.py
 #same held out cards and tag pool as exam_tags.py, so the numbers sit beside it.
 #
-#this is the TEXT scorer: lines ranked against each tag's words
+#this is the text scorer: lines ranked against each tag's words
 #("slug: description"), which is what training optimises. not comparable to
 #exam_tags.py's centroid headline, since the production model was never taught
 #what a slug says and text retrieval would flatter a stock model against it.
@@ -41,7 +41,7 @@ KS = (1, 5, 10)
 
 
 def load_pool():
-    #the trainable pool IS whatever train_tags.jsonl contains: make_training.py
+    #the trainable pool is whatever train_tags.jsonl contains: make_training.py
     #already applied the AUC and the review before writing it, so reading the
     #file back needs neither tag_learnability.json nor make_tagreview.py. that
     #keeps this runnable from three data files and two scripts, which matters
@@ -61,11 +61,11 @@ def load_pool():
     return tags, [text[t] for t in tags], rows, golds
 
 
-#some models ship a prompt name whose VALUE is the empty string, which is not
-#the same as shipping a prompt. bge-small does exactly that, and taking the key
-#at face value scored it with no retrieval prefix at all while reporting that
-#it had used its own. these are the documented prefixes for the models that
-#want one, used when the shipped value is blank
+#some models ship a prompt name whose value is the empty string, which is not
+#the same as shipping a prompt. bge-small does exactly that, so taking the key
+#at face value scores it with no retrieval prefix while reporting that it used
+#its own. these are the documented prefixes for the models that want one, used
+#when the shipped value is blank
 FALLBACK = {
     "BAAI/bge-small-en-v1.5": ("Represent this sentence for searching relevant passages: ", ""),
     "Qwen/Qwen3-Embedding-0.6B":
@@ -74,7 +74,7 @@ FALLBACK = {
 
 
 def prompts_for(model, name):
-    #the real prompt STRINGS, not just the names, because an empty string is a
+    #the real prompt strings, not just the names, because an empty string is a
     #missing prompt wearing a name
     have = getattr(model, "prompts", None) or {}
     q = d = ""
@@ -154,9 +154,9 @@ def main():
     for r in sorted(results, key=lambda x: -x["r10"]):
         print("%-42s %6.1f%% %6.1f%% %6d %7s"
               % (r["name"][:42], 100 * r["r10"], 100 * r["map"], r["dims"], r["prompt"]))
-    print("\nZERO SHOT ONLY, and read it with two caveats. a model that starts")
+    print("\nzero shot only, and read it with two caveats. a model that starts")
     print("higher need not finish higher: capacity to absorb 36k pairs is a")
-    print("different thing from what it already knows. and DIMS is a real")
+    print("different thing from what it already knows. and dims is a real")
     print("constraint, not trivia: lines.embedding is vector(768), so anything")
     print("of another width needs EMBED_DIMS and the column type changed too.")
 

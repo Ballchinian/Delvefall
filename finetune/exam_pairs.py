@@ -3,7 +3,7 @@
 #the site itself would - the report's anchor line as the picked line, the
 #winning pair chosen by idf-weighted similarity (best_sim in web/app.py),
 #the calibration map the ingest wrote into meta, the site's default gate.
-#should-match passes at or above the gate, should-NOT below it.
+#should-match passes at or above the gate, should-not below it.
 #run from the repo root with DATABASE_URL set:
 #    python -m finetune.exam_pairs
 

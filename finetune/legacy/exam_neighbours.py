@@ -1,5 +1,5 @@
 #neighborhood sanity check: embeds every line in the site database with the
-#tuned model AND the live model, then shows the top matches for a spread of
+#tuned model and the live model, then shows the top matches for a spread of
 #ordinary probe searches side by side. the exam is only 26 questions, this
 #is how everything else gets eyeballed before trusting a model.
 #
@@ -9,8 +9,8 @@ import os
 import sys
 import numpy as np
 
-#this lives in legacy/ now, so both hops go one level deeper: the finetune
-#folder for its sibling import of make_training, and the repo root for common/
+#two hops out of legacy/: the finetune folder for the sibling import of
+#make_training, and the repo root for common/
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")

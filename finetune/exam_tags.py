@@ -6,13 +6,12 @@
 #game, does the model rank the right tags first?
 #
 #not the obvious harness, which would score ingest/attribute.py against the
-#held out cards. that one cannot fail. attribute.py narrows a card's own typed
-#tags onto its own lines, and a single-line card's held out set IS those tags,
-#so every attribution is right by construction: 100.0% precision on 4392 hits,
-#measured 2026-07-21. scoring unlearnable tags too drops it to 76.4%, but those
-#are not errors either, just tags the learnability filter cut from the answer
-#key. a harness whose failures are holes in its own ground truth cannot show a
-#model improving.
+#held out cards. that one cannot fail: attribute.py narrows a card's own typed
+#tags onto its own lines, and a single-line card's held out set is those tags,
+#so every attribution is right by construction, 100.0% precision on 4392 hits.
+#scoring unlearnable tags too drops it to 76.4%, but those are not errors
+#either, just tags the learnability filter cut from the answer key. a harness
+#whose failures are holes in its own ground truth cannot show a model improving.
 #
 #two ways to represent a tag, and a fair comparison uses each model's own:
 #  centroid  mean vector of the training cards carrying the tag. needs no
@@ -53,11 +52,10 @@ MIN_CENTROID_CARDS = 5
 #size of a tag list a human would skim
 KS = (1, 3, 5, 10)
 
-#the ship bar, chosen 2026-07-21 out of the four this harness could have been
-#pinned to: of the tags a line really is about, what share land in its top ten.
-#it matches what the line picker puts in front of a person, and it is a long way
-#off (47.0% at the baseline), which is the point. the old 95% was set against
-#attribution precision on three hand labelled cards and does not translate
+#the ship bar: of the tags a line really is about, what share land in its top
+#ten. that is what the line picker puts in front of a person, which is why this
+#metric and not one of the other three the harness prints. a long way off at
+#47.0% for the baseline, which is the point of setting it here
 SHIP_METRIC = "recall @10"
 SHIP_BAR = 0.95
 
@@ -76,7 +74,7 @@ def load_testset():
 
 
 def load_learnability():
-    #the candidate pool has to be the set the model was TRAINED on, not the set
+    #the candidate pool has to be the set the model was trained on, not the set
     #the AUC happens to like, or the exam asks for tags nobody taught and marks
     #down tags it did. trainable_tags is the one place that decides, shared with
     #make_training.py, so the two cannot drift
@@ -100,7 +98,7 @@ def load_single_line_cards(conn):
     #of it is what the centroids are built from.
     #
     #the column comes from EMBED_COLUMN, same switch the site reads, because
-    #judging the TRIAL model is the whole reason this harness exists: after
+    #judging a trial model is the whole reason this harness exists: after
     #ingest/backfill_embeddings.py fills embedding_v2, running
     #    EMBED_COLUMN=embedding_v2 python -m finetune.exam_tags
     #scores the new model's stored vectors on the same exam as the old one's
@@ -133,7 +131,7 @@ def normalize(m):
 
 
 def build_centroids(cards, typed, pool, test_texts):
-    #the training half is everything whose LINE TEXT is not in the test set.
+    #the training half is everything whose line text is not in the test set.
     #excluding by oracle_id would not be enough: a functional reprint prints
     #the same sentence under a different id, and letting that into a centroid
     #leaks the exam line into the thing being ranked against it

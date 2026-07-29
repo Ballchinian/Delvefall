@@ -42,7 +42,7 @@ ALTER TABLE cards ADD COLUMN IF NOT EXISTS legal_commander boolean NOT NULL DEFA
 
 --the /unique page. a card's uniqueness is its most isolated line: 1 minus
 --the best match that line has anywhere else in the game. its judged per
---line on purpose, a card with Flying plus one ability nobody else has IS
+--line on purpose, a card with Flying plus one ability nobody else has is
 --unique in the "could define a deck" sense, even though the Flying line
 --matches thousands of cards. unique_line remembers which line earned the
 --score so the page can show it. both stay NULL for cards with no
@@ -70,7 +70,7 @@ ALTER TABLE cards ADD COLUMN IF NOT EXISTS released_at date;
 --survey, carried to us by mtgjson (scryfall does not have it). filled by
 --ingest/salt.py.
 --
---this is the only number in the database that is an OPINION rather than a
+--this is the only number in the database that is an opinion rather than a
 --measurement, and that is the point of it, not a flaw. everything else here
 --is derived from what a card does; salt is what players think of being on the
 --other side of it, which no amount of rules text analysis can reach. so the
@@ -100,7 +100,7 @@ CREATE INDEX IF NOT EXISTS cards_name_trgm ON cards USING gin (name gin_trgm_ops
 --the model changed.
 --
 --nn_sim is the line's nearest neighbor similarity: how close the closest
---line on any OTHER card gets to this one. 1.0 means some other card has
+--line on any other card gets to this one. 1.0 means some other card has
 --this exact ability, low means nothing else in the game does anything like
 --it. update.py fills it in after the embeddings, its search turned inside
 --out (search asks whats closest, this asks how far away even the closest
@@ -114,27 +114,25 @@ CREATE TABLE IF NOT EXISTS lines (
     face      smallint NOT NULL DEFAULT 0
 );
 
---the second bench, for trying a new model without losing the old one. a model
---swap used to mean overwriting every vector in place, which is a one way door:
---the old numbers are gone and only a rerun of the old model brings them back.
---filling this column instead leaves the live one untouched, so the switch is
+--the second bench, for trying a new model without losing the old one. swapping
+--EMBED_MODEL overwrites every vector in place, which is a one way door: the old
+--numbers are gone and only a rerun of the old model brings them back. filling a
+--second column instead leaves the live one untouched, so the switch is
 --EMBED_COLUMN on the web service and reverting is unsetting it.
 --
---NULLABLE on purpose, unlike embedding: rows exist long before anything fills
---this. ingest/backfill_embeddings.py is what fills it, the daily update does
---not maintain it, so it goes stale during a trial and that is fine for one.
+--nullable, unlike embedding: rows exist long before anything fills it.
+--ingest/backfill_embeddings.py is what fills it and the daily update does not
+--maintain it, so it goes stale during a trial, which is fine for one.
 --
---NOT created here any more. the 2026-07-22 cutover finished with a rename
---swap (embedding -> embedding_v1, embedding_v2 -> embedding), so recreating it
---would only add an empty column back on the next ingest. uncomment for the
---next trial; backfill_embeddings.py adds it itself when it runs.
+--the line below stays commented. a trial ends in a rename swap (embedding ->
+--embedding_v1, embedding_v2 -> embedding), and creating the column here would
+--add an empty one back on the next ingest. backfill_embeddings.py adds it
+--itself when a new trial starts.
 --ALTER TABLE lines ADD COLUMN IF NOT EXISTS embedding_v2 vector(768);
 
---the previous model's vectors, kept as the rollback for the 2026-07-22 swap:
---BallchinianMan/mtg-tuned-embeddinggemma-300m, the line-to-line model, with
---the repo tagged v1-rules-text at the last commit before it stopped being
---live. reverting is renaming the two columns back. drop this once the new
---model has been live long enough to trust, and take back ~330mb with it
+--the previous model's vectors, the rollback for the current one: reverting is
+--renaming the two columns back. drop it once the live model has been up long
+--enough to trust and take back ~330mb with it
 ALTER TABLE lines ADD COLUMN IF NOT EXISTS embedding_v1 vector(768);
 
 ALTER TABLE lines ADD COLUMN IF NOT EXISTS nn_sim real;
@@ -148,7 +146,7 @@ ALTER TABLE lines ADD COLUMN IF NOT EXISTS face smallint NOT NULL DEFAULT 0;
 --whole-card rows: one extra row per multi-line card holding its entire
 --cleaned text, for the line-merging blind spot (two separate lines that
 --together equal another card's compound line - shadrix vs gluntch). they
---are retrieval material for a future card-level scorer and stay OUT of
+--are retrieval material for a future card-level scorer and stay out of
 --everything line-shaped: uniqueness, line_stats, the per-line search and
 --the training miner all filter on NOT whole
 ALTER TABLE lines ADD COLUMN IF NOT EXISTS whole boolean NOT NULL DEFAULT false;
@@ -177,7 +175,7 @@ CREATE INDEX IF NOT EXISTS lines_embedding_hnsw ON lines USING hnsw (embedding v
 --how many cards share each line, for the idf weighting ("Flying" is on
 --thousands of cards so it barely counts, a wordy triggered ability is nearly
 --unique so it counts full strength). keyed by exact text because that is what
---the search joins on, but COUNTED per shape: update.py collapses each run of
+--the search joins on, but counted per shape: update.py collapses each run of
 --mana symbols to a placeholder first, so "Overload {4}{R}" and "Overload
 --{2}{R}" share a bucket instead of each looking unique at full weight
 CREATE TABLE IF NOT EXISTS line_stats (
@@ -185,15 +183,15 @@ CREATE TABLE IF NOT EXISTS line_stats (
     count     int NOT NULL
 );
 
---little key/value table for bookkeeping. it started out holding one thing and
---now holds a row per pipeline plus the two calibration maps:
+--little key/value table for bookkeeping: a row per pipeline, plus the two
+--calibration maps:
 --
 --  scryfall_updated_at   the bulk file update.py processed last
 --  tagger_updated_at     the same, for tags.py's oracle_tags file
 --  mtgjson_version       the same, for decks.py
 --  mtgjson_deck_fields   which per-deck columns decks.py filled, so ADDING one
 --                        forces exactly one rebuild without waiting on mtgjson
---  mtgjson_salt_version  the same, for salt.py. its OWN key on purpose: shared
+--  mtgjson_salt_version  the same, for salt.py. its own key, because shared
 --                        with decks.py, whichever ran second would see the
 --                        version already recorded and skip itself forever
 --  embed_model           which model made the vectors, so a swap rebuilds them
@@ -213,12 +211,12 @@ CREATE TABLE IF NOT EXISTS meta (
 --privacy-preserving visitor counting. the web app creates these too (railway
 --only deploys web/), they live here so the ingest self-heals a fresh database
 --like every other table. the design is the privacy-first standard: a per-day
---salt that is DELETED once the day is over, so the stored tokens can never be
+--salt that is deleted once the day is over, so the stored tokens can never be
 --turned back into an ip afterwards, and the raw ip is never written at all.
 --nothing here touches the visitor's device, which is what keeps the site free
 --of a cookie banner.
 --
---visit_salt holds only the CURRENT day's salt (older rows are deleted as each
+--visit_salt holds only the current day's salt (older rows are deleted as each
 --day rolls over). visit_seen is that day's distinct visitor tokens, also
 --cleared once the day is counted. visit_daily is all that survives: one
 --integer per day, fully anonymous
@@ -269,7 +267,7 @@ ALTER TABLE card_tags ADD COLUMN IF NOT EXISTS inherited boolean NOT NULL DEFAUL
 ALTER TABLE card_tags ADD COLUMN IF NOT EXISTS weight real NOT NULL DEFAULT 0;
 
 --one row per tag that survived the trivia blocklist: its parents (tagger
---tags form a hierarchy, kept for rollup scoring later), how many of OUR
+--tags form a hierarchy, kept for rollup scoring later), how many of our
 --cards carry it, the idf weight derived from that count (so broad tags like
 --triggered-ability barely count), and the tagger description for tooltips
 CREATE TABLE IF NOT EXISTS tags (
@@ -331,7 +329,7 @@ CREATE TABLE IF NOT EXISTS deck_cards (
 
 CREATE INDEX IF NOT EXISTS deck_cards_oracle ON deck_cards (oracle_id);
 
---which tags each LINE is about, so picking one ability on the search page can
+--which tags each line is about, so picking one ability on the search page can
 --narrow the concept axis to that ability instead of searching the whole
 --card's tag vector. tagger tags cards, never lines, so this is inferred
 --rather than given: a line's nearest neighbours across the corpus vote with
@@ -340,17 +338,12 @@ CREATE INDEX IF NOT EXISTS deck_cards_oracle ON deck_cards (oracle_id);
 --only the tags a human typed get attributed, the inherited ancestors follow
 --from the tree at query time exactly as they do for a whole card.
 --
---card_level was for a tag no single line explains: invitational-card, or
---anything describing the card rather than one of its abilities. the idea was
---that those ride EVERY line, so picking a line never loses them.
---
---IT IS ALWAYS FALSE NOW, and the column is kept only so this note has somewhere
---to live. attaching those tags everywhere turned out to be the single largest
---source of false positives on the hand labelled cards, for the reason the idea
---was meant to serve: a tag that is about no ability should be ABSENT once you
---pick an ability. ingest/attribute.py drops them instead, and a whole-card
---search never reads this table, so nothing is lost. see the note in its
---assign() for the measurement.
+--card_level marks a tag no single line explains: invitational-card, or anything
+--describing the card rather than one of its abilities. every row is false,
+--because ingest/attribute.py drops such tags rather than riding them on every
+--line. a tag about no ability should be absent once an ability is picked, and a
+--whole-card search never reads this table, so nothing is lost. the column is
+--here for the day TODO.md's step two revisits that.
 --
 --filled by ingest/attribute.py, rebuilt whenever lines or tags change
 CREATE TABLE IF NOT EXISTS line_tags (
@@ -394,19 +387,18 @@ CREATE TABLE IF NOT EXISTS feedback (
 );
 
 --a third kind of report, 'tag': the line picker set a tag aside that the
---picked line IS about, or kept one it is NOT about. those are complaints about
+--picked line is about, or kept one it is not about. those are complaints about
 --ingest/attribute.py rather than about the model's ranking, and they are the
 --only feedback that can grow finetune/attribution_eval.py, which has three
---hand labelled cards and is the one exam testing WHICH LINE a tag lands on.
+--hand labelled cards and is the one exam testing which line a tag lands on.
 --the tag slug goes here. which direction the complaint runs is read off the
 --attribution at review time rather than trusted from the form, so a report
 --stays readable even if the attribution is rebuilt before anyone looks at it
 ALTER TABLE feedback ADD COLUMN IF NOT EXISTS tag text NOT NULL DEFAULT '';
 
---the feedback.ip column holds the day's one-way token now, never an address.
---reports filed BEFORE that change stored the real ip, and /privacy says
---plainly that an ip address is never stored, so the old rows have to go or the
---page is not telling the truth about what is on disk.
+--feedback.ip holds the day's one-way token, never an address. /privacy says
+--plainly that an ip address is never stored, so any row still carrying a real
+--one has to go or the page is not telling the truth about what is on disk.
 --
 --length is what tells them apart with no ambiguity: a token is a sha256 hex
 --digest, exactly 64 characters, and no ip address of either family is that

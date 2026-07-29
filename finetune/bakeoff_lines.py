@@ -1,6 +1,6 @@
 #the model bake-off: scores candidate embedding models against the hand built
 #triplet list in triplets.md. a triplet passes when the anchor line lands
-#closer to the should-match card than to the should-NOT card, where each
+#closer to the should-match card than to the should-not card, where each
 #candidate card's best matching line counts, same as the real engine.
 #
 #run from the repo root with any python that has sentence-transformers:
@@ -144,9 +144,8 @@ TRIPLETS = [
      ("Mind Rot", "Target player discards two cards."),
      ("Hymn to Tourach", ["Target player discards two cards at random."]),
      ("Careful Study", ["Draw two cards, then discard two cards."])),
-    #round 3, from user reports (verified against the database 2026-07-15).
-    #the current model is expected to fail most of these - they exist to
-    #grade the next training pass
+    #from user reports, verified against the database. these are the hardest
+    #of the list and exist to grade a training pass rather than to pass today
     (27, "flavour prefix trap",
      ("Farideh's Fireball", "1—9 | Farideh's Fireball deals 2 damage to each player."),
      ("Flame Rift", ["Flame Rift deals 4 damage to each player."]),

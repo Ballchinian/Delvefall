@@ -1,17 +1,16 @@
 #builds finetune/testing_list/tag_review.md, the hand judged answer to "is this
-#tag about what the rules text says?" the question the AUC bar was standing in
-#for and getting wrong.
+#tag about what the rules text says?"
 #
-#learnable_tags() in make_training.py keeps a tag if the CURRENT model puts its
+#learnable_tags() in make_training.py keeps a tag if the current model puts its
 #cards in one tight blob. that is a different question, and in the 0.5 to 0.75
 #band mostly a wrong one: ramp (0.638), rummage (0.541), scry-like (0.525),
 #converge (0.538) and triggered-ability (0.727) are all printed in plain words
-#and all excluded, because the line-to-line model being replaced does not
-#cluster them. using that model to decide what its replacement may learn is
-#circular, and it costs exactly the mechanics the retrain is meant to fix.
+#and all excluded, because the model doing the judging does not cluster them.
+#using a model to decide what its successor may learn is circular, and it costs
+#exactly the mechanics a retrain is meant to fix.
 #
-#the AUC stays useful, demoted: it says "already well represented", not
-#"learnable in principle". this file says the latter.
+#so the AUC answers a smaller question: "already well represented", not
+#"learnable in principle". this file answers the latter.
 #
 #from the repo root with DATABASE_URL set:
 #    python finetune/make_tagreview.py
@@ -28,8 +27,8 @@ import psycopg
 HERE = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(HERE, "traindata")
 #it sits with the other hand-marked files rather than beside the script, because
-#the verdicts in it are written by a person and nothing can rebuild them. this
-#file is an INPUT on every run after the first (see the merge below)
+#the verdicts in it are written by hand and nothing can rebuild them. it is an
+#input on every run after the first, see the merge below
 REVIEW = os.path.join(HERE, "testing_list", "tag_review.md")
 
 #the four verdicts and what each means downstream:
@@ -42,24 +41,18 @@ REVIEW = os.path.join(HERE, "testing_list", "tag_review.md")
 #  ?     not yet judged
 VERDICTS = ("text", "card", "junk", "?")
 
-#opening proposals, 2026-07-21, for the tags the AUC bar excluded. a starting
-#point, not an answer.
+#the seed verdicts, and only for tags tag_review.md has never listed. a verdict
+#already written in the file wins, so revising one means editing the file rather
+#than this dictionary.
 #
-#this only seeds tags the file has never listed. a verdict written in
-#tag_review.md always wins, which is what stops a regeneration reverting a
-#judgement. it cuts both ways: revising a tag already in the file means editing
-#the file, not this dictionary. editing it here does nothing and looks like it
-#worked.
-#
-#the typal-* and synergy-* families were the open question and they are
-#settled, by counting rather than arguing: of the 42 typal tags with 20+ cards,
-#89% of their cards print the thing the tag names in their own rules text, and
-#the named creature types are at 100% (typal-vampire 82 of 82, typal-zombie 120
-#of 120). synergy-* is 80% the same way. the handful reading 0% are slug wording
-#rather than absent concepts: a card tagged synergy-blocker says "blocks", not
-#"blocker", and typal-coupling never names itself at all. so both families are
-#text. the tag is applied to the card that CARES about the type, which is a
-#thing the rules text says, not to every card that happens to BE that type
+#the typal-* and synergy-* families are settled by counting: of the 42 typal
+#tags with 20+ cards, 89% of their cards print the thing the tag names in their
+#own rules text, and the named creature types are at 100% (typal-vampire 82 of
+#82, typal-zombie 120 of 120). synergy-* is 80% the same way. the handful
+#reading 0% are slug wording rather than absent concepts: a card tagged
+#synergy-blocker says "blocks", not "blocker", and typal-coupling never names
+#itself at all. so both families are text. the tag goes on the card that cares
+#about the type, which the rules text says, not on every card that is that type
 PROPOSED = {
     #plainly printed on the card
     "triggered-ability": "text", "symmetrical": "text", "burn-you": "text",
@@ -112,9 +105,8 @@ PROPOSED = {
     "40k-model": "junk", "commander-set-booster-cards": "junk", "vanity-card": "junk",
     "deprecated-p-t-counter": "junk",
 
-    #the second wave: tags that only landed on the excluded list once the AUC
-    #was averaged over seeds instead of drawn once. most are plainly text, and
-    #cantrip being among them is the clearest sign the single draw was noise
+    #tags the seed-averaged AUC excludes where a single draw did not. cantrip
+    #among them shows how much a lone draw moves the middle of the range
     "cantrip": "text", "hate-red": "text", "repeatable-mulch": "text",
     "power-matters-total": "text", "leaves-battlefield-trigger": "text",
     "synergy-party": "text", "synergy-enchantment": "text", "auto-buyback": "text",
@@ -132,17 +124,16 @@ PROPOSED = {
     "dnd-character": "junk", "staple-with-set-s-mechanic": "junk",
     "notorious-templating": "junk", "unprinted-token": "junk",
     "out-of-color-token": "card", "manaless-land": "card",
-    #both read as ? until the examples turned up: Traumatize mills half a
-    #library and Wanted Scoundrels hands an opponent Treasure, which is the
-    #text saying exactly the thing the tag is named for
+    #the examples settle these: Traumatize mills half a library and Wanted
+    #Scoundrels hands an opponent Treasure, which is the text saying exactly the
+    #thing the tag is named for
     "division": "text", "donate-mana": "text",
 
-    #the fourth wave, from the sharper test of 2026-07-21: can the card's own
-    #TEXT infer the tag? the model is shown one line of rules text and nothing
-    #else, so a tag whose definition reaches for the mana cost, the power and
-    #toughness or the card's colours cannot be learned from what it sees, no
-    #matter how true the tag is. tagger's own descriptions convict these, each
-    #one naming something off the line:
+    #tags whose definition reaches for something off the line. the model is
+    #shown one line of rules text and nothing else, so a tag depending on the
+    #mana cost, the power and toughness or the card's colours cannot be learned
+    #from what it sees, however true it is. tagger's own descriptions convict
+    #these, each naming something the line does not carry:
     "cheaper-than-mv": "card",      #"lower than the card's mana value"
     "hatebear": "card",             #"low-cost (2 MV or less) and low power/toughness"
     "doom-blade": "card",           #'2 MV "Destroy target creature, unless it is X"'
@@ -154,12 +145,11 @@ PROPOSED = {
     "references-keyword": "junk",   #"call back to a keyword from an older set"
     "sneaky-self-trigger": "junk",  #"worded so it is easy to miss", a note on phrasing
 
-    #the third wave, and a different kind. these are tags the AUC KEPT, so they
-    #never reached the review, found by scanning the kept list for the shapes
-    #just called junk or card among the excluded. the set-mechanic
-    #family scores 0.86 to 0.999 because "enters tapped" templating really is
-    #distinctive text, which is the point: a high AUC says a tag is easy to
-    #spot, never that it is worth learning
+    #tags the AUC keeps, pulled in by scanning the kept list for the shapes
+    #judged junk or card on the excluded side. the set-mechanic family scores
+    #0.86 to 0.999 because "enters tapped" templating really is distinctive
+    #text, which is the point: a high AUC says a tag is easy to spot, never
+    #that it is worth learning
     "token-errata": "junk", "discard-with-set-s-mechanic": "junk",
     "burn-with-set-s-mechanic": "junk", "ramp-with-set-s-mechanic": "junk",
     "threaten-with-set-s-mechanic": "junk", "tapland-with-set-s-mechanic": "junk",
@@ -169,11 +159,10 @@ PROPOSED = {
     "pwdeck-sidekick": "text",
 }
 
-#the review used to list only the tags the AUC excluded, which left the other
-#half unexamined: a tag the AUC waved through is trained on with nobody having
-#asked whether it should be. reviewing all 547 is not a good use of anyone's
-#evening, so the kept side is filtered to the shapes that already turned out to
-#be junk or card on the excluded side, and those get pulled in for judgement
+#the kept side needs examining too, or a tag the AUC waves through gets trained
+#on with nobody having asked whether it should be. reviewing all 547 is not a
+#good use of an evening, so the kept side is filtered to the shapes that turned
+#out to be junk or card on the excluded side
 SUSPECT_KEPT = (
     r"storyline|booster|-model$|^40k|^dnd-|errata|black-border|vanity|invitational"
     r"|set-s?-mechanic|^staple|^bear-with|^meme|fun-ruling|notorious|rules-nightmare"
@@ -183,18 +172,19 @@ SUSPECT_KEPT = (
 
 
 def inherit_verdicts(parents, proposed):
-    #a slug pattern is the wrong tool for finding a family, and this is how it
-    #was proved: the scan above looked for "set-s-mechanic" and sailed past
-    #counterspell-with-set-mechanic, giant-growth-with-set-mechanic and
-    #naturalize-with-set-mechanic, spelled without the s, all three in the
-    #training set at AUC 0.96 to 0.99. templated text scores high, which says
-    #nothing about whether the label is worth learning.
+    #a slug pattern is the wrong tool for finding a family. SUSPECT_KEPT looks
+    #for "set-s-mechanic" and sails past counterspell-with-set-mechanic,
+    #giant-growth-with-set-mechanic and naturalize-with-set-mechanic, spelled
+    #without the s, all three in the training set at AUC 0.96 to 0.99. templated
+    #text scores high, which says nothing about whether the label is worth
+    #learning.
     #
-    #so ask tagger's tree instead of the spelling. staple-with-set-s-mechanic is
-    #a root with sixteen children, each a name for a design slot ("bear" is a
-    #2/2 for 2), so a tag under a junk root is junk until someone says
-    #otherwise. same principle as BLOCKED_ROOTS in ingest/tags.py. a verdict in
-    #the file still wins, so an inherited proposal is never a decision
+    #so this asks tagger's tree instead of the spelling.
+    #staple-with-set-s-mechanic is a root with sixteen children, each a name for
+    #a design slot ("bear" is a 2/2 for 2), so a tag under a junk root is junk
+    #until someone says otherwise. same principle as BLOCKED_ROOTS in
+    #ingest/tags.py. a verdict in the file still wins, so an inherited proposal
+    #is never a decision
     out = {}
     for tag in parents:
         seen, frontier = set(), list(parents.get(tag, ()))
@@ -234,9 +224,8 @@ def trainable_tags(scores, bar):
     #questions: the AUC asks whether the current model already clusters a tag,
     #the review asks whether the rules text says it at all. one example each:
     #  rescued  ramp, rummage, scry-like, converge and triggered-ability are
-    #           printed in plain words and were all excluded, because the
-    #           line-to-line model being replaced does not cluster them. using
-    #           that model to choose its successor's lessons is circular
+    #           printed in plain words and the AUC excludes them, because the
+    #           model doing the judging does not cluster them
     #  removed  the *-with-set-s-mechanic family scores 0.86 to 0.999 because
     #           "This land enters tapped" really is distinctive text. still a
     #           set-design observation rather than anything a search should
@@ -288,13 +277,13 @@ def main():
     desc = {t: (d or "").strip() for t, d in conn.execute("SELECT tag, description FROM tags")}
     parents = {t: list(p or ()) for t, p in conn.execute("SELECT tag, parents FROM tags")}
     existing = read_verdicts()
-    #ancestry consults the FILE's verdicts as well as the proposals, and the
-    #file wins where they disagree. without this a root judged in the file
-    #rather than in the dict would not reach its children, and the file is
-    #supposed to be the one that outranks
+    #ancestry consults the file's verdicts as well as the proposals, and the
+    #file wins where they disagree. otherwise a root judged in the file rather
+    #than in the dict would not reach its children, and the file is the one that
+    #outranks
     inherited = inherit_verdicts(parents, {**PROPOSED, **existing})
 
-    #up to three SHORT single-line cards per tag, because a whole paragraph of
+    #up to three short single-line cards per tag, because a whole paragraph of
     #oracle text does not help anyone judge a tag at a glance
     print("pulling examples...")
     examples = {}
@@ -356,23 +345,23 @@ def main():
     with open(REVIEW, "w", encoding="utf-8") as f:
         f.write("""# Which tags are about the rules text?
 
-The hand-judged answer to the one question the AUC bar was standing in for and getting
-wrong. `finetune/make_training.py` keeps a tag if the CURRENT model already clusters it,
-which is a different question, and in the middle of the range it is mostly wrong: `ramp`,
+The hand-judged answer to a question the AUC bar cannot answer.
+`finetune/make_training.py` keeps a tag if the current model already clusters it, which is
+a different question, and in the middle of the range mostly a wrong one: `ramp`,
 `rummage`, `scry-like`, `converge` and `triggered-ability` are all printed in plain words
-on the card and all excluded, because the line-to-line model being replaced does not
-cluster them. Using that model to decide what its replacement may learn is circular.
+on the card and all excluded, because the model doing the judging does not cluster them.
+Using a model to decide what its successor may learn is circular.
 
-So this file decides instead. The AUC keeps its old job under a smaller name: it says a
-tag is *already well represented*, not that it is *learnable in principle*.
+So this file decides instead. The AUC keeps a smaller job: it says a tag is *already well
+represented*, not that it is *learnable in principle*.
 
-**The test, in Ethan's words: can the card's own text infer the tag it is assigned?** The
-model is shown ONE LINE OF RULES TEXT and nothing else. Not the mana cost, not the type
-line, not the power and toughness, not the set, not even the card's name. So a tag can be
-perfectly true, and useful, and still be unlearnable here, because what it depends on is
-not in front of the model. Tagger's own descriptions convict several outright:
-`hatebear` is "low-cost (2 MV or less) and low power/toughness", `offcolor-ability` is "a
-mana cost outside the card's colors". Both real, neither visible.
+**The test: can the card's own text infer the tag it is assigned?** The model is shown one
+line of rules text and nothing else. Not the mana cost, not the type line, not the power
+and toughness, not the set, not even the card's name. So a tag can be perfectly true, and
+useful, and still be unlearnable here, because what it depends on is not in front of the
+model. Tagger's own descriptions convict several outright: `hatebear` is "low-cost (2 MV
+or less) and low power/toughness", `offcolor-ability` is "a mana cost outside the card's
+colors". Both real, neither visible.
 
 ## How to review
 
@@ -387,17 +376,17 @@ whatever is written here.
 | `junk` | nothing to do with how the card plays | never trained on, and picking a line always sets it aside |
 | `?` | not judged yet | treated as `junk` for training, so an unreviewed tag is never learned by accident |
 
-**What none of this takes away.** The chips under a card come from `card_tags` and always have,
-so every tag stays on the page whatever its verdict here. A whole-card search, which is the
-default, reads every tag exactly as it does today: `vanity-card` still shows and still scores.
-The verdict only decides what happens when you PICK A LINE, and even then the tag is not gone,
-it goes to the `aside` state, greyed with an explanation, and one click puts it back. So the
-cost of my getting one of these wrong is a tag sitting aside when it should have counted, not a
-tag vanishing.
+**What none of this takes away.** The chips under a card come from `card_tags`, so every
+tag stays on the page whatever its verdict here. A whole-card search, which is the
+default, reads every tag exactly as it does today: `vanity-card` still shows and still
+scores. The verdict only decides what happens when a line is picked, and even then the tag
+is not gone, it goes to the `aside` state, greyed with an explanation, and one click puts
+it back. A wrong verdict costs a tag sitting aside when it should have counted, not a tag
+vanishing.
 
-**Start with the `?` section**, it is the short one and the only part where I had no
-read. The `text` section is the long one but it is skimmable: I am claiming every tag in
-it is printed on the card in words, so anything that is not should jump out.
+**Start with the `?` section**, it is the short one and the only part with no read on it
+at all. The `text` section is the long one but it is skimmable: the claim is that every
+tag in it is printed on the card in words, so anything that is not should jump out.
 
 The `typal-*` and `synergy-*` families are pre-answered as `text` by a rule rather than
 one line each, so a new creature type next set arrives already judged. The evidence: of
@@ -405,41 +394,32 @@ the 42 `typal-` tags with 20 or more cards, 89% of their cards print the thing t
 names in their own rules text, and the named creature types are at 100% (`typal-vampire`
 82 of 82, `typal-zombie` 120 of 120). `synergy-*` is 80% the same way. The few reading 0%
 are slug wording rather than missing concepts: a card tagged `synergy-blocker` says
-"blocks", not "blocker". If you disagree with the family call, say so once and I will
-change the rule rather than the fifty lines.
+"blocks", not "blocker". Disagreeing with the family call means changing the rule in
+`make_tagreview.py`, not the fifty lines below.
 
-## A warning about the `card` pile
+## Before growing the `card` pile
 
 TODO.md's step two says to revive `card_level` so those tags ride every line instead of
-being set aside. Worth knowing before that gets built: **it was already tried and it was
-measured as bad.** `ingest/attribute.py` says so in its own comments, and `schema.sql`'s
-description of `card_level` is stale, describing the behaviour that got reverted rather
-than the one that shipped:
+being set aside. Attaching every unexplained tag to every line is the single largest
+source of false positives on the hand-labelled cards, worth 58% -> 88% precision to stop
+doing, so it is not a small thing to undo. `ingest/attribute.py` carries the detail.
 
-> a tag no line shows any evidence for is attributed to NOTHING, and that is deliberate.
-> it used to ride every line instead, on the theory that tags like invitational-card
-> describe the card rather than an ability, but that is exactly why they should be absent
-> [...] attaching them everywhere was the single largest source of false positives
-
-That was worth 58% -> 88% precision, so it is not a small thing to undo.
-
-What makes `card_level` worth a second look anyway is this review. The thing that leaked
-was attaching EVERY unexplained tag to every line, and most unexplained tags are not
-card-shaped, they are just weakly evidenced. A hand-judged `card` list is a different
-proposition: eight tags, each genuinely about the card, rather than a long tail. So the
-pile below is small on purpose. If it grows past a couple of dozen, that is a sign the
-verdict is being used as a dumping ground and the leak is coming back.
+What makes `card_level` worth a second look is this review. What leaked was attaching
+*every* unexplained tag, and most unexplained tags are not card-shaped, they are just
+weakly evidenced. A hand-judged `card` list is a different proposition: eight tags, each
+genuinely about the card, rather than a long tail. So the pile below is small on purpose.
+If it grows past a couple of dozen, that is a sign the verdict is being used as a dumping
+ground and the leak is coming back.
 
 """)
         f.write("Counts: " + ", ".join("%s %d" % (k, len(groups[k])) for k in VERDICTS
                                        if groups[k]) + ".\n")
 
         for kind, title, blurb in [
-            ("?", "Unjudged, your call",
-             "I had no confident read on these. The two families above are most of it."),
+            ("?", "Unjudged",
+             "No confident read on these. The two families above are most of it."),
             ("text", "Proposed: about the rules text (rescue these)",
-             "These are excluded today and I think that is a mistake. Every one of them is "
-             "printed on the card in words."),
+             "Excluded today, and every one of them is printed on the card in words."),
             ("card", "Proposed: about the card, not a line",
              "Correctly kept out of training, but they are the `card_level` candidates for "
              "step 2: picking a line should not lose them."),
@@ -452,7 +432,7 @@ verdict is being used as a dumping ground and the leak is coming back.
             f.write("\n## " + title + " (" + str(len(groups[kind])) + ")\n\n" + blurb + "\n\n")
             for tag in groups[kind]:
                 #a tag the AUC already keeps is a different decision: judging it
-                #junk REMOVES training data rather than adding it, so say which
+                #junk removes training data rather than adding it, so say which
                 #side of the bar each one came from
                 side = " **(the AUC keeps this one)**" if tag in kept_side else ""
                 score = ("auc %.3f" % auc[tag]) if tag in auc else "not measured this round"
