@@ -64,8 +64,14 @@ export function read() {
     return decks;
 }
 
+//NO CAP HERE. create() is the one place that decides whether a deck may be
+//added, and it refuses rather than dropping the oldest. this used to slice to
+//KEEP as well, which is the same rule written twice and written differently:
+//refuse in one place, silently delete in the other. it could not fire today,
+//since nothing reaches this with more than KEEP entries, but the entries it
+//would have cut are exactly the ones the shelf exists to not lose
 export function write(decks) {
-    try { localStorage.setItem(KEY, JSON.stringify(decks.slice(0, KEEP))); }
+    try { localStorage.setItem(KEY, JSON.stringify(decks)); }
     catch (e) {
         //private browsing, a full quota, or storage switched off. the site works
         //exactly the same without a shelf, so this fails quietly
