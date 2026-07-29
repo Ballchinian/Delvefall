@@ -4021,8 +4021,12 @@ def swap_candidates(conn, card, deck_ids, colors, field, direction, currency="us
         FROM lines l LEFT JOIN line_stats s ON s.line_text = l.line_text
         WHERE l.oracle_id = %s AND NOT l.whole AND l.""" + EMBED_COL + """ IS NOT NULL
     """, (card["oracle_id"],)).fetchall()
+    #NOTHING TO OFFER STILL ANSWERS IN THREE PARTS. the caller unpacks this into
+    #(cards, offband, mv), so a bare [] here is not an empty answer, it is a
+    #ValueError on the unpack and a 500 on a page that had a perfectly ordinary
+    #thing to say. no cards, none held back for their cost, and no band to name
     if not qlines:
-        return []
+        return [], 0, (None, None)
 
     #anchor on what makes this card THIS card: its rarest lines, not whichever
     #of them happens to match something best.
@@ -4090,7 +4094,7 @@ def swap_candidates(conn, card, deck_ids, colors, field, direction, currency="us
     #has priced or voted on cannot be shown to be an improvement
     here = card.get("price" if field == "price" else SWAP_COLUMNS[field])
     if here is None:
-        return []
+        return [], 0, (None, None)
     where += " AND " + col + (" < %s" if axis["better"] == "lower" else " > %s")
     params.append(here)
 
