@@ -1,6 +1,6 @@
 #builds keyword -> meaning training pairs out of scryfall reminder text, so
 #the model can learn that "Hexproof" and "Shroud" are cousins instead of two
-#random english words. wizards maintain the definitions for me, every keyword
+#random english words. wizards maintain the definitions, and every keyword
 #ships with reminder text on some card or another.
 #
 #has to download the raw bulk file, the site database strips reminder text
