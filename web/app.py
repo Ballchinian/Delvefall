@@ -576,7 +576,37 @@ CURRENCY_LABELS = [("usd", "$ dollars"), ("eur", "€ euros"), ("gbp", "£ pound
 #rates via frankfurter.app (no key needed), refreshed daily, which is also
 #how often the prices themselves move. the seeds hold whenever the fetch
 #fails, so a rate api outage can never break a page
+#the same identification on EVERY outbound request this process makes: the two
+#deck importers, because moxfield asks third parties to say who they are and
+#archidekt has no opinion, and the rate fetch below, because frankfurter refuses
+#the ones that do not. one constant so they can never disagree about who is
+#calling. it lives up here rather than beside the importers because the rate
+#fetch is the first thing that needs it
+IMPORT_AGENT = "Delvefall/1.0 (+https://delvefall.com)"
+
 _gbp_rates = {"usd": 0.74, "eur": 0.86, "at": 0.0}
+
+
+def _fetch_gbp_rates():
+    #SAYING WHO WE ARE IS NOT POLITENESS HERE, IT IS THE WHOLE REQUEST. this
+    #went out with urllib's default agent and frankfurter answers those with a
+    #403, so the fetch had never once succeeded: every pound price the site has
+    #ever printed came from the seeds below, and the "refreshed daily" this
+    #function is named for was not happening. the failure was invisible because
+    #the except swallows it and the seeds are close enough to look right
+    #(0.74 against a real 0.7526 the day it was found, so about 1.7% light).
+    #
+    #same agent the deck importers send, for the same reason and out of the same
+    #constant, so there is one answer to "who is calling" per site
+    req = urllib.request.Request("https://api.frankfurter.app/latest?from=GBP&to=USD,EUR",
+                                 headers={"User-Agent": IMPORT_AGENT, "Accept": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=3) as r:
+            rates = json.load(r)["rates"]
+        _gbp_rates["usd"] = 1.0 / rates["USD"]
+        _gbp_rates["eur"] = 1.0 / rates["EUR"]
+    except Exception:
+        pass
 
 
 def gbp_rates():
@@ -585,13 +615,7 @@ def gbp_rates():
         #the clock moves before the fetch, so a dead rate api gets retried
         #daily instead of stalling every request behind the timeout
         _gbp_rates["at"] = now
-        try:
-            with urllib.request.urlopen("https://api.frankfurter.app/latest?from=GBP&to=USD,EUR", timeout=3) as r:
-                rates = json.load(r)["rates"]
-            _gbp_rates["usd"] = 1.0 / rates["USD"]
-            _gbp_rates["eur"] = 1.0 / rates["EUR"]
-        except Exception:
-            pass
+        _fetch_gbp_rates()
     return _gbp_rates["usd"], _gbp_rates["eur"]
 
 
@@ -3666,12 +3690,6 @@ def import_token():
         return visitor_token(client_ip())
     except Exception:
         return ""
-
-
-#the same identification on every outbound request, because moxfield asks
-#third parties to say who they are and archidekt has no opinion. one constant
-#so the two can never disagree about who is calling
-IMPORT_AGENT = "Delvefall/1.0 (+https://delvefall.com)"
 
 
 def import_json(url):
