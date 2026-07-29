@@ -1031,12 +1031,19 @@ def remember_currency(resp):
 def currency_urls():
     #this same page in each of the three currencies, for the toggle. built off
     #the request's own args so a page does not have to know what its own url
-    #looks like, and so every other control on it survives the flip
+    #looks like, and so every other control on it survives the flip.
+    #
+    #REPEATED params are why this walks items(multi=True) rather than taking the
+    #dict. to_dict() keeps one value per name, and the two controls that send a
+    #name more than once are the colour boxes and the type boxes: colors=W&
+    #colors=U came back as colors=W, so the flip quietly dropped every colour but
+    #the first. the board only sends single valued controls, so nothing was
+    #losing anything yet, but the promise above is the whole contract of this
+    #function and it was one caller away from being false
     out = {}
+    keep = [(k, v) for k, v in request.args.items(multi=True) if k != "cur"]
     for code in CURRENCY_SIGNS:
-        args = request.args.to_dict(flat=True)
-        args["cur"] = code
-        out[code] = request.path + "?" + urlencode(args)
+        out[code] = request.path + "?" + urlencode(keep + [("cur", code)])
     return out
 
 
