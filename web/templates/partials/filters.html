@@ -12,7 +12,12 @@
    accurate, and unreadable to anyone who hadn't already met the syntax. it
    now names the job first and shows the smallest useful example, with the
    full grammar one click away on the guide #}
-<input class="filter-query" type="text" name="fq" placeholder='Narrow these results, e.g. o:draw -t:creature usd&lt;=5'
+{# the aria-label is not a duplicate of the placeholder. a placeholder is only
+   the accessible name until somebody types, and then it is gone, so the one
+   control on the bar without a visible label was also the one whose name
+   disappeared exactly when it held something worth reading back #}
+<input class="filter-query" type="text" name="fq" aria-label="narrow these results"
+    placeholder='Narrow these results, e.g. o:draw -t:creature usd&lt;=5'
     title="scryfall syntax, applied to the results: o: rules text, t: type, id: colour identity, otag: community tags, usd/eur/gbp and mv bounds. minus negates anything, or/and and parentheses work. the full syntax is on the guide"
     value="{{ request.args.get('fq', '') }}">
 {# under the box it explains, not inside the filters fold: it answers the
