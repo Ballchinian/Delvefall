@@ -56,11 +56,12 @@ evening and no script can produce it a second time.
 
 ## What is published here, and what is not
 
-Published: every script in this folder, plus `requirements.txt` and the whole of
-`legacy/` including its v1 training data. That is the method end to end, enough
-to rebuild all of it against your own database.
+Published: every script in this folder and in `legacy/`, plus `requirements.txt`
+and these two READMEs. That is the method end to end, enough to rebuild all of
+it against your own database.
 
-Local: `traindata/`, `testing_list/`, `out/` and `models/`. The generated
+Local: everything those scripts produce. `traindata/` and `testing_list/` in
+both eras, plus `out/`, `models/` and `legacy/sanity_report.txt`. The generated
 training data, the hand judged tag verdicts, and the trained models themselves.
 
 Not because the approach is a secret, since it is described below in enough

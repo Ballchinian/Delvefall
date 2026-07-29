@@ -9,30 +9,24 @@ __pycache__/
 .env
 .claude/
 
-#finetune/ ships its scripts and keeps its data. the recipe is worth reading and
-#the generated pairs, the hand judged verdicts and the trained models are the
-#actual work, so the split runs between code and everything code produces.
-#deny by default with named exceptions, so a new data file is private until
-#someone says otherwise rather than the other way around
+#finetune/ publishes its blueprints and nothing they produce. traindata and
+#testing_list are the engine itself, so handing them over is handing over the
+#thing rather than the recipe for it, and the rest is weight github does not
+#need. the scripts and the docs are named, not the data, so a new output file
+#is private without anyone having to remember to say so.
+#
+#two passes, because a file inside an excluded directory cannot be allowed back
+#one at a time: the first covers finetune/, the second covers legacy/ after it
+#has been let through
 finetune/*
+!finetune/*.py
 !finetune/README.md
 !finetune/requirements.txt
-!finetune/*.py
 
-#what the scripts read and write. traindata and testing_list are the work
-#itself, out is regenerable and dull, models are a gigabyte each and past what
-#github accepts anyway
-finetune/traindata/
-finetune/testing_list/
-finetune/out/
-finetune/models/
-
-#the retired v1 era in full: its training data, its scripts and the evidence
-#they produced. the site no longer serves that model, so publishing it says how
-#a model was once trained without saying how the live one is. the folder is
-#named on its own line because finetune/* excludes the directory, and nothing
-#under an excluded directory can be included again one file at a time
 !finetune/legacy/
+finetune/legacy/*
+!finetune/legacy/*.py
+!finetune/legacy/README.md
 
 #the bundle for the colab box
 delvefall-training.zip
@@ -41,6 +35,7 @@ delvefall-training.zip
 #my own notes
 TODO.md
 HANDOFF.md
+history.md
 
 venv/
 .venv/

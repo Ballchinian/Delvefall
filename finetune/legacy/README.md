@@ -10,9 +10,10 @@ Nothing in here serves the model that is live now.
 | `exam_neighbours.py` | Step 6 of the v1 project: embed the whole database with the tuned model AND the old one, print the top matches for 14 ordinary searches side by side. It is how the launch-day complaint was caught in the wild (the old model's top match for Merfolk Looter's ability was the rummage line, at 98.2%) |
 | `sanity_report.txt` | That run's output, kept because it is the evidence, not a cache |
 
-## The training data came too, and what had to change first
+## The training data, and what had to change to move it here
 
-`traindata/` here holds the six files only `train.py --objective lines` reads:
+`traindata/` here holds the six files only `train.py --objective lines` reads.
+Like the live folder's, it stays on this machine:
 
 | File | Rows | Where it came from |
 | --- | --- | --- |
