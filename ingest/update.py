@@ -522,7 +522,24 @@ def main():
                 #and every row is about to be rebuilt, so the old line_tags point
                 #at ids that no longer mean anything. ingest/attribute.py builds
                 #them again from the new lines, which is what a model swap asks
-                #for anyway
+                #for anyway.
+                #
+                #WHAT THIS STILL COSTS, because moving it down here shortened the
+                #window rather than closing it: TRUNCATE takes an ACCESS
+                #EXCLUSIVE lock on lines and holds it until this transaction
+                #commits, and the commit is after all 61k rows have gone in from
+                #a github runner over the network. every search on the site
+                #blocks for that whole stretch, because every search reads lines.
+                #the COPY below is what keeps it to seconds instead of minutes.
+                #
+                #this is only reachable by pointing EMBED_MODEL at something new
+                #and running the pipeline against a populated database. THE
+                #SUPPORTED WAY TO TRY A MODEL IS NOT THIS: fill embedding_v2 with
+                #ingest/backfill_embeddings.py and flip the site over with
+                #EMBED_COLUMN, which touches a column nothing is reading yet and
+                #takes no lock anybody waits on. that path exists precisely so
+                #this one does not have to be taken, and it is also the only one
+                #of the two you can undo
                 cur.execute("TRUNCATE lines CASCADE")
                 cur.execute("ALTER TABLE lines ALTER COLUMN embedding TYPE vector(" + str(EMBED_DIMS) + ")")
             #changed cards get their old lines thrown out and rebuilt fresh
