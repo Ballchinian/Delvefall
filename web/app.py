@@ -3699,8 +3699,12 @@ def moxfield_deck(deck_id):
     lines, commanders = [], []
     for board in ("commanders", "companions", "mainboard"):
         cards = ((boards.get(board) or {}).get("cards") or {})
-        #a dict keyed by moxfield's own card id, so the values are what matter
-        for entry in list(cards.values())[:DECK_MAX_CARDS]:
+        #a dict keyed by moxfield's own card id, so the values are what matter.
+        #no per-board slice: the cap goes on the finished list below, the same
+        #way the archidekt path does it. capping the entries first spends the
+        #allowance on rows the loop is about to skip, which is a real card lost
+        #off the end for every nameless entry moxfield sends
+        for entry in cards.values():
             name = ((entry.get("card") or {}).get("name") or "").strip()
             if not name:
                 continue
