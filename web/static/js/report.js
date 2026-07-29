@@ -87,7 +87,17 @@ export function wireReports(opts) {
 
     document.getElementById("report-cancel").onclick = close;
 
+    /* one report per press. this one WRITES, so a double click is not a wasted
+       request like the results page's load more, it is two identical rows in
+       the review queue for somebody to read and throw away. the flag goes up
+       only after the checks below have passed, so a press that was rejected
+       for having no reason typed can be pressed again straight away */
+    var sending = false;
+
     document.getElementById("report-send").onclick = function () {
+        if (sending) {
+            return;
+        }
         var body = {kind: kind, reason: reason.value.trim()};
         if (kind === "misplaced") {
             if (!body.reason) return say("Say a few words about why it's a bad match first.", false);
@@ -101,6 +111,7 @@ export function wireReports(opts) {
             body.expected = input ? input.value.trim() : "";
             if (!body.expected) return say("Type a card name first.", false);
         }
+        sending = true;
         fetch("/feedback?" + opts.query(), {
             method: "POST",
             headers: {"Content-Type": "application/json"},
@@ -108,7 +119,10 @@ export function wireReports(opts) {
         })
             .then(function (r) { return r.json(); })
             .then(function (d) { say(d.msg, d.ok); })
-            .catch(function () { say("Something went wrong sending that, sorry.", false); });
+            .catch(function () { say("Something went wrong sending that, sorry.", false); })
+            /* released either way: the panel stays open after an answer, and a
+               report that failed to send has to be sendable again */
+            .finally(function () { sending = false; });
     };
 
     /* one listener on the container covers every flag, including the ones drawn
