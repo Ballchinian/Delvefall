@@ -3395,10 +3395,16 @@ def deck_read():
 
     panels = []
     if ranked:
+        #the salt tally borrows a connection OF ITS OWN, so it is asked for
+        #before one is held rather than from inside the block. the pool holds
+        #four, and a handler sitting on one while it queues for a second is how
+        #four of them together wait forever: the same reasoning that reads the
+        #report limiter's token before /feedback borrows anything
+        salt = deck_salt(ids)
         with pool.connection() as conn:
             figures = deck_metrics(conn, ids, cur)
             figures["original"] = originality_of(scored)
-            figures["salt"] = deck_salt(ids)
+            figures["salt"] = salt
             figures["played"] = figures.get("play_median")
             figures["age"] = figures.get("age_mean")
             #the same builder the precon pages use, so the two readings cannot
