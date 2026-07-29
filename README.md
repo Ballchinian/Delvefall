@@ -40,6 +40,15 @@ Three pieces:
 
 `common/` holds the bits both sides share: the database schema and the card cleaning helpers.
 
+`tests/` covers the pure functions: the line cleaner, the filter box compiler, the decklist parser and the calibration maps. It stubs the database out, so it needs no Postgres and runs in under a second:
+
+```
+python -m pip install pytest flask flask-compress
+python -m pytest tests -q
+```
+
+`.github/workflows/check.yml` runs it on every push, alongside compiling every Python and JS file and checking that the copies in `web/` still match their sources. Railway deploys `main` on push, so that workflow is the gate in front of a deploy.
+
 ### The database
 
 Fourteen tables, in four groups.

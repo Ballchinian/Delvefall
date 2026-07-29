@@ -9,6 +9,13 @@
 #
 #so the drift check keeps its job and compiling comes first, because a file
 #that does not parse cannot be compared anyway.
+#
+#the tests are the third thing and the only one that asks whether any of this
+#WORKS. compiling catches a file that cannot be read and the drift check
+#catches a copy that stopped matching, but between them they would wave through
+#a filter compiler that 500s on a half typed negation or a line cleaner that
+#quietly stopped stripping saga chapters. tests/conftest.py stubs the database
+#out, so this needs three small packages and no postgres on the runner.
 
 name: check web copies
 
@@ -31,7 +38,7 @@ jobs:
       #whether the source parses, which is the failure that takes the site down
       #without anyone having to be wrong about anything
       - name: compile every python file
-        run: python -m compileall -q common ingest tools web
+        run: python -m compileall -q common ingest tools web tests
 
       #the browser modules get the same treatment. they are what draws the
       #results grid, the swap tool and the deck pages, and a parse error in one
@@ -48,3 +55,14 @@ jobs:
 
       #stdlib only, nothing to install
       - run: python tools/check_sync.py
+
+      #flask and flask-compress because web/app.py imports them at module
+      #level, pytest to run the thing. NOT psycopg or pgvector: the stub in
+      #tests/conftest.py stands in for web/db.py, and tests/test_no_database.py
+      #fails if anything ever pulls the real driver back in, which is what
+      #keeps this install list short
+      - name: install the test dependencies
+        run: python -m pip install --quiet pytest flask flask-compress
+
+      - name: run the tests
+        run: python -m pytest tests -q
