@@ -48,7 +48,12 @@
     <nav class="precon-eras precon-sorts" aria-label="rank by">
         <span class="precon-depth-label">Rank by:</span>
         {% for m in metrics %}
-            {% set to = m[sort.dir] if m.key != sort.metric.key else m[sort.dir] %}
+            {# the reading to travel to, which is this metric read in the
+               direction already on screen. it was written as a conditional with
+               the SAME expression on both sides, so it looked like the current
+               metric was being treated differently and it never was. it is only
+               read in the else below, which is that condition anyway #}
+            {% set to = m[sort.dir] %}
             {% if m.key == sort.metric.key %}
                 <span class="precon-era on" aria-current="true">{{ m.label }}</span>
             {% else %}
