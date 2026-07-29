@@ -2750,19 +2750,21 @@ def precon(slug):
                "price": deck_row["price"], "played": deck_row["play_median"],
                "age": deck_row["age_mean"], "age_total": deck_row["age_total"],
                "age_cards": deck_row["age_cards"]}
+    #ONE borrow for both, because both are this page's and the page is drawn
+    #once. it was two blocks running back to back, which is two trips to a pool
+    #of four for a handler that was never going to let go in between
     with pool.connection() as conn:
         panels = deck_panels(conn, ids, figures, board, cur, slug=slug)
+        #the deck itself, drawn by the same partial /deck/view uses, plus the
+        #plain list the "run it through the lens" button posts. the list is
+        #built from the card names rather than stored: it only has to be
+        #something parse_decklist can read back, and one name per line is that
+        cards = deck_cards(conn, ids, cur)
     year = deck_row["release_date"].year if deck_row["release_date"] else 0
     #a deck still inside the settling window carries the note on every panel
     #whose number is affected, rather than a blanket disclaimer nobody reads
     is_new = bool(deck_row["release_date"] and deck_row["release_date"] >
                   datetime.date.today() - datetime.timedelta(days=PRECON_NEW_DAYS))
-    #the deck itself, drawn by the same partial /deck/view uses, plus the plain
-    #list the "run it through the lens" button posts. the list is built from the
-    #card names rather than stored: it only has to be something parse_decklist
-    #can read back, and one name per line is exactly that
-    with pool.connection() as conn:
-        cards = deck_cards(conn, ids, cur)
     decklist = "\n".join("1 " + c["name"] for c in cards)
     return render_template("precons/deck.html", deck=deck_row, year=year, panels=panels,
                            opened=opened, back=arrived["key"], cur=cur, is_new=is_new,
