@@ -3388,8 +3388,15 @@ def deck_view():
         return deck_hub(error=("None of those lines matched a card." if text.strip()
                                else "Paste a decklist first."),
                         pasted=text[:DECK_MAX_CHARS], missing=missing)
-    if request.form.get("seen"):
-        missing = []
+    #`missing` goes no further than that error above, and neither does `seen`.
+    #this page does NOT draw the unmatched lines: the question is asked once,
+    #when the deck arrives, on the modes page, and /deck/read says the same about
+    #itself. the route used to honour seen and hand missing to the template
+    #anyway, which read as though the box were about to appear here and never
+    #could, since view.html includes no partial that draws one.
+    #
+    #currency is the same story. it decides what deck_cards formats the prices
+    #as, and the template never sees it: every figure arrives already written
     cur = read_currency()
     name, commander = deck_identity()
     with pool.connection() as conn:
@@ -3400,7 +3407,7 @@ def deck_view():
     #the count is the server's and the revert is the browser's
     return render_template("deck/view.html", cards=cards,
                            section=DECK_SECTION,
-                           missing=missing, cur=cur, deck_name=name,
+                           deck_name=name,
                            commander=commander, pasted=text[:DECK_MAX_CHARS],
                            did=deck_did())
 
