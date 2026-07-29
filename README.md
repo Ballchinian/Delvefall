@@ -47,7 +47,13 @@ python -m pip install pytest flask flask-compress
 python -m pytest tests -q
 ```
 
-Alongside those sits one regression test per bug that has actually shipped and been fixed. Those need real rows, so they only run when `TEST_DATABASE_URL` points at a **throwaway** Postgres with pgvector (never the live one, the fixture writes):
+`tests/js/` does the same for the browser modules: the decklist arithmetic behind a swap session and the saved-deck shelf. Node's own test runner, so there is nothing to install:
+
+```
+node --import ./tests/js/register.mjs --test tests/js/
+```
+
+Alongside the Python ones sits a regression test per bug that has actually shipped and been fixed. Those need real rows, so they only run when `TEST_DATABASE_URL` points at a **throwaway** Postgres with pgvector (never the live one, the fixture writes):
 
 ```
 TEST_DATABASE_URL=postgresql://... python -m pytest tests -q
