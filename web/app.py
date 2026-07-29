@@ -1441,14 +1441,14 @@ def find_similar(oracle_id, picked, filters, min_pct, sort, offset=0, how_many=2
                 WITH anchor AS (
                     SELECT * FROM unnest(%s::text[], %s::real[]) AS a(tag, weight)
                 )
-                SELECT ct.oracle_id, """ + pcol + """ AS price, c.edhrec_rank, c.released_at,
+                SELECT ct.oracle_id, """ + pcol + """ AS price, c.edhrec_rank, c.released_at, c.salt,
                        sum(a.weight * ct.weight) / (%s * nc.norm) AS raw
                 FROM card_tags ct
                 JOIN anchor a ON a.tag = ct.tag
                 JOIN cards c ON c.oracle_id = ct.oracle_id
                 JOIN card_tag_norms nc ON nc.oracle_id = ct.oracle_id
                 WHERE ct.oracle_id <> %s""" + where + """
-                GROUP BY ct.oracle_id, """ + pcol + """, c.edhrec_rank, c.released_at, nc.norm
+                GROUP BY ct.oracle_id, """ + pcol + """, c.edhrec_rank, c.released_at, c.salt, nc.norm
                 HAVING sum(a.weight * ct.weight) / (%s * nc.norm) >= %s
                 ORDER BY raw DESC
                 LIMIT 300
@@ -1458,6 +1458,7 @@ def find_similar(oracle_id, picked, filters, min_pct, sort, offset=0, how_many=2
                 prices.setdefault(r["oracle_id"], r["price"])
                 ranks.setdefault(r["oracle_id"], r["edhrec_rank"])
                 dates.setdefault(r["oracle_id"], r["released_at"])
+                salts.setdefault(r["oracle_id"], r["salt"])
 
             #every mechanical candidate needs its concept score too, the
             #blend weighs both axes for everyone
@@ -1551,8 +1552,13 @@ def find_similar(oracle_id, picked, filters, min_pct, sort, offset=0, how_many=2
             #being mild, so it sinks on BOTH directions rather than being
             #claimed as the least annoying card in the results. same call the
             #price and date sorts make about their own missing values.
-            #.get because concept-found cards never went through the line
-            #scan that fills these maps
+            #
+            #the concept injection carries salt the same way it carries price,
+            #rank and date, so a card the lines never found sorts on the number
+            #its own frame prints. salt used to be the one it left out: the card
+            #reads its figure off the cards row either way, so a concept find
+            #with a real salt score sank into the unvoted pile while the card
+            #sitting there showed the number that should have floated it
             salted = []
             unsalted = []
             for entry in wanted:
