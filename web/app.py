@@ -4639,6 +4639,23 @@ def filter_reasons(card, filters):
         reasons.append("its mana value (" + str(card["cmc"]) + ") is under your minimum")
     if filters["mvmax"] is not None and float(card["cmc"]) > filters["mvmax"]:
         reasons.append("its mana value (" + str(card["cmc"]) + ") is over your maximum")
+    #salt, which this was silent about while filter_sql had bounded it since the
+    #widget shipped. that silence had a cost and it landed in the one place this
+    #function exists to protect: a missing-card report whose card was hidden by a
+    #salt bound came back "nothing hides it, the model just scores it low" and was
+    #filed against the model. the review queue is the training set, so a filter
+    #the diagnosis cannot see becomes a labelled example that is simply wrong.
+    #
+    #the missing case is the same call price makes, and the same one filter_sql
+    #makes: a card nobody has voted on fails both comparisons, so any bound hides
+    #it. unvoted is not mild
+    salt = None if card["salt"] is None else float(card["salt"])
+    if (filters["smin"] is not None or filters["smax"] is not None) and salt is None:
+        reasons.append("nobody has voted on how salty it is, and any salt filter hides unvoted cards")
+    elif filters["smin"] is not None and salt < filters["smin"]:
+        reasons.append("its salt (" + salt_label(salt) + ") is under your minimum")
+    elif filters["smax"] is not None and salt > filters["smax"]:
+        reasons.append("its salt (" + salt_label(salt) + ") is over your maximum")
     if filters["types"]:
         tl = (card["type_line"] or "").lower()
         if not any(t.lower() in tl for t in filters["types"]):
@@ -4757,7 +4774,7 @@ def feedback():
                 cpct = concept_between(conn, card["oracle_id"], expected["oracle_id"], dropped)
                 snap["concept_pct"] = cpct
                 shown_pct = int(round((1 - w) * expected_pct + w * cpct))
-            full = conn.execute("""SELECT color_identity, price_usd, price_eur, cmc, type_line, game_changer, legal_commander, oracle_text
+            full = conn.execute("""SELECT color_identity, price_usd, price_eur, cmc, type_line, game_changer, legal_commander, oracle_text, salt
                                    FROM cards WHERE oracle_id = %s""", (expected["oracle_id"],)).fetchone()
             reasons = filter_reasons(full, filters)
             #the filter box is one compiled expression, so the honest check
