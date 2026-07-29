@@ -3713,7 +3713,12 @@ def archidekt_deck(deck_id):
     data = import_json("https://archidekt.com/api/decks/%s/" % deck_id)
 
     lines, commanders = [], []
-    for entry in (data.get("cards") or [])[:DECK_MAX_CARDS]:
+    #EVERY entry is read and the cap goes on the finished list, the way the
+    #moxfield path caps its own. archidekt keeps the maybeboard in this same
+    #list, so capping the entries first spent the deck's 250 lines on cards
+    #that were about to be skipped: a 100 card deck with a 200 card shortlist
+    #lost real mainboard cards off the end and said nothing about it
+    for entry in (data.get("cards") or []):
         inner = entry.get("card") or {}
         name = ((inner.get("oracleCard") or {}).get("name") or "").strip()
         if not name:
@@ -3737,7 +3742,7 @@ def archidekt_deck(deck_id):
         lines.append("%d %s" % (qty, name))
     if not lines:
         raise ValueError("no cards")
-    return "\n".join(lines), commanders, (data.get("name") or "").strip()
+    return "\n".join(lines[:DECK_MAX_CARDS]), commanders, (data.get("name") or "").strip()
 
 
 #----- the swap tool: the lens with a hand on it -----
