@@ -29,6 +29,14 @@
     <input type="hidden" name="list" value="{{ pasted }}">
     <input type="hidden" name="name" value="{{ deck_name }}">
     <input type="hidden" name="commander" value="{{ commander }}">
+    {# the deck's id rides this form like it rides every other one on the lens.
+       it did not, and flipping the currency was therefore the one control on the
+       page that quietly forgot WHICH saved deck you were reading: the repost came
+       back with did empty, so the "Change it" form under it handed the swap tool
+       a deck it could not find on the shelf, and every swap made in that session
+       had nowhere to be written. the name and the list were already carried here
+       for exactly this reason, the id was simply missed #}
+    <input type="hidden" name="did" value="{{ did }}">
     <span class="precon-depth-label">Prices in:</span>
     {% for code, label in cur_labels %}
         {% if code == cur %}
