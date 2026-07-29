@@ -226,6 +226,20 @@ import { read, drop, patch, clear, full, KEEP } from "decks";
     draw();
 
     document.getElementById("deck-recent-clear").addEventListener("click", function () {
+        /* the one destructive button on this page, and it was the only one on
+           the site taking no answer first. /unique confirms before clearing a
+           trail of cards you can simply be dealt again; this throws away decks
+           that live nowhere else, one of which may be carrying a session's
+           worth of swaps. refusing to drop a single old deck to make room (see
+           create() in decks.js) and then binning all ten on one click were not
+           the same site.
+           counted rather than named, in the same tone as the trail's: it says
+           what goes and what that costs, and stops */
+        var n = read().length;
+        if (n && !confirm("Forget all " + n + " saved deck" + (n === 1 ? "" : "s") +
+                          "? They are only in this browser, so this cannot be undone.")) {
+            return;
+        }
         clear();
         draw();
     });
