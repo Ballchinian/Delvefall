@@ -1,22 +1,20 @@
 #the exam for ingest/attribute.py, the same idea as the axis files in
-#testing_list: hand-judged answers that outlive whatever the scorer does
-#today. run it from the repo root with DATABASE_URL set, after an attribute
-#run, and it prints precision and recall per card and overall:
+#testing_list: hand judged answers that outlive whatever the scorer does today.
+#from the repo root with DATABASE_URL set, after an attribute run, it prints
+#precision and recall per card and overall:
 #    python -m finetune.exam_attribution
 #
-#the labels were read off the live site card by card. the rule for
-#adding more: list ONLY the tags a line is genuinely about. a tag the card
-#carries for reasons outside its rules text (unique-mana-cost, which is about
-#the mana cost, or invitational-card, which is about where the card came
-#from) belongs to NO line, so it goes in no set here and attribute.py is
-#expected to leave it out of line_tags entirely. whole-card searches read
-#card_tags and still see it, so nothing is lost by that.
+#the labels were read off the live site card by card. the rule for adding more:
+#list ONLY the tags a line is genuinely about. a tag the card carries for
+#reasons outside its rules text (unique-mana-cost is about the mana cost,
+#invitational-card about where the card came from) belongs to no line, so it
+#goes in no set here and attribute.py is expected to leave it out of line_tags.
+#whole-card searches read card_tags and still see it.
 #
-#known and accepted: "modal" lands on a modal card's mode lines rather than
-#on the "choose two" header that declares the modality. the mode lines
-#neighbour other cards' mode lines, so the statistics genuinely say that, and
-#it is consistent, so the header line is excluded from scoring below rather
-#than counted as a miss.
+#known and accepted: "modal" lands on a modal card's mode lines rather than the
+#"choose two" header that declares the modality. the mode lines neighbour other
+#cards' mode lines, so the statistics genuinely say that. it is consistent, so
+#the header is excluded from scoring below rather than counted as a miss.
 
 import os
 import sys

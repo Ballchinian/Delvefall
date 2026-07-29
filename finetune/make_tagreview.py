@@ -32,13 +32,13 @@ DATA_DIR = os.path.join(HERE, "traindata")
 #file is an INPUT on every run after the first (see the merge below)
 REVIEW = os.path.join(HERE, "testing_list", "tag_review.md")
 
-#the four verdicts, and what each one means downstream:
+#the four verdicts and what each means downstream:
 #  text  the rules text says this. train on it, attribute it to lines normally
-#  card  true of the card but not of any one line (mana cost, type line, the
-#        colour of its identity). never a training pair, and the step 2
-#        card_level candidate: it should survive picking a line, not vanish
-#  junk  not about gameplay at all (where the card came from, its art, a rules
-#        curiosity). never train, never attribute
+#  card  true of the card but not of any one line (mana cost, type line, colour
+#        identity). never a training pair, and the step 2 card_level candidate:
+#        it should survive picking a line, not vanish
+#  junk  not about gameplay at all (provenance, art, a rules curiosity). never
+#        train, never attribute
 #  ?     not yet judged
 VERDICTS = ("text", "card", "junk", "?")
 
@@ -183,20 +183,18 @@ SUSPECT_KEPT = (
 
 
 def inherit_verdicts(parents, proposed):
-    #a slug pattern is the wrong tool for finding a family and this is how it
-    #was proved: the scan above looked for "set-s-mechanic" and sailed straight
-    #past counterspell-with-set-mechanic, giant-growth-with-set-mechanic and
-    #naturalize-with-set-mechanic, spelled without the s, all three sitting in
-    #the training set at AUC 0.96 to 0.99. templated text scores high, which
-    #says nothing about whether the label is worth learning.
+    #a slug pattern is the wrong tool for finding a family, and this is how it
+    #was proved: the scan above looked for "set-s-mechanic" and sailed past
+    #counterspell-with-set-mechanic, giant-growth-with-set-mechanic and
+    #naturalize-with-set-mechanic, spelled without the s, all three in the
+    #training set at AUC 0.96 to 0.99. templated text scores high, which says
+    #nothing about whether the label is worth learning.
     #
     #so ask tagger's tree instead of the spelling. staple-with-set-s-mechanic is
-    #a ROOT with sixteen children, every one of them a name for a design slot
-    #("bear" is a 2/2 for 2, "wind drake" a 2/2 flier for 3), so a tag under a
-    #junk root is junk until someone says otherwise. same principle as
-    #BLOCKED_ROOTS in ingest/tags.py, which drops whole subtrees for exactly
-    #this reason. a verdict written in the file still wins over anything here,
-    #so an inherited proposal is a starting point and never a decision
+    #a root with sixteen children, each a name for a design slot ("bear" is a
+    #2/2 for 2), so a tag under a junk root is junk until someone says
+    #otherwise. same principle as BLOCKED_ROOTS in ingest/tags.py. a verdict in
+    #the file still wins, so an inherited proposal is never a decision
     out = {}
     for tag in parents:
         seen, frontier = set(), list(parents.get(tag, ()))

@@ -1,20 +1,18 @@
 #builds the training set for the fine tune out of the site's own card lines.
-#positives are pairs of real lines that are near-identical on real cards
-#(numbers, riders, scope), negatives are real lines with one mechanism
-#flipped (tap vs untap, hand vs battlefield, draw-then-discard order and
-#friends).
+#positives are pairs of real lines near-identical on real cards (numbers,
+#riders, scope), negatives are real lines with one mechanism flipped (tap vs
+#untap, hand vs battlefield, draw-then-discard order).
 #
-#anything that appears in the eval triplets in bakeoff_lines.py gets excluded,
-#the model must never train on its own exam.
+#anything in the bakeoff_lines.py eval triplets is excluded: the model must
+#never train on its own exam.
 #
-#reads lines from the database via DATABASE_URL (or the repo .env), falls
-#back to downloading the scryfall bulk file and splitting it with the
-#ingest helpers.
+#reads lines from the database via DATABASE_URL or the repo .env, falling back
+#to the scryfall bulk file split with the ingest helpers.
 #
-#run from the repo root:
+#from the repo root:
 #    python finetune/make_training.py
-#writes train_pairs.jsonl, train_negatives.jsonl and train_triplets.jsonl,
-#plus samples in the console for eyeballing.
+#writes train_pairs.jsonl, train_negatives.jsonl and train_triplets.jsonl, plus
+#console samples for eyeballing.
 
 import os
 import re
@@ -448,21 +446,19 @@ def mine_sibling_negatives(conn, train, keep, tag_text):
     return out
 
 
-#---- re-templating: wizards saying the same thing in different decades ----
+#---- retemplating: wizards saying the same thing in different decades ----
 
 #every rename below is one wizards actually made, run backwards over modern
-#oracle text. the result is a pair that means exactly the same thing in very
-#different words, which is the direct answer to bag-of-words matching, and the
-#authority is wizards rather than a regex guess about what looks similar.
+#oracle text: a pair meaning the same thing in very different words, on
+#wizards' authority rather than a regex guess.
 #
-#deliberately NOT here: bare "cast" -> "play". historically correct, but it
-#would sit "play this spell" next to "play an additional land" and blur casting
-#into land drops. every rename kept is a pure rename carrying no meaning.
+#deliberately absent: bare "cast" -> "play". historically correct, but it would
+#sit "play this spell" beside "play an additional land" and blur casting into
+#land drops. every rename kept is pure, carrying no meaning.
 #
-#the object lands in the wrong place on some of these ("Remove from the game
-#target creature", where a real old card read "Remove target creature from the
-#game"). synthetic word order, same as the flips above, and the meaning is what
-#the pair is teaching
+#the object lands wrong on some ("Remove from the game target creature" where
+#the real card read "Remove target creature from the game"). synthetic word
+#order, same as the flips above; the meaning is what the pair teaches
 RETEMPLATE = [
     (r"\bmana value\b", "converted mana cost", "mana value rename"),
     (r"\bExile\b", "Remove from the game", "exile rename"),
@@ -539,16 +535,14 @@ def _jaccard(a, b):
 
 
 #measured on the 2026-07-19 harvest: of the false positives where either side
-#has a condition at all, 77% shared the CONDITION and differed in the effect.
-#"At the beginning of your upkeep" opens three cards that exile your library,
-#sacrifice an aura and add a time counter, and the model called them alike.
-#the trigger is the most repeated text in the game and says the least about
-#what a card does, so pairing lines that share one and do unrelated things
-#teaches the effect to carry the weight.
+#has a condition, 77% shared the CONDITION and differed in the effect. "At the
+#beginning of your upkeep" opens three cards that exile your library, sacrifice
+#an aura and add a time counter, and the model called them alike. the trigger is
+#the most repeated text in the game and says the least, so pairing lines that
+#share one and do unrelated things teaches the effect to carry the weight.
 #
-#the reverse error is the thing to avoid: this must never say the trigger is
-#irrelevant, only that it is not sufficient. it only ever produces negatives,
-#so nothing here pulls two different triggers together.
+#it must never say the trigger is irrelevant, only that it is not sufficient.
+#it produces negatives only, so nothing here pulls two triggers together.
 EFFECT_DIFF = 0.35   #jaccard above this and the effects are too alike to call different
 PER_TRIGGER = 3      #"when this creature enters" would otherwise flood the class
 TRIGGER_NEG_CAP = 1500
@@ -810,7 +804,7 @@ def pairs_exam(db_url):
 
 
 def main():
-    #the line -> tag half is the one under active work, and re-mining the
+    #the line -> tag half is the one under active work, and remining the
     #regex classes to get at it takes minutes for files nothing asked to
     #change. --tags-only skips straight to it
     tags_only = "--tags-only" in sys.argv
