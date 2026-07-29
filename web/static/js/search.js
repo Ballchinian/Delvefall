@@ -172,8 +172,21 @@ function buildResult(r) {
 var offset = 20;
 var band = null;     //null is the strong tier, a number is that band
 var btn = document.getElementById("load-more");
+/*
+    ONE FLIGHT AT A TIME. the button changes its own label to "Loading...",
+    which reads as busy without being busy: nothing stopped a second click
+    landing before the first came back, and offset is only moved on the way
+    IN to the then, so both requests asked for the same twenty cards and both
+    appended them. a click that was stepping to a new band did it twice over,
+    labelled divider and all
+*/
+var loading = false;
 
 function loadNext() {
+    if (loading) {
+        return;
+    }
+    loading = true;
     var stepping = btn.dataset.next !== undefined;  //moving to a new band
     var target = stepping ? Number(btn.dataset.next) : band;
     var words = btn.dataset.words;
@@ -223,6 +236,11 @@ function loadNext() {
             //a network hiccup shouldn't strand the button on "Loading..."
             btn.textContent = resting;
             return null;
+        })
+        .finally(function() {
+            //released whichever way it went, or one failed fetch would leave
+            //the button permanently deaf
+            loading = false;
         });
 }
 
