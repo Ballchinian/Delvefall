@@ -2562,12 +2562,17 @@ def metric_cards(conn, oracle_ids, key, currency, limit=DECK_EVIDENCE_MAX):
         FROM cards c
         WHERE c.oracle_id = ANY(%s::uuid[]) AND (""" + ev["where"].replace("__PRICE__", price) + """)
         ORDER BY """ + ev["order"].replace("__PRICE__", price) + """, c.name
-        LIMIT %s
     """
     try:
-        #twice the cap, because both ends are wanted and the slice below takes
-        #one from each. a deck shorter than that keeps every card it has
-        rows = conn.execute(sql, ([str(o) for o in oracle_ids], limit * 2)).fetchall()
+        #NO limit on the query, because both ends are wanted and the database
+        #can only cut one of them off. a deck is at most DECK_MAX_CARDS rows,
+        #so the whole ordered list is cheap to hold and the slice below takes
+        #the cap off each end of it.
+        #it used to ask for twice the cap, which quietly made the dedupe below
+        #unreachable and read the bottom end out of the MIDDLE of the list: a
+        #pasted pile with more than 96 qualifying cards offered rows 49 to 96
+        #as its mildest, cheapest and newest, none of which were
+        rows = conn.execute(sql, ([str(o) for o in oracle_ids],)).fetchall()
     except Exception:
         return []
     #the two ends, deduped by keeping the middle out. on a commander deck the
