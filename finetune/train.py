@@ -152,7 +152,11 @@ def main():
         from sentence_transformers.losses import MultipleNegativesRankingLoss, ContrastiveLoss
         from sentence_transformers.evaluation import TripletEvaluator, InformationRetrievalEvaluator
         from sentence_transformers.training_args import BatchSamplers
-    from bakeoff import TRIPLETS
+    #bakeoff_lines, not bakeoff. the file was renamed when the tag bakeoff
+    #arrived beside it and this import kept the old name, so every run of this
+    #trainer died on ModuleNotFoundError the moment the slow ml imports above
+    #had finished. every other mention in this file already says bakeoff_lines
+    from bakeoff_lines import TRIPLETS
     from common.cards import clean_line
 
     is_gemma = "gemma" in args.model.lower()
