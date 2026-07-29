@@ -185,9 +185,26 @@ CREATE TABLE IF NOT EXISTS line_stats (
     count     int NOT NULL
 );
 
---little key/value table for bookkeeping. right now it only holds the
---scryfall bulk timestamp we processed last, which is what lets the daily
---update skip itself when theres nothing new
+--little key/value table for bookkeeping. it started out holding one thing and
+--now holds a row per pipeline plus the two calibration maps:
+--
+--  scryfall_updated_at   the bulk file update.py processed last
+--  tagger_updated_at     the same, for tags.py's oracle_tags file
+--  mtgjson_version       the same, for decks.py
+--  mtgjson_deck_fields   which per-deck columns decks.py filled, so ADDING one
+--                        forces exactly one rebuild without waiting on mtgjson
+--  mtgjson_salt_version  the same, for salt.py. its OWN key on purpose: shared
+--                        with decks.py, whichever ran second would see the
+--                        version already recorded and skip itself forever
+--  embed_model           which model made the vectors, so a swap rebuilds them
+--  mech_calibration      raw cosine -> displayed percent, for each axis. they
+--  concept_calibration   ride here so the site and the pipeline can never
+--                        disagree about what a percent means, and so a model
+--                        swap carries its new map along with its new vectors
+--
+--the first five are all the same idea: doing nothing costs nothing, because
+--every pipeline asks this table whether it has already seen what it just
+--downloaded
 CREATE TABLE IF NOT EXISTS meta (
     key   text PRIMARY KEY,
     value text
