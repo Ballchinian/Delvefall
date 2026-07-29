@@ -28,7 +28,7 @@ class TestFailSoft:
         assert compile_fq("   ") == (None, [])
 
     def test_a_bare_negation_is_a_skipped_token_not_a_crash(self):
-        #the exact input that used to 500 the search page
+        #a bare negation, which reaches compile_fq straight off the filter box
         assert compile_fq("-") == (None, [])
 
     def test_a_trailing_negation_keeps_the_rest_of_the_filter(self):

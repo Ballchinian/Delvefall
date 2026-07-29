@@ -9,7 +9,7 @@ __pycache__/
 .env
 .claude/
 
-#finetune/ ships its SCRIPTS and keeps its DATA. the recipe is worth reading and
+#finetune/ ships its scripts and keeps its data. the recipe is worth reading and
 #the generated pairs, the hand judged verdicts and the trained models are the
 #actual work, so the split runs between code and everything code produces.
 #deny by default with named exceptions, so a new data file is private until
@@ -27,17 +27,11 @@ finetune/testing_list/
 finetune/out/
 finetune/models/
 
-#the v1 era in full, data included: the model it built was retired 2026-07-22,
-#so it tells the whole story without saying how the live one learned. named
-#explicitly because finetune/* above excludes the DIRECTORY, and nothing under
-#an excluded directory can be re-included one file at a time
-!finetune/legacy/
-
-#the v1 era in full: its training data, its scripts and the evidence they
-#produced. the site stopped serving that model on 2026-07-22, so publishing it
-#says how the model was ORIGINALLY trained without saying how the live one is.
-#allowing the folder is enough, because finetune/* above only matches one level
-#deep and nothing below excludes it again
+#the retired v1 era in full: its training data, its scripts and the evidence
+#they produced. the site no longer serves that model, so publishing it says how
+#a model was once trained without saying how the live one is. the folder is
+#named on its own line because finetune/* excludes the directory, and nothing
+#under an excluded directory can be included again one file at a time
 !finetune/legacy/
 
 #the bundle for the colab box

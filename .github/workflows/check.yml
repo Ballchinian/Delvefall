@@ -1,21 +1,17 @@
 #the gate in front of a deploy. railway ships main on push, so anything that
-#gets past this is live, and until now the only thing being asked was whether
-#the copies in web/ still matched their sources.
+#gets past this is live, and three things stand in the way.
 #
-#that left the obvious hole wide open: a syntax error in web/app.py, the whole
-#website, passed this workflow green and deployed. check_sync.py parses the
-#handful of files it compares and nothing else, so app.py, db.py, visitors.py,
-#views/, and half of ingest/ were never even read.
+#compiling comes first, over every python file rather than the handful
+#check_sync.py reads: a syntax error in web/app.py is the whole website, and a
+#file that does not parse cannot be compared anyway.
 #
-#so the drift check keeps its job and compiling comes first, because a file
-#that does not parse cannot be compared anyway.
+#the drift check is second, on the copies in web/ that have sources elsewhere.
 #
-#the tests are the third thing and the only one that asks whether any of this
-#WORKS. compiling catches a file that cannot be read and the drift check
-#catches a copy that stopped matching, but between them they would wave through
-#a filter compiler that 500s on a half typed negation or a line cleaner that
-#quietly stopped stripping saga chapters. tests/conftest.py stubs the database
-#out, so this needs three small packages and no postgres on the runner.
+#the tests are third and the only ones asking whether any of this works.
+#compiling catches a file that cannot be read and the drift check catches a copy
+#that stopped matching, but between them they wave through a filter compiler
+#that 500s on a half typed negation or a line cleaner that quietly stopped
+#stripping saga chapters.
 
 name: check web copies
 
@@ -29,7 +25,7 @@ jobs:
 
     #a throwaway postgres for the tests that need real rows. the pgvector image
     #is the stock postgres one with the extension already built in, so
-    #common/schema.sql loads unchanged, pg_trgm and all. it is EMPTY except for
+    #common/schema.sql loads unchanged, pg_trgm and all. it is empty except for
     #what tests/seed.py puts in it and it dies with the job, which is the whole
     #point: the live database is never what a test writes to
     services:
@@ -89,7 +85,7 @@ jobs:
 
       #flask and flask-compress because web/app.py imports them at module level,
       #pytest to run the thing, and the postgres pair for the service container
-      #above. deliberately NOT web/requirements.txt: gunicorn never runs here
+      #above. not web/requirements.txt, since gunicorn never runs here
       - name: install the test dependencies
         run: python -m pip install --quiet pytest flask flask-compress "psycopg[binary,pool]" pgvector
 

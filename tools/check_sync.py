@@ -2,7 +2,7 @@
 #because railway only deploys web/. the copies MUST stay identical: if
 #clean_line drifts, the line picker silently stops matching page lines to
 #their database rows. this asserts they haven't, and the check workflow
-#runs it on every push so a drift can never reach a deploy unnoticed.
+#runs it on every push so a drift cannot reach a deploy unnoticed.
 #run it locally from the repo root the same way:
 #    python tools/check_sync.py
 #

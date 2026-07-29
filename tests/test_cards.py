@@ -82,8 +82,8 @@ class TestCleanLineReminders:
 
 
 class TestCleanLineTableRows:
-    #scryfall prints FOUR shapes and the cleaner used to read only two of them,
-    #which left 49 of the 150 table rows in the pool carrying their prefix
+    #scryfall prints four shapes. read only two and 49 of the 150 table rows in
+    #the pool keep their prefix
 
     def test_em_dash_range_the_commonest_by_far(self):
         assert clean_line("1—9 | Draw a card.", "X") == "Draw a card."

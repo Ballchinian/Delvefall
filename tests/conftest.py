@@ -12,13 +12,14 @@
 #workaround, since it means the calibration under test is the documented seed
 #rather than whatever the live database happens to hold today.
 #
-#SET TEST_DATABASE_URL AND THE STUB BECOMES REAL. the same seam that stands in
+#set TEST_DATABASE_URL and the stub becomes real. the same seam that stands in
 #for a database can just as easily be one, so the tests that need rows (the
 #ranking, the deck panels, the swap tool) get a real postgres while every pure
 #function test carries on knowing nothing about it. the check workflow points
 #that variable at a pgvector service container; a laptop with nothing set runs
-#the pure tests alone and skips the rest. NEVER point it at the live database:
-#the seed below writes rows.
+#the pure tests alone and skips the rest.
+#
+#it must not point at the live database. the seed below writes rows.
 
 import os
 import sys
