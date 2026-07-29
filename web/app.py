@@ -4230,6 +4230,7 @@ def swap_candidates(conn, card, deck_ids, colors, field, direction, currency="us
     concept_raw = {}
     shared = {}
     ids = list(pairs_by_card)
+    atags, anorm = [], 0.0
     if SWAP_BLEND > 0 and ids:
         atags, aweights, anorm = anchor_vector(conn, card["oracle_id"], dropped, picked, forced)
         if atags and anorm:
@@ -4257,6 +4258,19 @@ def swap_candidates(conn, card, deck_ids, colors, field, direction, currency="us
             """, (atags, aweights, ids)).fetchall():
                 shared.setdefault(r["oracle_id"], []).append(r["tag"])
 
+    #NO ANCHOR VECTOR MEANS THE CONCEPT AXIS SITS OUT, exactly as it does on a
+    #search. the condition has to match the one guarding find_similar's ranking,
+    #and this is the third place that has had to learn it.
+    #
+    #without it the tool answered NOTHING, and answered it silently. every
+    #candidate scored concept 0, so the badge was half its rules-text percent,
+    #and half of even a perfect 100 is 50 against a gate of 75: no suggestion
+    #could survive whatever the deck held. picking a keyword line did it (that
+    #line owns no tags, so there is no vector), and so did switching every tag
+    #chip off. measured on Faerie Mastermind: 17 suggestions with the best at
+    #91%, and none at all once "Flash" was picked
+    blending = bool(atags) and bool(anorm)
+
     out = []
     #real matches on every count except what they cost, which is the one
     #exclusion worth reporting: the others are all "this is not the same card"
@@ -4264,10 +4278,14 @@ def swap_candidates(conn, card, deck_ids, colors, field, direction, currency="us
     for oid, pairs in pairs_by_card.items():
         weighted, raw, ours, theirs = pairs[0]
         mech_pct = mech_display(raw)
-        concept_pct = concept_display(concept_raw.get(oid, 0.0))
         #the badge IS the number the gate and the ranking use, which is the
         #promise the whole site runs on
-        pct = int(round((1 - SWAP_BLEND) * mech_pct + SWAP_BLEND * concept_pct))
+        if blending:
+            concept_pct = concept_display(concept_raw.get(oid, 0.0))
+            pct = int(round((1 - SWAP_BLEND) * mech_pct + SWAP_BLEND * concept_pct))
+        else:
+            concept_pct = 0
+            pct = mech_pct
         if pct < SWAP_GATE or weighted < SWAP_PAIR_CUT:
             continue
         #counted only AFTER the gate, so the number the page prints is cards
@@ -4290,8 +4308,10 @@ def swap_candidates(conn, card, deck_ids, colors, field, direction, currency="us
         #every figure carried against the card LEAVING, which is the anchor
         #here in exactly the way the searched card is the anchor on /search
         row = swap_card_json(meta[oid], currency, anchor=card)
+        #the tooltip only claims to break a blend apart when there was one, the
+        #same call the results grid makes about its own badge
         row.update({"match": pct, "their_line": theirs, "our_line": ours,
-                    "blended": True, "mech_pct": mech_pct, "concept_pct": concept_pct,
+                    "blended": blending, "mech_pct": mech_pct, "concept_pct": concept_pct,
                     "concept_tags": ", ".join(shared.get(oid, [])[:3]),
                     "more_count": len(more), "more_text": "\n".join(more)})
         out.append(row)
