@@ -537,7 +537,19 @@ def main():
                 c = work[owners[j]][0]
                 rows.append((c["oracle_id"], text, embs[j], faces[j], wholes[j]))
             print("writing " + str(len(rows)) + " lines...")
-            cur.executemany("INSERT INTO lines (oracle_id, line_text, embedding, face, whole) VALUES (%s, %s, %s, %s, %s)", rows)
+            #COPY, like the uniqueness pass above and the salt and tag ingests.
+            #executemany pipelines its round trips and is fine for the handful of
+            #rows a normal day brings, but a full reseed is 61k of them carrying
+            #a 3kb vector each, and this was the last slow write in the pipeline.
+            #
+            #TEXT format on purpose, not binary. binary wants a real uuid object
+            #per row and scryfall hands us strings, so it would mean converting
+            #61k ids to buy back less than the conversion costs. the vector
+            #round trips exactly either way, since pgvector prints every float
+            #it stores
+            with cur.copy("COPY lines (oracle_id, line_text, embedding, face, whole) FROM STDIN") as copy:
+                for r in rows:
+                    copy.write_row(r)
 
     #deleting a card cascades to its lines, so this cleans up everything
     if stale:
