@@ -82,14 +82,6 @@ def get_back_image(card):
 #rest. the bar is that a keyword prints its reminder on nearly all its lines, so
 #the whole population moves together instead of splitting in half: equip (242
 #with against 332 without), menace and trample fail that and stay stripped.
-#every entry below clears 92% except evoke (77%) and blitz (84%), whose bare
-#lines carry no reminder to keep anyway.
-#
-#a stripped keyword is not an unexplained one. finetune/legacy/traindata's
-#train_keywords.jsonl teaches 129 keywords as (name, reminder) pairs, which is
-#how a bare "Flying" means anything to the model at all. this list is for the
-#keywords whose line should carry the rule itself, not the only way one is
-#learned.
 REMINDER_KEYWORDS = {
     "overload", "cascade", "storm", "cycling", "flashback", "morph", "disguise",
     "madness", "convoke", "delve", "buyback", "entwine", "replicate", "embalm",
