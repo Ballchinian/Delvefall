@@ -2505,10 +2505,14 @@ def precons():
     #remembered. it is the first and last row on screen, so it follows the era
     #cut and the currency toggle and it cannot go stale
     span = {"top": rows[0]["figure"], "bottom": rows[-1]["figure"]} if rows else None
+    #what the other nine boards will show: this era, since their links keep it,
+    #but not this page's row count, since they drop the new=hide cut
+    also_total = len(rows) + (new_here if hide_new else 0)
     return render_template("precons/board.html", rows=rows, eras=PRECON_ERAS, era=era[0],
                            sorts=PRECON_SORTS, sort=sort, cur=cur, span=span,
                            metrics=PRECON_METRICS, hide_new=hide_new,
                            new_here=new_here, new_days=PRECON_NEW_DAYS,
+                           also_total=also_total,
                            cur_urls=currency_urls(), cur_labels=CURRENCY_LABELS,
                            prefix=prefix, suffix=suffix)
 

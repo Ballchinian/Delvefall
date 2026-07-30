@@ -236,7 +236,9 @@
     {# the internal linking for a page that exists ten times: each one names
        what it ranks, so a reader and a crawler meet the same list #}
     <nav class="precon-also">
-        <h2>The same 166 decks, ranked another way</h2>
+        {# also_total and NOT rows|length: these links drop the new=hide cut, so
+           a board with the new decks hidden sends you to nine that show them #}
+        <h2>The same {{ also_total }} decks, ranked another way</h2>
         <ul>
             {% for s in sorts %}{% if s.key != sort.key %}
             <li><a href="{{ board_url(s.key, era)|trim }}">{{ s.h1 }}</a></li>
