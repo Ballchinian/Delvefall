@@ -1,18 +1,13 @@
-//the batching behind partials/deckcards.html.
+//the batching behind partials/deckcards.html. every card is already in the page,
+//so this REVEALS rather than fetches: a pasted deck is a POST result with no url
+//to ask at.
 //
-//every card is already in the page, so this reveals rather than fetches: there
-//is nothing to ask for and no url to ask at, since a pasted deck is a POST
-//result. one query returning a hundred rows costs what one returning twenty
-//does, and the alternative is a round trip the page cannot make.
+//wires ANY .deck-card-fold, so including the partial twice gets two independent
+//folds.
 //
-//it wires ANY .deck-card-fold on the page, so a template that includes the
-//partial twice gets two independent folds without saying anything about it.
-//
-//partials/standing.html has its own version of this idea, wired by standing.js
-//against the panel machinery it also drives (five panels, two ends each, the
-//name list and the pictures sharing a count). they are not worth merging: that
-//one has to keep two lists in step through a reordering, this one moves a
-//class on one grid
+//standing.js has its own version of this against the panel machinery. not worth
+//merging: that one keeps two lists in step through a reordering, this one moves
+//a class on one grid
 
 (function () {
     var folds = document.querySelectorAll(".deck-card-fold");
@@ -28,19 +23,10 @@
         var left = more.querySelector(".deck-card-more-left");
         var shown = step;
 
-        /*
-            the tiles as they stand, read every time rather than captured once
-            at load.
-
-            both pages that include this fold REPLACE tiles in the grid: the
-            swap tool redraws the one whose card has just been swapped out, and
-            /deck/view redraws it again when the card is put back. a list taken
-            at load is a list of nodes that are no longer on the page by then,
-            so every class landed on a detached div while the tile actually on
-            screen kept whatever it was born with. the visible symptom was a
-            swapped card sitting past the first batch that "load more" could
-            never reveal, because the class hiding it was never taken off
-        */
+        /* read every time, NEVER captured at load: both pages that include this
+           fold replace tiles in the grid, so a captured list is nodes no longer
+           on the page and every class lands on a detached div. the symptom was a
+           swapped card past the first batch that "load more" could never reveal */
         function tiles() {
             return Array.prototype.slice.call(grid.children);
         }
@@ -60,22 +46,17 @@
         }
 
         btn.addEventListener("click", function () {
-            /* clamped, so the count can never run past the end. it did once,
-               because the hidden attribute was not hiding this button and the
-               presses kept landing: the label counted down through zero and
-               the button offered to "load the last -44" */
+            /* clamped, or the label counts down through zero: it once offered to
+               "load the last -44" */
             shown = Math.min(shown + step, grid.children.length);
             paint();
-            /* the frames that just appeared need wiring for the rotate and flip
-               overlay. enhanceCardFrames marks what it has already done, so
-               calling it again over the whole grid is free */
+            /* enhanceCardFrames marks what it has done, so calling it again over
+               the whole grid is free */
             enhanceCardFrames(grid);
         });
 
-        /* closing the fold puts it back to the first batch. somebody who opened
-           a hundred cards and shut them again meant to be rid of them, and
-           reopening onto all hundred is the fold not having worked. it also
-           keeps the button honest: it says "load 20 more" from a known place */
+        /* closing resets to the first batch, so reopening does not land on all
+           hundred and the button counts from a known place */
         fold.addEventListener("toggle", function () {
             if (fold.open) {
                 enhanceCardFrames(grid);

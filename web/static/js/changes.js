@@ -1,30 +1,16 @@
 //what a swap session did, painted onto partials/deckchanges.html.
 //
-//ONE painter for both pages. /deck/view and the end of /deck/swap were drawing
-//the same three blocks from the same four shelf fields with two builders, which
-//is how they ended up disagreeing about what the heading said and about whether
-//you could put a card back.
-//
-//it takes the state rather than reading the shelf itself, because the two
-//callers hold it differently: the swap page has a live session in memory that
-//changes as you walk it, /deck/view has an entry it looked up. the shapes are
-//the same four fields either way, which is the whole reason this works.
+//ONE painter for both pages, or they disagree about the heading and about
+//whether you can put a card back. it takes the STATE rather than reading the
+//shelf, because the callers hold it differently: the swap page has a live
+//session in memory, /deck/view has an entry it looked up.
 
 import { el, cardLink, pairCard, swapPair, fitText } from "dom";
 
 var $ = function (id) { return document.getElementById(id); };
 
-//the deck's list with a set of swaps applied, starting from the list as it was
-//imported.
-//
-//shared with /deck/view, which needs the same arithmetic to put a card back:
-//undoing a swap means rebuilding the list without it, and rebuilding from the
-//current list would leave the card that was put back in there twice.
-/*
-    the name part of one line: the count off the front, the exporter's trailers
-    off the back. the same shapes parse_decklist strips server side, so a line
-    reads here as the card it names and nothing else
-*/
+/* the same shapes parse_decklist strips server side, so a line reads here as
+   the card it names and nothing else */
 var LINE_SB = /^\s*SB:\s*/i;
 var LINE_COUNT = /^\s*\d+\s*[xX]?\s+/;
 var LINE_TRAILERS = /\s*(\([^)]*\)|\[[^\]]*\]|\*[^*]*\*|<[^>]*>)\s*/g;
@@ -48,31 +34,25 @@ export function rebuild(text, swaps) {
         var hit = -1;
         /*
             THE LINE THAT IS THAT CARD, not the first line the name appears
-            anywhere inside. it used to scan for a substring, which rewrote the
-            wrong card whenever one name contained another and the longer one
-            came first. exports grouped by type put them in exactly that order:
-            with Fog Bank under creatures and Fog under instants, swapping out
-            Fog turned "1 Fog Bank" into "1 Moment's Peace Bank" and left the
-            real Fog in the deck. swapping Opt produced "Brainstormimus Prime".
-            both are cards that do not exist, in somebody's exported list
+            inside. a substring scan rewrote the wrong card whenever one name
+            contained another and the longer came first, which is exactly how
+            exports grouped by type order them: swapping Fog turned "1 Fog Bank"
+            into "1 Moment's Peace Bank", and Opt produced "Brainstormimus
+            Prime". both are cards that do not exist
         */
         for (var i = 0; i < lines.length; i++) {
             if (nameOf(lines[i]) === want) { hit = i; break; }
         }
-        /* only when no line IS that card: a face name, or a shape nameOf cannot
-           read. a substring is a guess, so it is what we fall back to rather
-           than what we start from */
+        /* a substring is a GUESS, so it is the fallback and never the start:
+           reached only for a face name or a shape nameOf cannot read */
         if (hit === -1) {
             for (i = 0; i < lines.length; i++) {
-                //case insensitive, because an export may not match our
-                //capitalisation and the parser normalised it away anyway
+                //case insensitive: an export may not match our capitalisation
                 if (lines[i].toLowerCase().indexOf(want) !== -1) { hit = i; break; }
             }
         }
         if (hit === -1) {
-            //a name we cannot find in the raw text (a face name, or a collector
-            //number wedged in the middle). say so rather than dropping the swap
-            //on the floor
+            //say so rather than dropping the swap on the floor
             text += "\n# swap by hand: " + out + " -> " + into;
         } else {
             var re = new RegExp(out.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
@@ -83,28 +63,19 @@ export function rebuild(text, swaps) {
     return text;
 }
 
-//the cards a set of swaps brought in, as a decklist. one copy each, because
-//that is what a swap is: the card leaving took one slot and the card arriving
-//takes it back
+//one copy each: a swap is one slot leaving and one taking it back
 export function addedList(swaps) {
     return (swaps || []).map(function (s) { return "1 " + s["in"].name; }).join("\n");
 }
 
 /*
-    point every form that carries this deck onward at the deck AS IT NOW STANDS.
+    a deck travels in a hidden field, having no url, and jinja fills those with
+    the list the page was POSTED: the only list the server knows. left unset, the
+    back link and the mode rows hand out the deck as it was before the session,
+    so swapping Wheel of Fortune and walking back in offers you Wheel of Fortune
+    to change again.
 
-    a deck travels in a hidden field, because it has no url. jinja fills those
-    fields with the list the PAGE was posted, which is the only list the server
-    knows about, and a deck that has been through the swap tool has moved on
-    from it in a place the server never hears about.
-
-    left unset, the back link and the mode rows hand out the deck as it was
-    before the session: swap Wheel of Fortune for Incendiary Command, walk back
-    in through any of them, and the tool offers you Wheel of Fortune to change
-    again, because that genuinely is the deck it was given.
-
-    every field and not just the mode rows. "back to this deck" means the deck,
-    and after a session the deck is the one with the swaps in it.
+    EVERY field, not just the mode rows: "back to this deck" means the deck
 */
 export function carryList(text) {
     if (!text) return;
@@ -119,9 +90,8 @@ function undo(parent, label, i, fn) {
     b.addEventListener("click", function () { fn(i); });
 }
 
-//one copier for both boxes. it selects the text either way, so the fallback
-//message is true: the clipboard api is blocked on http origins and in some
-//browsers, and by then the textarea is already selected
+//selects the text either way, so the fallback message is TRUE: the clipboard api
+//is blocked on http origins and in some browsers
 function wireCopy(btnId, boxId, said) {
     var btn = $(btnId);
     if (!btn || btn.dataset.wired) return;
@@ -136,19 +106,15 @@ function wireCopy(btnId, boxId, said) {
 }
 
 /*
-    draw the three blocks.
-
     state is {swaps, added, newList, goal, text}: the four the shelf keeps plus
-    the list the deck was imported as, which is what rebuild works from.
+    the list the deck was IMPORTED as, which is what rebuild works from.
 
-    opts.onRevert, when given, hangs a "put it back" on every pair and calls
-    back with the index. the caller owns what undoing means, because it differs:
-    the swap page has a queue and a trail to unwind as well, /deck/view has only
-    the shelf. both then call this again with the new state.
+    opts.onRevert hangs a "put it back" on every pair and calls back with the
+    index. the caller owns what undoing means, because it differs: the swap page
+    has a queue and a trail to unwind too, /deck/view has only the shelf.
 
     opts.note is the sentence over the list, and only /deck/view has one worth
-    printing. on the swap page the swaps are what you just spent the session
-    making, and counting them back is the page narrating your own last move.
+    printing
 */
 export function paintChanges(state, opts) {
     opts = opts || {};
@@ -158,9 +124,8 @@ export function paintChanges(state, opts) {
     if (box) {
         var list = $("deck-changes-list");
         var pairs = $("deck-changes-pairs");
-        //rebuilt from scratch rather than patched: a revert changes the
-        //indexes of everything after it, and one path that is always right
-        //beats two that have to agree
+        //rebuilt from scratch, never patched: a revert changes the indexes of
+        //everything after it
         list.innerHTML = "";
         pairs.innerHTML = "";
         $("deck-changes-note").textContent = opts.note || "";
@@ -171,19 +136,15 @@ export function paintChanges(state, opts) {
             li.appendChild(cardLink(s["in"].name, "swap-made-in"));
 
             var row = swapPair(pairs, s, opts.draw || pairCard);
-            /* on the name row AND on the picture, because they are read at
-               different moments: the list is the scan, the pair is the second
-               look you take when you are not sure. the pair's names the card,
-               since by then you are looking at two of them */
+            /* on the name row AND on the picture. the pair's names the card,
+               since by then two of them are on screen */
             if (opts.onRevert) {
                 undo(li, "put it back", i, opts.onRevert);
                 undo(row, "Put " + s.out.name + " back", i, opts.onRevert);
             }
         });
         box.hidden = !swaps.length;
-        //the frames only exist once the fold has been built, and
-        //enhanceCardFrames marks what it has done, so opening and closing it
-        //repeatedly is safe
+        //enhanceCardFrames marks what it has done, so reopening is safe
         var pics = $("deck-changes-pics");
         if (pics && !pics.dataset.wired) {
             pics.dataset.wired = "1";
@@ -205,13 +166,9 @@ export function paintChanges(state, opts) {
     var listBox = $("deck-list");
     if (listBox) {
         if (state.newList) listBox.value = state.newList;
-        /* the list on the page is whatever this deck is holding now. say so
-           when that is not what was imported, because "the whole list" is
-           ambiguous on a deck that has been changed and the difference is the
-           whole point of having opened this page.
-           BOTH branches, because putting the last swap back makes the deck the
-           one that was imported again, and a note left saying "with the swaps
-           above applied" would be describing swaps that are no longer there */
+        /* BOTH branches: putting the last swap back makes this the imported deck
+           again, and a note still saying "with the swaps above applied" would be
+           describing swaps that are no longer there */
         var changed = state.newList && state.text && state.newList !== state.text;
         $("deck-list-note").textContent = changed
             ? "The deck as it stands, with the swaps above applied. Ready to paste back "

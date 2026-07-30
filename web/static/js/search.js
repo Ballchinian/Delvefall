@@ -1,57 +1,27 @@
-//the results page: the filter panel, the sort controls, load more, the band
-//memory and the recent-searches list. it reads as one long top level rather
-//than a module built to be one, because that is the shape it has in
-//templates/search.html.
-//
-//module scope rather than a classic script, so the page does not leak 23 names
-//onto window. nothing outside reaches in anyway: no inline handlers on the
-//page, and cards.js only has its own local named el.
-//
-//the four values the template computes arrive on window, set by the small
-//inline script above this one in search.html, and are read back into the same
-//names the body uses
+//the results page. module scope, so it does not leak 23 names onto window: the
+//four values the template computes arrive there instead, set by the inline
+//script above this one in search.html
 
 import { el, resultCard } from "dom";
 import { wireReports } from "report";
 
-//the searched card's own figures, so results added by load more can
-//name what their arrows are measured against, exactly like the
-//server-rendered ones do
+//the searched card's figures, so results added by load more can name what their
+//arrows are measured against
 var ANCHOR = window.ANCHOR;
-/*
-    sort applies itself, because it sits outside the filters panel
-    and people changed it, saw nothing happen, and concluded it was
-    broken. everything INSIDE the panel waits for Apply, currency
-    included: a control that reloads the page the instant you touch
-    it throws you out of the panel you were still working in, which
-    is worse than a control that looks patient
-*/
-/*
-    changing the sort used to CARRY the weaker matches you had opened
-    across the reload, on the reasoning that reordering is not
-    researching. it is out, 2026-07-27: it was the only reload on the
-    site that did not start clean, so how deep you were depended on
-    which control you had touched last, and there was nothing on
-    screen saying so. every reload now puts you back at the strong
-    matches, which is what a plain refresh and Apply already did.
-
-    that also took a sessionStorage key and a replay loop with it, and
-    the loop was the fiddliest thing on this page: it walked the load
-    more button on its own, N fetches deep, and had a step ceiling to
-    stop a doctored value spinning it
-*/
 
 /*
-    the two sort controls. the direction's wording belongs to whatever
-    field is picked, so changing the field rewrites its options and
-    resets it to that field's natural end (cheapest for money, saltiest
-    for salt) rather than carrying over a direction chosen for
-    something else. best match has no direction at all and hides it.
+    the sort applies ITSELF, because it sits outside the filters panel and people
+    changed it, saw nothing happen and reported it broken. everything inside the
+    panel waits for Apply, or touching a control throws you out of the panel you
+    were still working in.
 
-    picking a field applies immediately, the same as the old single
-    list did. changing only the direction applies too: it is the same
-    question asked backwards, and waiting for Apply to reverse a list
-    is the friction the auto-submit exists to avoid
+    changing it no longer carries the weaker matches you had opened (out
+    2026-07-27): it was the only reload on the site that did not start clean, so
+    how deep you were depended on which control you touched last.
+
+    the direction's wording belongs to whichever field is picked, so changing the
+    field rewrites its options and resets it to that field's natural end. best
+    match has no direction and hides it
 */
 var SORT_DIRS = window.SORT_DIRS;
 var sortSel = document.querySelector('.filter-bar select[name="sort"]');
@@ -81,25 +51,13 @@ dirSel.onchange = function() {
     applySort(this);
 };
 
-/*
-    an inverted range (a minimum above its maximum) is reported the
-    same way the browser reports a price below zero: its own bubble,
-    pinned to the offending box, with the panel still open so it can
-    be fixed on the spot. the red note above the results is still
-    there as the backstop for a url typed by hand, it just stops
-    being how anyone normally meets this mistake.
-
-    setCustomValidity is what makes the form refuse to submit, so it
-    has to be kept current as you type, not only checked on the way out
-*/
+/* setCustomValidity is what makes the form refuse to submit, so it is kept
+   current as you type rather than checked on the way out. the red note above the
+   results stays as the backstop for a url typed by hand */
 var filterForm = document.querySelector(".filter-bar");
-/*
-    every pair the server checks, and it has to stay every pair: salt arrived
-    as a range after this list was written and was not added to it, so an
-    inverted salt range was the one that got no bubble and had to be met as
-    the red note after a reload. the label is what the sentence below says
-    out loud, so it reads as the box is named
-*/
+/* every pair the server checks, and it HAS to stay every pair: salt arrived as
+   a range after this list was written and was not added, so an inverted salt
+   range got no bubble and had to be met as the red note after a reload */
 var RANGES = [["pmin", "pmax", "price"], ["mvmin", "mvmax", "mana value"],
               ["smin", "smax", "salt"]];
 
@@ -121,12 +79,8 @@ function checkRanges() {
 filterForm.addEventListener("input", checkRanges);
 checkRanges();
 
-/*
-    a box inside a shut panel cannot be focused, so the browser would
-    refuse to submit and show nothing at all. opening the fold on the
-    way to the bubble covers every native message in there, the
-    built-in min and max ones included
-*/
+/* a box inside a shut panel cannot be focused, so the browser refuses to submit
+   and shows nothing at all. covers the native min and max messages too */
 filterForm.addEventListener("invalid", function(e) {
     var fold = e.target.closest("details");
     if (fold) {
@@ -134,51 +88,30 @@ filterForm.addEventListener("invalid", function(e) {
     }
 }, true);
 
-/*
-    one result card, from dom.js, which is now the only place on the
-    site that draws one. it used to be written out here in full and
-    again in the swap tool, and the two had already drifted: the swap
-    tool's cards were missing the age arrow, the "+2 more matching
-    lines" note and the shared tags.
-
-    ANCHOR finishes the verdict sentences ("cheaper than Bolt at
-    $0.25"), which is what the server-rendered cards above say too
-*/
+/* ANCHOR finishes the verdict sentences ("cheaper than Bolt at $0.25"), which
+   is what the server-rendered cards above say too */
 function buildResult(r) {
     return resultCard(r, cardName, {anchor: ANCHOR, flag: true});
 }
 
 /*
-    the load more button, which is doing two jobs at once. inside a
-    tier it pages 20 at a time. when a tier runs out it steps down to
-    the next BAND of weaker matches, ten percentage points at a time,
-    and says which range it is about to show.
+    load more does two jobs: inside a tier it pages 20 at a time, and when a tier
+    runs out it steps down to the next BAND of weaker matches, ten percentage
+    points at a time.
 
-    the bands are the reason the sorts still mean something down here.
-    the old button opened everything below the line at once, so
-    "cheapest first" over that pile handed back the cheapest 0% match
-    in the database. one band at a time means a sort runs among cards
-    that match about equally well, which is the only way the answer is
-    worth reading
-*/
-/*
-    how deep into the weaker matches you have gone lives only in this
-    variable, deliberately: it is not in the url and does not ride the
-    filter form, so every reload puts you back at the strong matches.
-    the sort was the one exception and it is gone, so there is now one
-    rule with nothing carved out of it
+    the bands are what keep the sorts meaningful down here. opening everything
+    below the line at once meant "cheapest first" handed back the cheapest 0%
+    match in the database.
+
+    how deep you have gone lives ONLY in these variables, never the url, so
+    every reload puts you back at the strong matches
 */
 var offset = 20;
 var band = null;     //null is the strong tier, a number is that band
 var btn = document.getElementById("load-more");
-/*
-    ONE FLIGHT AT A TIME. the button changes its own label to "Loading...",
-    which reads as busy without being busy: nothing stopped a second click
-    landing before the first came back, and offset is only moved on the way
-    IN to the then, so both requests asked for the same twenty cards and both
-    appended them. a click that was stepping to a new band did it twice over,
-    labelled divider and all
-*/
+/* ONE FLIGHT AT A TIME. the "Loading..." label reads as busy without being
+   busy: a second click landing before the first came back asked for the same
+   twenty cards and appended them again, labelled divider and all */
 var loading = false;
 
 function loadNext() {
@@ -205,8 +138,7 @@ function loadNext() {
             if (stepping) {
                 band = target;
                 offset = 0;
-                //every band gets its own labelled divider, so it is
-                //always clear that the cards under it are a step worse
+                //a labelled divider per band, so the drop is never silent
                 if (data.results.length) {
                     el("div", "weak-divider", grid, words);
                 }
@@ -237,26 +169,23 @@ function loadNext() {
             return null;
         })
         .finally(function() {
-            //released whichever way it went, or one failed fetch would leave
-            //the button permanently deaf
+            //released whichever way it went, or one failed fetch leaves the
+            //button permanently deaf
             loading = false;
         });
 }
 
 if (btn) {
-    //a page that opened with no strong matches at all starts the
-    //button pointed straight at the first band
+    //a page that opened with no strong matches at all starts pointed straight
+    //at the first band
     if (btn.dataset.next !== undefined) {
         offset = 0;
     }
     btn.onclick = loadNext;
 }
 
-/*
-    the line picker. clicking a rules line toggles its index in the
-    lines url param and reloads, so the search only uses the picked
-    lines and the url stays shareable
-*/
+/* toggles the line's index in the lines param and reloads, so the url stays
+   shareable */
 document.querySelectorAll(".oracle-line").forEach(function(el) {
     el.onclick = function() {
         var params = new URLSearchParams(window.location.search);
@@ -280,17 +209,14 @@ document.querySelectorAll(".oracle-line").forEach(function(el) {
 });
 
 /*
-    the tag picker, the line picker's opposite number. a chip is in one
-    of four states and clicking it means the obvious opposite of
-    whichever it's in:
+    four chip states, each click meaning the opposite of whichever it is in:
       on    -> notags, switch it off
       off   -> out of notags, back on
       aside -> yestags, the line picker guessed wrong, put it back
       kept  -> out of yestags, accept the guess after all
-    two params rather than one because they answer different questions:
-    notags is "ignore this", yestags is "the attribution missed this".
-    both stay empty until you actually touch something, so a plain url
-    still means the whole card
+    two params because they answer two questions: notags is "ignore this",
+    yestags is "the attribution missed this". both stay empty until something is
+    touched, so a plain url still means the whole card
 */
 document.querySelectorAll(".tag-chip").forEach(function(el) {
     el.onclick = function() {
@@ -313,11 +239,8 @@ document.querySelectorAll(".tag-chip").forEach(function(el) {
     };
 });
 
-/*
-    the report bar, from report.js, which /deck/swap now uses too. what stays
-    here is what is specific to THIS page: its three entry points, and the fact
-    that the query string /feedback is judged against is simply this page's own
-*/
+/* what is specific to THIS page: its three entry points, and the fact that the
+   query string /feedback judges against is simply the page's own url */
 var reports = wireReports({
     query: function () { return new URLSearchParams(window.location.search).toString(); },
     grid: document.querySelector(".card-grid")
@@ -337,16 +260,12 @@ if (reportTagLink) {
     };
 }
 
-//the same name suggestions as the search bar, wired by the shared
-//helper in base.html, picking just fills the box in
+//wireSuggest is base.html's, and here picking only fills the box in
 wireSuggest(document.getElementById("report-input"), document.getElementById("report-suggest"),
     function(name) { document.getElementById("report-input").value = name; });
 
-/*
-    remember this search so the home page can float it as a recent card.
-    the canonical name goes in (whatever find_card landed on), not the
-    typo the user actually typed, so clicking it later hits exact match
-*/
+/* the home page floats these. the CANONICAL name goes in, whatever find_card
+   landed on, not the typo that was typed, so clicking it later hits exact match */
 var recent = [];
 try {
     recent = JSON.parse(localStorage.getItem("recent_searches") || "[]");
@@ -354,15 +273,10 @@ try {
 var cardName = window.CARD_NAME;
 recent = recent.filter(function(n) { return n != cardName; });
 recent.unshift(cardName);
-/* the write is caught like the read above it, and like every other write to
-   this browser's storage (see decks.js). private browsing, a full quota or
-   storage switched off make setItem throw, and the read was already guarded
-   while the write next to it was not.
-   it costs nothing today because this is the last statement in the file, so
-   the throw lands after every control on the page is wired and only reaches
-   the console. that is luck rather than design: it is one appended line away
-   from taking the rest of the module with it, and a home page with no recent
-   cards is the honest outcome of a browser that will not remember any */
+/* caught like the read above it: private browsing, a full quota or storage
+   switched off all make setItem throw. it is harmless only because this is the
+   LAST statement in the file, so an uncaught throw would land after everything
+   is wired. one appended line changes that */
 try {
     localStorage.setItem("recent_searches", JSON.stringify(recent.slice(0, 8)));
 } catch (e) {
