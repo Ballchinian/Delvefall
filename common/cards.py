@@ -77,12 +77,19 @@ def get_back_image(card):
 #bounce spell and it matched Perilous Voyage at 91%, missing the one-sided
 #board wipe that makes the card worth $30.
 #
-#evergreen abilities are not in here. 2442 cards print a bare "Flying" against
-#75 that spell the reminder out, so keeping those 75 would orphan them from the
-#other 2442. every keyword in this list is printed with its reminder at least
-#~88% of the time, so the whole population moves together instead of splitting
-#in half. equip (242 with against 332 without), menace and trample fail that
-#test and stay stripped.
+#evergreen abilities are not in here. 3119 lines print a bare "Flying" against
+#the 3% that spell the reminder out, so keeping those would orphan them from the
+#rest. the bar is that a keyword prints its reminder on nearly all its lines, so
+#the whole population moves together instead of splitting in half: equip (242
+#with against 332 without), menace and trample fail that and stay stripped.
+#every entry below clears 92% except evoke (77%) and blitz (84%), whose bare
+#lines carry no reminder to keep anyway.
+#
+#a stripped keyword is not an unexplained one. finetune/legacy/traindata's
+#train_keywords.jsonl teaches 129 keywords as (name, reminder) pairs, which is
+#how a bare "Flying" means anything to the model at all. this list is for the
+#keywords whose line should carry the rule itself, not the only way one is
+#learned.
 REMINDER_KEYWORDS = {
     "overload", "cascade", "storm", "cycling", "flashback", "morph", "disguise",
     "madness", "convoke", "delve", "buyback", "entwine", "replicate", "embalm",
