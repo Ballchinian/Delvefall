@@ -2549,14 +2549,12 @@ def precon(slug):
 
 #----- the paste box: someone else's decklist, read through the same lens -----
 
-#lines that are structure rather than cards. exporters write these as section
-#headings and a decklist is not obliged to have any of them.
+#section headings, which a decklist is not obliged to have.
 #
-#tested against the line with its bracketed bits already taken off, not against
-#the raw line, because archidekt writes the section SIZE into the heading
-#("Commander (1)", "Creatures (30)") where moxfield and mtgo write it bare. the
-#bare form was the only one this ever saw, so every archidekt export with
-#categories switched on reported one unmatched card per section
+#tested against the line with its bracketed bits ALREADY OFF, never the raw one:
+#archidekt writes the section size into the heading ("Creatures (30)") where the
+#others write it bare, so every archidekt export with categories on reported one
+#unmatched card per section
 DECK_HEADERS = re.compile(r"^(deck|decklist|sideboard|commander|companion|maybeboard|"
                           r"considering|tokens?|creatures?|lands?|instants?|sorcer(?:y|ies)|"
                           r"artifacts?|enchantments?|planeswalkers?|battles?|"
@@ -2565,9 +2563,9 @@ DECK_HEADERS = re.compile(r"^(deck|decklist|sideboard|commander|companion|maybeb
 DECK_COUNT = re.compile(r"^(\d+)\s*[xX]?\s+")
 #everything the exporters bolt on AFTER the name: (SET) 123, *F*, [Category]
 DECK_TRAILERS = re.compile(r"\s*(\([^)]*\)|\[[^\]]*\]|\*[^*]*\*|<[^>]*>)\s*")
-#a collector number left stranded once its set code is gone. NOT applied
-#blind: twelve real cards end in a digit (Pip-Boy 3000, Overseer of Vault 76),
-#so this is only tried after the whole name has failed to match
+#a collector number stranded once its set code is gone. NOT applied blind:
+#twelve real cards end in a digit (Pip-Boy 3000, Overseer of Vault 76), so this
+#is only tried after the whole name has failed to match
 DECK_TRAILING_NUM = re.compile(r"\s+\d+\s*$")
 #mtgo marks its sideboard per line rather than under a heading, so a .txt
 #straight out of the client carries "SB: 3 Swords to Plowshares"
@@ -2576,54 +2574,43 @@ DECK_SIDEBOARD = re.compile(r"^SB:\s*", re.I)
 #contains a hash, so taking one off the tail cannot cost a match
 DECK_HASH_TAIL = re.compile(r"\s+#.*$")
 
-#the two exports that are not lists of lines at all. both are recognised by
-#their own first bytes rather than by a control the user has to set, because a
-#paste box that asks which exporter you used is a paste box with a wrong answer
-#in it
+#the two exports that are not lists of lines, recognised by their own first
+#bytes rather than by a control the user has to set.
 #
-#mtgo's .dek is xml, one self closing element per card. read with a regex
-#rather than an xml parser on purpose: this is a hostile string from a text
-#box, and every stdlib xml parser has entity expansion behaviour worth not
-#thinking about. the two attributes are all this needs
+#mtgo's .dek is xml, read with a REGEX rather than an xml parser: this is a
+#hostile string from a text box, and every stdlib xml parser has entity
+#expansion behaviour worth not thinking about
 MTGO_DEK_CARD = re.compile(r"<Cards\b[^>]*?\bName=\"([^\"]+)\"", re.I)
 MTGO_DEK_QTY = re.compile(r"\bQuantity=\"(\d+)\"", re.I)
 
-#the cap on a pasted list. the pair query is all-pairs over the LINES of the
-#list, so cost climbs with the square: ~250 lines (a commander deck) measured
-#160-215ms, and letting someone paste a 5000 line file would be handing out a
-#way to tie up the database. a commander deck is 100 cards and the biggest
-#constructed sideboard-and-all is well under this
+#the pair query is all-pairs over the LINES, so cost climbs with the square:
+#~250 lines measured 160-215ms, and a 5000 line paste would tie up the database
 DECK_MAX_CARDS = 250
 #and a cap on the raw text before it is even split, so an enormous paste is
 #rejected without walking it
 DECK_MAX_CHARS = 60000
 
-#below this many nonland cards the precon comparison is not offered. scoring
-#on a fraction means a short list is measured on the same share of itself as
-#the decks it is ranked against, so this is not about unequal counts. it is
-#about noise: a third of a six card list is two cards, and a two card mean says
-#nothing about a deck. the sections still work at any size,
-#being statements about the list itself rather than about where it stands
+#below this many nonland cards the precon comparison is not offered. not about
+#unequal counts, a fraction already handling that, but about NOISE: half of a
+#six card list is three cards, and a three card mean says nothing
 DECK_MIN_FOR_RANK = 20
 
 
 def deck_norm(name):
-    #match a name the way a human reads it: case, accents and the two kinds of
-    #apostrophe all stop mattering. NFKD splits an accented letter into letter
-    #plus combining mark, then dropping the marks leaves plain ascii, which is
-    #what lets a list typed without accents find Grima Wormtongue
+    #NFKD splits an accented letter into letter plus combining mark, so dropping
+    #the marks leaves plain ascii: what lets a list typed without accents find
+    #Grima Wormtongue
     name = name.replace("’", "'").replace("‘", "'")
     name = unicodedata.normalize("NFKD", name)
     name = "".join(c for c in name if not unicodedata.combining(c))
     return " ".join(name.lower().split())
 
 
-#how long a good index is trusted for, and how long a FAILED rebuild waits
-#before trying again. one clock for both meant a rebuild that threw still
-#bought itself the full hour, so a cold start that missed left an empty index
-#looking fresh and every paste for the next hour came back "none of those
-#lines matched a card". the short wait is still a wait though, because a
-#database that is properly down should not be asked once per request
+#TWO clocks: a good index and a FAILED rebuild. one for both meant a rebuild
+#that threw still bought the full hour, so a cold start that missed left an empty
+#index looking fresh and every paste came back "none of those lines matched a
+#card". still a wait, because a database properly down should not be asked per
+#request
 NAME_INDEX_TTL = 3600
 NAME_INDEX_RETRY = 60
 
@@ -2631,11 +2618,8 @@ _name_index = {"at": 0.0, "map": {}, "ttl": 0.0}
 
 
 def name_index():
-    #every name a decklist might write, normalised, pointing at an oracle id.
-    #~33k keys for 31k cards, a couple of megabytes, rebuilt hourly like the
-    #other caches. doing it in memory rather than in sql is what keeps a 100
-    #card list to ZERO round trips for matching, and it puts normalisation
-    #somewhere it can be read
+    #~33k keys for 31k cards, a couple of megabytes. IN MEMORY rather than in
+    #sql, which is what keeps a 100 card list to zero round trips for matching
     if time.time() - _name_index["at"] > _name_index["ttl"] and pool is not None:
         try:
             with pool.connection() as conn:
@@ -2726,51 +2710,37 @@ def dek_to_lines(text):
 
 
 def parse_decklist(text):
-    #returns (matched oracle ids, names we could not find). deliberately blind
-    #to WHICH board a card is in: the lens reads the whole pile, and a
-    #commander deck has no sideboard anyway.
+    #returns (matched oracle ids, names we could not find). blind to WHICH board
+    #a card is in: the lens reads the whole pile.
     #
-    #matching is EXACT on the normalised name, never fuzzy. find_card guesses
-    #because a human is watching one result and can retype; here a wrong guess
-    #would sit silently in a hundred rows pretending to be someone's deck
+    #matching is EXACT on the normalised name, NEVER fuzzy. find_card guesses
+    #because a human is watching one result and can retype; a wrong guess here
+    #sits silently in a hundred rows pretending to be someone's deck
     idx = name_index()
     found, missing = [], []
     seen = set()
     text = text[:DECK_MAX_CHARS]
-    #the two exports that arrive as a file rather than as a list get turned
-    #into one before anything else looks at them, so there is still exactly one
-    #line parser and it is the one that has been tested
+    #the file exports become lines before anything else looks at them, so there
+    #is exactly ONE line parser and it is the tested one
     text = csv_to_lines(text) or dek_to_lines(text) or text
     for raw in text.splitlines():
         line = raw.strip()
         if not line or line.startswith("//") or line.startswith("#"):
             continue
-        #mtgo writes its sideboard per line instead of under a heading, and
-        #deckstats writes the category onto the end of the line. both are
-        #wrapping paper around a name and a count
+        #mtgo's per-line sideboard marker and deckstats' trailing category
         line = DECK_HASH_TAIL.sub("", DECK_SIDEBOARD.sub("", line)).strip()
         if not line:
             continue
-        #the line as typed and the line with a leading count taken off, in that
-        #order. a number at the front is almost always a count and occasionally
-        #part of the name, and taking it off blind turned "1996 World Champion"
-        #into a lookup for "World Champion". the trailing number already got
-        #this care, the front of the line never did.
+        #the line as typed FIRST, then with a leading count off. taking it off
+        #blind turned "1996 World Champion" into a lookup for "World Champion".
         #
-        #trying the untouched line first can only ADD matches: for it to hit,
-        #a card has to really be named with digits in front.
-        #
-        #dormant, and worth writing down so it is not read as dead weight: no
-        #card in the pool starts with a digit, so over 800 real names across 8
-        #line shapes this changes not one result. it is one dict lookup, and the
-        #shape it covers is a real one: an uncounted line naming such a card. "1 1996 World Champion" is fine without it, because
-        #the count comes off and the name is left; a bare "1996 World Champion"
-        #is the case that degrades to looking up "World Champion". the card is
-        #real, it is just not in scryfall's oracle set, so this is waiting rather
-        #than doing nothing
+        #dormant, and written down so it is not read as dead weight: no card in
+        #the pool starts with a digit, so this changes no result today. it costs
+        #one dict lookup and covers a real shape, an uncounted line naming such a
+        #card, for whenever one is added
         whole = DECK_TRAILERS.sub(" ", line).strip()
-        #the heading test runs HERE rather than on the raw line, so a heading
-        #carrying its own count ("Commander (1)") is still a heading
+        #HERE rather than on the raw line, so a heading carrying its own count
+        #("Commander (1)") is still a heading
         if DECK_HEADERS.match(whole):
             continue
         m = DECK_COUNT.match(line)
@@ -2817,17 +2787,11 @@ DECK_WINDOW = 3
 
 
 def deck_metrics(conn, oracle_ids, currency):
-    #the deck's price, play rate and age, computed EXACTLY as PRECON_SQL
-    #computes them for a precon. that is the entire requirement here: a
-    #standing is a comparison, and a comparison between two numbers that were
-    #arrived at differently is not a comparison at all. every predicate below
-    #is a transcription of the matching CTE, and if one moves both must.
-    #
-    #deck_cards holds one row per DISTINCT card, and a pasted list drops its
-    #counts on the way in, so both sides are already counting the same way
-    #SALT_BASIC_SQL already carries its percent signs DOUBLED, because every
-    #query using it is parameterised and psycopg reads a lone % as the start of
-    #a placeholder. it goes in untouched
+    #computed EXACTLY as PRECON_SQL computes them for a precon: a standing is a
+    #comparison, and two numbers arrived at differently are not comparable. every
+    #predicate below transcribes the matching CTE, and if one moves both must.
+    #SALT_BASIC_SQL already carries its percent signs DOUBLED, every query using
+    #it being parameterised, so it goes in untouched
     basic = SALT_BASIC_SQL
     ids = [str(o) for o in oracle_ids]
     row = conn.execute("""
@@ -2851,18 +2815,13 @@ def deck_metrics(conn, oracle_ids, currency):
 
 
 def deck_standing(board, key, best, figure, slug=None):
-    #where the deck lands on the board, and who it landed between.
+    #"better" is the metric's OWN direction, never bigger-is-better: on play rate
+    #a smaller median is more played, and getting that backwards tells someone
+    #their pile of staples is the most obscure deck in the format.
     #
-    #"better" is the metric's own direction rather than bigger-is-better, which
-    #is the whole reason the board learned one: on play rate a SMALLER median
-    #is more played, and a standing that got that backwards would tell someone
-    #their pile of staples was the most obscure deck in the format.
-    #
-    #a precon passes its SLUG and is already a row here, so it is located
-    #rather than inserted. a pasted deck has no slug and gets dropped in at the
-    #position its figure earns, making the population one bigger. both come
-    #back in the same shape, because the two pages that read this are the same
-    #page and the only difference between them is which deck is being read
+    #a precon passes its SLUG and is already a row, so it is located rather than
+    #inserted. a pasted deck is dropped in at the position its figure earns,
+    #making the population one bigger. both come back in the same shape
     if figure is None:
         return None
     rows = [r for r in board if r.get(key) is not None]
@@ -2887,9 +2846,8 @@ def deck_standing(board, key, best, figure, slug=None):
             better += 1
         else:
             break
-    #places are counted off the slice indices, never looked up by value: two
-    #decks can hold the identical figure, and asking a list where a row "is"
-    #would then hand back the first of them for both
+    #places come off the slice INDICES, never a lookup by value: two decks can
+    #hold the identical figure, and a lookup hands back the first for both
     window = []
     start = max(0, better - DECK_WINDOW)
     for i in range(start, better):
@@ -2911,9 +2869,7 @@ def deck_standing(board, key, best, figure, slug=None):
 
 
 def deck_hub(error=None, pasted="", url="", missing=None):
-    #the front door, rendered the same way whether it is being visited or
-    #being returned to with a complaint. one function so an error state can
-    #never drift into looking like a different page
+    #one function, so an error state cannot drift into a different page
     board = precon_board()
     return render_template("deck/hub.html", deck_count=len(board),
                            example=board[0] if board else None,
@@ -2921,46 +2877,33 @@ def deck_hub(error=None, pasted="", url="", missing=None):
 
 
 def deck_identity():
-    #what to call this deck. it rides the FORM, like the list itself, because
-    #there is no session to keep it in and that is the whole design.
-    #
-    #it has to be carried by every form on every page of the lens or the name
-    #is lost the moment you go back to change something: the importer knew the
-    #commander, the page after it printed the commander, and then the reading
-    #called the same deck "72 cards" because nothing had passed the name on
+    #rides the FORM like the list itself, there being no session to keep it in.
+    #EVERY form on every page of the lens has to carry it, or the name is lost
+    #going back to change something: the importer knew the commander, and the
+    #reading then called the same deck "72 cards"
     commander = " ".join(request.form.get("commander", "").split())[:200]
     name = " ".join(request.form.get("name", "").split())[:200]
     return (name or commander), commander
 
 
 def deck_did():
-    #WHICH SAVED DECK this is, in the visitor's own browser, passed from page to
-    #page and handed straight back. the server never reads it, never writes it
-    #and could not use it if it wanted to: the shelf of saved decks is
-    #localStorage and nothing about it reaches us.
+    #WHICH SAVED DECK this is, in the visitor's own browser, passed through and
+    #handed straight back. the server never reads it and could not use it: the
+    #shelf is localStorage and nothing about it reaches us.
     #
-    #it rides the form like the list and the name do, for the same reason: there
-    #is no session and no account, so every request states its own everything.
+    #keying the shelf on the decklist instead means a key that MOVES whenever a
+    #swap changes the deck, so every page carries the list twice and every lookup
+    #guesses which it holds.
     #
-    #keying the shelf on the decklist itself is the alternative, and it means a
-    #second hidden field on every form plus a key that moves whenever a swap
-    #changes the deck: each page carries the list twice, once as it stands and
-    #once as it was imported, and every lookup is a guess about which one it
-    #holds.
-    #
-    #trimmed to a length no id will ever reach. it is echoed into html, so what
-    #matters is that it cannot be a decklist smuggled through the field that was
-    #never meant to carry one
+    #trimmed and stripped to alphanumerics: it is echoed into html, so it must
+    #not become a decklist smuggled through a field never meant to carry one
     return "".join(c for c in request.form.get("did", "")[:64]
                    if c.isalnum())
 
 
 def deck_leaders(conn, oracle_ids):
-    #every card in the list that could BE the commander: front face legendary
-    #creatures, the same test the search's "commanders only" filter uses. a
-    #commander deck holds one or two, so this is usually the answer rather than
-    #a list anyone has to search, and the picker falls back to the whole list
-    #when a pile of cards has no legend in it at all
+    #front face legendary creatures, the same test the search's "commanders only"
+    #filter uses. the picker falls back to the whole list when a pile has none
     try:
         return [r["name"] for r in conn.execute("""
             SELECT name FROM cards
@@ -2974,18 +2917,13 @@ def deck_leaders(conn, oracle_ids):
 
 
 def deck_cards(conn, oracle_ids, currency):
-    #every card in a deck, ready to be drawn by partials/deckcards.html. it is
-    #the one query behind both the view page and the precon page, so a deck
-    #looks the same wherever it is shown.
+    #the one query behind both /deck/view and a precon page.
     #
-    #the labels come off the same helpers the results grid and the swap grid
-    #use rather than being formatted here, which is what keeps a price on this
-    #page reading identically to the same card's price on a search.
+    #the labels come off the SAME helpers the results and swap grids use, which
+    #keeps a price here reading identically to the same card's price on a search.
     #
-    #DISTINCT cards, not copies: parse_decklist folds a list down to the cards
-    #it holds, so thirty seven Forests arrive here as one Forest and there is
-    #no count to print. that is the right grid for "did this import whole",
-    #and the exact list with its counts is on the same page to copy
+    #DISTINCT cards, never copies: parse_decklist folds a list down, so thirty
+    #seven Forests arrive as one Forest with no count to print
     try:
         rows = conn.execute("""
             SELECT oracle_id, name, type_line, layout, image, image_back,
@@ -3020,12 +2958,10 @@ def deck_names(conn, oracle_ids):
         return []
 
 
-#the three pages below are rendered from a POST and have no url of their own,
-#which is the privacy decision and it stays: a pasted list is nobody's business
-#and there is nothing to come back to. answering a bare GET with a 405 was
-#never part of that decision though, it is just what werkzeug does when no
-#rule matches. a back button, a bookmark or a link someone shared all arrive
-#as a GET, so they get the front door with the paste box on it
+#the deck pages are POST results with no url of their own, which is the privacy
+#decision. answering a bare GET with a 405 was never part of it, just what
+#werkzeug does when no rule matches: a back button or a shared link arrives as a
+#GET, so it gets the front door
 @app.route("/deck/open", methods=["GET"])
 @app.route("/deck/read", methods=["GET"])
 @app.route("/deck/swap", methods=["GET"])
@@ -3036,18 +2972,12 @@ def deck_post_only():
 
 @app.route("/deck/open", methods=["POST"])
 def deck_open():
-    #where both inputs land. the importer and the paste box are separate
-    #controls on purpose (Ethan's call, and it is right): one box sniffing at
-    #its own contents is the version where validating is hardest and the error
-    #messages are worst. two inputs means each one checks exactly one shape.
-    #
-    #they converge HERE, immediately, and everything downstream sees a pasted
-    #list either way. the import path's whole job is turning a url into text
+    #where both inputs land, converging HERE so everything downstream sees a
+    #pasted list either way. the import path's whole job is url to text
     text = request.form.get("list", "")
     url = request.form.get("url", "").strip()
-    #a name the page already knew, coming back round: the recent-decks list and
-    #the "read another deck" links all repost through here, and without this
-    #the second visit to the same list forgets what the deck was called
+    #a name coming back round: the recent-decks list and the back links all
+    #repost through here, and without this the second visit forgets the name
     name, commander = deck_identity()
     if url:
         site = import_site(url)
@@ -3056,26 +2986,20 @@ def deck_open():
                                   "link. They look like archidekt.com/decks/1234567 and "
                                   "moxfield.com/decks/aBcDeFgH.", url=url)
         if not import_allowed(import_token()):
-            #one message for both lids on purpose. "you have imported a lot"
-            #and "the site has imported a lot" are different facts but the same
-            #instruction, and the paste box below answers either one
+            #one message for both lids: different facts, same instruction
             return deck_hub(error="Too many deck imports just now, so we're giving "
                                   "them a rest. Try again in a minute, or paste the "
                                   "list below and carry on.", url=url)
         try:
             text, found, deck_name = site["fetch"](site["id"])
         except Exception:
-            #deliberately one message for every failure mode. the site being
-            #down, the deck being private and their api changing shape are the
-            #same event to someone holding a link that did not work, and the
-            #paste box underneath is the answer to all three
+            #one message for every failure mode: down, private and api-changed
+            #are the same event to someone holding a link that did not work
             return deck_hub(error="Couldn't fetch that deck from " + site["name"] + ". It "
                                   "may be private, or they may be having a moment. "
                                   "Pasting the list below always works.", url=url)
-        #the importer knows which card was flagged as the commander, which is
-        #the one thing a pasted list cannot say. it only PRESELECTS the picker
-        #though: the page still shows what it decided, so a wrong guess is one
-        #click to fix rather than a title nobody can change
+        #the one thing a pasted list cannot say. it only PRESELECTS the picker,
+        #so a wrong guess is one click to fix rather than a title nobody can change
         commander = commander or (found[0] if found else "")
         name = name or commander or deck_name
     if not text.strip():
@@ -3085,31 +3009,23 @@ def deck_open():
     if not ids:
         return deck_hub(error="None of those lines matched a card.",
                         pasted=text[:DECK_MAX_CHARS], url=url, missing=missing)
-    #what did not match is a ONE TIME question, asked when a deck arrives. a
-    #deck coming back round (out of this browser's recent list, or off a "back
-    #to this deck" link) has already been through it, and the answer was
-    #whatever the user did about it then. asking again on every visit turns a
-    #useful check into a nag about eleven lines they have already decided to
-    #live with.
-    #
-    #nothing was stored either way: a miss only ever becomes a row in the
-    #feedback table if the user actively resolves it (see /deck/found), so
-    #forgetting them here means forgetting them everywhere
+    #what did not match is a ONE TIME question, asked when a deck arrives. a deck
+    #coming back round has already been through it, and asking again is a nag
+    #about lines they decided to live with.
+    #nothing was stored either way: a miss only becomes a feedback row if the user
+    #resolves it (see /deck/found)
     if request.form.get("seen"):
         missing = []
     with pool.connection() as conn:
         leaders = deck_leaders(conn, ids)
-        #a deck with exactly one legend in it has already answered the
-        #question, so it is filled in rather than asked. anything else gets the
-        #picker with the candidates in it
+        #one legend has already answered the question, so it is filled in
         if not commander and len(leaders) == 1:
             commander = leaders[0]
         picker = leaders or deck_names(conn, ids)
     name = name or commander
-    #the two modes, offered rather than assumed. it costs a click and buys the
-    #confirmation that the list arrived intact, which is the thing an IMPORT
-    #most needs: a link that silently read 40 of your 100 cards is the failure
-    #nobody notices until the numbers look wrong
+    #the modes offered rather than assumed: it costs a click and buys proof the
+    #list arrived whole, an import that read 40 of your 100 cards being the
+    #failure nobody notices until the numbers look wrong
     return render_template("deck/modes.html", pasted=text[:DECK_MAX_CHARS],
                            did=deck_did(),
                            matched=len(ids), missing=missing,
@@ -3120,33 +3036,22 @@ def deck_open():
 
 @app.route("/deck/view", methods=["POST"])
 def deck_view():
-    #the deck itself, as its cards. the third of the three modes and the one
-    #that answers "did this arrive whole", which is the question an IMPORT
-    #most needs and the one the other two answer only by implication.
+    #the mode that answers "did this arrive whole". renders the same partial
+    #/precons/<slug> does, so a pasted deck and a boxed one are one piece of code.
     #
-    #it renders the same partial /precons/<slug> does, so a deck someone
-    #pasted and a deck that shipped in a box are shown by one piece of code
-    #rather than by two that agree until somebody edits one of them.
-    #
-    #what CHANGED is deliberately not computed here and cannot be: a swap
-    #session never reaches the server, so the only record of it is the shelf in
-    #the visitor's own browser. the page carries the deck's id and the script
-    #fills those blocks in from there
+    #what CHANGED is not computed here and CANNOT be: a swap session never reaches
+    #the server, so the page carries the deck's id and the script fills those
+    #blocks from the browser's own shelf
     text = request.form.get("list", "")
     ids, missing = parse_decklist(text)
     if not ids:
         return deck_hub(error=("None of those lines matched a card." if text.strip()
                                else "Paste a decklist first."),
                         pasted=text[:DECK_MAX_CHARS], missing=missing)
-    #`missing` goes no further than that error above, and neither does `seen`.
-    #this page does NOT draw the unmatched lines: the question is asked once,
-    #when the deck arrives, on the modes page, and /deck/read says the same about
-    #itself. passing them through anyway reads as though the box were about to
-    #appear here, and it never could: view.html includes no partial that draws
-    #one.
-    #
-    #currency is the same story. it decides what deck_cards formats the prices
-    #as, and the template never sees it: every figure arrives already written
+    #`missing` goes no further than that error, and neither does `seen`: this page
+    #does NOT draw the unmatched lines, view.html including no partial that could.
+    #currency is the same, deciding what deck_cards formats and never reaching the
+    #template
     cur = read_currency()
     name, commander = deck_identity()
     with pool.connection() as conn:
@@ -3266,27 +3171,21 @@ def deck_found():
                                 VALUES ('deckline', %s, %s, %s, %s)""",
                              (card["oracle_id"], card["name"], raw, ip))
     except Exception:
-        #the card still goes into their list. logging it is our business, not
-        #theirs, and a full disk here must not cost them the reading
+        #the card still goes into their list: logging it is our business, and a
+        #full disk here must not cost them the reading
         pass
     return {"ok": True, "name": card["name"]}
 
 
 #----- importing a decklist from a url -----
 
-#archidekt and moxfield. NEITHER publishes a supported public api: archidekt
-#calls its own open beta and documents nothing, and moxfield asks third parties
-#to write in for access and to identify themselves in the User-Agent, which is
-#why ours names the site and links to it. so both of these can stop working
-#without warning, and everything below is written for that day: a failure says
-#so in words and the paste box is right there underneath, because an importer
-#that takes the page down with it when somebody else ships a change is worse
-#than no importer at all
+#NEITHER site publishes a supported public api: archidekt calls its own open
+#beta and documents nothing, moxfield asks third parties to write in and to
+#identify themselves in the User-Agent. both can stop working without warning,
+#so everything below is written for that day
 ARCHIDEKT_URL = re.compile(r"^https?://(?:www\.)?archidekt\.com/(?:decks|api/decks)/(\d{1,12})", re.I)
-#moxfield deck ids are a short opaque string rather than a number, and they
-#turn up as /decks/<id> on the site and /v2/decks/all/<id> on the api. the
-#character class is the allowlist that keeps this from becoming a path: no
-#slashes, no dots, no percent signs
+#moxfield ids are a short opaque string. the CHARACTER CLASS is the allowlist
+#that keeps this from becoming a path: no slashes, no dots, no percent signs
 MOXFIELD_URL = re.compile(r"^https?://(?:www\.)?moxfield\.com/decks/([A-Za-z0-9_-]{1,40})", re.I)
 
 #a slow third party must not become a slow page, and a big response must not
@@ -3296,18 +3195,11 @@ DECK_IMPORT_MAX_BYTES = 8 * 1024 * 1024
 
 
 def import_site(url):
-    #which site this link belongs to and what its deck id is, or None.
-    #
-    #this is the whole security design and it is worth being explicit: the
-    #user's url is NEVER fetched. an id is pulled out of it and OUR url is
-    #built from that id, so there is no redirect to follow, no host to
-    #revalidate and no way to point this at localhost or a cloud metadata
-    #endpoint. a domain allowlist in front of a fetch of user input is the
-    #version of this that keeps being a vulnerability.
-    #
-    #adding a second site changed nothing about that, which is the test a
-    #design like this has to pass: each pattern names one host and captures one
-    #id out of a character class that cannot hold a slash
+    #THE WHOLE SECURITY DESIGN: the user's url is NEVER fetched. an id is pulled
+    #out of it and OUR url is built from that id, so there is no redirect to
+    #follow, no host to revalidate and no way to point this at localhost or a
+    #cloud metadata endpoint. a domain allowlist in front of a fetch of user
+    #input is the version of this that keeps being a vulnerability
     url = (url or "").strip()
     for pattern, name, fetch in ((ARCHIDEKT_URL, "Archidekt", archidekt_deck),
                                  (MOXFIELD_URL, "Moxfield", moxfield_deck)):
@@ -3317,21 +3209,15 @@ def import_site(url):
     return None
 
 
-#the importer is the only thing on this site that makes an outbound request on
-#a visitor's command, so it is the only thing that needs a lid on it.
+#the only outbound request a visitor can command, so the only thing needing a lid.
 #
-#TWO lids, and the SECOND one is the one that matters. a per visitor limit
-#stops one person looping, which is the obvious threat and the smaller one.
-#it does nothing for us, because archidekt sees ONE address for every import
-#this site ever makes: railway's. a hundred people importing once each looks
-#exactly like one machine hammering them, so the aggregate needs its own cap
-#or a busy afternoon gets our address blocked and the importer stops working
-#for everybody.
+#TWO lids, and the SECOND is the one that matters: archidekt sees ONE address for
+#every import this site makes, railway's, so a hundred people importing once each
+#looks exactly like one machine hammering them. without the aggregate cap a busy
+#afternoon gets our address blocked for everybody.
 #
-#in memory, so it is per process and resets on deploy. that is the right
-#weight for this: the job is to stop a runaway, not to enforce a quota, and
-#a rate limiter that needs its own table to protect somebody else's server is
-#more machinery than the problem deserves
+#in memory, so per process and reset on deploy: the job is stopping a runaway,
+#not enforcing a quota
 IMPORT_PER_TOKEN = 15
 IMPORT_TOKEN_WINDOW = 600
 IMPORT_GLOBAL = 60
