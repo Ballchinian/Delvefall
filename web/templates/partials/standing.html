@@ -1,12 +1,8 @@
-{# the deck's five standings, and the SAME markup whether the deck came out of
-   the precon table or out of somebody's paste box. one partial rather than two
-   templates, for the reason _salt.html was one: the pages are the same page
-   about different decks, and two copies drift the first time only one of them
-   gets edited.
+{# the deck's five standings, same markup for a precon and for a pasted list.
 
-   every panel is on the page. the arrows SHOW one at a time, they do not fetch
-   one at a time, so the page still reads top to bottom with no script running
-   and a crawler meets all five readings of a precon rather than one #}
+   every panel is on the page: the arrows SHOW one at a time, they do not fetch
+   one at a time, so it reads top to bottom with no script running and a
+   crawler meets all five readings rather than one #}
 
 {% if panels %}
 <nav class="deck-pager" id="deck-pager" hidden aria-label="which standing">
@@ -16,16 +12,14 @@
 </nav>
 
 {% for p in panels %}
-{# the focus class rides the SECTION rather than the card grid inside it, so the
-   panel's ordered list and its pictures put the ink on the same figure. it is
-   the same class /search's results grid wears, off the same map, because "which
-   number is this page about" is one question with one answer everywhere #}
+{# the focus class rides the SECTION, not the card grid inside it, so the
+   panel's list and its pictures ink the same figure. same class /search's
+   results grid wears, off the same map #}
 <section class="deck-metric {{ p.focus }}" id="metric-{{ p.key }}"
          data-label="{{ p.readings.desc.label }}"
          data-label-asc="{{ p.readings.asc.label }}">
-    {# which end of the number. it is one measurement with a switch on it, not
-       two measurements: the same figure counted from the other side of the
-       board. the same control the board carries, for the same reason #}
+    {# one measurement with a switch on it, not two: the same figure counted
+       from the other end of the board #}
     <nav class="precon-eras deck-ends" aria-label="which end">
         <span class="precon-depth-label">From the:</span>
         {% for d in ['desc', 'asc'] %}
@@ -37,9 +31,8 @@
     {% for d in ['desc', 'asc'] %}
     {% set r = p.readings[d] %}
     <div class="deck-reading" data-end="{{ d }}" {{ 'hidden' if d == 'asc' }}>
-        {# the board link sits at the TOP and names the population, because
-           "the whole board" next to a page about YOUR deck reads as though your
-           deck is on it #}
+        {# names the population, or "the whole board" next to a page about YOUR
+           deck reads as though your deck is on it #}
         <p class="deck-section-note deck-board-link"><a href="/precons?sort={{ r.sort_key }}">See all
         {{ total }} Commander precons ranked by {{ r.reading }} &rarr;</a></p>
 
@@ -49,10 +42,8 @@
                 <span class="deck-standing-of">of {{ r.of }}</span>
             </div>
             <div class="deck-standing-text">
-                {# the placing is the sentence and the score is the receipt. a
-                   bare 0.243 means nothing to anyone, which is the whole reason
-                   the precon board had to exist before either of these pages
-                   could say anything at all #}
+                {# the placing is the sentence, the score is the receipt: a bare
+                   0.243 means nothing without the board behind it #}
                 <strong>{{ p.prefix }}{{ ('%.' ~ p.decimals ~ 'f')|format(p.figure) }}{{ p.suffix }} {{ p.noun }}.</strong>
                 {% if r.place == 1 %}
                     {{ r.more|capitalize }} than every Commander precon.
@@ -66,23 +57,18 @@
                 <span class="deck-standing-extra">{{ '%.0f'|format(p.total_years) }} years all
                 told, across {{ p.age_cards }} cards.</span>
                 {% endif %}
-                {# folded away. it is the same three sentences every time you
-                   meet this panel, and prose you have already read is just
-                   height between you and the deck #}
+                {# folded: the same three sentences on every panel #}
                 <details class="deck-standing-what">
                     <summary>What {{ p.noun }} means here{% if is_new %}, and what is still
                     settling{% endif %}</summary>
                     <p>{{ p.means }}</p>
-                    {# only on a deck young enough for it to be true, and only
-                       saying what is still moving about THIS number #}
+                    {# only on a deck young enough for it to be true #}
                     {% if is_new %}<p><strong>Still settling.</strong> {{ p.settling }}</p>{% endif %}
                 </details>
             </div>
         </div>
 
-        {# the deck sitting on the board where it actually lands, with the decks
-           either side of it. a placing on its own is a number; the decks it
-           landed between are what make it a sentence #}
+        {# the decks either side are what turn a placing into a sentence #}
         <ol class="deck-neighbours">
             {% for n in r.window %}
             <li class="deck-neighbour{{ ' is-you' if n.you }}">
@@ -98,15 +84,13 @@
     </div>
     {% endfor %}
 
-    {# the currency control, on the money panel only. the figure above it is
-       real money in one currency, and until now this page could print it
-       without offering any way to change which #}
+    {# the money panel only #}
     {% if p.key == 'price' %}{% include "partials/currency.html" %}{% endif %}
 
     {% if p.cards %}
-    {# what the number is MADE of, held ONCE and read from either end. the
-       flipped reading is these same cards backwards, so the browser reorders
-       rather than the page shipping a second copy of all five lists #}
+    {# held ONCE and read from either end: the flipped reading is these same
+       cards backwards, so the browser reorders rather than the page shipping a
+       second copy of all five lists #}
     <h2 class="deck-cards-head" data-label="{{ p.readings.desc.cards_label }}"
         data-label-asc="{{ p.readings.asc.cards_label }}">{{ p.readings.desc.cards_label }}</h2>
     <ol class="deck-cards" data-step="{{ section }}">
@@ -117,10 +101,8 @@
         </li>
         {% endfor %}
     </ol>
-    {# the pictures, and they keep going. the whole batch is in the page and
-       the button reveals the next {{ section }}, so there is no round trip and
-       nothing to fetch: /deck/read is a POST result with no url to ask again
-       at, and one query returning 96 rows costs what one returning 12 does #}
+    {# the whole batch is in the page and the button reveals the next
+       {{ section }}: /deck/read is a POST result with no url to ask again at #}
     <details class="deck-card-open" data-step="{{ section }}">
         <summary>View these card images</summary>
         <div class="card-grid deck-card-grid">
@@ -134,22 +116,16 @@
                         <img src="{{ c.image }}" alt="{{ c.name }}" width="488" height="680" loading="lazy">
                     </a>
                 </div>
-                {# ORIGINALITY, on every panel, and not the figure this panel
-                   ranks on. the badge beside a card's name is the site's own
-                   number wherever a card is drawn: the match percent on a
-                   search, the originality score here. it held the panel's stat
-                   before, which meant the one slot that should be a constant
-                   was the one thing changing as you paged through, printing a
-                   price where a search prints a percentage.
-                   the panel's own figure is not lost by this: it is the ordered
-                   list directly above, which is where the evidence for a number
-                   belongs #}
+                {# ORIGINALITY on every panel, never the figure this panel
+                   ranks on: the badge beside a name is the site's own number
+                   wherever a card is drawn. holding the panel's stat made the
+                   one constant slot the thing that changed as you paged, and
+                   printed a price where a search prints a percentage #}
                 <div class="result-name"><span class="card-name" title="{{ c.name }}">{{ c.name }}</span>
                     {%- if c.badge %}<span class="percent"
                         title="originality: one minus how close this card's nearest match anywhere in Magic gets, so a card at 0.30 has something out there 70% like it">{{ c.badge }}</span>{% endif %}</div>
-                {# every card carries all four numbers, not just the one this
-                   panel ranks on, because "it is in here for its price, but
-                   what does it cost me in salt" is the next question #}
+                {# all four, not just the one this panel ranks on: "it is here
+                   for its price, but what does it cost in salt" comes next #}
                 <div class="result-price">
                     {% if c.price_label %}<span class="price-figure">{{ c.price_label }}</span>{% endif %}
                     {% if c.rank_label %}<span class="result-rank"

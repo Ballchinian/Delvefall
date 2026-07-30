@@ -1,40 +1,24 @@
-{# where you can go from here, as one row per destination.
+{# where you can go from here, one row per destination, used by /deck/open,
+   /deck/view, /deck/read and /precons/<slug>. every row is a POST carrying the
+   same five fields, because a deck has no url and travels in the form.
 
-   four pages offer these and they were four copies of the same eight lines of
-   markup: /deck/open lists all three modes, /deck/view and /deck/read offer the
-   ones you did not pick, and /precons/<slug> hands its own list to the lens.
-   every one of them is a POST carrying the same five fields, because a deck has
-   no url and travels in the form.
-
-   the WORDING stays with the caller. "view the card list" really is the same
-   offer on a precon page as on your own deck and reads identically, but
-   "change it" and "run it through the deck lens" are different offers, so the
-   macro owns the shape and the page owns the sentence.
+   the macro owns the shape, the caller owns the wording.
 
    {% call %} it to hang a control off the row, which the swap axis picker
-   needs: a select cannot live inside the submit button, since opening it would
+   needs: a select cannot live inside the submit button, opening it would
    submit the form #}
 
-{# the drawing on each row, keyed by WHERE IT GOES and not by a parameter. the
-   wording is the caller's business because the same door is a different offer
-   on a precon page, but the picture is a fact about the destination: "view it"
-   and "see the cards" are two ways of saying one place, and both should arrive
-   wearing the same mark. keyed here, so no call site can forget one or pass
-   the wrong one.
-
-   there are three, for the three things you can do with a deck. /deck/open is
-   the door to all three and so is not any of them: it takes no mark, and the
-   css holds its column open so its row still lines up #}
+{# the mark is keyed by WHERE IT GOES rather than passed in, so no call site
+   can forget one or pass the wrong one. /deck/open is the door to all three
+   and takes none, the css holds its column open so the row still lines up #}
 {% set marks = {'/deck/view': 'view', '/deck/read': 'compare',
                 '/deck/swap': 'change'} %}
 
 {% macro way(action, title, go, pasted, body='', name='', commander='', did='', seen='1') %}
 <form action="{{ action }}" method="post" class="deck-mode">
     <input type="hidden" name="list" value="{{ pasted }}">
-    {# WHICH SAVED DECK this is, in the visitor's own browser. it is empty on a
-       deck that has not been saved yet, which is every deck the first time
-       /deck/open draws this row: the entry is made by the script once the page
-       is running, and the class is how it reaches back in and fills these #}
+    {# empty until the deck has been saved, which is every deck the first time
+       /deck/open draws this row. the script fills these through the class #}
     <input type="hidden" name="did" class="deck-did-field" value="{{ did }}">
     <input type="hidden" name="name" class="deck-name-field" value="{{ name }}">
     <input type="hidden" name="commander" class="deck-commander-field" value="{{ commander }}">
