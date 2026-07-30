@@ -331,19 +331,14 @@ def anchor_vector(conn, oracle_id, dropped, picked=(), forced=()):
         JOIN kept ON kept.tag = ct.tag
         WHERE ct.oracle_id = %s
     """, params).fetchall()
-    #an empty result here means one of two very different things, and telling
-    #them apart is what card_has_attribution is for. either the attribution has
-    #never run against this database, in which case falling back to the whole
-    #card is right and the alternative is silently muting the concept axis on
-    #every search. OR the picked line genuinely is not about anything, which is
-    #the normal state of a keyword line: Gishath's "Vigilance, trample, haste"
-    #owns none of its card's seven tags, they all belong to the combat damage
-    #trigger.
-    #
-    #in that second case the concept axis has nothing honest to say, so it sits
-    #the search out rather than quietly scoring on tags the user was just told
-    #do not apply. find_similar reads the empty norm and ranks on rules text
-    #alone, which is exactly what someone picking a keyword line is asking for
+    #an empty result means one of TWO things, and card_has_attribution is what
+    #tells them apart. either the attribution has never run here, and falling
+    #back to the whole card beats silently muting the concept axis on every
+    #search. or the picked line genuinely is not about anything, the normal state
+    #of a keyword line: Gishath's "Vigilance, trample, haste" owns none of its
+    #card's seven tags.
+    #in that second case find_similar reads the empty norm and ranks on rules
+    #text alone, which is what picking a keyword line is asking for
     if picked and not rows and not card_has_attribution(conn, oracle_id):
         return anchor_vector(conn, oracle_id, dropped)
     tags = [r["tag"] for r in rows]
@@ -353,15 +348,10 @@ def anchor_vector(conn, oracle_id, dropped, picked=(), forced=()):
 
 
 def anchor_chips(conn, oracle_id, dropped, picked=(), forced=()):
-    #the chips under the rules text: the tags a human typed on this card,
-    #rarest first. inherited ancestors stay out of the list - they are implied
-    #by the typed tags rather than said about the card, and showing "removal"
-    #next to "removal-destroy" reads as noise. dropping the child takes the
-    #parent with it anyway, in anchor_vector.
-    #
-    #each chip carries WHY it is on or off, because a tag going quiet with no
-    #explanation is the thing that reads as a broken page. "off" is a tag the
-    #user clicked, "aside" is one the picked lines simply aren't about
+    #the tags a human TYPED on this card, rarest first. inherited ancestors stay
+    #out: dropping the child takes the parent with it in anchor_vector anyway.
+    #each chip carries WHY it is on or off. "off" is a tag the user clicked,
+    #"aside" is one the picked lines simply aren't about
     rows = conn.execute("""
         SELECT ct.tag, t.description FROM card_tags ct
         JOIN tags t ON t.tag = ct.tag
@@ -375,11 +365,10 @@ def anchor_chips(conn, oracle_id, dropped, picked=(), forced=()):
             JOIN lines l ON l.id = lt.line_id
             WHERE l.oracle_id = %s AND NOT l.whole AND l.line_text = ANY(%s)
         """, (oracle_id, list(picked))).fetchall()}
-        #an empty set is a real answer, not a missing one: a keyword line owns
-        #no tags, and setting every chip aside is exactly right for it. only
-        #fall back to showing them all when the attribution has never run here,
-        #or Gishath's "Vigilance, trample, haste" leaves all seven dinosaur
-        #tags lit as though they were about keywords
+        #an empty set is a REAL answer: a keyword line owns no tags, so setting
+        #every chip aside is right for it. falling back only when the attribution
+        #has never run here, or Gishath's "Vigilance, trample, haste" leaves all
+        #seven dinosaur tags lit as though they were about keywords
         if not on_lines and not card_has_attribution(conn, oracle_id):
             on_lines = None
     chips = []
@@ -387,9 +376,8 @@ def anchor_chips(conn, oracle_id, dropped, picked=(), forced=()):
         if r["tag"] in dropped:
             state = "off"
         elif on_lines is not None and r["tag"] not in on_lines:
-            #put back by hand after the line picker set it aside. it counts
-            #like any other live tag, it just wears its own look so the page
-            #still shows the picker's guess and your correction to it
+            #"kept" counts like any live tag, it just wears its own look, so the
+            #page shows the picker's guess and the correction to it
             state = "kept" if r["tag"] in forced else "aside"
         else:
             state = "on"
@@ -398,22 +386,16 @@ def anchor_chips(conn, oracle_id, dropped, picked=(), forced=()):
 
 
 def concept_between(conn, oracle_a, oracle_b, dropped=(), picked=(), forced=()):
-    #the calibrated concept percent between two specific cards, for the
-    #feedback path. oracle_a is the anchor, so EVERY control that narrowed its
-    #vector on the page applies here too: dropped tags, picked lines and tags
-    #forced back on. the report says what the user was actually looking at, and
-    #it only does that if this vector is the one the badge was scored against.
-    #handing over the dropped tags alone answered a line-picked search with a
-    #percent off the card's FULL tag set, a number the page never printed.
+    #EVERY control that narrowed the anchor's vector on the page applies here
+    #too: dropped tags, picked lines, tags forced back on. the dropped tags alone
+    #answered a line-picked search with a percent off the card's FULL tag set, a
+    #number the page never printed.
     #
-    #NONE AND 0 ARE DIFFERENT ANSWERS. none means the concept axis sat the
-    #round out, because the anchor has no vector to score anything against:
-    #that is what picking a keyword line leaves behind, and find_similar ranks
-    #and badges on rules text ALONE in exactly that case (the atags check that
-    #guards the ranking). a caller that blended a zero in instead would answer
-    #50% about a card the page had just badged 100%. 0 means the axis is very
-    #much in play and this card simply shares none of the anchor's concepts,
-    #which is the same 0 the ranking scores it at
+    #NONE AND 0 ARE DIFFERENT ANSWERS. none means the axis sat the round out for
+    #want of an anchor vector, which is what a keyword line leaves behind, and
+    #find_similar badges on rules text alone in that case: blending a zero in
+    #would answer 50% about a card the page badged 100%. 0 means the axis is in
+    #play and this card shares none of the anchor's concepts
     tags, weights, norm = anchor_vector(conn, oracle_a, dropped, picked, forced)
     if not tags:
         return None
@@ -429,15 +411,13 @@ def concept_between(conn, oracle_a, oracle_b, dropped=(), picked=(), forced=()):
 
 
 def find_card(query):
-    #one query instead of up to four round trips: every way a name can match
-    #(exact, starts-with, anywhere, trigram-fuzzy) becomes a tier and the
-    #best-tiered card wins. inside the substring tiers alphabetical order
-    #decides (trigram closeness would favor short names, "delver" must find
-    #Delver of Secrets, not Delver's Torch), the fuzzy tier goes closest
-    #first - its alphabetical CASE key is NULL, which sorts after every real
-    #name. the % operator means "similar enough to bother" (so garbage
-    #queries still return nothing) and <-> sorts by closest. %% because
-    #psycopg uses % for parameters
+    #one query instead of four round trips: every way a name can match becomes a
+    #tier and the best-tiered card wins. inside the substring tiers ALPHABETICAL
+    #order decides, because trigram closeness favours short names and "delver"
+    #must find Delver of Secrets, not Delver's Torch. the fuzzy tier goes closest
+    #first, its alphabetical CASE key being NULL, which sorts after every real
+    #name. the % operator means "similar enough to bother", so garbage queries
+    #still return nothing. %% because psycopg uses % for parameters
     q = query.strip()
     with pool.connection() as conn:
         return conn.execute("""
@@ -487,10 +467,9 @@ def age_label(released):
     #and a #rank has to say what kind of number it is before it says anything
     #else, which is the same reason the salt figure wears a mark.
     #
-    #released_at is scryfall's earliest printing, so a reprint does not make an
-    #old card new. that is the whole point of the measurement and the reason a
-    #deck stuffed with reprints still reads old. a card with no date shows
-    #nothing at all, exactly like an unpriced or unvoted one: absent is not zero
+    #released_at is scryfall's EARLIEST printing, so a reprint does not make an
+    #old card new, and a deck stuffed with reprints still reads old. no date
+    #shows nothing at all, like an unpriced or unvoted card: absent is not zero
     if released is None:
         return ""
     return "%.1f years" % ((datetime.date.today() - released).days / YEAR_DAYS)
@@ -498,39 +477,26 @@ def age_label(released):
 
 CURRENCY_SIGNS = {"usd": "$", "eur": "€", "gbp": "£"}
 
-#the same three, spelled out, for any control that offers the choice rather
-#than just printing the sign. pounds carry the caveat in the label because
-#scryfall quotes dollars and euros only and ours is derived from both
 CURRENCY_LABELS = [("usd", "$ dollars"), ("eur", "€ euros"), ("gbp", "£ pounds (approx.)")]
 
-#pounds are derived, not sourced: scryfall prices in dollars and euros only,
-#so the gbp figure is each known price converted and averaged, and the ui
-#says approximate because it is. the rates are the ecb's daily reference
-#rates via frankfurter.app (no key needed), refreshed daily, which is also
-#how often the prices themselves move. the seeds hold whenever the fetch
-#fails, so a rate api outage can never break a page
-#the same identification on EVERY outbound request this process makes: the two
-#deck importers, because moxfield asks third parties to say who they are and
-#archidekt has no opinion, and the rate fetch below, because frankfurter refuses
-#the ones that do not. one constant so they can never disagree about who is
-#calling. it lives up here rather than beside the importers because the rate
-#fetch is the first thing that needs it
+#pounds are DERIVED, not sourced: scryfall quotes dollars and euros only, so the
+#gbp figure is each known price converted and averaged, which is why the label
+#says approximate. the rates are the ecb's dailies via frankfurter.app, and the
+#seeds below hold whenever the fetch fails, so an outage cannot break a page
+#the same identification on EVERY outbound request this process makes: both deck
+#importers and the rate fetch, which frankfurter refuses without one. up here
+#rather than beside the importers because the rate fetch needs it first
 IMPORT_AGENT = "Delvefall/1.0 (+https://delvefall.com)"
 
 _gbp_rates = {"usd": 0.74, "eur": 0.86, "at": 0.0}
 
 
 def _fetch_gbp_rates():
-    #SAYING WHO WE ARE IS NOT POLITENESS HERE, IT IS THE WHOLE REQUEST. this
-    #went out with urllib's default agent and frankfurter answers those with a
-    #403, so the fetch had never once succeeded: every pound price the site has
-    #ever printed came from the seeds below, and the "refreshed daily" this
-    #function is named for was not happening. the failure was invisible because
-    #the except swallows it and the seeds are close enough to look right
-    #(0.74 against a real 0.7526 the day it was found, so about 1.7% light).
-    #
-    #same agent the deck importers send, for the same reason and out of the same
-    #constant, so there is one answer to "who is calling" per site
+    #THE AGENT IS THE WHOLE REQUEST. sent with urllib's default, frankfurter
+    #answers 403, so this had never once succeeded: every pound price the site
+    #ever printed came from the seeds. the except swallows it and the seeds are
+    #close enough to look right (0.74 against a real 0.7526, about 1.7% light),
+    #so the failure was invisible
     req = urllib.request.Request("https://api.frankfurter.app/latest?from=GBP&to=USD,EUR",
                                  headers={"User-Agent": IMPORT_AGENT, "Accept": "application/json"})
     try:
@@ -543,19 +509,14 @@ def _fetch_gbp_rates():
 
 
 def gbp_rates():
-    #NOBODY WAITS ON THIS. the refresh runs on a background thread and the
-    #caller is answered straight away with whatever is already in hand, which is
-    #yesterday's rates, or the seeds above on the first call of a process.
+    #NOBODY WAITS ON THIS. the refresh is a background thread and the caller gets
+    #whatever is already in hand: yesterday's rates, or the seeds on a process's
+    #first call. inline, one visitor a day pays up to three seconds for a number
+    #that moves by a fraction of a penny.
     #
-    #fetching inline would make one visitor a day pay up to three seconds mid
-    #page for a number that moves by a fraction of a penny. rates one day stale
-    #are wrong by less than the rounding on the price they are about to be
-    #multiplied into, and every pound figure on the site already says
-    #approximate, so serving yesterday's costs nothing worth having.
-    #
-    #the clock moves before the work starts, which does two jobs: a dead rate
-    #api is retried daily rather than on every request, and only one thread is
-    #ever started per day no matter how many requests arrive together
+    #the CLOCK MOVES BEFORE THE WORK STARTS, which does two jobs: a dead rate api
+    #is retried daily rather than per request, and only one thread is ever started
+    #per day however many requests arrive together
     now = time.time()
     if now - _gbp_rates["at"] > 60 * 60 * 24:
         _gbp_rates["at"] = now
@@ -564,14 +525,11 @@ def gbp_rates():
 
 
 def price_col(currency):
-    #the sql for the price in the chosen currency, everywhere a query
-    #filters or sorts on one. dollars and euros are real columns. pounds
-    #are computed on the spot, and the coalesce pair does the averaging
-    #without a CASE: with both prices known each side is one of them, with
-    #one known both sides collapse to it, with neither the whole thing is
-    #NULL, exactly how the real columns behave for an unpriced card. the
-    #rates are our own floats, not user input, so building them into the
-    #string is safe
+    #dollars and euros are real columns, pounds are computed on the spot. the
+    #COALESCE PAIR averages without a CASE: both prices known, each side is one
+    #of them; one known, both collapse to it; neither, the whole thing is NULL,
+    #exactly how the real columns behave for an unpriced card.
+    #the rates are our own floats, never user input, so this interpolation is safe
     if currency == "gbp":
         ru, re_ = gbp_rates()
         u = "c.price_usd * " + str(round(ru, 6))
@@ -581,9 +539,7 @@ def price_col(currency):
 
 
 def price_in(c, currency):
-    #one already-fetched row's price in the chosen currency, as a float,
-    #None when the card has no usable price there. the python twin of
-    #price_col, for code that holds the row rather than a query
+    #the python twin of price_col, for code holding the row rather than a query
     if currency == "gbp":
         ru, re_ = gbp_rates()
         known = [float(c[col]) * rate for col, rate in (("price_usd", ru), ("price_eur", re_))
@@ -594,13 +550,9 @@ def price_in(c, currency):
 
 
 def price_label(c, currency):
-    #the price string under a card, in whichever currency the toggle picked.
-    #empty when the card has no price there.
-    #
-    #always two decimal places. printing the stored number as it comes back
-    #writes "$0.2" for a twenty cent card, because that is what str() does to a
-    #Decimal ending in a zero, and a money column where some rows have two digits
-    #and some have one reads as a bug in the number rather than in the formatting
+    #ALWAYS two decimal places: printing the stored number as it comes back
+    #writes "$0.2" for a twenty cent card, which is what str() does to a Decimal
+    #ending in a zero
     p = price_in(c, currency)
     return "" if p is None else CURRENCY_SIGNS[currency] + "%.2f" % p
 
@@ -725,12 +677,9 @@ def compile_fq(fq, currency="usd"):
         return t
 
     def parse_unary():
-        #the end of the tokens is a real place to be standing, and the only
-        #caller that checks first is parse_and's loop. a "-" recurses straight
-        #back in here for the thing it negates, so a filter box ending in one
-        #(o:draw -, or a bare -, which is every half typed negation) walked off
-        #the end of the list and 500'd the whole search. nothing to negate is a
-        #skipped token like any other, which is what fail-soft means here
+        #the end of the tokens is a REAL place to be standing: a "-" recurses
+        #straight back in here for the thing it negates, so a box ending in one
+        #(every half typed negation) walked off the end and 500'd the search
         if pos[0] >= len(tokens):
             return None
         kind, payload = take()
@@ -931,23 +880,13 @@ def read_sort():
     return pair[0] if pair else "best"
 
 
-#which figure on a card the page is currently ABOUT, as the class its container
-#wears. every card on this site carries the same readings in the same places -
-#one badge beside the name and four numbers under it - and the only thing a sort
-#changes is which of the five is in ink and which four sit back in grey. that is
-#all it changes, which is the point: a card does not gain or lose a number
-#depending on how the page happens to be ordered, so the row reads the same
-#everywhere and the eye still knows where to land.
+#which figure on a card the page is ABOUT, as the class its container wears. a
+#sort changes only which of the five readings is in ink, never which readings a
+#card carries.
 #
-#the badge is the site's OWN number, the one nothing outside Delvefall could
-#tell you: the match percent on a search, the originality score on a deck page.
-#the other four (price, play rate, salt, card age) are facts the world supplied.
-#a badge is never a sort on the deck pages and never absent on a search, so one
-#class covers both.
-#
-#BOTH vocabularies land here on purpose. /search calls the age field "released"
-#and the precon board calls the same metric "age"; they are one idea with two
-#url spellings, and the page that renders them should not have to know that
+#BOTH vocabularies land here on purpose: /search calls the age field "released"
+#and the precon board calls the same metric "age", and the page rendering them
+#should not have to know that
 FOCUS_CLASS = {
     "best": "focus-badge", "original": "focus-badge",
     "price": "focus-price",
@@ -958,9 +897,8 @@ FOCUS_CLASS = {
 
 
 def focus_class(key):
-    #an unknown key focuses nothing rather than guessing, which leaves every
-    #figure grey. that is the honest rendering of a grid with no chosen stat
-    #(the deck-as-cards grids), not a fallback that has gone wrong
+    #an unknown key focuses NOTHING, leaving every figure grey, which is the
+    #honest rendering of a grid with no chosen stat rather than a broken fallback
     return FOCUS_CLASS.get(key, "")
 
 
@@ -976,32 +914,22 @@ def read_currency():
 
 @app.before_request
 def retry_calibration():
-    #mirror.load_calibration runs once at import, and a worker that booted while
-    #the database was briefly unreachable would otherwise serve the seed maps
-    #until the next deploy. one boolean per request until it succeeds, then
-    #nothing. the functions that read the maps look them up on the module at
-    #call time, so a late load reaches the imported names here too
+    #load_calibration runs once at import, so a worker that booted while the
+    #database was unreachable would serve the SEED maps until the next deploy.
+    #one boolean per request until it succeeds. the readers look the maps up on
+    #the module at call time, so a late load reaches the imported names too
     if not mirror.CALIBRATED:
         mirror.load_calibration()
 
 
 @app.after_request
 def remember_currency(resp):
-    #any request that names a currency makes it the remembered one, so the
-    #toggle sticks no matter which page it was flipped on (/search submits
-    #its form, /unique deals and trail-walks through fetch, the precon board
-    #and the deck pages link it).
-    #
-    #a COOKIE rather than localStorage, and it has to be. every price on this
-    #site is rendered by the server: the precon board sums real money in sql,
-    #and the pound figure is derived PER CARD from whichever of the two prices
-    #that card carries, so it is not the dollar total times a rate and cannot
-    #be recomputed in the browser from what is on the page. localStorage never
-    #reaches the server, so the choice would arrive one render too late and the
-    #board would paint in dollars and then correct itself, or cost a round trip
-    #on every load. this is the one preference on the site the SERVER needs to
-    #know, which is why it is the one kept in a cookie rather than next to the
-    #seen cards and the recent decks
+    #a COOKIE rather than localStorage, and it has to be: every price here is
+    #rendered by the SERVER, and the pound figure is derived per card from
+    #whichever of the two prices that card carries, so it is not the dollar total
+    #times a rate and cannot be recomputed in the browser. localStorage never
+    #reaches the server, so the board would paint in dollars and correct itself.
+    #the one preference the server needs to know, hence the one in a cookie
     cur = request.args.get("cur")
     if cur in CURRENCY_SIGNS:
         resp.set_cookie("cur", cur, max_age=60 * 60 * 24 * 365, samesite="Lax")
@@ -1009,16 +937,12 @@ def remember_currency(resp):
 
 
 def currency_urls():
-    #this same page in each of the three currencies, for the toggle. built off
-    #the request's own args so a page does not have to know what its own url
-    #looks like, and so every other control on it survives the flip.
+    #built off the request's own args, so a page need not know its own url and
+    #every other control survives the flip.
     #
-    #repeated params are why this walks items(multi=True) rather than taking the
-    #dict. to_dict() keeps one value per name, and the two controls that send a
-    #name more than once are the colour boxes and the type boxes: colors=W&
-    #colors=U would come back as colors=W, so the flip drops every colour but the
-    #first. the board only sends single valued controls, so nothing loses
-    #anything today, and the promise above is the whole contract of this function
+    #items(multi=True) and NOT to_dict(), which keeps one value per name: the
+    #colour and type boxes send theirs repeatedly, so colors=W&colors=U would come
+    #back as colors=W and the flip would drop every colour but the first
     out = {}
     keep = [(k, v) for k, v in request.args.items(multi=True) if k != "cur"]
     for code in CURRENCY_SIGNS:
