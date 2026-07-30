@@ -1,29 +1,17 @@
 {% extends "base.html" %}
 
-{# a bare "Delvefall" title is the one word nobody searching for this has ever
-   heard, and a brand-only title is only worth it once the brand is the query.
-   the phrase people actually type goes first, the name after.
-   "cards similar to any card" said the same word twice and ran to 63
-   characters, past where google truncates, so the tail it cut was the brand.
-   this says both halves of what the search box does, similar and unique, and
-   carries both names of the game once each: MTG and Magic: The Gathering are
-   typed about equally and the short one has to be in the part that survives.
-   the deck side is deliberately absent. this page IS a card search box, and a
-   title promising deck scoring over a page that does not do it is the kind of
-   mismatch google demotes. the lens has its own page and its own title #}
+{# under 60 characters, where google truncates, and the tail it cuts is the
+   brand. both names of the game once each, MTG and Magic: The Gathering are
+   typed about equally. nothing about decks, that is the lens's own page #}
 {% block title %}Find similar MTG cards, and Magic's most unique - Delvefall{% endblock %}
 
-{# about 155 characters, which is the whole snippet google prints. the previous
-   one ran to 220, so the sentence a searcher read stopped mid-promise, and the
-   half it lost was every part of the site that is not the search box. this
-   version names all four things somebody could be looking for: similar cards,
-   unique cards, a Commander deck read, and the precons #}
+{# about 155 characters, the whole snippet google prints. the previous one ran
+   to 220 and was cut mid-sentence #}
 {% block metadesc %}Type a Magic card name and get every similar MTG card, ranked by how close. Plus the game's most unique cards, and your Commander deck against every precon.{% endblock %}
 
 {% block bodyclass %}home{% endblock %}
 
-{# structured data: tells google the site's name and that /search?q= is the
-   site search. json-ld only makes claims the page itself backs up #}
+{# json-ld only claims what the page itself backs up #}
 {% block head_extra %}
 <script type="application/ld+json">
 {
@@ -41,10 +29,8 @@
     }
 }
 </script>
-{# the organization card: the logo google may show next to results, and
-   sameAs points at the discord the header links to. the logo url must be
-   absolute, and riding through static_url keeps it the cache-busted url
-   the page itself uses #}
+{# the logo url has to be absolute, and riding through static_url keeps it
+   cache-busted like every other reference to it #}
 <script type="application/ld+json">
 {
     "@context": "https://schema.org",
@@ -55,35 +41,23 @@
     "sameAs": ["https://discord.gg/kfjYbRYKbg"]
 }
 </script>
-{# the home page is reachable with and without a trailing slash, and any
-   tracking parameter a shared link picks up makes another url of it. the
-   canonical that folds those together is the base template's default now #}
 {% endblock %}
 
-{# no header strip here, the hero below IS the search. the logo up top would
-   just be the same thing twice #}
+{# no header strip, the hero below is the search and the logo would be twice #}
 {% block header %}{% endblock %}
 
-{# and no attribution footer: this page shows no card data, so it has nothing
-   to attribute yet. it comes back the moment you land anywhere with cards #}
+{# no attribution footer, this page shows no card data #}
 {% block footer %}{% endblock %}
 
 {% block content %}
     <div class="home-hero">
-        {# recent searches, padded out with much-played cards, get scattered
-           around this layer by the script below, floating gently like the
-           card fan on scryfall's front page #}
+        {# filled by the script at the foot #}
         <div id="recent-floats"></div>
 
-        {# the logo is the biggest paint on this page, it shouldn't wait its
-           turn. the outline variant, because the plain logo's tray is the
-           same ink as the hero and the silhouette drowned #}
+        {# the outline variant: the plain logo's tray is the same ink as the
+           hero and the silhouette drowned in it #}
         <img class="home-logo" src="{{ static_url('DelvefallLogoOutline.png') }}" alt="Delvefall logo" width="90" height="90" fetchpriority="high">
         <h1 class="home-title">Delvefall</h1>
-        {# the tagline sells the shortcut, not the technique. "does the same
-           thing" is still the promise, but what makes anyone use it is that
-           the whole cost is typing a card name: no syntax, no vocabulary,
-           nothing to go and look up first #}
         <p class="home-tag">Type a card name and get every card that does the same thing.
         No syntax to learn, nothing to look up.</p>
 
@@ -93,10 +67,9 @@
             <div id="suggestions"></div>
         </form>
 
-        {# the row future buttons slot into, one <a> each. this page hides the
-           header, so this row is the whole of its navigation and anything
-           missing from it is missing from the landing page entirely, which is
-           where the lens had been sitting. same order as the header's links #}
+        {# this page hides the header, so this row is the whole of its
+           navigation: a link missing here is missing from the landing page
+           entirely. same order as the header's links #}
         <div class="home-buttons">
             <a href="/unique">Unique Cards</a>
             <a href="/deck">Deck lens</a>
@@ -109,12 +82,9 @@
 {% block scripts %}
 <script>
 /*
-    the cards resting around the edges of the screen. the /search page drops
-    every card you look at into localStorage, and this places the last few
-    as clickable ghosts. slots real history hasn't claimed get much-played
-    cards from the server instead, so a first visit isn't an empty room.
-    the slots hug the viewport's corners and sides, none of them anywhere
-    near the search bar in the middle
+    /search writes recent_searches, this reads it back as clickable ghosts.
+    slots real history hasn't claimed get much-played cards from the server,
+    so a first visit isn't an empty room
 */
 var recent = [];
 try {
