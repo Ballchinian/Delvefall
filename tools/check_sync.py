@@ -1,13 +1,11 @@
-#the web folder ships copies of things that live elsewhere in the repo,
-#because railway only deploys web/. the copies MUST stay identical: if
-#clean_line drifts, the line picker silently stops matching page lines to
-#their database rows. this asserts they haven't, and the check workflow
-#runs it on every push so a drift cannot reach a deploy unnoticed.
-#run it locally from the repo root the same way:
+#web/ ships copies of things that live elsewhere, because railway only deploys
+#web/. they MUST stay identical: if clean_line drifts, the line picker silently
+#stops matching page lines to their database rows. the check workflow runs this
+#on every push. locally, from the repo root:
 #    python tools/check_sync.py
 #
-#functions are compared by ast (comments and blank lines don't count,
-#behavior does), the generated prefix_words files byte for byte
+#functions are compared by AST, so comments and blank lines do not count and
+#behaviour does. the generated prefix_words files are compared byte for byte
 
 import ast
 import sys
@@ -44,15 +42,12 @@ def same(what, a, b, where="between web/ and its source of truth"):
         problems.append(what + " drifted " + where)
 
 
-#every copy web/ carries lives in web/mirror.py, so this script has one file to
-#read rather than hunting through 4600 lines of routes. if a name moves out of
-#there, the path below has to move with it
+#every copy web/ carries lives in web/mirror.py. if a name moves out of there,
+#this path has to move with it
 MIRROR = "web/mirror.py"
 
-#the line cleaner: it must clean exactly like the ingest did, or the line
-#picker can't find the lines shown on the page in the lines table. the helper
-#and the keyword list it leans on are checked too - clean_line's own ast would
-#look identical while either of those quietly said something different
+#the helper and the keyword list are checked too: clean_line's own ast looks
+#identical while either of those quietly says something different
 same("clean_line", func_dump(MIRROR, "clean_line"), func_dump("common/cards.py", "clean_line"))
 same("reminder_is_the_rule", func_dump(MIRROR, "reminder_is_the_rule"),
      func_dump("common/cards.py", "reminder_is_the_rule"))
@@ -76,21 +71,16 @@ if read("web/prefix_words.py") != read("common/prefix_words.py"):
 same("CALIBRATION seed", assign_value(MIRROR, "CALIBRATION"), assign_value("common/concept.py", "CALIBRATION"))
 same("MECH_CALIBRATION seed", assign_value(MIRROR, "MECH_CALIBRATION"), assign_value("ingest/update.py", "MECH_CALIBRATION"))
 
-#the report bakeoff scores pairs the way the site does, with its own copies
-#of the two scoring functions.
-#
-#guarded on the file being there rather than assumed, because finetune/ ships
-#its scripts but not its data: a clone that has the folder gets exam_pairs.py
-#and this runs, and a checkout without it has nothing to compare, which must
-#not read as a failure
+#guarded on the file EXISTING, because finetune/ ships its scripts but not its
+#data: a checkout without it has nothing to compare, which must not read as a
+#failure
 if os.path.exists(os.path.join(ROOT, "finetune", "exam_pairs.py")):
     for fn in ("line_weight", "mech_display"):
         same(fn, func_dump("finetune/exam_pairs.py", fn), func_dump(MIRROR, fn),
              "between finetune/exam_pairs.py and web/mirror.py")
 else:
-    #this branch passes, since a missing folder is not a drift. it does mean
-    #renaming or moving exam_pairs.py disables the guard rather than failing
-    #loudly, so the path above is one to update with the file
+    #a missing folder is not a drift, so this passes. it does mean renaming
+    #exam_pairs.py DISABLES the guard rather than failing loudly
     print("no finetune/ here, skipping the exam_pairs drift check")
 
 if problems:

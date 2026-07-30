@@ -1,19 +1,17 @@
 #---- privacy-preserving visitor counting ----
-#how many distinct people used the site each day, keeping NOTHING that can be
-#traced back to one of them. the recipe is the privacy-first standard (the same
-#one plausible and friends use): hash the ip with a salt that ROTATES DAILY and
-#is then thrown away. within a day the same visitor collapses to one token; once
-#that day's salt is deleted, nobody, us included, can turn the stored tokens
-#back into an ip. the raw ip is never written to disk.
+#hash the ip with a salt that ROTATES DAILY and is then thrown away. within a day
+#the same visitor collapses to one token; once that day's salt is deleted nobody,
+#us included, can turn the stored tokens back into an ip. the raw ip never
+#reaches disk.
 #
-#done server-side ON PURPOSE. it touches nothing on the visitor's device, so it
-#needs no cookie banner, where a localStorage "visited" flag would count as
-#non-essential storage the eprivacy rules require consent for. counter-intuitive
-#but true: the device-storage route is the more regulated one.
+#SERVER-SIDE on purpose: it touches nothing on the visitor's device, so it needs
+#no cookie banner, where a localStorage "visited" flag is non-essential storage
+#the eprivacy rules require consent for. the device-storage route is the more
+#regulated one.
 #
-#this is its own module because visitor_token is not only the counter's: the
-#report rate limit and the decklist import limit both identify a visitor
-#through it, and all three have to agree on what "the same person today" means
+#its own module because visitor_token is not only the counter's: the report and
+#import limits identify a visitor through it too, and all three have to agree on
+#what "the same person today" means
 
 import hashlib
 import secrets
@@ -27,12 +25,11 @@ _visit = {"day": None, "salt": None}
 
 
 def client_ip():
-    #railway's proxy APPENDS the address it saw to X-Forwarded-For, so the
-    #last entry is its word and everything left of it is client supplied.
-    #reading the first entry would let anyone dodge the report rate limit by
-    #sending a made-up header. one proxy deep is a railway fact: putting a
-    #cdn in front of the site would add an entry and this needs to move one
-    #step left
+    #railway's proxy APPENDS what it saw to X-Forwarded-For, so the LAST entry is
+    #its word and everything left of it is client supplied: reading the first
+    #lets anyone dodge the rate limit with a made-up header.
+    #one proxy deep is a railway fact. a cdn in front adds an entry and this has
+    #to move one step left
     fwd = request.headers.get("X-Forwarded-For", "")
     if fwd:
         return fwd.split(",")[-1].strip()
@@ -44,11 +41,10 @@ def _utc_day():
 
 
 def todays_salt():
-    #today's rotating salt, generated once and shared by every worker through
-    #the db. the first request of a new day also does the housekeeping: each
-    #finished day collapses into a single count in visit_daily and its
-    #per-visitor tokens and its salt are deleted. that deletion is what makes
-    #yesterday unrecoverable, so only ever an integer survives the day
+    #generated once and shared by every worker through the db. the first request
+    #of a new day does the housekeeping: each finished day collapses to one count
+    #in visit_daily and its tokens and salt are DELETED, which is what makes
+    #yesterday unrecoverable. only an integer survives the day
     day = _utc_day()
     if _visit["day"] == day and _visit["salt"]:
         return _visit["salt"]
@@ -67,51 +63,37 @@ def todays_salt():
 
 
 def visitor_token(ip):
-    #one-way daily fingerprint of an ip, shared by the visit counter and the
-    #feedback rate limit so the two never diverge. an empty ip (nothing to
-    #hash) stays empty rather than becoming a hash of the salt alone
+    #an empty ip stays EMPTY rather than becoming a hash of the salt alone
     if not ip:
         return ""
     return hashlib.sha256((todays_salt() + "|" + ip).encode("utf-8")).hexdigest()
 
 
-#the routes that count as a page view. the json endpoints are deliberately
-#absent: /suggest alone fires on every keystroke and would swamp the number,
-#and /more, the unique dealer and the report post are not visits.
+#the json endpoints are deliberately absent: /suggest alone fires on every
+#keystroke and would swamp the number.
 #
-#these are flask endpoint names, and a route moved into a blueprint is renamed
-#to "blueprint.name", so /search under one would have to be written
-#"search.search". a name that matches nothing raises nothing, it just stops
-#counting that page and the numbers keep arriving, only smaller.
-#
-#"support" belongs here for the same reason as the rest: the tip jar is a page a
-#person reads, it is linked from the footer and it is in the sitemap
+#these are flask ENDPOINT names, and a route moved into a blueprint is renamed to
+#"blueprint.name". a name matching nothing raises nothing, it just stops counting
+#that page while the numbers keep arriving, only smaller
 PAGE_ENDPOINTS = {"home", "search", "unique", "precons", "precon", "deck", "guide",
                   "privacy", "support"}
 
 
-#the tokens this worker has already written today, so a visitor's second and
-#twentieth page view cost nothing. without it every page view borrows one of the
-#pool's connections before the handler has even started, on a search that
-#already borrows three for its line scans.
+#the tokens this worker already wrote today, so a second page view costs nothing.
+#without it every view borrows a pool connection before the handler starts, on a
+#search that already borrows three.
 #
-#correctness does not live here: the primary key on (day, token) is what makes
-#a repeat visit one row, and this only skips inserts that would have hit that
-#key and done nothing.
-#
-#one entry per unique visitor per day per worker, dropped when the day rolls
-#over. the cap is a floor under the worst case rather than a real limit, since
-#past it the memo stops growing and the inserts go back to being paid for
+#CORRECTNESS DOES NOT LIVE HERE: the primary key on (day, token) is what makes a
+#repeat visit one row, and this only skips inserts that would have hit it.
+#past the cap the memo stops growing and the inserts go back to being paid for
 VISIT_MEMO_MAX = 50000
 
 _visit_memo = {"day": None, "seen": set()}
 
 
 def count_visit():
-    #one insert-or-nothing per new visitor per day. wrapped in a blanket catch
-    #because analytics must NEVER be able to break a page: a missing table
-    #(fresh deploy before the ingest self-heals) or a db hiccup just means an
-    #uncounted visit, never a 500
+    #a blanket catch, because analytics must NEVER break a page: a missing table
+    #on a fresh deploy or a db hiccup means an uncounted visit, never a 500
     if request.method != "GET" or request.endpoint not in PAGE_ENDPOINTS:
         return
     try:
@@ -127,8 +109,8 @@ def count_visit():
         with pool.connection() as conn:
             conn.execute("INSERT INTO visit_seen (day, token) VALUES (%s, %s) ON CONFLICT DO NOTHING",
                          (day, token))
-        #memoised only after the insert lands, so a failed one is retried on
-        #the next page view rather than being remembered as done
+        #memoised only AFTER the insert lands, so a failed one is retried on the
+        #next page view rather than remembered as done
         if len(_visit_memo["seen"]) < VISIT_MEMO_MAX:
             _visit_memo["seen"].add(token)
     except Exception:
@@ -136,7 +118,6 @@ def count_visit():
 
 
 def register(app):
-    #the hook is wired here rather than with a decorator at import time, so
-    #importing this module for visitor_token alone (the report limiter does)
-    #cannot accidentally start counting visits on somebody else's app
+    #wired here rather than by a decorator at import time, so importing this
+    #module for visitor_token alone cannot start counting visits by accident
     app.before_request(count_visit)
