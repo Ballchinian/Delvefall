@@ -5088,9 +5088,9 @@ def admin():
         #stitched newest-first
         today = _utc_day()
         live = conn.execute("SELECT count(*) AS n FROM visit_seen WHERE day = %s", (today,)).fetchone()["n"]
-        usage = [{"day": today.isoformat(), "uniques": live, "today": True}]
+        usage = [{"day": today.isoformat(), "uniques": live}]
         for u in conn.execute("SELECT day, uniques FROM visit_daily ORDER BY day DESC LIMIT 60"):
-            usage.append({"day": u["day"].isoformat(), "uniques": u["uniques"], "today": False})
+            usage.append({"day": u["day"].isoformat(), "uniques": u["uniques"]})
 
     def card_bit(role, oid, name, pct):
         c = info.get(oid)

@@ -11,7 +11,7 @@
     <table class="fb-usage">
         <tr><th>day</th><th>unique visitors</th></tr>
         {% for u in usage %}
-        <tr><td>{{ u.day }}{% if u.today %} <span class="fb-quiet">(so far today)</span>{% endif %}</td>
+        <tr><td>{{ u.day }}</td>
             <td>{{ u.uniques }}</td></tr>
         {% endfor %}
         {% if usage|length == 1 and usage[0].uniques == 0 %}
