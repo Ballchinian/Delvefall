@@ -1,10 +1,8 @@
-/* the ink and paper variant of style.css: same layout, different skin.
-   palette comes from the logo (dark ink, warm cream), display type is
-   fraunces, the accent is a delve-ish teal instead of scryfall purple.
-   a/b against the old look by pointing base.html back at style.css */
+/* the ink and paper variant of style.css: same layout, different skin. a/b
+   against the old look by pointing base.html back at style.css */
 
-/* fraunces variable fonts, self hosted (see fonts/OFL.txt). headings and
-   card names only, the ui stays on the system stack */
+/* self hosted, see fonts/OFL.txt. headings and card names only, the ui stays
+   on the system stack */
 @font-face {
     font-family: "Fraunces";
     src: url("fonts/Fraunces.woff2") format("woff2");
@@ -37,29 +35,21 @@
     --wash: #f3eee0;        /* hover and picked backgrounds */
     --serif: "Fraunces", Georgia, serif;
 
-    /* two inline svg icons, carried as urls so the rules below can mask
-       them from currentColor and they cost no extra request. a funnel for
-       the filters fold, and the standard box-and-arrow for links that
-       leave the site */
+    /* inline svg, so the rules below can mask them from currentColor and they
+       cost no extra request */
     --funnel: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2016%2016'%3E%3Cpath%20d='M1.5%202.5h13L9.5%208.5v5l-3%201.5v-6.5z'/%3E%3C/svg%3E");
     --burger: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2016%2016'%3E%3Cpath%20d='M1%203h14M1%208h14M1%2013h14'%20stroke='%23000'%20stroke-width='2'%20stroke-linecap='round'/%3E%3C/svg%3E");
     --external: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2016%2016'%20fill='none'%20stroke='%23000'%20stroke-width='1.7'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Cpath%20d='M6.5%202.75H2.75v10.5h10.5V9.5'/%3E%3Cpath%20d='M9.75%202.75h3.5v3.5'/%3E%3Cpath%20d='M13.25%202.75L7%209'/%3E%3C/svg%3E");
-    /* a salt shaker, for the salt score. drawn as a silhouette with the
-       holes and the cap seam CUT OUT (evenodd), because the rules below
-       mask it from currentColor and a masked shape has no second colour to
-       draw them in. deliberately chunky: it is read at 11px, where a
+    /* the holes and cap seam are CUT OUT (evenodd), because a masked shape has
+       no second colour to draw them in. chunky on purpose: read at 11px, a
        finer shaker turns into a grey blob */
     --shaker: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2016%2016'%3E%3Cpath%20fill-rule='evenodd'%20d='M8%201.6c-2%200-3.6%201.6-3.6%203.6v7.3c0%20.9.7%201.6%201.6%201.6h4c.9%200%201.6-.7%201.6-1.6V5.2c0-2-1.6-3.6-3.6-3.6zM4.6%206.2h6.8v1H4.6zM6.5%203.3a.6.6%200%201%200%200%201.2.6.6%200%200%200%200-1.2zm3%200a.6.6%200%201%200%200%201.2.6.6%200%200%200%200-1.2zM8%202.6a.6.6%200%201%200%200%201.2.6.6%200%200%200%200-1.2z'/%3E%3C/svg%3E");
     
-    /* the deck lens. the circle sits high and left so the handle has its
-       corner, which is the one proportion a magnifier cannot get wrong */
+    /* the deck lens */
     --lens: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='%23000'%20stroke-width='2.5'%20stroke-linecap='round'%3E%3Ccircle%20cx='10.1'%20cy='10.1'%20r='6.9'/%3E%3Cpath%20d='M15%2015l5.8%205.8'/%3E%3C/svg%3E");
-    /* your deck and the field, split down the middle. the left half is solid
-       and the right half dotted on purpose: one of the two is the thing you
-       brought and the other is everything it is being measured against */
+    /* your deck and the field: the left half solid, the right half dotted */
     --split: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='%23000'%20stroke-width='2.5'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Cpath%20d='M13%204H6C4.9%204%204%204.9%204%206V18C4%2019.1%204.9%2020%206%2020H13M17%204H18C19.1%204%2020%204.9%2020%206V7M20%2017V18C20%2019.1%2019.1%2020%2018%2020H17M20%2011V13M12%202V22'/%3E%3C/svg%3E");
-    /* two cards trading places, one arrow each way. neither direction is the
-       important one, which is what a swap is */
+    /* two cards trading places, one arrow each way */
     --exchange: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%20stroke='%23000'%20stroke-width='1.1'%20stroke-linejoin='round'%3E%3Cpath%20d='M28,6H18V4a2,2,0,0,0-2-2H4A2,2,0,0,0,2,4V24a2,2,0,0,0,2,2H14v2a2,2,0,0,0,2,2H28a2,2,0,0,0,2-2V8A2,2,0,0,0,28,6ZM4,15h6.17L7.59,17.59,9,19l5-5L9,9,7.59,10.41,10.17,13H4V4H16V24H4ZM16,28V26a2,2,0,0,0,2-2V8H28v9H21.83l2.58-2.59L23,13l-5,5,5,5,1.41-1.41L21.83,19H28v9Z'/%3E%3C/svg%3E");
 }
 
@@ -106,10 +96,9 @@ header {
 
 .search-form input {
     flex: 1;
-    /* a flex item's default min-width is auto, and for an <input> that
-       resolves to its intrinsic ~20-character width. without this the bar
-       refuses to shrink past ~300px and pushes the page sideways on a
-       320px phone, which is where the mobile horizontal scroll came from */
+    /* a flex item's default min-width is auto, which for an <input> is its
+       intrinsic ~20-character width: without this the bar will not shrink past
+       ~300px and pushes a 320px phone sideways */
     min-width: 0;
     padding: 8px 12px;
     border: 0;
@@ -146,11 +135,8 @@ header {
 
 .header-links a:hover { color: #fff; text-decoration: underline; }
 
-/* the collapsed nav: one Menu button holding the same links, shown only
-   below the width where the row breathes. this is the pattern that keeps a
-   fifth page from forcing a header redesign, built when a fifth page was
-   about to land. a details, like the filters fold, so it needs no script to
-   open and the same two lines of script to close */
+/* the collapsed nav, below the width where the row breathes. a details, like
+   the filters fold, so it needs no script to open */
 .nav-menu { display: none; position: relative; }
 
 .nav-menu summary {
@@ -178,8 +164,7 @@ header {
 
 .nav-menu summary:hover, .nav-menu[open] summary { color: #fff; }
 
-/* the panel unfolds in the header's own ink, hanging from the right edge
-   so it never leaves the screen */
+/* hangs from the right edge, so it never leaves the screen */
 .nav-menu-panel {
     position: absolute;
     right: 0;
@@ -208,10 +193,8 @@ header {
     background: rgba(255, 255, 255, 0.06);
 }
 
-/* links that leave the site say so. the mark is the only difference
-   between "Discord" and every other nav item, and target=_blank without
-   one is the classic surprise-new-tab. masked from currentColor so it
-   follows the link through its hover state */
+/* target=_blank without a mark is the classic surprise-new-tab. masked from
+   currentColor, so it follows the link through its hover state */
 .header-links a[target="_blank"]::after,
 .nav-menu-panel a[target="_blank"]::after,
 .home-buttons a[target="_blank"]::after {
@@ -267,42 +250,34 @@ main {
 
 .hero h1 { margin-bottom: 8px; }
 
-/* no tray around this: print groups with whitespace and alignment, not
-   boxes, and the card picture anchors the section by itself */
+/* no tray: the card picture anchors the section by itself */
 .searched-card {
     display: flex;
     gap: 20px;
     padding: 16px 0;
 }
 
-/* the picture is inside a card-frame now (for the rotate/flip/transform
-   overlay), so the frame owns the column width and the image fills it.
-   300px, the size every SINGULAR card on the site is drawn at: this one, the
-   card leaving on the swap page, the dealt card on /unique and the guide's
-   mock. there is only ever one of them on screen and it is the card the page
-   is about, so it is read rather than scanned, and nothing is competing with
-   it for the row */
+/* the frame owns the column width and the image fills it. 300px is the size
+   every SINGULAR card on the site is drawn at: this one, the card leaving on
+   the swap page, /unique's dealt card and the guide's mock */
 .searched-card .card-frame {
     width: 300px;
     flex-shrink: 0;
     align-self: flex-start;
 }
 
-/* scoped to the frame: the mana symbols in the title are imgs too now,
-   and they must not inherit the fill-the-column treatment */
+/* SCOPED to the frame: the mana symbols in the title are imgs too, and must not
+   inherit the fill-the-column treatment */
 .searched-card .card-frame img {
     width: 100%;
-    height: auto; /* same story as .result img, the attrs declare 488x680 */
+    height: auto; /* the attrs declare 488x680, this keeps the ratio */
     display: block;
-    border-radius: 11px; /* real cards have rounded corners, the only round
-                            things on the page on purpose */
+    border-radius: 11px;
 }
 
 .searched-info h1 { margin: 4px 0 2px 0; }
 
-/* the same slot as that h1, on a page that already has one. /deck/swap's
-   heading is "Making X less salty", and a second h1 underneath would be two
-   headings both claiming to name the page */
+/* the same slot as that h1, for a page that already has one of its own */
 .searched-name {
     font-family: var(--serif);
     font-weight: 600;
@@ -317,7 +292,7 @@ main {
     font-weight: normal;
 }
 
-/* the cost symbols riding the card name, nudged to sit on the baseline */
+/* nudged onto the baseline of the name they ride */
 .mana img {
     vertical-align: -2px;
     margin-left: 1px;
@@ -325,12 +300,10 @@ main {
 
 .type-line { color: var(--muted); margin: 4px 0 12px 0; }
 
-/* the rules text is one div per line now so lines can be clicked. the
-   searchable ones are the line picker, the plain ones just sit there */
+/* one div per line, so lines can be clicked */
 .oracle { line-height: 1.55; }
 
-/* the same svgs as the cost line, inline in rules text, sized down from
-   their 16x16 attrs to ride the line they sit in */
+/* sized down from their 16x16 attrs to ride the line they sit in */
 .oracle img {
     width: 15px;
     height: 15px;
@@ -362,10 +335,8 @@ main {
     margin: 10px 0 0 0;
 }
 
-/* the tag picker under the rules text: the concepts side's community tags,
-   each one a switch. teal like every other action on the page, and a
-   switched-off tag is struck through and drained of color rather than
-   removed, so you can always see what you turned off and put it back */
+/* a switched-off tag is struck through and drained rather than removed, so you
+   can see what you turned off and put it back */
 .tag-picker {
     display: flex;
     flex-wrap: wrap;
@@ -396,8 +367,7 @@ main {
     text-decoration: line-through;
 }
 
-/* set aside because the highlighted lines aren't about it. faded rather than
-   struck, since nobody chose this - the line selection implied it */
+/* faded rather than struck: nobody chose this, the line selection implied it */
 .tag-chip.aside {
     color: var(--muted);
     background: transparent;
@@ -405,18 +375,14 @@ main {
     opacity: 0.55;
 }
 
-/* set aside by the line picker, then put back by hand. live like a normal
-   chip, but the dashed border stays to show it's a correction */
+/* set aside then put back by hand: live, but the dashed border stays */
 .tag-chip.kept {
     border-style: dashed;
     border-color: var(--teal);
 }
 
-/* the filter bar, a strip under the searched card like scryfall's
-   search options */
-/* the widgets carry their own hand-drawn borders, so the bar needs no tray
-   of its own: it sits on the paper, and the rules above and below fence it
-   into a band, same hairline the results heading rides on */
+/* no tray of its own: the widgets carry their own borders, and the rules above
+   and below fence the bar into a band */
 .filter-bar {
     display: flex;
     flex-wrap: wrap;
@@ -441,13 +407,9 @@ main {
     gap: 6px;
 }
 
-/* scryfall's real symbol svgs as the color toggles. the checkbox hides and
-   the whole symbol is the chip. an unpicked one is drained to grey, a picked
-   one is its own colour with a ring: at 0.7 opacity the symbol still read as
-   mostly itself, so five colourful circles looked like five colours already
-   chosen, which is exactly the "am I filtering or not" confusion. greyscale
-   is the difference you can see across the room, and the ring backs it up
-   so colour is not the only channel */
+/* unpicked is drained to GREYSCALE, not dimmed: at 0.7 opacity a symbol still
+   read as mostly itself, so five colourful circles looked like five colours
+   already chosen. the ring backs it up, so colour is not the only channel */
 .filter-colors label {
     position: relative;
     width: 26px;
@@ -492,7 +454,7 @@ main {
     background: #fffef9;
 }
 
-/* selects lose the os chrome and get an ink chevron drawn in */
+/* the os chrome off, an ink chevron drawn in */
 .filter-bar select {
     -webkit-appearance: none;
     appearance: none;
@@ -511,8 +473,7 @@ main {
     border-color: var(--teal);
 }
 
-/* the toggle checkboxes, drawn to match. the mana chips' hidden inputs
-   match this selector too, but they're invisible so nothing shows */
+/* the mana chips' hidden inputs match this too, but they are invisible */
 .filter-bar input[type="checkbox"] {
     -webkit-appearance: none;
     appearance: none;
@@ -536,10 +497,9 @@ main {
     outline-offset: 2px;
 }
 
-/* Apply, and only Apply. .filter-bar button reaches every button inside the
-   filters panel too and paints them all as solid teal rectangles: the remove x
-   wears a green pill it was never meant to have, and the add-a-filter buttons
-   cannot round themselves because the more specific selector keeps winning */
+/* Apply, and ONLY Apply: a bare `.filter-bar button` reaches every button in the
+   filters panel and paints them solid teal, and the more specific selector keeps
+   winning over anything they try to set themselves */
 .filter-actions button {
     background: var(--teal);
     color: #fff;
@@ -552,64 +512,44 @@ main {
 
 .filter-actions button:hover { background: var(--teal-hover); }
 
-/* 36px was set when this heading followed a dense filter bar and needed the
-   air. it now lands under the results heading's own blurb and a hairline, so
-   the gap read as the page having come apart */
+/* 36px, set when this followed a dense filter bar, now reads as the page having
+   come apart */
 h2 {
     margin-top: 22px;
     border-bottom: 1px solid var(--line);
     padding-bottom: 8px;
 }
 
-/* the floor is what decides how many cards fit a row, and it is set by the
-   WIDEST thing under a card rather than by the picture: the four figures are
-   one line or they are two, and two is a card grown a row taller than its
-   neighbours for no reason anybody can see.
-   it has to be the FLOOR rather than a media query, because these grids sit in
-   containers of different widths (a search gets 968px, the swap page 860px)
-   and the card is meant to be the same size in all of them. auto-fill measures
-   the container, a media query would measure the window.
-   the old 200px floor let four columns squeeze to 200px before dropping to
-   three, so the row broke across every viewport from 892 to 974 and again from
-   672 to 734 and 452 to 493. that is 188 widths, not an edge case.
+/* the floor is set by the WIDEST thing under a card, not by the picture: the
+   four figures are one line or they are two, and two grows the card a row
+   taller than its neighbours.
 
-   290 AND NOT 220, and the number is MEASURED rather than eyeballed this time.
-   220 was set before the age figure grew an arrow, and an arrow is 6.1px of
-   glyph plus 2px of margin. with all four figures carrying one, the widest row
-   on a search comes to 286px: Temporal Cascade under Timetwister and Mawcor
-   under Immard both land there, from opposite ends of the card pool, so 286 is
-   the shape of the row and not a freak card. 220 was 66px short of it.
+   a FLOOR and not a media query, because these grids sit in containers of
+   different widths (968px on a search, 860px on the swap page) and the card is
+   meant to be the same size in all of them. auto-fill measures the container,
+   a media query would measure the window.
 
-   what 230 bought (the first attempt at this) was the four-column case at a
-   979px viewport and nothing else: three columns at 770px are 232.7px each and
-   Aladdin's Ring still broke in half. a floor has to clear the WIDEST row or
-   it is just a smaller version of the same bug.
+   290 is MEASURED, not eyeballed. with all four figures carrying an arrow (6.1px
+   of glyph plus 2px of margin) the widest row on a search is 286px: Temporal
+   Cascade under Timetwister and Mawcor under Immard both land there, from
+   opposite ends of the card pool. the old 220 was 66px short, and broke the row
+   across every viewport from 892-974, 672-734 and 452-493.
 
-   it costs a column at some widths, and that is the trade the floor has always
-   been: a 770px viewport now draws two cards a row instead of three broken
-   ones. what it does not cost is card SIZE, which is the thing that has to
-   stay the same across the site: 290 at four columns, 309 at three, and the
-   pictures stay within 6% of each other everywhere */
+   it costs a column at some widths and never card SIZE: 290 at four columns,
+   309 at three, so the pictures stay within 6% of each other everywhere */
 .card-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
     gap: 20px;
 }
 
-/* HOW WIDE A GRID OF CARD PICTURES GETS, and it is one answer for every grid
-   on the site. a card is the same object on a search, in a deck's fold and in
-   the swap tool's suggestions, so it is drawn at the same size in all three and
-   the same number fit across.
+/* one width for every card grid on the site, and it STEPS OUT past the reading
+   column rather than fitting inside it: the column is 968px on a search and
+   860px on a deck page, sized for prose, where four columns of 290 need 1220.
+   inside the column, four across would mean 227px cards.
 
-   it is a width these grids STEP OUT to, not the column they sit in. the
-   reading column is 968px on a search and 860px on a deck page, sized for
-   prose, and four columns of 290 need 1220. inside the column four across is
-   arithmetically impossible: it would mean 227px cards, which is not "more
-   cards", it is smaller cards than every other page draws. stepping the grid
-   out keeps the card the size it already is and fits another one beside it.
-
-   the centring is done off 100% rather than a fixed number so one rule serves
-   both columns: whatever the parent is, the grid overhangs it evenly. */
+   centred off 100% rather than a fixed number, so one rule serves both column
+   widths: whatever the parent is, the grid overhangs it evenly */
 :root {
     --grid-width: min(968px, 100vw - 32px);
 }
@@ -628,27 +568,22 @@ h2 {
     margin-left: calc((100% - var(--grid-width)) / 2);
 }
 
-/* scoped to the frame: rules text under the picture carries mana symbol
-   imgs now, and they must not get the fill-the-column treatment */
+/* SCOPED to the frame: rules text under the picture carries mana imgs, and they
+   must not get the fill-the-column treatment */
 .result .card-frame img {
     width: 100%;
-    height: auto; /* the imgs carry width/height attributes for the browser's
-                     sake, this keeps the scaled height following the ratio */
+    height: auto; /* the attrs declare 488x680, this keeps the ratio */
     display: block;
-    border-radius: 4.75% / 3.5%; /* the magic card corner radius, took a while to eyeball this */
+    border-radius: 4.75% / 3.5%; /* the magic card corner radius */
     transition: transform .1s;
 }
 
 .result .card-frame img:hover { transform: scale(1.03); }
 
-/* the name and its badge, on ONE line, which they were not. the badge FLOATED
-   right, so a name long enough to fill the line pushed it down to the next
-   one, and the next line is the figures row: it parked there and took about
-   40px out of the four numbers, which then wrapped in turn. one bug wearing
-   two faces, and Kongming, "Sleeping Dragon" wears both.
-   a flex row instead, so the badge is a sibling that cannot be displaced by
-   anything the name does, and it sizes itself: it is "56%" on a search, "0.28"
-   on a deck page and "51% unique" on the dealer */
+/* a FLEX row, so the badge is a sibling nothing the name does can displace.
+   floated right, a name long enough to fill the line pushed it onto the figures
+   row, where it took 40px out of the four numbers and wrapped those in turn.
+   Kongming, "Sleeping Dragon" did both */
 .result-name {
     display: flex;
     align-items: baseline;
@@ -660,14 +595,10 @@ h2 {
     line-height: 1.25;
 }
 
-/* the name takes what is left and ends in an ellipsis rather than wrapping.
-   a 240px column cannot hold that Kongming and a badge both, and of the two it
-   is the badge that stays: it sits in the same place on every card and is read
-   DOWN the column, where a name is read one card at a time with its own
-   picture directly above it. the full name is on the title either way.
-   min-width 0 is what lets it shrink at all. a flex item will not go below its
-   content width without it, which is the whole reason the ellipsis never fires
-   when this is left off */
+/* the name ellipsises and the BADGE stays, being read down the column. the full
+   name is on the title either way.
+   min-width: 0 is what lets it shrink at all: a flex item will not go below its
+   content width without it, so the ellipsis never fires when this is left off */
 .card-name {
     min-width: 0;
     overflow: hidden;
@@ -675,14 +606,9 @@ h2 {
     white-space: nowrap;
 }
 
-/* the badge beside a card's name: the match percent on a search, the
-   originality score on a deck page. always the site's OWN number, never
-   whichever figure the page happens to be sorted on, so the slot means one
-   thing wherever a card is drawn.
-   no colour of its own: gold said nothing a reader could decode, and a second
-   colour for concept-only matches turned a number people already have to
-   interpret into a legend they had to learn. it is a number, it reads as one,
-   and the tooltip carries the breakdown */
+/* always the site's OWN number (match percent on a search, originality on a deck
+   page), never whichever figure the page is sorted on, so the slot means one
+   thing wherever a card is drawn. no colour: the tooltip carries the breakdown */
 .percent {
     margin-left: auto;
     flex: none;
@@ -692,45 +618,30 @@ h2 {
     color: var(--muted);
 }
 
-/* the numbers under a card, and they all start GREY. ink is not a default here,
-   it is what being sorted on looks like (see the focus rules below), so a grid
-   with no chosen stat prints four equal readings rather than quietly promoting
-   one of them.
-   the price used to be green, which claimed something the number doesn't mean:
-   green reads as "good value" and it's just the price, whatever it is. weight
-   carries the prominence instead, so no colour is spent saying nothing */
+/* all four start GREY. ink is not a default here, it is what being sorted on
+   looks like (see the focus rules below), so a grid with no chosen stat prints
+   four equal readings rather than promoting one */
 .result-price {
     color: var(--muted);
     font-size: 13px;
     font-weight: 600;
     margin-top: 6px;
-    /* as four inline spans a wrapped row falls onto a second line with nothing
-       between them, which reads as the numbers running into each other rather
-       than as a second line of numbers. flex-wrap gives it a row-gap, which
-       inline flow has no way to express, and the 10px column gap does the
-       spacing in one rule instead of a margin-left per figure.
-       the figures stay in source order and each stays nowrap, so this decides
-       where the row breaks and nothing about what it says */
+    /* flex-wrap for the ROW-GAP, which inline flow cannot express: as inline
+       spans a wrapped row fell onto a second line with nothing between them.
+       the column gap also replaces a margin-left per figure */
     display: flex;
     flex-wrap: wrap;
     align-items: baseline;
     gap: 4px 10px;
 }
 
-/* the price and its arrow, coloured together. colour on the arrow alone was
-   too small to see at this size, so the whole figure carries it: the number
-   is the thing you are reading anyway, and it is now the thing that tells
-   you which way it moved.
-   colour only arrives for a move worth reacting to (a doubling or a halving,
-   and at least a pound or dollar of it), so green and red mean "this is a
-   real difference" rather than decorating every row. a small move keeps the
-   arrow and stays plain ink.
-   this is the one place colour is spent on a price, and it is spent on a
-   COMPARISON, not on the number itself: green here means cheaper than the
-   card you searched, which is a fact, where a green price meant "good
-   value", which was an opinion the number could not support */
-/* nowrap like the other three. as a flex item it can break between the figure
-   and its arrow, and a lone arrow starting the next line names nothing */
+/* the figure carries the colour, not just the arrow, which was too small to see
+   at this size. colour arrives only for a move worth reacting to (a doubling or
+   halving, and at least a pound or dollar of it), and it is spent on the
+   COMPARISON: green means cheaper than the card you searched, which is a fact,
+   where a green price meant "good value", which is an opinion */
+/* nowrap: as a flex item it can break between the figure and its arrow, and a
+   lone arrow starting the next line names nothing */
 .price-figure {
     cursor: help;
     white-space: nowrap;
@@ -740,27 +651,22 @@ h2 {
 
 .price-figure.much-pricier { color: #b3352a; }
 
-/* the arrow rides the figure's colour, and carries its own weight so the
-   direction is legible at 13px whether or not the colour applies */
+/* its own weight, so the direction is legible at 13px with or without colour */
 .price-vs {
     margin-left: 3px;
     font-weight: 700;
     font-size: 14px;
 }
 
-/* the same idea on the play-rate side, deliberately without colour: the
-   edhrec rank is a popularity fact and colouring it would imply popular is
-   better, which is exactly the claim the price colour used to make. it gets
-   the same weight as the price arrow so both are readable, just no hue */
+/* NO colour: the rank is a popularity fact, and colouring it would imply popular
+   is better. same weight as the price arrow, no hue */
 .rank-vs {
     margin-left: 2px;
     font-weight: 700;
     cursor: help;
 }
 
-/* the searched card's own price and rank, under its type line. the same
-   sizes as a result's so the numbers being compared read as the same kind
-   of thing */
+/* the same sizes as a result's, so the numbers being compared read alike */
 .anchor-figures {
     display: flex;
     align-items: baseline;
@@ -770,72 +676,51 @@ h2 {
     font-size: 13px;
 }
 
-/* both carry a tooltip explaining what the number is and that the arrows
-   below are measured against it, so they get the help cursor that every
-   other explained number on the page wears */
+/* both carry a tooltip, so both get the help cursor */
 .anchor-price {
     font-weight: 600;
     cursor: help;
 }
 
 
-/* edhrec popularity, second on the row. grey like everything beside it, and it
-   has a tooltip so the bare number isn't a mystery.
-   no margin-left on any of these three any more: both rows they appear in
-   (.result-price under a card and .anchor-figures under the searched one) are
-   flex with a column gap, and a margin on top of a gap is two rules deciding
-   one distance. on the anchor row they were actually stacking, 8 onto 10, so
-   the searched card's figures sat further apart than the results' */
+/* NO margin-left on any of these three: both rows they appear in are flex with a
+   column gap, and a margin on top of a gap is two rules deciding one distance.
+   on the anchor row they stacked, 8 onto 10, so the searched card's figures sat
+   further apart than the results' */
 .result-rank {
     cursor: help;
 }
 
-/* the salt score, third on the row. printed on every card that has one, so a
-   missing mark means nobody voted rather than "below a bar you cannot see".
-   the mark earns its place because a bare "0.24" next to a price and a #rank
-   has to say what KIND of number it is before it says anything else */
+/* printed on every card that HAS one, so a missing mark means nobody voted
+   rather than "below a bar you cannot see". the mark says what kind of number a
+   bare "0.24" is, sitting next to a price and a #rank */
 .result-salt {
     cursor: help;
     white-space: nowrap;
 }
 
-/* card age, fourth on the row, and what the date sorts reorder the results by.
-   no mark, because the word "years" already says what kind of number it is,
-   which is the job the salt mark exists to do for a bare decimal */
+/* no mark: "years" already says what kind of number it is */
 .result-age {
     cursor: help;
     white-space: nowrap;
 }
 
-/* the same weight as the other three arrows, and never a colour, exactly like
-   the play rate one: older is not better than newer, so there is a direction
-   here and no verdict. that is the whole rule for colour on this row, and the
-   guide now says it out loud */
+/* never a colour, like the play rate one: older is not better than newer, so
+   there is a direction here and no verdict */
 .age-vs {
     margin-left: 2px;
     font-weight: 700;
 }
 
-/* WHICH figure is the foreground follows the sort: the one you sorted by takes
-   the ink, the other four sit back in grey. that is ALL a sort changes, and it
-   is now the same rule in all five directions rather than a default of "price,
-   unless it is salt or play rate".
-   this is what fixed the two lies the old version told. best-match inked the
-   PRICE, because nothing greyed it and the badge was never a candidate, so the
-   one sort actually ordered by the badge pointed at the wrong number. and the
-   date sorts inked the price too, for want of an age figure to point at.
-   the classes name the SLOT, not the metric, so /search's "released" and the
-   precon board's "age" reach the same rule and no template has to know that
-   those are two spellings of one idea.
+/* the figure you sorted by takes the ink, the other four stay grey. that is ALL
+   a sort changes.
+   the classes name the SLOT and not the metric, so /search's "released" and the
+   board's "age" reach the same rule.
    NOT scoped to .card-grid: the swap page wears its axis on the page container
-   so the card leaving and the twelve that could replace it read the same way,
-   and a standing panel wears it on the section so its list and its pictures
-   agree. the classes only ever land on a container full of cards.
-   a verdict colour is a fact about the card and it is printed in every sort,
-   including best-match, so green and red never depend on which order the
-   results happen to be in. hence the :not()s: they keep the ink rule off any
-   figure already wearing a verdict, rather than winning on source order and
-   quietly draining the colour out of half the page */
+   and a standing panel wears it on the section, so a list and its pictures agree.
+   the :not()s keep the ink rule off any figure already wearing a verdict colour,
+   which is a fact about the card and is printed in every sort. without them this
+   wins on source order and drains the colour out of half the page */
 .focus-badge .percent { color: var(--text); }
 
 .focus-price .price-figure:not(.much-cheaper):not(.much-pricier) {
@@ -850,16 +735,11 @@ h2 {
 
 .focus-age .result-age { color: var(--text); }
 
-/* the SAME two hues and the same rules as the price, on purpose. green reads
-   as better and red as worse everywhere on the internet, and salt has a
-   better and a worse direction, so it uses them. gold used to sit on the
-   middle state here and it is gone: it says "look at this" without saying
-   which way, so on a row where the price beside it is already saying better
-   or worse in plain green and red, the gold number was the only figure you
-   had to stop and decode.
-   (gold still marks salt on the DECK pages, where its job is to tell a salt
-   number apart from an originality one. that is a category, not a verdict,
-   and no green or red is claimed there) */
+/* the SAME two hues as the price: salt has a better and a worse direction, so it
+   spends green and red on them. no gold, which says "look at this" without saying
+   which way.
+   gold still marks salt on the DECK pages, where it separates a salt number from
+   an originality one: a category, not a verdict */
 .result-salt.much-milder { color: #1f6b41; }
 
 .result-salt.much-saltier { color: #b3352a; }
@@ -911,8 +791,7 @@ h2 {
     cursor: help; /* it has a hover tooltip, match the concept line's ? cursor */
 }
 
-/* the filter box: scryfall syntax applied to the results. the headline
-   control, so the full-width basis gives it the top row to itself */
+/* the full-width basis gives it the top row to itself */
 .filter-query {
     flex: 1 1 100%;
     min-width: 260px;
@@ -929,15 +808,10 @@ h2 {
     border-color: var(--teal);
 }
 
-/* the fold-out filters panel, and the left of the three things the bar lays
-   out by flex order: the guide pointer takes the line under the filter box at
-   order 0, this sits at order 1, and sort and apply cluster at the right at
-   order 3. ordering rather than markup order, so the shared markup and its tab
-   order stay put on both /search and /unique.
-   the panel itself hangs BELOW as a dropdown rather than growing the box: an
-   inline panel made the details element as wide as its widest row the moment it
-   opened, which shoved the rest of the bar across and sometimes onto another
-   line. absolute means the box is the summary's size, always */
+/* laid out by flex ORDER rather than markup order, so the shared markup and its
+   tab order stay put on both /search and /unique.
+   the panel hangs BELOW as an absolute dropdown: inline, the details element grew
+   to its widest row the moment it opened and shoved the rest of the bar across */
 .adv-filters {
     position: relative;
     flex: 0 0 auto;
@@ -945,10 +819,8 @@ h2 {
     margin-right: 20px;
 }
 
-/* "Filters" with a funnel, not "extra filters": these are the main filters
-   for anyone not writing the syntax by hand, and the word "extra" sold
-   them as an afterthought. the funnel is an inline svg so it costs no
-   request and inherits the summary's colour */
+/* the funnel is inline svg, so it costs no request and follows the summary's
+   colour */
 .adv-filters summary {
     cursor: pointer;
     color: var(--teal);
@@ -959,8 +831,7 @@ h2 {
     gap: 6px;
 }
 
-/* display: flex above already drops the disclosure triangle in blink, and
-   safari needs its own word for it */
+/* display: flex drops the triangle in blink, safari needs its own word for it */
 .adv-filters summary::marker { content: ""; }
 
 .adv-filters summary::-webkit-details-marker { display: none; }
@@ -975,9 +846,8 @@ h2 {
     mask: var(--funnel) center / contain no-repeat;
 }
 
-/* sort and apply, one cluster at the right end of the row with apply
-   last. the auto margin is the gap: it eats the leftover width that
-   nothing else wants, so the filters fold stays put at the left */
+/* the auto margin IS the gap: it eats the leftover width, so the filters fold
+   stays put at the left */
 .filter-actions {
     display: inline-flex;
     align-items: center;
@@ -986,8 +856,7 @@ h2 {
     order: 3;
 }
 
-/* the panel proper, a dropdown under the summary. its own tray, since it now
-   floats over the results rather than sitting in the page's flow */
+/* its own tray, since it floats over the results rather than sitting in flow */
 .adv-panel {
     position: absolute;
     top: calc(100% + 10px);
@@ -1013,9 +882,7 @@ h2 {
     gap: 6px 14px;
 }
 
-/* the subheadings. each rides a hairline so the panel reads as its three
-   groups (what prices are in, which cards are eligible, what is narrowing)
-   rather than one long list */
+/* a hairline each, so the panel reads as three groups and not one long list */
 .adv-group {
     align-self: stretch;
     margin: 4px 0 0;
@@ -1034,9 +901,7 @@ h2 {
     border-top: 0;
 }
 
-/* how many filters are narrowing right now, riding the summary so the answer
-   is there with the panel shut. "is anything filtering?" was the question
-   nobody could answer from the old panel */
+/* rides the summary, so "is anything filtering?" is answered with it shut */
 .filter-count {
     background: var(--teal);
     color: #fff;
@@ -1045,8 +910,7 @@ h2 {
     padding: 1px 7px;
 }
 
-/* one added filter. the whole row exists only while the filter applies, so
-   its presence IS the on state, and the x is how you take it back off */
+/* the row exists only while the filter applies, so its presence IS the on state */
 .adv-slot {
     align-self: stretch;
     display: flex;
@@ -1057,10 +921,8 @@ h2 {
 
 .adv-slot[hidden] { display: none; }
 
-/* the remove button and the filter's name travel as one unit, so a narrow
-   screen wraps the pair together. wrapping them separately left the x alone
-   on a line with its filter's name on the next, which read as an x belonging
-   to nothing */
+/* one unit, so a narrow screen wraps the pair together: separately, the x was
+   left alone on a line with its filter's name on the next */
 .slot-head {
     display: inline-flex;
     align-items: baseline;
@@ -1074,12 +936,8 @@ h2 {
     color: var(--muted);
 }
 
-/* the remove button leads the row rather than trailing it: at the right hand
-   end it sat a variable distance away depending on how wide the widget was,
-   so the four of them never lined up and none of them read as belonging to
-   the filter it removed. a small red mark and nothing else, since removing
-   a filter is the one destructive thing in the panel and a whole button
-   drawn around it was louder than the filter it removes */
+/* LEADS the row: at the right hand end it sat a variable distance away depending
+   on the widget's width, so the four never lined up */
 .slot-off {
     background: none;
     border: 0;
@@ -1099,8 +957,7 @@ h2 {
     border-radius: 50%;
 }
 
-/* the add row. the buttons read as things you can switch on, so they are
-   outlined rather than filled: filled would look like they already are */
+/* outlined rather than filled: filled reads as already on */
 .adv-add {
     margin: 2px 0 0;
     display: flex;
@@ -1133,11 +990,9 @@ h2 {
 /* nothing left to offer, so the row that offers it goes too */
 .adv-add[hidden] { display: none; }
 
-/* the panel's own controls are rounder than the rest of the site's 2px
-   corners. everything in here is a small thing you switch on and off, and
-   round reads as that where a rectangle reads as a field to fill in. the
-   checkboxes stay square on purpose: a circle is what a radio button looks
-   like, and these are not one-of-a-set choices */
+/* rounder than the site's 2px corners, because these are switches rather than
+   fields. the CHECKBOXES stay square: a circle reads as a radio button, and
+   these are not one-of-a-set choices */
 .adv-panel input[type="number"],
 .adv-panel select {
     border-radius: 14px;
@@ -1146,10 +1001,8 @@ h2 {
 
 .adv-panel select { padding-right: 26px; }
 
-/* the card types, wearing the same on/off language as the colour symbols
-   right above them: off is drained and quiet, on is filled and teal. all
-   eight states are readable at a glance with nothing to open, which is what
-   both a row of identical chips and a dropdown behind a label failed at */
+/* the same on/off language as the colour symbols above: all eight states
+   readable with nothing to open */
 .filter-types {
     display: flex;
     flex-wrap: wrap;
@@ -1198,10 +1051,8 @@ h2 {
 
 .type-note[hidden] { display: none; }
 
-/* the pointer to the guide, riding directly under the filter box it explains
-   rather than inside the filters fold. full basis so it takes the line under
-   the box, and order 0 keeps it next to it whatever the flex order does with
-   the controls after */
+/* full basis takes the line under the box, order 0 keeps it there whatever the
+   flex order does with the controls after */
 .adv-help {
     flex: 1 1 100%;
     order: 0;
@@ -1229,10 +1080,8 @@ h2 {
     font-size: 13px;
 }
 
-/* the demo result sits next to a numbered legend. the dots share the site
-   teal so the numbers read as markers, not content. the wrap is what keeps
-   phones from scrolling sideways: the legend drops under the card instead
-   of holding the row wider than the screen */
+/* the WRAP is what keeps phones from scrolling sideways: the legend drops under
+   the card instead of holding the row wider than the screen */
 .guide-demo {
     display: flex;
     flex-wrap: wrap;
@@ -1241,9 +1090,7 @@ h2 {
     margin: 12px 0;
 }
 
-/* the mock is a singular card too, and it is the one card on the site whose
-   whole job is being looked at closely: every part of it carries an info mark
-   explaining that part */
+/* a singular card, so 300px like the others */
 .guide-demo .result {
     width: 300px;
     flex-shrink: 0;
@@ -1254,8 +1101,7 @@ h2 {
     pointer-events: none;
 }
 
-/* the transform/rotate/flip control fades in on hover on real pages; the
-   guide pins it visible so the legend has something to point at */
+/* pinned visible here, so the legend has something to point at */
 .guide-demo .card-overlay.guide-static-overlay {
     opacity: 1;
     align-items: center;
@@ -1263,11 +1109,7 @@ h2 {
 
 .guide-demo .guide-static-overlay button { cursor: default; }
 
-/* the info marks on the demo card. the circled i is the one glyph everybody
-   already reads as "explain this", which is the whole job here: the old
-   numbered dots were indistinguishable from decoration, so the six
-   explanations had to sit on the page permanently to be found at all.
-   outlined at rest, filled on hover, so it reads as a button either way */
+/* outlined at rest, filled on hover, so it reads as a button either way */
 .guide-info {
     display: inline-flex;
     align-items: center;
@@ -1299,8 +1141,7 @@ h2 {
     outline-offset: 2px;
 }
 
-/* the same mark inline in the sentence above the card, so the thing being
-   described is the thing you will look for. not a button, just the shape */
+/* the same mark inline in the sentence above. not a button, just the shape */
 .guide-info-demo {
     display: inline-flex;
     align-items: center;
@@ -1316,9 +1157,8 @@ h2 {
     font-size: 12px;
 }
 
-/* the two that sit over the art rather than in the text column. they ride
-   the same corners as the controls they explain, just inboard of them so
-   neither covers the other */
+/* the two over the art, inboard of the controls they explain so neither covers
+   the other */
 .guide-info-flag {
     position: absolute;
     bottom: 4%;
@@ -1333,8 +1173,7 @@ h2 {
     z-index: 2;
 }
 
-/* the explanation itself. plain centered box, and ::backdrop dims the page
-   so the dialog is clearly the thing in front */
+/* ::backdrop dims the page, so the dialog is clearly the thing in front */
 .guide-modal {
     max-width: 460px;
     padding: 20px 24px;
@@ -1368,15 +1207,12 @@ h2 {
 
 .guide-modal button:hover { background: var(--teal-hover); }
 
-/* a pure concept match still gets its tooltip, it just doesn't get its own
-   colour and diamond any more. the tags printed under the card already say
-   the match came from the concepts side, in words, which is the version
-   nobody has to be taught */
+/* no colour or diamond of its own: the tags under the card already say the match
+   came from the concepts side, in words */
 .percent.concept { cursor: help; }
 
-/* the shared community tags under a result, why the concepts side ranked it */
-/* 12.5 is the floor everything under a card sits on now. 12 was technically
-   the limit and reading it on a phone made the case for not sitting on it */
+/* 12.5px is the FLOOR for everything under a card. 12 was the technical limit,
+   and reading it on a phone made the case for not sitting on it */
 .concept-tags {
     color: var(--teal);
     font-size: 12.5px;
@@ -1385,8 +1221,7 @@ h2 {
     cursor: help;
 }
 
-/* the tap-to-show stand-in for title tooltips on touch screens (cards.js
-   builds these). pre-line keeps the line breaks in the "+n more" pair list */
+/* built by cards.js. pre-line keeps the breaks in the "+n more" pair list */
 .tap-tip {
     background: var(--ink);
     color: #ece7d8;
@@ -1399,10 +1234,8 @@ h2 {
     white-space: pre-line;
 }
 
-/* the "+2 more matching lines" hint, the pairs live in its tooltip. muted,
-   not gold: gold is the match-percent colour and this is a hint, and on
-   /unique the same class holds an actual link. one colour meaning both "a
-   number about matching" and "a thing you can click" was the ambiguity */
+/* muted and NOT gold: gold is the match-percent colour, and on /unique this same
+   class holds an actual link */
 .more-lines {
     color: var(--muted);
     font-size: 12.5px;
@@ -1427,8 +1260,7 @@ h2 {
 
 #load-more:hover { background: var(--teal-hover); }
 
-/* the line in the grid where results drop below the minimum match. spans
-   the full row so it reads as a section break */
+/* spans the full row, so it reads as a section break */
 .weak-divider {
     grid-column: 1 / -1;
     text-align: center;
@@ -1455,36 +1287,29 @@ footer {
 
 footer a { color: var(--teal); }
 
-/* two separate places to go, so they need to look like it. the markup only
-   had a collapsed whitespace character between them, which read as one
-   wrapped line. flex rather than a margin on the anchors so the gap belongs
-   to the row and neither link carries a stray edge if the other ever goes */
+/* flex rather than a margin on the anchors, so the gap belongs to the row and
+   neither link carries a stray edge if the other ever goes */
 .footer-links {
     display: flex;
     justify-content: center;
     gap: 20px;
 }
 
-/* ---- the /precons leaderboard. borrows .guide's column width, so the prose
-   at the top sets the same measure as the rest of the site's reading pages.
-   the board itself is a plain <ol>: the rank IS the list marker, so an
-   ordered list is what it is, and it stays readable with no css at all ---- */
+/* ---- the /precons leaderboard. borrows .guide's column width. the board is a
+   plain <ol>, so the rank IS the list marker and it reads with no css ---- */
 
 .precons {
     /* wider than .guide's 720px, the rows carry three columns of content */
     max-width: 860px;
 }
 
-/* the hub the nav points at. one nav item for the whole lens, and this page
-   routes into its views, so shipping a second view costs a card here instead
-   of another tab in a header that already carries four */
+/* the hub the nav points at, routing into the lens's views */
 .deck-hub-promise {
     color: var(--muted);
     font-size: 14px;
 }
 
-/* the paste box. a textarea and a button, no javascript: the whole
-   interaction is paste, submit, read, leave */
+/* no javascript: paste, submit, read, leave */
 .deck-paste label {
     display: block;
     font-size: 13px;
@@ -1540,8 +1365,7 @@ footer a { color: var(--teal); }
 
 /* ---- comparison mode: the deck against the board, one metric at a time ---- */
 
-/* follows the reader down rather than sitting at the top as a control you
-   have to scroll back up to reach */
+/* sticky, so it is never a control you scroll back up to reach */
 .deck-pager {
     position: sticky;
     top: 0;
@@ -1578,8 +1402,8 @@ footer a { color: var(--teal); }
 
 .deck-pager-arrow:hover { background: var(--wash); }
 
-/* scroll-margin so a section landed on by the pager clears the sticky header
-   instead of hiding its own heading behind it */
+/* scroll-margin, or a section landed on by the pager hides its own heading
+   behind the sticky header */
 .deck-metric {
     scroll-margin-top: 54px;
     padding-top: 10px;
@@ -1593,8 +1417,7 @@ footer a { color: var(--teal); }
     color: var(--muted);
 }
 
-/* the board window. the deck's own row is the point of it, so it is the only
-   one that carries any weight */
+/* the deck's own row is the only one carrying any weight */
 .deck-neighbours {
     list-style: none;
     margin: 12px 0 8px;
@@ -1636,9 +1459,8 @@ footer a { color: var(--teal); }
 
 .deck-neighbour.is-you .deck-neighbour-figure { color: var(--text); }
 
-/* the secondary figure under a board score. smaller than the number the board
-   sorts on, because it is the memorable version of it rather than the one the
-   ranking is built from */
+/* smaller than the number the board sorts on: it is the memorable version, not
+   the one the ranking is built from */
 .precon-subfigure {
     font-size: 11.5px;
     color: var(--muted);
@@ -1646,9 +1468,7 @@ footer a { color: var(--teal); }
     cursor: help;
 }
 
-/* the hub is the front door now, so the inputs come first and everything else
-   sits beside or under them. one column on a narrow screen, where "to the
-   right" stops meaning anything */
+/* one column on a narrow screen, where "to the right" stops meaning anything */
 .deck-hub-cols {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 210px;
@@ -1690,9 +1510,8 @@ footer a { color: var(--teal); }
     outline-offset: -1px;
 }
 
-/* the two inputs on the hub are equals, and the page argues that they are:
-   one takes a url and one takes a list, neither is the real one. this was
-   drawn as a ghost next to a solid "Read this deck", which said the opposite */
+/* the two inputs are EQUALS: this was a ghost next to a solid "Read this deck",
+   which said one of them was the real one */
 .deck-import button {
     font: inherit;
     font-weight: 600;
@@ -1709,8 +1528,7 @@ footer a { color: var(--teal); }
 
 .deck-import .deck-hub-note { display: block; margin-top: 6px; }
 
-/* the two inputs are alternatives, not a sequence, so the divider says so
-   rather than letting them read as step one and step two */
+/* alternatives and not a sequence, or they read as step one and step two */
 .deck-or {
     display: flex;
     align-items: center;
@@ -1732,8 +1550,7 @@ footer a { color: var(--teal); }
     color: var(--muted);
 }
 
-/* the decks this browser remembers. quiet and to one side: it is a shortcut
-   for someone coming back, not the point of the page */
+/* a shortcut for someone coming back, not the point of the page */
 .deck-recent {
     border-left: 1px solid var(--line);
     padding-left: 18px;
@@ -1759,8 +1576,7 @@ footer a { color: var(--teal); }
     padding: 0;
 }
 
-/* the name and its card count stack, and the tools sit beside them. a grid
-   rather than nested flex so the tools can pin to the right of the whole row
+/* a grid rather than nested flex, so the tools pin to the right of the whole row
    while the two lines on the left stay stacked */
 .deck-recent-row {
     display: grid;
@@ -1778,11 +1594,7 @@ footer a { color: var(--teal); }
 
 .deck-recent-row .deck-recent-tools { grid-column: 2; grid-row: 1 / span 2; }
 
-/* renaming happens where the name is, in a box the size of the name. a
-   window.prompt is a modal dialog for one text field: it stops the page, it
-   looks like the browser asking rather than the site, and what was typed only
-   lands if the right button is found. this saves on every letter, so it needs
-   no button at all */
+/* a box the size of the name, saving on every letter, so it needs no button */
 .deck-recent-name {
     width: 100%;
     min-width: 0;
@@ -1798,15 +1610,11 @@ footer a { color: var(--teal); }
 
 .deck-recent-name:focus { outline: none; }
 
-/* every change this deck has ever had, folded. it is a HISTORY and not a
-   summary: ten decks each listing thirty swaps would bury the thing this panel
-   is for, which is getting back into a deck. closed, it is exactly the line the
-   plain count used to be */
+/* folded: ten decks listing thirty swaps each bury what the panel is for */
 .deck-recent-changes { min-width: 0; }
 
-/* the disclosure triangle is left exactly as the browser draws it. it is the
-   only thing on the row saying there is more underneath, and every restyling of
-   it costs the one marker every user already knows */
+/* the triangle is left EXACTLY as the browser draws it: it is the only thing on
+   the row saying there is more underneath */
 .deck-recent-changes > summary { cursor: pointer; }
 
 .deck-recent-swaps {
@@ -1816,9 +1624,8 @@ footer a { color: var(--teal); }
     border-left: 1px solid var(--line);
 }
 
-/* the same three parts a swap is drawn as everywhere else on the site, in the
-   order they were made, one size smaller because this is a list of thirty and
-   /deck/view's is a list of the ones you just made */
+/* one size smaller than /deck/view's: this is a list of thirty, that is a list
+   of the ones you just made */
 .deck-recent-swap {
     display: flex;
     align-items: baseline;
@@ -1855,48 +1662,37 @@ footer a { color: var(--teal); }
     text-decoration: underline;
 }
 
-/* the modes, offered as equals. neither is the default and neither is the
-   small print: reading and changing are two different visits.
-   STACKED ROWS SEPARATED BY RULES, not a grid of bordered cards. three cards
-   side by side squeezed every description into a 260px column and made the
-   page a set of competing boxes, when what it is is a short list of things you
-   could do next. the rules are the same device the results page uses */
+/* STACKED ROWS separated by rules, not a grid of bordered cards: three cards side
+   by side squeezed every description into a 260px column */
 .deck-modes-pick {
     margin: 4px 0 8px;
     border-top: 1px solid var(--line);
 }
 
-/* the same rows at the FOOT of a page rather than as the page itself. on
-   /deck/read and a precon page they follow a full reading, so they need a gap
-   above them or they read as one more row of whatever was there */
+/* the same rows at the FOOT of a page: they follow a full reading, so without a
+   gap they read as one more row of whatever was there */
 .deck-modes-after { margin-top: 30px; }
 
-/* the row is the form, not the button inside it. make the button the form and
-   anything that is not the button can only sit outside it: the swap axis picker
-   reads as a stray control floating under three cards rather than as part of
-   the one it belongs to. a select cannot go inside a submit button either,
-   because opening it would submit */
+/* the ROW is the form, not the button inside it: with the button as the form,
+   the swap axis picker can only sit outside it. a select cannot go inside a
+   submit button either, opening it would submit */
 .deck-mode {
     display: flex;
     flex-direction: column;
     border-bottom: 1px solid var(--line);
-    /* the wash bleeds past the reading column so a hovered row reads as a
-       band across the page rather than as a box that just appeared */
+    /* bleeds past the reading column, so a hovered row is a band across the page
+       rather than a box that just appeared */
     padding: 15px 12px;
     margin: 0 -12px;
 }
 
 .deck-mode:hover { background: var(--wash); }
 
-/* the mark, then title and body, then the go line on the right and vertically
-   centred against both. one row per thing you could do, which is what a list is.
-   the mark gets a COLUMN rather than sitting inside the title, so the title and
-   the sentence under it still start at the same place: an icon shoved into the
-   title indents the title alone and leaves the row with two left edges.
-   the column is a FIXED width rather than auto, so it is held open on the one
-   row that has no mark (the precon page's way into the lens, which is a door to
-   all three of these and so is none of them). auto would collapse it there and
-   leave that row's title starting 38px left of the one under it */
+/* the mark gets a COLUMN rather than sitting inside the title, so the title and
+   the sentence under it start at the same place.
+   a FIXED width and not auto, so it is held open on the one row with no mark
+   (the precon page's way into the lens): auto collapses it there and leaves that
+   row's title starting 38px left of the one under it */
 .deck-mode button {
     display: grid;
     grid-template-columns: 24px 1fr auto;
@@ -1936,14 +1732,10 @@ footer a { color: var(--teal); }
 
 .deck-mode:hover .deck-mode-go { text-decoration: underline; }
 
-/* which page this row is a door to, masked from the text colour like the salt
-   shaker is. spanning both rows rather than riding row one keeps it centred on
-   the whole row, so it reads as the row's mark and not as a bullet on the title.
-   an <i> and not an <img>, again like the shaker: the title beside it already
-   says View it, and a screen reader announcing "image" here would add nothing.
-   at 24px, which is where these three were normalised to be read.
-   muted at rest so three rows of them do not read as three buttons, and it takes
-   the action colour with the go line when the row is under the pointer */
+/* spans both rows rather than riding row one, so it is centred on the whole row
+   and reads as the row's mark and not a bullet on the title.
+   an <i> and not an <img>, like the shaker: the title already says View it, so a
+   screen reader announcing "image" adds nothing */
 .mode-mark {
     grid-column: 1;
     grid-row: 1 / span 2;
@@ -1957,23 +1749,21 @@ footer a { color: var(--teal); }
 
 .deck-mode:hover .mode-mark { color: var(--teal); }
 
-/* which drawing, off the destination. one line each, because the rule above
-   already knows how to wear any of them */
+/* which drawing, off the destination */
 .mode-view { --mark: var(--lens); }
 
 .mode-compare { --mark: var(--split); }
 
 .mode-change { --mark: var(--exchange); }
 
-/* under about a phone the go line has nowhere to sit beside the text, so it
-   drops under it and the row reads top to bottom like everything else */
+/* under a phone width the go line has nowhere to sit beside the text */
 @media (max-width: 560px) {
     .deck-mode button {
         grid-template-columns: 24px 1fr;
     }
 
-    /* under the sentence, still in the text column: the mark keeps its own
-       column at every width, so the row never loses its left edge */
+    /* the mark keeps its own column at every width, so the row never loses its
+       left edge */
     .deck-mode-go {
         grid-column: 2;
         grid-row: auto;
@@ -1991,8 +1781,8 @@ footer a { color: var(--teal); }
     font-size: 14px;
 }
 
-/* what did not resolve. it is information, not an error: a decklist carrying
-   a token or a sticker is normal, and the reading is still good */
+/* information and NOT an error: a decklist carrying a token or a sticker is
+   normal, and the reading is still good */
 .deck-missing {
     background: var(--wash);
     border: 1px solid var(--line);
@@ -2004,9 +1794,8 @@ footer a { color: var(--teal); }
     word-break: break-word;
 }
 
-/* the deck name is the way in to its detail page, so it reads as ink rather
-   than as a link until hovered: 166 teal headings would turn the board into a
-   wall of link colour and bury the scores, which are what the page is for */
+/* ink until hovered: 166 teal headings turn the board into a wall of link colour
+   and bury the scores */
 .precon-name a {
     color: inherit;
     text-decoration: none;
@@ -2028,8 +1817,7 @@ footer a { color: var(--teal); }
 .deck-detail-sub a { color: var(--teal); text-decoration: none; }
 .deck-detail-sub a:hover { text-decoration: underline; }
 
-/* the standing block: the rank is the headline because it is the part that
-   is a sentence, and the score sits next to it as the receipt */
+/* the rank is the headline and the score the receipt */
 .deck-standing {
     display: flex;
     align-items: center;
@@ -2078,8 +1866,8 @@ footer a { color: var(--teal); }
     list-style: none;
     margin: 0 0 8px;
     padding: 0;
-    /* two columns where there is room: twelve card names in one column is a
-       lot of vertical scroll for what is meant to be a glance */
+    /* two columns where there is room: twelve names in one is a lot of scroll
+       for what is meant to be a glance */
     columns: 2;
     column-gap: 24px;
 }
@@ -2114,11 +1902,8 @@ footer a { color: var(--teal); }
     margin-top: 18px;
 }
 
-/* the tip jar line under a read deck. a rule above it because it is the one
-   thing down here that is not about the deck, and it should read as an aside
-   rather than as another finding. no background, no box, no button: the ask
-   is a sentence, and the moment it gets a panel it starts competing with the
-   reading it is supposed to be thanking you for */
+/* a rule above it, being the one thing down here not about the deck. no
+   background, no box, no button: the ask stays a sentence */
 .deck-support {
     border-top: 1px solid var(--line);
     padding-top: 12px;
@@ -2131,9 +1916,7 @@ footer a { color: var(--teal); }
     .deck-cards { columns: 1; }
 }
 
-/* the ko-fi link on /support. outlined rather than filled, unlike the search
-   button, which is the site's one loud action. this page is asking for a
-   favour and a big solid button reads as a checkout */
+/* outlined rather than filled: a big solid button reads as a checkout */
 .support-cta { margin: 14px 0 18px; }
 
 .support-link {
@@ -2151,9 +1934,7 @@ footer a { color: var(--teal); }
     color: #fffef9;
 }
 
-/* ---- the swap tool. one card at a time, so the page is mostly empty on
-   purpose: the whole point is that you are looking at ONE decision, and a
-   grid of forty suggestions is the thing every other tool already does ---- */
+/* ---- the swap tool. mostly empty on purpose: one decision at a time ---- */
 
 .swap-out {
     display: flex;
@@ -2163,33 +1944,23 @@ footer a { color: var(--teal); }
     margin: 18px 0 6px;
 }
 
-/* the card leaving, drawn at the same size as the ones that could replace it
-   but held to one column so the page reads as a comparison rather than as a
-   row of equals: this is the card in question, those are the answers.
-   300px, because this is a singular card: it is the one the page is asking
-   about, with the twelve answers below it, so it reads at the same size as the
-   searched card on /search and the dealt card on /unique. it was 200, the old
-   grid floor, which is under the 220px the four figures need, so this was the
+/* 300px, the singular-card size, same as /search's searched card and /unique's
+   dealt one. it was 200, under the width the four figures need, so this was the
    one card on the page whose row wrapped while the twelve below it did not */
-/* the CAP is on the bare card, not on the box, because the box holds the full
-   searched-card panel now: picture on the left, rules lines and tag chips on
-   the right, the same one /search puts above its results. capping the box at
-   300 squashed that whole column into a ribbon.
-   the bare card is what stands in for the panel until the first answer lands
-   (the panel is rendered by the server alongside the suggestions), and it keeps
-   the 300px every singular card on the site is drawn at */
+/* the CAP is on the bare card and NOT the box: the box holds the full
+   searched-card panel, and capping it at 300 squashed that column into a ribbon.
+   the bare card stands in until the first answer lands with the panel */
 .swap-out-card {
     margin-bottom: 6px;
 }
 
 .swap-out-card > .result { max-width: 300px; }
 
-/* the panel's own top padding is for a page that opens with it. here it sits
-   under the "OUT" label, which has already done that spacing */
+/* the panel's own top padding is for a page that opens with it. here the "OUT"
+   label has already done that spacing */
 .swap-out-card .searched-card { padding-top: 0; }
 
-/* the word "Out" carries the whole frame: this is the card leaving, and
-   everything under it is what could take the slot */
+/* "Out" carries the whole frame for the page */
 .swap-label {
     text-transform: uppercase;
     letter-spacing: 0.08em;
@@ -2199,18 +1970,13 @@ footer a { color: var(--teal); }
 
 .swap-grid { margin-bottom: 14px; }
 
-/* the cards nothing could replace. quiet, because it is a footnote to the
-   session rather than a failure report: "nothing in the game does this" is a
-   real answer and often the interesting one */
+/* quiet: a footnote to the session rather than a failure report */
 .swap-nothing { margin-top: 22px; }
 
-/* picking a replacement is the only thing this page asks anyone to do, so the
-   button is full width under the card it belongs to. it is a separate control
-   rather than the whole card being clickable because the picture is already a
-   link to scryfall, and two targets in one place is how a click goes wrong */
-/* the loudest button on the page, because it is the only one that changes
-   the deck. it was a ghost sitting under a filled "Keep it, next card", so
-   the action that did nothing looked heavier than the action that did */
+/* a separate control rather than the whole card, whose picture is already a link:
+   two targets in one place is how a click goes wrong.
+   the LOUDEST button on the page, being the only one that changes the deck. it
+   was a ghost under a filled "Keep it, next card" */
 .swap-take {
     display: block;
     width: 100%;
@@ -2235,8 +2001,7 @@ footer a { color: var(--teal); }
     margin: 14px 0 4px;
 }
 
-/* keeping the card is a real answer and not a failure, so it is a plain
-   button rather than something that looks like giving up */
+/* keeping the card is a real answer, so it is a plain button */
 .swap-actions button {
     padding: 7px 14px;
     border: 1px solid var(--line-strong);
@@ -2252,10 +2017,8 @@ footer a { color: var(--teal); }
 
 .swap-again { color: var(--teal); font-size: 14px; }
 
-/* on its own line now, under the list rather than beside its copy button. the
-   copy button and the list box came out of this page and into the partial
-   /deck/view shares, and "read another deck" did not follow them: it is the one
-   thing at the end of a session that only makes sense at the end of a session */
+/* not in the partial /deck/view shares: this only makes sense at the end of a
+   session */
 .swap-again-line { margin: 14px 0 0; }
 
 .swap-made {
@@ -2273,8 +2036,7 @@ footer a { color: var(--teal); }
     font-size: 14px;
 }
 
-/* both names are links now, so they need the link treatment without losing
-   what the row is saying: the one leaving stays struck through and quiet */
+/* the one leaving stays struck through and quiet */
 .swap-made-out, .swap-made-in { text-decoration: none; }
 
 .swap-made-out {
@@ -2290,13 +2052,9 @@ footer a { color: var(--teal); }
 
 .swap-made-arrow { color: var(--muted); }
 
-/* the same box as the paste box on /deck, and capped at its height. these grow
-   to their content, which on a hundred card list meant a textarea taller than
-   the screen sitting between the reader and the rest of the page. ten rows is
-   what you type a deck INTO, so it is enough to read one back out of; past that
-   it scrolls.
-   10 rows of 1.5 line height, plus the padding and the border, which border-box
-   counts inside the height */
+/* CAPPED: these grow to their content, and a hundred card list made a textarea
+   taller than the screen. 10 rows of 1.5 line height plus the padding and border,
+   which border-box counts inside the height */
 .swap-output {
     width: 100%;
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -2322,13 +2080,10 @@ footer a { color: var(--teal); }
 
 .precon-back a:hover { text-decoration: underline; }
 
-/* the outbound decklist link carries the site's box-and-arrow like every other
-   target=_blank, so it reads as leaving before it is clicked */
+/* the box-and-arrow, like every other target=_blank */
 .precon-source { white-space: nowrap; }
 
-/* the method note is collapsed by default. it is the page's credibility, but
-   it is not what anyone came for, and open by default it pushed the actual
-   board below the fold on a laptop */
+/* collapsed: open by default it pushed the board below the fold on a laptop */
 .precon-method {
     background: var(--wash);
     border: 1px solid var(--line);
@@ -2349,9 +2104,8 @@ footer a { color: var(--teal); }
 .precon-eras {
     display: flex;
     flex-wrap: wrap;
-    /* the rows carry a text label now ("Rank by:", "From the:") next to pill
-       buttons that have their own padding. without this the label stretches
-       to the row's full height and its text sits at the top of it */
+    /* without this the text label stretches to the row's full height, next to
+       pill buttons that have their own padding, and sits at the top of it */
     align-items: center;
     gap: 8px;
     margin: 18px 0 10px;
@@ -2454,9 +2208,8 @@ footer a { color: var(--teal); }
     font-weight: 600;
 }
 
-/* the bar is the comparison and the number beside it is the receipt. it fills
-   relative to the decks currently listed, not to the whole board, so an era
-   cut still reads as a ranking instead of as four bars all the same length */
+/* fills relative to the decks CURRENTLY listed, not the whole board, so an era
+   cut still reads as a ranking instead of four bars the same length */
 .precon-bar {
     height: 5px;
     background: var(--line);
@@ -2472,10 +2225,8 @@ footer a { color: var(--teal); }
     border-radius: 999px;
 }
 
-/* a colour per measure rather than per page. salt runs gold because salt is
-   the gold figure on the deck pages too, and the point of the rest is the
-   same: a glance at the bars says which of the five rankings is on screen
-   without reading the heading */
+/* a colour per MEASURE and not per page, so a glance at the bars says which of
+   the five rankings is on screen. salt runs gold, as it does on the deck pages */
 .precon-bar-salt span { background: var(--gold); }
 .precon-bar-price span { background: #4b7f5c; }
 .precon-bar-played span { background: #7a6ba8; }
@@ -2500,9 +2251,7 @@ footer a { color: var(--teal); }
     .precon-bar { max-width: 200px; }
 }
 
-/* ---- the home page. flat ink with a grain texture and a faint glow behind
-   the search so it doesn't read as a raw css fill. the grain is an inline svg
-   turbulence tile ---- */
+/* ---- the home page. the grain is an inline svg turbulence tile ---- */
 
 /* svh, not vh: on ios vh is the URL-bar-hidden height, so a page built to fill
    100vh overflows by exactly the bar's height whenever the bar is showing, which
@@ -2526,15 +2275,13 @@ body.home main {
     justify-content: center;
     max-width: none;
     width: 100%;
-    /* main's 70vh floor is for pages with real content below the fold. on
-       home it fought the flex column for room and helped push the footer
-       past the bottom edge */
+    /* main's 70vh floor is for pages with content below the fold. here it fought
+       the flex column and pushed the footer past the bottom edge */
     min-height: 0;
 }
 
-/* the padding shrinks with the viewport instead of sitting at a fixed
-   60/80: on a short screen that fixed pair was most of what pushed the
-   page past one screenful */
+/* shrinks with the viewport: a fixed 60/80 was most of what pushed a short
+   screen past one screenful */
 .home-hero {
     position: relative;
     text-align: center;
@@ -2561,15 +2308,14 @@ body.home main {
     max-width: 440px;
 }
 
-/* the big search bar. light on the dark page so its unmissable, the small
-   header bars on the light pages are the inverse of this on purpose */
+/* light on the dark page, the inverse of the header bars on the light pages */
 .home-search {
     max-width: 560px;
     margin: 0 auto;
     position: relative;
-    /* above the recent-search chips AND the home buttons: at the buttons'
-       old equal z-index they painted over the suggestions dropdown (later
-       in the DOM wins a tie) and ate clicks on the second option */
+    /* above the chips AND the home buttons: at an equal z-index the buttons
+       painted over the suggestions dropdown (later in the DOM wins a tie) and
+       ate clicks on the second option */
     z-index: 3;
 }
 
@@ -2596,8 +2342,7 @@ body.home main {
 
 .home-search button:hover { background: #2f9482; }
 
-/* the row under the search bar that future buttons slot into. quiet text
-   links instead of the old glass pills */
+/* quiet text links, not pills */
 .home-buttons {
     margin-top: 26px;
     display: flex;
@@ -2618,11 +2363,9 @@ body.home main {
 
 .home-buttons a:hover { border-bottom-color: #ece7d8; }
 
-/* the recent searches resting around the edges of the screen. the layer
-   spans the whole viewport (not the 760px hero) so the slots sit far out
-   from the search bar instead of crowding it. pointer-events flips off on
-   the layer and back on for the chips, otherwise the invisible layer would
-   eat clicks and text selection over the hero */
+/* spans the whole viewport, not the 760px hero, so the slots sit far out from
+   the search bar. pointer-events off on the layer and back on for the chips, or
+   the invisible layer eats clicks and text selection over the hero */
 #recent-floats {
     position: fixed;
     inset: 0;
@@ -2630,11 +2373,8 @@ body.home main {
     pointer-events: none;
 }
 
-/* italic serif and a slight lean each, so they read as scattered card
-   names instead of ui chrome. the dotted underline is the compromise on
-   "nobody knows these are clickable": a solid one would make them look
-   like nav links and lose the scattered-notes feeling, dotted is the
-   long-standing "quietly interactive" mark and survives the italic serif */
+/* the DOTTED underline is the compromise on "nobody knows these are clickable":
+   a solid one reads as a nav link */
 .float-chip {
     position: absolute;
     pointer-events: auto;
@@ -2652,8 +2392,8 @@ body.home main {
     opacity: 0.9;
 }
 
-/* no tilt. a couple of degrees each way at this size never reads as a
-   deliberate scatter, only as something slightly wrong with the page */
+/* no tilt: a couple of degrees at this size reads as something slightly wrong
+   with the page rather than as a scatter */
 
 .float-chip:hover {
     color: #fff;
@@ -2691,8 +2431,7 @@ body.home main {
     margin: 18px auto 0 auto;
 }
 
-/* the deal + history row. it lives above the card so it never moves when a
-   new card loads, spamming repeat needs zero scrolling */
+/* above the card, so it never moves when a new one loads */
 .unique-controls {
     display: flex;
     justify-content: center;
@@ -2727,11 +2466,8 @@ body.home main {
 
 #unique-back:disabled, #unique-fwd:disabled { opacity: 0.35; cursor: default; }
 
-/* sideways cards (battles, split cards) start vertical like everything
-   else, the rotate button adds this class to lay them readable. the wrapper
-   flips to landscape proportions and the image gets rotated into it: the
-   width is the card's own aspect ratio (488/680) so after the 90 degree
-   turn it fills the box exactly */
+/* the wrapper flips to landscape and the image rotates into it: the width is the
+   card's own 488/680 ratio, so after the 90 degree turn it fills the box exactly */
 .card-frame.sideways {
     aspect-ratio: 680 / 488;
     overflow: hidden;
@@ -2743,24 +2479,18 @@ body.home main {
     transform-origin: top left;
 }
 
-/* kamigawa flip cards read upside down in their bottom half, so their
-   rotate is a 180 */
+/* kamigawa flip cards read upside down in their bottom half, so this is a 180 */
 .card-frame.flipped img { transform: rotate(180deg); }
 
-/* the zoom-on-hover from the results grid would overwrite the rotation
-   transforms, so rotated cards keep their rotation instead */
+/* the grid's zoom-on-hover is a transform too, and would overwrite the rotation */
 .card-frame.sideways img:hover { transform: rotate(90deg) translateY(-100%); }
 
 .card-frame.flipped img:hover { transform: rotate(180deg); }
 
-/* the rotate / flip / transform buttons, an overlay that fades in when the
-   mouse is over the picture. translucent and hugging the bottom edge so it
-   never really covers the art, and absolutely positioned so no layout
-   anywhere has to know whether a card has buttons.
-   the aspect ratio is a magic card's (scryfall's normal images are 488x680):
-   the frame owns its height before a single image byte arrives, so the grid
-   doesn't jump around while pictures load. the sideways class swaps in the
-   landscape ratio, its selector is more specific so it wins */
+/* absolutely positioned, so no layout has to know whether a card has buttons.
+   the ASPECT RATIO (scryfall's 488x680) gives the frame its height before a
+   single image byte arrives, so the grid does not jump while pictures load. the
+   sideways class swaps in the landscape ratio and wins on specificity */
 .card-frame {
     position: relative;
     aspect-ratio: 488 / 680;
@@ -2776,9 +2506,8 @@ body.home main {
     gap: 6px;
     opacity: 0;
     transition: opacity 0.15s;
-    /* never clickable itself: invisible it must not steal clicks from the
-       card link, and visible the strip spans the frame's whole width and
-       would sit on top of the report ? in the corner */
+    /* NEVER clickable itself: invisible it would steal clicks from the card link,
+       and visible the strip spans the frame and covers the report ? */
     pointer-events: none;
 }
 
@@ -2798,9 +2527,7 @@ body.home main {
 
 .card-overlay button:hover { background: rgba(36, 51, 63, 0.92); }
 
-/* start over lives in its own quiet corner way below the repeat button so a
-   misclick can't nuke the seen list, and it looks nothing like the teal
-   action buttons on purpose */
+/* well below the repeat button, so a misclick cannot nuke the seen list */
 .unique-reset-wrap {
     text-align: center;
     margin-top: 120px;
@@ -2818,9 +2545,8 @@ body.home main {
 
 #unique-reset:hover { border-color: #a89d84; color: var(--text); }
 
-/* the "what comes closest?" link on /unique. teal and underlined, like
-   every other link on the site, so it stops sharing a colour with the
-   uniqueness number sitting two lines above it */
+/* teal and underlined like every other link, so it stops sharing a colour with
+   the uniqueness number two lines above */
 .more-lines a {
     color: var(--teal);
     text-decoration: underline;
@@ -2841,11 +2567,9 @@ body.home main {
 
 .report-open:hover { text-decoration: underline; }
 
-/* the flag on each result: a small ? riding the bottom-right corner of the
-   art, invisible until the card is hovered (like the rotate/transform
-   overlay) so the grid doesn't read as a wall of complaints. pointer-events
-   flips with the opacity so the invisible button never steals clicks from
-   the card link */
+/* invisible until hover, so the grid does not read as a wall of complaints.
+   pointer-events flips WITH the opacity, or the invisible button steals clicks
+   from the card link */
 .report-flag {
     position: absolute;
     bottom: 4%;
@@ -2911,9 +2635,9 @@ body.home main {
     min-width: 220px;
 }
 
-/* display: flex above would override the hidden attribute's display: none
-   (author rules beat the browser's [hidden] rule), so misplaced reports
-   would still show the card-name box. this puts hidden back in charge */
+/* display: flex above overrides the hidden attribute's display: none (author
+   rules beat the browser's [hidden]), so misplaced reports still showed the
+   card-name box. this puts hidden back in charge */
 .report-pick[hidden] { display: none; }
 
 .report-pick input {
@@ -3092,17 +2816,13 @@ body.home main {
     line-height: 1.5;
 }
 
-/* under ~900px the side bands cant stay far from the centered hero, and
-   "nowhere near the search bar" beats "technically visible", so they go */
+/* under ~900px the side bands cannot stay clear of the centred hero */
 @media (max-width: 900px) {
     .float-chip { display: none; }
 }
 
-/* below the width where the link row breathes, it collapses into the Menu
-   instead of wrapping. the wrap it replaces bought one extra tab at the
-   cost of a taller header; the menu holds any number of pages, so a new one
-   never forces this to be redone. the search bar stays on the top row,
-   since logo, name and Menu leave it real room */
+/* the link row collapses into the Menu rather than wrapping. the search bar
+   stays on the top row, since logo, name and Menu leave it real room */
 @media (max-width: 880px) {
     .header-links { display: none; }
     .nav-menu { display: block; margin-left: auto; }
@@ -3115,10 +2835,7 @@ body.home main {
     .search-form { order: 3; flex-basis: 100%; }
 }
 
-/* the filters panel stops being a dropdown once there is no room to hang one:
-   it goes back into the page's flow, full width, and pushes the results down
-   like the old inline panel did. the slider has already wrapped to its own
-   line by this width, so nothing jumps */
+/* no room to hang a dropdown, so the panel goes back into flow at full width */
 @media (max-width: 700px) {
     .adv-filters { position: static; flex-basis: 100%; margin-right: 0; }
 
@@ -3130,9 +2847,8 @@ body.home main {
         box-shadow: none;
     }
 
-    /* the head takes the line and its widget wraps under, but the x and the
-       name stay together inside it, which is the whole reason they share a
-       wrapper */
+    /* the head takes the line and the widget wraps under, but the x and the name
+       stay together, which is why they share a wrapper */
     .slot-head { flex-basis: 100%; min-width: 0; }
 }
 
@@ -3141,33 +2857,27 @@ body.home main {
     .searched-card .card-frame { width: 100%; }
     .home-title { font-size: 40px; }
 
-    /* the price and mana-value pairs are the widest widgets in the panel,
-       and two 72px boxes plus their labels overflow a 320px screen */
+    /* two 72px boxes plus their labels overflow a 320px screen */
     .filter-bar input[type="number"] { width: 64px; }
 
     .filter-prices { flex-wrap: wrap; }
 
-    /* sort / apply is a right-hand cluster on desktop; the auto margin
-       makes it crowd the edge on a phone */
+    /* the desktop auto margin crowds the edge on a phone */
     .filter-actions {
         margin-left: 0;
         flex-wrap: wrap;
         width: 100%;
     }
 
-    /* 12.5px is fine on a desktop monitor at arm's length, low on a phone.
-       these are the floor, nothing here goes under 12 */
+    /* the floor: nothing here goes under 12 */
     .match-line, .more-lines, .concept-tags, .result-price { font-size: 13px; }
 }
 
 /* ---- the standing list under the unique dealer ----
-   a numbered list of the actual answer, server rendered. it is styled like
-   the precon board's cousin rather than reusing .deck-card, because those
-   rows are a two column glance at twelve names and this is a hundred names
-   each carrying the line that earned it the place */
+   not reusing .deck-card: those rows are a two column glance at twelve names,
+   this is a hundred names each carrying the line that earned it the place */
 
-/* the same fold as the precon board's method note, so the site has one way of
-   saying "there is more here if you want it" rather than two */
+/* the same fold as the precon board's method note */
 .unique-board-fold {
     max-width: 860px;
     margin: 40px auto 0;
@@ -3204,8 +2914,8 @@ body.home main {
     border-bottom: 1px solid var(--line);
 }
 
-/* tabular figures so the column of ranks stays a column, and a fixed width
-   so the names all start at the same place from 1 to 100 */
+/* tabular figures and a fixed width, so the names all start at the same place
+   from 1 to 100 */
 .unique-rank {
     flex: none;
     width: 2.2em;
@@ -3227,9 +2937,7 @@ body.home main {
 
 .unique-name:hover { text-decoration: underline; }
 
-/* the evidence, quieter than the name it belongs to. clamped because a
-   handful of these lines are a whole paragraph of rules text and the list
-   has to stay scannable */
+/* clamped: a handful of these lines are a whole paragraph of rules text */
 .unique-line-text {
     display: -webkit-box;
     -webkit-line-clamp: 2;
@@ -3254,9 +2962,8 @@ body.home main {
 
 /* ---- the standings, shared by a precon's page and a pasted deck's ---- */
 
-/* the arrows swap which standing is on screen rather than scrolling between
-   five of them. it is hidden in the markup and unhidden by its script, so a
-   page with no javascript keeps all five stacked and readable */
+/* hidden in the markup and unhidden by its script, so a page with no javascript
+   keeps all five stacked and readable */
 .deck-board-link {
     margin: 0 0 10px;
 }
@@ -3268,9 +2975,8 @@ body.home main {
 
 .deck-board-link a:hover { text-decoration: underline; }
 
-/* the evidence, opened. a plain summary rather than a button: it works with
-   no script, it keeps the pictures out of the way until they are wanted, and
-   the browser does not download them while it is shut */
+/* a summary rather than a button: it works with no script, and the browser does
+   not download the pictures while it is shut */
 .deck-card-open {
     margin: 4px 0 10px;
 }
@@ -3283,18 +2989,14 @@ body.home main {
 
 .deck-card-open summary::marker { color: var(--muted); }
 
-/* the gap between a fold's label and what it opened, and it belongs HERE
-   rather than on the thing inside. it used to sit on .deck-card-grid, so a fold
-   holding anything else (the swap pairs, the passed-over cards) opened with its
-   pictures jammed against the summary. on the summary, every fold on the site
-   gets the same gap by construction and a new one cannot be born wrong.
-   [open] because a shut fold is just the summary, and spacing under a label
-   with nothing under it is a gap between two unrelated things */
+/* on the SUMMARY and not on the thing inside: on .deck-card-grid, a fold holding
+   anything else opened with its contents jammed against the summary. here every
+   fold gets the gap by construction.
+   [open] because a shut fold is just the summary, and the gap would be between
+   two unrelated things */
 .deck-card-open[open] > summary { margin-bottom: 12px; }
 
-/* a card a swap session put into this deck, marked where it sits in the grid.
-   one character, because the pairs are already listed in full under "what
-   changed" and this is a footnote pointing at them */
+/* one character: the pairs are listed in full under "what changed" */
 .deck-card-swapped {
     margin-left: 2px;
     font-weight: 700;
@@ -3302,11 +3004,9 @@ body.home main {
     cursor: help;
 }
 
-/* the expanded pictures break OUT of the 860px reading column to the width the
-   results grid gets, and it is the SAME rule that does it: see --grid-width up
-   with .card-grid. this used to carry its own copy of the arithmetic, which is
-   how it ended up pinned at the old 968 while a search went to 1220 and drew a
-   fourth card the deck pages could not. one grid width, one place */
+/* breaks OUT of the 860px reading column via the same --grid-width up with
+   .card-grid. its own copy of the arithmetic left it pinned at 968 while a
+   search went to 1220 and drew a fourth card the deck pages could not */
 
 /* ---- the missing lines, and fixing one where it stands ---- */
 
@@ -3324,8 +3024,7 @@ body.home main {
     padding: 4px 0;
 }
 
-/* the line exactly as the export wrote it, so it can be recognised in the
-   paste it came from. monospace for the same reason the filter box is */
+/* the line EXACTLY as the export wrote it, so it can be found in the paste */
 .deck-missing-raw {
     font-family: ui-monospace, Consolas, monospace;
     color: var(--text);
@@ -3349,8 +3048,7 @@ body.home main {
 
 .deck-missing-try:hover { background: var(--panel); }
 
-/* the lookup box borrows the suggestion dropdown the search bar uses, so it
-   has to be the thing that dropdown positions itself against */
+/* borrows the search bar's dropdown, so it has to be what that positions against */
 .deck-missing-fix {
     position: relative;
     display: inline-block;
@@ -3388,12 +3086,8 @@ body.home main {
 
 /* ---- who leads the deck ---- */
 
-/* asked after the list rather than before it, because until the list is read
-   there is nothing to offer as an answer. a commander deck holds one or two
-   legends, so this is usually a confirmation rather than a search.
-   a RULE above it, not a box around it. this page is a sequence of questions
-   and a tinted panel round one of them read as a warning rather than as a
-   step: same call the results page made when its parts stopped being cards */
+/* asked AFTER the list: until it is read there is nothing to offer as an answer.
+   a rule above it and not a box around it, which read as a warning */
 .deck-lead {
     margin: 22px 0 0;
     padding: 18px 0 4px;
@@ -3408,8 +3102,7 @@ body.home main {
     margin-bottom: 6px;
 }
 
-/* laid out like the header's card search: a box with what matches dropping
-   down under it. position: relative is what the hits anchor to */
+/* position: relative is what the hits anchor to */
 .deck-lead-search {
     display: flex;
     gap: 8px;
@@ -3429,9 +3122,7 @@ body.home main {
     color: var(--ink);
 }
 
-/* the same drop-down the search bar gets, and the rows inside it carry the
-   same .suggestion class, so both are spaced and highlighted by one set of
-   rules rather than by two that have to be kept looking alike */
+/* the rows carry the same .suggestion class, so one set of rules spaces both */
 .deck-lead-hits {
     display: none;
     position: absolute;
@@ -3473,8 +3164,7 @@ body.home main {
 
 /* ---- going back without losing the deck ---- */
 
-/* a form rather than a link, because the list and its name have to travel
-   with the click. it is drawn as the back link it replaces */
+/* a form and not a link, because the list and its name travel with the click */
 .deck-back {
     display: flex;
     align-items: baseline;
@@ -3524,27 +3214,22 @@ body.home main {
 
 .precon-also a:hover { text-decoration: underline; }
 
-/* ten readings is more buttons than five, so they wrap into a block rather
-   than trying to hold one line */
+/* ten readings will not hold one line */
 .precon-sorts { row-gap: 6px; }
 
 @media (max-width: 560px) {
     .precon-also ul { columns: 1; }
 }
 
-/* just the cards a swap session added, above the whole list. shorter box,
-   because it is a handful of lines rather than a hundred */
+/* shorter box: a handful of lines rather than a hundred */
 .swap-output-short { min-height: 0; max-height: calc(9em + 22px); }
 
-/* a list on /deck/view, open rather than folded. the heading and the note do
-   the job the summary used to, so the spacing has to come from somewhere */
+/* open rather than folded, so the spacing the summary gave comes from here */
 .deck-list-box { margin: 22px 0; }
 
 .deck-list-box h2 { margin-bottom: 4px; }
 
-/* published inside the last year, so its salt, price and play rate have not
-   settled. the mark is quiet: it qualifies a placing, it does not shout about
-   the deck */
+/* quiet: it qualifies a placing rather than shouting about the deck */
 .precon-new {
     display: inline-block;
     margin-left: 6px;
@@ -3563,22 +3248,18 @@ body.home main {
 
 .precon-count-new .precon-new { cursor: default; margin-right: 4px; }
 
-/* the currency row sits with the sort and era rows and is drawn like them,
-   because it is the same kind of thing: a control over what the board shows */
+/* drawn like the sort and era rows, being the same kind of control */
 .precon-cur { margin-bottom: 10px; }
 
-/* the deck page's currency control is a form of submit buttons, because a
-   pasted list has no url to flip. drawn identically to the link version, or
-   the same control would look like two different things on two pages */
+/* submit buttons, because a pasted list has no url to flip. drawn identically to
+   the link version, or one control looks like two things on two pages */
 .precon-cur button.precon-era {
     font: inherit;
     font-size: 13px;
     cursor: pointer;
 }
 
-/* the explanation, folded. it is the same three sentences every time a panel
-   comes round, and prose already read is just height between the reader and
-   the deck */
+/* folded: the same three sentences every time a panel comes round */
 .deck-standing-what {
     margin-top: 8px;
     font-size: 12.5px;
@@ -3600,8 +3281,7 @@ body.home main {
 
 .deck-standing-what strong { color: var(--gold); }
 
-/* more pictures, when twelve was not the question. the count says what is
-   left so the button is never a mystery box */
+/* the count says what is left, so the button is never a mystery box */
 .deck-card-more {
     display: flex;
     align-items: center;
@@ -3624,16 +3304,14 @@ body.home main {
 
 .deck-card-more-left { font-size: 12.5px; color: var(--muted); }
 
-/* revealed a batch at a time by the button above. display:none rather than
-   the hidden attribute so a grid cell really leaves the layout */
+/* display:none rather than the hidden attribute, so a grid cell really leaves
+   the layout */
 .deck-card-grid .result.is-over { display: none; }
 
-/* skipping sits with the card it is about, above the suggestions, because
-   walking the queue for one particular card means pressing it repeatedly */
+/* above the suggestions: walking the queue means pressing it repeatedly */
 .swap-actions-top { margin: 0 0 10px; }
 
-/* the next batch of the queue, offered at the end of one rather than the
-   session simply stopping */
+/* offered at the end of a batch rather than the session simply stopping */
 .swap-more {
     flex-direction: column;
     align-items: flex-start;
@@ -3641,10 +3319,9 @@ body.home main {
     margin-bottom: 20px;
 }
 
-/* qualified to beat ".swap-actions button", which is class+element and so
-   outranked a bare class no matter which was written later. it was setting
-   the near-white background under this button's white text, which is why the
-   label only appeared on hover */
+/* QUALIFIED to beat ".swap-actions button", which is class+element and outranks a
+   bare class whichever is written later. it set a near-white background under
+   this button's white text, so the label only appeared on hover */
 .swap-actions .swap-keep-going {
     background: var(--teal);
     border: none;
@@ -3658,12 +3335,10 @@ body.home main {
 
 .swap-actions .swap-keep-going:hover { background: var(--teal-hover); }
 
-/* the row labels on the board's controls, now that there are four rows of
-   them and each one needs saying what it does */
+/* the row labels on the board's four rows of controls */
 .precon-sorts .precon-depth-label { margin-right: 2px; }
 
-/* which end of the number a standing is read from. drawn like the board's own
-   "from the" row, because it is the same control doing the same thing */
+/* drawn like the board's own "from the" row, being the same control */
 .deck-ends { margin: 0 0 10px; }
 
 .deck-ends .deck-end {
@@ -3672,16 +3347,12 @@ body.home main {
     cursor: pointer;
 }
 
-/* the flipped reading is the same cards backwards, so the browser reorders
-   the nodes rather than the page shipping a second copy of every list. that
-   is done in the dom rather than with css order, because the names list is a
-   multi-column layout and order does nothing inside one */
+/* the reorder is done in the DOM and not with css order, because the names list
+   is a multi-column layout and order does nothing inside one. see standing.js */
 .deck-cards .deck-card.is-over,
 .deck-card-grid .result.is-over { display: none; }
 
-/* the tools on a saved deck: rename, and forget. they sit at the end of the
-   row and stay quiet until the row is hovered, because the row's job is to
-   open the deck and these two are housekeeping */
+/* quiet until the row is hovered: the row's job is to open the deck */
 .deck-recent-tools {
     display: flex;
     gap: 2px;
@@ -3715,9 +3386,7 @@ body.home main {
 
 /* ---- a swap, drawn as the pair it is ---- */
 
-/* out on the left, in on the right, so the comparison is the layout rather
-   than something the reader holds in their head. it wraps to a stack on a
-   narrow screen, which is the whole reason each side carries a label */
+/* it wraps to a stack on a narrow screen, which is why each side has a label */
 .swap-pairs {
     display: flex;
     flex-direction: column;
@@ -3732,39 +3401,30 @@ body.home main {
     gap: 14px;
     padding-bottom: 18px;
     border-bottom: 1px solid var(--line);
-    /* how wide a card in a pair is, held once because the label has to be the
-       same width to sit over it. see the two rules below */
+    /* held once, because the label has to be the same width to sit over it */
     --pair-card: 240px;
 }
 
 .swap-pair-side { min-width: 0; }
 
-/* a card in a pair is the SAME SIZE as a card in the results grid. the pair is
-   a three column grid, so each side was taking half the fold's width and
-   printing a card about twice the size of every other card on the site: fine
-   as the working area of the swap tool where there are only two of them, much
-   too big as a review of twelve swaps you are scrolling through.
+/* a card in a pair is the SAME SIZE as one in the results grid: unconstrained,
+   each side took half the fold's width and printed a card twice the size of
+   every other card on the site.
    240px rather than the 227px a results column comes out at, and the extra
-   thirteen are for the NAME, not the figures. the name shares its line with
-   the badge floated right of it, so a long one meets the badge well before
-   the row underneath runs out of room: Kongming, "Sleeping Dragon" is 27
-   characters with the quotes in it and was the card that found the edge */
+   thirteen are for the NAME, not the figures: it shares its line with the badge,
+   so a long one meets it well before the row runs out of room. Kongming,
+   "Sleeping Dragon" is 27 characters and found the edge */
 .swap-pair-side .result { max-width: var(--pair-card); }
 
-/* the incoming card sits against the arrow rather than out at the far edge, so
-   the two cards being compared stay next to each other as they shrink */
+/* against the arrow, so the two cards stay next to each other as they shrink */
 .swap-pair-in .result { margin-right: auto; }
 .swap-pair-out .result { margin-left: auto; }
 
-/* and OUT rides over to sit on its card, which is the whole point of a label.
-   the card leaving is pushed to the right of its column by the rule above, and
-   the label is a block, so it stayed behind at the far left of the column: the
-   word sat over empty space with its card a column-width away, while IN sat
-   over its card correctly because the incoming card is pinned left anyway.
-   giving the label the card's width and the same auto margin puts the two on
-   the same left edge, so the pair reads OUT-card, arrow, IN-card at any size.
-   it only shows up on a wide screen. stacked on a phone there is no spare
-   column for the word to be stranded in, which is why this looked fine there */
+/* the rule above pushes the outgoing card right, and the label is a block, so it
+   stayed at the far left of the column with its card a column-width away. giving
+   it the card's width and the same auto margin puts both on one left edge.
+   wide screens only: stacked on a phone there is no spare column to be stranded
+   in, which is why this looked fine there */
 .swap-pair-out .swap-pair-label {
     width: var(--pair-card);
     max-width: 100%;
@@ -3785,8 +3445,7 @@ body.home main {
 
 .swap-pair-in .swap-pair-label { color: #1f6b41; }
 
-/* the card leaving is faded, so which way the row reads is obvious before any
-   of the words are */
+/* faded, so which way the row reads lands before the words do */
 .swap-pair-out .card-frame img { opacity: .55; }
 
 .swap-pair-out:hover .card-frame img { opacity: 1; }
@@ -3797,10 +3456,8 @@ body.home main {
     font-size: 20px;
 }
 
-/* the swap axis picker, under the Change it button rather than inside it: a
-   select inside a submit button is a select you cannot open without submitting.
-   no rule over it any more, since the row it belongs to already has one under
-   it and two hairlines that close together read as an empty row */
+/* under the Change it button and not inside it: a select inside a submit button
+   cannot be opened without submitting */
 .deck-mode-axis {
     display: block;
     margin-top: 10px;
@@ -3808,14 +3465,10 @@ body.home main {
     color: var(--muted);
 }
 
-/* --panel, not --bg: there has never been a --bg in the palette, so this said
-   var() of a name nothing defines. an undefined custom property with no
-   fallback is invalid at computed-value time rather than ignored, and
-   background-color does not inherit, so the box fell all the way back to
-   transparent and picked up whatever was behind it. the row it sits on is
-   paper and turns to wash on hover, so the control quietly changed colour
-   under the pointer. --panel is the surface every other control on the site
-   stands on */
+/* --panel, NOT --bg: there is no --bg in the palette. an undefined custom
+   property with no fallback is invalid at computed-value time rather than
+   ignored, and background-color does not inherit, so the box fell back to
+   transparent and changed colour under the pointer with the row's hover */
 .deck-mode-axis select {
     margin-left: 6px;
     font: inherit;
@@ -3826,7 +3479,7 @@ body.home main {
     padding: 2px 4px;
 }
 
-/* the undo spans the row under both cards, because it is about the pair */
+/* spans both cards, being about the pair */
 .swap-pair .swap-undo { grid-column: 1 / -1; justify-self: start; }
 
 .swap-undo {
@@ -3842,27 +3495,20 @@ body.home main {
 
 .swap-undo:hover { background: var(--wash); }
 
-/* in the names list the undo sits at the end of its row and stays out of the
-   way until the row is reached */
+/* in the names list it stays out of the way until the row is reached */
 .swap-made-row .swap-undo { margin-left: auto; }
 
 @media (max-width: 560px) {
-    /* the pair stacks into ONE column, and the arrow has to point down the
-       middle of it. it used to be the same rightward arrow rotated and pinned
-       to the left edge, which left a small grey mark sitting beside two cards
-       that were themselves pushed to opposite edges: three things in a column
-       and no two of them lined up, so nothing said which card became which.
-       both cards go hard left, and the arrow gets the card's own width to
-       centre itself in, so it lands between the two pictures rather than
+    /* stacked into ONE column, so both cards go hard left and the arrow gets the
+       card's own width to centre in, landing between the pictures rather than
        beside them */
     .swap-pair { grid-template-columns: minmax(0, 1fr); gap: 8px; }
 
     .swap-pair-out .result,
     .swap-pair-in .result { margin-left: 0; margin-right: auto; }
 
-    /* font-size 0 drops the rightward arrow the markup carries and ::after
-       supplies a real down one, rather than rotating a box that now has to
-       stay the width of a card to centre anything */
+    /* font-size 0 drops the rightward arrow the markup carries, ::after supplies
+       a real down one */
     .swap-pair-arrow {
         justify-self: start;
         width: min(100%, 240px);
@@ -3882,23 +3528,17 @@ body.home main {
 
 /* ---- hidden means hidden ----
 
-   [hidden] lives in the USER AGENT stylesheet, and an author rule beats a ua
-   one whatever its specificity. so any element given a display of its own
-   stopped honouring the attribute, and .hidden = true in a script became a
-   line that did nothing. two controls were hiding nothing because of it: the
-   precons "show more cards" button (.deck-card-more is a flex) and the swap
-   tool's "check more cards" (.swap-actions is a flex). both read as dead
-   buttons, which is what they were: still on screen, still clickable, with
-   nothing left to do.
+   [hidden] lives in the USER AGENT stylesheet, and any author display beats it.
+   so an element given a display of its own stopped honouring the attribute, and
+   `.hidden = true` in a script did nothing: the precons "show more cards" and the
+   swap tool's "check more cards" both sat on screen, clickable, with nothing to do.
 
-   an attribute selector scores the same as a class, so this is (0,1,0) and
-   ties with .swap-actions and .deck-card-more rather than beating them. a tie
-   is broken by source order, which is why it is the LAST rule in the file and
-   has to stay there. that is the whole trick, and it is why no !important is
-   needed.
+   an attribute selector scores the same as a class, so this is (0,1,0) and TIES
+   with .swap-actions and .deck-card-more rather than beating them. the tie breaks
+   on source order, which is why this is the LAST rule in the file and has to stay
+   there. no !important needed.
 
-   what would beat it is a display set by a two-class or an id selector. there
-   is exactly one display rule on any element the scripts hide (.swap-actions,
-   at (0,1,0)), so nothing does today. if that changes, the fix is a
-   [hidden] guard on that one selector rather than reaching for !important */
+   a display set by a two-class or id selector would beat it. nothing does today.
+   if that changes, guard that selector with [hidden] rather than reaching for
+   !important */
 [hidden] { display: none; }
