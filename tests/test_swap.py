@@ -1,10 +1,9 @@
-#the mana value window the swap tool will look inside for a replacement.
+#the mana value window the swap tool looks inside for a replacement.
 #
-#small enough to read at a glance and easy to get backwards, which is the
-#reason it is worth pinning: the floor uses min() rather than max() so it only
-#ever OPENS the range. written the other way a three drop stops reaching down
-#to one and gets dragged up to five, and the tool quietly stops offering the
-#cheaper card that was the whole point of asking
+#worth pinning because it is easy to get backwards: the floor uses min() rather
+#than max() so it only ever OPENS the range. written the other way a three drop
+#stops reaching down to one and gets dragged up to five, and the tool quietly
+#stops offering the cheaper card that was the point of asking
 
 import pytest
 
@@ -36,8 +35,8 @@ class TestPastTheBand:
         assert swap_mv_range(cmc) == expected
 
     def test_the_floor_is_a_ceiling_on_the_floor(self):
-        #an expensive card can always reach down to SWAP_MV_FLOOR, never gets
-        #stranded above it however costly it is
+        #an expensive card always reaches down to SWAP_MV_FLOOR, never stranded
+        #above it however costly
         for cmc in range(SWAP_MV_HIGH + 1, 20):
             low, high = swap_mv_range(cmc)
             assert low <= SWAP_MV_FLOOR
@@ -52,7 +51,7 @@ class TestShape:
             assert low <= cmc <= high
 
     def test_cheap_cards_reach_below_zero(self):
-        #harmless where it lands (nothing costs less than nothing, so the sql
-        #simply matches from zero), recorded so the shape is not a surprise
+        #harmless where it lands, nothing costing less than nothing, so the sql
+        #matches from zero. recorded so the shape is not a surprise
         assert swap_mv_range(0) == (-2, 2)
         assert swap_mv_range(1) == (-1, 3)

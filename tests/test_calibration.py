@@ -1,16 +1,14 @@
-#the maps that turn a raw cosine into the percent on the badge, and the idf
-#weight behind the mechanical score.
+#the maps turning a raw cosine into the percent on the badge, and the idf weight
+#behind the mechanical score.
 #
-#these matter more than their size suggests. the site's whole promise is that
-#the number on a card means something fixed ("80 means a good match") while the
-#scorer underneath is free to change, and these maps are where that promise is
-#kept. the gate is written in DISPLAYED units for the same reason, so the two
-#directions have to stay each other's inverse at the anchor points or a filter
-#set at 80 stops meaning 80.
+#the site's promise is that the number means something fixed ("80 means a good
+#match") while the scorer underneath is free to change, and these maps are where
+#that is kept. the gate is written in DISPLAYED units for the same reason, so the
+#two directions have to stay each other's inverse at the anchors or a filter set
+#at 80 stops meaning 80.
 #
-#the seeds are what these tests read: conftest's stub database returns no meta
-#rows, so load_calibration falls back to the documented values rather than to
-#whatever the live database holds today
+#these read the SEEDS: conftest's stub returns no meta rows, so load_calibration
+#falls back to the documented values rather than what the live database holds
 
 import math
 

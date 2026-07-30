@@ -1,15 +1,14 @@
 #a small deterministic world for the tests that need real rows.
 #
-#everything here is invented. real card names are avoided on purpose, so a
-#failure never reads as a claim about an actual card and nobody greps the pool
-#looking for one. the ids are fixed uuids for the same reason a fixture is
-#seeded rather than sampled: the same run twice has to say the same thing.
+#every name is INVENTED, so a failure never reads as a claim about an actual card
+#and nobody greps the pool looking for one. the ids are fixed uuids for the same
+#reason the fixture is seeded rather than sampled.
 #
-#the embeddings are the interesting part. a line's vector is a unit vector
-#pointing along ONE axis, so two lines on the same axis sit at cosine 1 and two
-#on different axes at cosine 0. that is not what real embeddings look like, and
-#it is exactly what a test wants: the similarity between any two lines here is
-#a fact the fixture decides rather than a number the model happened to produce
+#the embeddings are the interesting part: a line's vector points along ONE axis,
+#so two lines on the same axis sit at cosine 1 and two on different axes at 0.
+#not what real embeddings look like, and exactly what a test wants, since the
+#similarity between any two lines is a fact the fixture decides rather than a
+#number the model happened to produce
 
 DIMS = 768
 
@@ -19,10 +18,9 @@ ANCHOR = "00000000-0000-4000-8000-000000000001"
 TWIN = "00000000-0000-4000-8000-000000000002"
 COUSIN = "00000000-0000-4000-8000-000000000003"
 STRANGER = "00000000-0000-4000-8000-000000000004"
-#tags but NO lines, so the line scan can never find it and only the concept
-#injection can. that is the shape a concept-only result has, and the branch it
-#reaches in find_similar (ranked.append with no pairs) is the same one a card
-#that simply fell outside the 400 row scan would reach
+#tags but NO lines, so only the concept injection can find it. that is the shape
+#a concept-only result has, and the branch it reaches in find_similar
+#(ranked.append with no pairs) is the one a card outside the 400 row scan reaches
 CONCEPT_ONLY = "00000000-0000-4000-8000-000000000005"
 
 #three digits of counter, because DECK_FILLER runs past 99 and a uuid is
@@ -52,12 +50,12 @@ CARDS = [
 ]
 
 #axis 1 is "attack trigger draws", axis 2 is "land destruction". the anchor's
-#keyword line gets its own axis so nothing else answers it
-#the anchor's THIRD line owns a tag of its own, and the twin owns that tag too.
-#that is what makes picking a line observable: narrowing to the attack line
-#drops sac-outlet out of the anchor's vector, so the twin's score has to move.
-#without a second concept on the card, picking a line and picking nothing
-#produce the same vector and a test cannot tell the two apart
+#keyword line gets its own axis so nothing else answers it.
+#
+#its THIRD line owns a tag the twin owns too, which is what makes picking a line
+#observable: narrowing to the attack line drops sac-outlet out of the anchor's
+#vector and the twin's score has to move. without a second concept on the card,
+#picking a line and picking nothing produce the same vector
 LINES = [
     (ANCHOR, "Flying", 0),
     (ANCHOR, "Whenever this card attacks, draw a card.", 1),
@@ -67,14 +65,13 @@ LINES = [
     (STRANGER, "Destroy target land.", 2),
 ]
 
-#"Flying" is on thousands of real cards and the line weighting is supposed to
-#notice. the rest are rare
+#"Flying" is on thousands of real cards and the line weighting has to notice
 LINE_COUNTS = {"Flying": 3000, "Whenever this card attacks, draw a card.": 3,
                "Destroy target land.": 4, "Sacrifice a creature: draw a card.": 5}
 
 #which line each of the anchor's tags belongs to. "Flying" is deliberately
-#absent: a keyword line owns no concepts, which is the whole reason picking one
-#has to drop the concept axis rather than score against a vector of nothing
+#ABSENT: a keyword line owns no concepts, which is why picking one has to drop
+#the concept axis rather than score against a vector of nothing
 LINE_TAGS = {
     (ANCHOR, "Whenever this card attacks, draw a card."): ["draw-on-attack"],
     (ANCHOR, "Sacrifice a creature: draw a card."): ["sac-outlet"],
@@ -131,11 +128,9 @@ def build(conn):
             INSERT INTO lines (oracle_id, line_text, embedding, face, whole, nn_sim)
             VALUES (%s, %s, %s, 0, false, 0.5) RETURNING id
         """, (oid, text, vec(axis))).fetchone()
-        #the attribution's answer for this line. the anchor's REAL line owns the
-        #tag family, its keyword line owns nothing, and both facts have to be on
-        #record: an empty answer and a database the attribution never ran
-        #against are the same empty result set and want opposite handling, so
-        #the fixture has to be able to tell them apart the way the site does
+        #both facts have to be on record: an empty answer and a database the
+        #attribution never ran against are the same empty result set and want
+        #OPPOSITE handling, so the fixture has to tell them apart as the site does
         line_id = row["id"] if hasattr(row, "keys") else row[0]
         for tag in LINE_TAGS.get((oid, text), []):
             conn.execute("""

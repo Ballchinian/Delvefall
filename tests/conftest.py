@@ -1,25 +1,20 @@
-#what makes the rest of this folder possible: web/app.py opens a connection at
-#import time (the CREATE TABLE block that keeps a railway-only deploy in step
-#with common/schema.sql), and web/db.py reads DATABASE_URL out of the
-#environment the moment it is imported. neither is wrong, but between them they
-#mean "import app" is a database call.
+#web/app.py opens a connection at IMPORT TIME (the CREATE TABLE block keeping a
+#railway-only deploy in step with schema.sql) and web/db.py reads DATABASE_URL
+#the moment it is imported, so between them "import app" is a database call.
 #
-#so a stub module called db goes into sys.modules BEFORE anything imports the
-#real one. by default it answers every query with nothing, which is exactly what
-#the two import-time callers can cope with: the DDL block does not read anything
-#back, and load_calibration in mirror.py already falls back to its seed maps
-#when the lookup comes up empty. that fallback is a bonus rather than a
-#workaround, since it means the calibration under test is the documented seed
-#rather than whatever the live database happens to hold today.
+#hence a stub module called db in sys.modules BEFORE anything imports the real
+#one. it answers every query with nothing, which is what the two import-time
+#callers cope with: the DDL block reads nothing back, and load_calibration falls
+#back to its seed maps on an empty lookup. that fallback is a bonus, since it
+#means the calibration under test is the documented seed rather than whatever the
+#live database holds today.
 #
-#set TEST_DATABASE_URL and the stub becomes real. the same seam that stands in
-#for a database can just as easily be one, so the tests that need rows (the
-#ranking, the deck panels, the swap tool) get a real postgres while every pure
-#function test carries on knowing nothing about it. the check workflow points
-#that variable at a pgvector service container; a laptop with nothing set runs
-#the pure tests alone and skips the rest.
+#set TEST_DATABASE_URL and the stub becomes real, so the tests needing rows get a
+#real postgres while every pure function test carries on knowing nothing about
+#it. the check workflow points it at a pgvector service container, and a laptop
+#with nothing set runs the pure tests alone.
 #
-#it must not point at the live database. the seed below writes rows.
+#it MUST NOT point at the live database. the seed below writes rows.
 
 import os
 import sys
@@ -68,21 +63,18 @@ class _NullPool:
         return _Connection()
 
 
-#the two lines of schema.sql that need a contrib module rather than a plain
-#server. the workflow's pgvector image carries pg_trgm like any postgres build
-#does, but a pip-installed throwaway server (pgserver, the way to run these on a
-#laptop with no docker) ships vector and nothing else. dropping them there costs
-#the trigram index behind find_card's fuzzy name tier and nothing else, so the
-#tests below still measure what they claim to
+#the two lines of schema.sql needing a contrib module. the workflow's pgvector
+#image carries pg_trgm like any postgres build, but a pip-installed throwaway
+#server (pgserver, the way to run these without docker) ships vector and nothing
+#else. dropping them there costs the trigram index behind find_card's fuzzy name
+#tier and nothing else
 TRGM_LINES = ("CREATE EXTENSION IF NOT EXISTS pg_trgm;",
               "CREATE INDEX IF NOT EXISTS cards_name_trgm ON cards USING gin (name gin_trgm_ops);")
 
 
 def _load_schema(url):
-    #the schema has to land BEFORE the pool opens, because the pool's configure
-    #hook calls register_vector, which needs the vector extension to exist.
-    #schema.sql is idempotent by design (the ingest reruns it daily), so this is
-    #free on every run after the first
+    #the schema has to land BEFORE the pool opens: the pool's configure hook
+    #calls register_vector, which needs the vector extension to exist
     import psycopg
     with psycopg.connect(url) as conn:
         with open(os.path.join(ROOT, "common", "schema.sql"), encoding="utf-8") as f:
@@ -129,8 +121,6 @@ needs_db = pytest.mark.skipif(not TEST_DB, reason="needs TEST_DATABASE_URL (a th
 
 @pytest.fixture(scope="session")
 def seeded():
-    #a small deterministic world: enough cards, lines, tags and vectors for the
-    #ranking and the deck pages to do their real work, few enough to read.
     #built once per session and torn down after, so a run leaves nothing behind
     if not TEST_DB:
         pytest.skip("needs TEST_DATABASE_URL")

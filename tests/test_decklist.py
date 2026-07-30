@@ -1,14 +1,13 @@
-#reading somebody else's decklist, which arrives in whatever shape the site
-#they copied it from felt like emitting. every case below is a shape one of
-#those exporters really produces, named where app.py names it.
+#reading somebody else's decklist, which arrives in whatever shape the site they
+#copied it from felt like emitting. every case below is a shape a real exporter
+#produces.
 #
-#matching is EXACT on the normalised name and never fuzzy, because a wrong
-#guess here would sit silently in a hundred rows pretending to be someone's
-#deck. that is the property most of these tests are really defending.
+#matching is EXACT on the normalised name and never fuzzy, a wrong guess here
+#sitting silently in a hundred rows pretending to be someone's deck. that is the
+#property most of these tests defend.
 #
-#name_index is replaced with a small fixed map rather than reached for: the
-#real one is a database read, and what is being tested is the parsing around
-#it, not the lookup
+#name_index is a small fixed map rather than the real one, which is a database
+#read: what is under test is the parsing around it, not the lookup
 
 import pytest
 

@@ -1,19 +1,17 @@
-#the filter box compiler: scryfall style syntax turned into one sql condition.
+#the filter box compiler: scryfall style syntax into one sql condition.
 #
-#the contract that matters is FAIL-SOFT. this parses whatever somebody is
-#halfway through typing, so a token it cannot read has to degrade to a smaller
-#filter and never to an exception, because an exception here is a 500 on the
-#search page. that is not hypothetical: a filter box ending in a bare "-",
-#which is every half typed negation, walked off the end of the token list and
-#took the whole search down.
+#the contract is FAIL-SOFT. this parses whatever somebody is halfway through
+#typing, so an unreadable token degrades to a smaller filter and never to an
+#exception, an exception here being a 500 on the search page. not hypothetical: a
+#box ending in a bare "-", which is every half typed negation, walked off the end
+#of the token list and took the whole search down.
 #
-#the tests read the generated sql as a string on purpose. it is placeholdered
-#and the params come back beside it, so asserting on both is what shows values
-#never reach the sql by concatenation.
+#the generated sql is read as a STRING on purpose. it is placeholdered and the
+#params come back beside it, so asserting on both is what shows values never
+#reach the sql by concatenation.
 #
-#gbp is deliberately absent from every case here: the gbp column is built from
-#the day's exchange rates, which are fetched over the network on first use, and
-#a unit test must not depend on that
+#gbp is deliberately absent: that column is built from the day's exchange rates,
+#fetched over the network on first use, and a unit test must not depend on it
 
 import pytest
 

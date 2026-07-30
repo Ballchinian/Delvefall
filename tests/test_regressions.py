@@ -1,13 +1,11 @@
-#one test per bug that has actually been shipped and fixed, against real rows.
+#one test per bug actually shipped and fixed, against real rows.
 #
-#these are the ones the pure-function suite cannot reach: every one of them
-#lives in code that talks to postgres, which is why they all went unnoticed
-#long enough to be found by reading rather than by failing. each test names the
-#wrong behaviour it is standing guard over, so a future change that reintroduces
-#one gets told which bug it just brought back.
+#the ones the pure-function suite cannot reach: every one lives in code that
+#talks to postgres, which is why they all went unnoticed long enough to be found
+#by reading rather than by failing. each names the wrong behaviour it guards, so
+#a change reintroducing one gets told which bug it just brought back.
 #
-#they need TEST_DATABASE_URL. without it the whole module skips, and the pure
-#tests still run on a machine with no postgres anywhere near it
+#needs TEST_DATABASE_URL, and without it the whole module skips
 
 import pytest
 
@@ -119,14 +117,13 @@ class TestDeckPanelsReadBothEnds:
 class TestFeedbackQuotesThePageNumber:
     #BUG: concept_between scored against the anchor's FULL tag set even when the
     #page had narrowed it, so a report answered with a percent the page never
-    #printed. and its sibling: a picked keyword line leaves no vector at all,
-    #where the ranking drops to rules text and the reply has to as well
+    #printed. its sibling: a picked keyword line leaves no vector at all, where
+    #the ranking drops to rules text and the reply has to as well
 
     def test_a_picked_line_narrows_the_vector(self, conn):
         #the anchor owns two concepts on two lines and the twin owns both, so
-        #narrowing to one line has to move the number. this is the assertion the
-        #bug failed: handing over the dropped tags alone scored the FULL card
-        #either way and answered with a percent the page had never printed
+        #narrowing to one line has to move the number. the assertion the bug
+        #failed: handing over the dropped tags alone scored the FULL card either way
         line = "Whenever this card attacks, draw a card."
         wide = app.concept_between(conn, seed.ANCHOR, seed.TWIN)
         narrow = app.concept_between(conn, seed.ANCHOR, seed.TWIN, (), [line], ())

@@ -1,13 +1,11 @@
-#the line cleaner, which is the most load bearing pure function in the repo:
-#the ingest embeds what it returns and the line picker looks lines up by it, so
-#a change here that nobody notices is a search that quietly stops matching its
-#own pages. tools/check_sync.py already guards the web/ copy against drifting
-#from this one; what it cannot say is whether either of them is still right.
+#the line cleaner, the most load bearing pure function in the repo: the ingest
+#embeds what it returns and the line picker looks lines up by it, so a change
+#nobody notices is a search that quietly stops matching its own pages.
+#check_sync.py guards the web/ copy against drifting from this one, but cannot
+#say whether either is still RIGHT.
 #
-#every case below is one the comments in common/cards.py argue for, with the
-#card or the measurement that made the argument named where there is one.
-#the em dashes in the data are real: scryfall prints them, and the cleaner's
-#job is reading them
+#the em dashes in the data are real: scryfall prints them, and reading them is
+#the cleaner's job
 
 from common.cards import REMINDER_KEYWORDS, clean_line, reminder_is_the_rule
 
@@ -37,13 +35,11 @@ class TestReminderIsTheRule:
 
     def test_keyword_led_prose_with_nothing_but_letters_reads_as_keywords(self):
         #the edge of the bare-keyword test, recorded rather than wished away:
-        #letters and spaces alone cannot be told apart from a keyword list, so
-        #prose led by a listed keyword answers true.
-        #it costs nothing where it is actually reached. the only thing
-        #clean_line does with a true is keep the text inside parens, and a line
-        #with no parens comes out the same either way, which is what the second
-        #half of this asserts. if that ever stops being true this test is the
-        #one that should fail
+        #letters and spaces alone cannot be told from a keyword list, so prose led
+        #by a listed keyword answers true. it costs nothing where it is reached,
+        #since all clean_line does with a true is keep the text inside parens and
+        #a line with no parens comes out the same either way. the second half
+        #asserts that, and is the test that should fail if it stops holding
         assert reminder_is_the_rule("Overload the target and draw a card")
         assert clean_line("Overload the target and draw a card.", "X") == \
             "Overload the target and draw a card."

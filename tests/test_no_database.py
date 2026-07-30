@@ -1,11 +1,10 @@
-#the property that lets the check workflow run this suite at all.
+#the property that lets the check workflow run this suite at all: conftest's stub
+#means these tests need neither a database nor the drivers that talk to one, so
+#the deploy gate installs three small packages instead of postgres.
 #
-#the whole point of conftest's stub is that these tests need neither a database
-#nor the drivers that talk to one, so the deploy gate can install three small
-#packages and get behaviour checking rather than needing postgres on the runner.
-#that is easy to lose by accident: one test that reaches for a real connection,
-#or one import pulled in for convenience, and the workflow starts failing on a
-#machine nobody can reproduce. these assert it out loud instead
+#easy to lose by accident, one test reaching for a real connection or one import
+#pulled in for convenience, and the workflow starts failing on a machine nobody
+#can reproduce. so it is asserted out loud
 
 import sys
 
@@ -15,10 +14,9 @@ import app
 import mirror
 from conftest import TEST_DB
 
-#these are about the DEFAULT shape, the one the pure suite runs in. with
-#TEST_DATABASE_URL set the same seam is deliberately a real pool and a real
-#driver, so asserting their absence would be asserting the opposite of what was
-#asked for
+#the DEFAULT shape only. with TEST_DATABASE_URL set the same seam is deliberately
+#a real pool and a real driver, so asserting their absence would assert the
+#opposite of what was asked for
 no_db_only = pytest.mark.skipif(bool(TEST_DB),
                                 reason="TEST_DATABASE_URL makes the seam real on purpose")
 
