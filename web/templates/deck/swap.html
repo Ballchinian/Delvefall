@@ -3,16 +3,12 @@
 
 {% block title %}Improving {{ deck_name or 'your deck' }} - Delvefall{% endblock %}
 
-{# same reasoning as /deck/read: a pasted list is nobody's business and there
-   is no url to come back to anyway #}
+{# a pasted list is nobody's business, and there is no url to come back to #}
 {% block head_extra %}<meta name="robots" content="noindex">{% endblock %}
 
 {% block content %}
-{# the axis rides the whole page, not each grid, because every card on it is
-   being weighed on the same one: the card leaving, the twelve that could take
-   its slot, and the pairs at the bottom. one class means the figure the session
-   is about is in ink everywhere it appears, and the same class /search and the
-   standing panels use for the same job #}
+{# the axis rides the whole page, not each grid: every card here is weighed on
+   the same one. the class /search and the standing panels use for the job #}
 <div class="guide precons deck-detail deck-swap {{ focus }}">
     {# the list rides the link, so going back keeps the deck AND its name #}
     <form class="precon-back deck-back" method="post" action="/deck/open">
@@ -26,23 +22,16 @@
     </form>
 
     <h1>Making {{ deck_name or 'this deck' }} {{ goal }}</h1>
-    {# where you are, and how far there is to go. counting how many checked
-       cards had somewhere to go is a fact about the tool rather than about the
-       deck: what somebody walking a queue wants to know is which card they are
-       on and how many are left.
-
-       the total is the cards this session is offering, not the whole queue,
-       because that is the number the page is actually showing. cards with
+    {# the total is what this session offers, not the whole queue. cards with
        nowhere to go are stepped over silently and named at the end, so the
-       position can jump by more than one. that is the honest reading of it #}
+       position can jump by more than one #}
     <p class="deck-detail-sub">
         Card <span id="swap-at">1</span> of <span id="swap-checked">{{ batch }}</span>,
         worst first. Nothing is saved, and nothing changes until you copy the list out
         at the end.</p>
 
-    {# the offer of another batch sits UP HERE with the count it is about, so
-       reaching the end of one does not mean scrolling past everything decided
-       so far to carry on. hidden until a batch actually finishes #}
+    {# up here with the count it is about, so finishing a batch does not mean
+       scrolling back past everything decided so far #}
     <div class="swap-actions swap-more" id="swap-more" hidden>
         <button type="button" class="swap-keep-going" id="swap-keep-going">Check
         <span id="swap-more-left"></span> more cards</button>
@@ -50,10 +39,8 @@
         improvement than the last.</span>
     </div>
 
-    {# what the last batch actually turned up. without this, a batch where every
-       card had nowhere to go ended exactly where it started: same screen, same
-       button, same number on it, and no way to tell the difference between that
-       and a button that did nothing at all #}
+    {# without this, a batch where every card had nowhere to go ended on the
+       same screen with the same number, indistinguishable from a dead button #}
     <p class="deck-section-note" id="swap-batch-note" hidden></p>
 
     {% if not queue %}
@@ -62,31 +49,20 @@
     match on.</p>
     {% else %}
 
-    {# the working area. one card at a time: a page of forty suggestions is the
-       thing every other tool already does, and it is the part people do not
-       finish. the queue is walked, not dumped #}
+    {# one card at a time, the queue is walked and not dumped #}
     <div id="swap-live">
-        {# no repeat of the figure that put this card at the top of the queue.
-           the card below prints all four numbers already and the axis is inked
-           among them, so a label here says "salt 1.32" directly above a card
+        {# no label repeating the figure that queued this card: the card below
+           prints all four already, so it would read "salt 1.32" above a card
            saying salt 1.32 #}
         <div class="swap-out">
             <span class="swap-label">Out</span>
         </div>
         <div class="swap-out-card" id="swap-out-card"></div>
 
-        {# skipping lives UP HERE, next to the card it is about, not under a
-           grid of twelve pictures. somebody walking the queue looking for one
-           particular card is pressing this over and over, and making them
-           scroll past the suggestions each time to reach it is the version
-           that gets abandoned halfway #}
-        {# the walk runs both ways, because one misplaced click on a suggestion
-           being final until the end of the batch is a hard thing to live with
-           in a tool whose whole shape is one card at a time.
-
-           back is second and hidden until there is somewhere to go, so the
-           control people press constantly stays where it was and does not shift
-           under the cursor the first time a decision gets made #}
+        {# skip is pressed over and over, so it stays up next to the card
+           rather than under the grid. back is second and hidden until there is
+           somewhere to go, or the constant control shifts under the cursor the
+           first time a decision gets made #}
         <div class="swap-actions swap-actions-top">
             <button type="button" class="swap-skip" id="swap-skip">Keep it, next card</button>
             <button type="button" class="swap-back" id="swap-back" hidden>&larr; Back a card</button>
@@ -94,78 +70,56 @@
 
         <p class="deck-section-note" id="swap-note">Looking for replacements&hellip;</p>
 
-        {# the same report bar /search carries, and the suggestions are the thing
-           on this site most worth arguing with: proposing a card for somebody's
-           deck is a stronger claim than listing similar cards. "missing" is not
-           offered here, see the partial for why #}
+        {# proposing a card for somebody's deck is a stronger claim than
+           listing similar ones. "missing" is not offered here, the partial
+           says why #}
         {% with mode = 'swap' %}{% include "partials/reportbar.html" %}{% endwith %}
 
-        {# the same grid the results page uses, so a replacement is read the
-           way every other card on the site is read: picture, price, play rate,
-           salt, and the line that matched. every figure carries its verdict
-           against the card leaving, which is the only question being asked #}
+        {# every figure carries its verdict against the card leaving #}
         <div class="card-grid swap-grid" id="swap-options"></div>
-        {# the rest of this card's answer, already in the page. the server sends
-           the whole list and the browser reveals a batch, so this costs no
-           round trip: the query scanned two hundred rows per line either way #}
+        {# already in the page: the server sends the whole list and the browser
+           reveals a batch, so this costs no round trip #}
         <div class="load-more-wrap">
             <button type="button" id="swap-options-more" hidden></button>
         </div>
     </div>
 
-    {# the cards that were passed over for having nothing above the bar. named
-       rather than silently dropped: a card that disappears without explanation
-       reads as the tool missing it, and "there is nothing that does this job"
-       is a real finding about the card #}
+    {# named rather than silently dropped: a card that vanishes reads as the
+       tool missing it, and "nothing does this job" is a real finding #}
     <div class="swap-nothing" id="swap-nothing" hidden>
         <h2>Nothing close enough</h2>
         <p class="deck-section-note">No card does what these do and moves the deck
         {{ goal }}, so they were passed over rather than swapped for something worse.{#
-           filled in by the script when it is true, because "no card does what
-           these do" is a claim and the mana value band can make it a false one:
-           a card whose every match was the right effect at the wrong cost has
-           not been passed over for want of an answer #}
+           filled by the script, because the mana value band can make "no card
+           does what these do" false: right effect, wrong cost #}
         <span id="swap-nothing-cost"></span></p>
         <ul class="swap-made" id="swap-nothing-list"></ul>
-        {# the same fold the swaps get. these are cards somebody may well
-           disagree with the tool about, and "no card does this job" is much
-           easier to argue with when you can see the card #}
+        {# "nothing does this job" is easier to argue with in front of the card #}
         <details class="deck-card-open" id="swap-nothing-box">
             <summary>View these card images</summary>
             <div class="card-grid swap-grid" id="swap-nothing-cards"></div>
         </details>
     </div>
 
-    {# what has been decided so far, and the only thing on this page that
-       persists past the last card. it is the deliverable: without a list you
-       can paste back into moxfield the whole session evaporates #}
+    {# the deliverable: without a list to paste back, the session evaporates #}
     <div id="swap-done" hidden>
-        {# the same three blocks /deck/view draws, from the same partial. they
-           were a second copy here with a second set of ids, which is how the
-           two pages came to disagree about the heading and about whether a card
-           could be put back #}
+        {# was a second copy here with its own ids, which is how this page and
+           /deck/view came to disagree about the heading and about whether a
+           card could be put back #}
         {% include "partials/deckchanges.html" %}
 
-        {# the deck as it now stands. "this page is about one card at a time"
-           is right about the working area and wrong about the end of it, where
-           the session is over and the deck is the thing just built. the tiles
-           for swapped cards are rewritten by the script, so this is the new
-           deck and not the one that arrived #}
+        {# the script rewrites the swapped tiles, so this is the new deck and
+           not the one that arrived #}
         {% include "partials/deckcards.html" %}
 
-        {# this page's own, and the reason it is not in the partial: /deck/view
-           has the mode rows for going elsewhere, this one has finishing #}
+        {# not in the partial: /deck/view has mode rows here, this page has
+           finishing #}
         <p class="swap-again-line"><a class="swap-again" href="/deck">Read another deck</a></p>
 
-        {# where you go from a finished session. the reading only: /deck/view
-           would be strictly less than what is already on this page now that the
-           cards and the list are both here.
-
-           it carries the SWAPPED list, not the one the session started with.
-           the field renders with the original because that is all jinja knows
-           at page build time, and the script overwrites it when the session
-           finishes, which is the only moment the new list exists. comparing the
-           deck you no longer have would be the one wrong answer here #}
+        {# carries the SWAPPED list. the field renders with the original,
+           because that is all jinja knows at build time, and the script
+           overwrites it when the session finishes, the only moment the new
+           list exists #}
         <div class="deck-modes-pick deck-modes-after">
             {{ ways.way("/deck/read", "Compare it", "See the reading", pasted,
                         body="How original it is, how salty, what it costs, how played its
@@ -177,10 +131,8 @@
     {% endif %}
 </div>
 
-{# the deck the page is holding. it lives here rather than on the server
-   because there is no session to put it in and that is deliberate: every
-   request states its own deck, so nothing has to be stored, expired or
-   cleaned up, and closing the tab really does end it #}
+{# no session on the server: every request states its own deck, so nothing is
+   stored, expired or cleaned up, and closing the tab ends it #}
 <script id="swap-data" type="application/json">{{ {
     'queue': queue,
     'deck': deck_ids,
@@ -201,7 +153,6 @@
 window.MANA_URLS = {{ mana_urls() | tojson }};
 </script>
 <script type="module" src="{{ static_url('js/swap.js') }}"></script>
-{# the deck fold at the end of a session batches its pictures the same way
-   /deck/view's does, off the same script #}
+{# same picture batching as /deck/view's fold #}
 <script src="{{ static_url('js/cardfold.js') }}" defer></script>
 {% endblock %}

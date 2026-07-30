@@ -1,45 +1,22 @@
-{# a deck drawn as its cards, and the ONE place that does it.
+{# a deck drawn as its cards, for /deck/view and /precons/<slug>. takes
+   `cards` and nothing else.
 
-   /deck/view renders it for a pasted or imported list, /precons/<slug> for a
-   precon, and both look identical because they are the same file rather than
-   two grids that happen to agree today. it takes `cards` and nothing else, so
-   anything that can produce that list can show a deck.
+   DISTINCT cards, not copies: the parser folds a list, so a mana base arrives
+   as one Forest. the exact list with its counts sits on the same page.
 
-   it draws the DISTINCT cards a deck holds rather than its copies, because
-   that is what the parser hands back: a list folds to the cards in it, so a
-   mana base arrives as one Forest. the exact list with its counts sits on the
-   same page to copy, which is where counts actually matter.
-
-   the batch size is `section`, which is DECK_SECTION and is the SAME number
-   every other card list on the site reveals at a time. one number so that a
-   fix to one batching control is a fix to all of them.
-
-   FOLDED, and a batch at a time inside the fold. a hundred card pictures is
-   most of a page and all of somebody's data allowance, and it is not what most
-   people came for: opening it is a decision, and so is going past the first
-   batch of them. the whole deck is in the html either way, so nothing here fetches
-   anything and closing it costs nothing to reopen.
-
-   the first batch is the one the SERVER leaves visible, so the fold is
-   already correct with no script running. without javascript it simply stays
-   at one batch, which is a readable page rather than a broken one.
+   `section` is DECK_SECTION, the same batch size every other card list on the
+   site reveals at a time. the first batch is the one the SERVER leaves
+   visible, so the fold is right with no script running.
 
    the class is deck-card-grid and NOT deck-cards, which is already an ol in
-   partials/standing.html with styling of its own.
-
-   the frame markup matches the results grid deliberately: cards.js wires every
-   .card-frame on the page for the rotate and flip overlay, so a card here
-   behaves exactly like a card anywhere else on the site without this template
-   knowing anything about it #}
-{# "View every card image" rather than "the deck as cards", which never says
-   what opening it gets you: a decklist is already cards, so "as cards" reads as
-   a formatting choice rather than as pictures #}
+   partials/standing.html. .card-frame is what cards.js wires for the rotate
+   and flip overlay #}
 <details class="deck-card-open deck-card-fold">
     <summary>{{ cards_summary or 'View every card image' }}
         <span class="deck-card-total">{{ cards|length }} cards</span></summary>
     <div class="card-grid deck-card-grid" data-step="{{ section }}">
-        {# the id is here for the swap page, which walks these tiles and rewrites
-           the ones whose card has been replaced. every other page ignores it #}
+        {# data-oid is for the swap page, which rewrites the tiles whose card
+           has been replaced. every other page ignores it #}
         {% for c in cards %}
         <div class="result{% if loop.index0 >= section %} is-over{% endif %}" data-oid="{{ c.oracle_id }}">
             <div class="card-frame" data-sideways="{{ '1' if c.sideways else '' }}" data-flip="{{ '1' if c.flip else '' }}" data-back="{{ c.image_back }}">
@@ -48,11 +25,9 @@
                 </a>
             </div>
             <div class="result-name"><span class="card-name" title="{{ c.name }}">{{ c.name }}</span></div>
-            {# all four readings, all in grey, and deliberately no focus class on
-               the grid: this page is not sorted by anything, so there is no
-               chosen stat and nothing has earned the ink. see the focus rules in
-               the css, where being sorted on is the only thing that promotes a
-               figure out of grey #}
+            {# no focus class: this page is not sorted by anything, so nothing
+               has earned the ink. in the css, being sorted on is the only
+               thing that promotes a figure out of grey #}
             {% if c.price_label or c.rank_label or c.salt_label or c.age_label %}
             <div class="result-price">
                 {% if c.price_label %}<span class="price-figure">{{ c.price_label }}</span>{% endif %}

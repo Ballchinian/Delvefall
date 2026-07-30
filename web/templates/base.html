@@ -4,17 +4,11 @@
         <meta charset="utf-8">
         <title>{% block title %}Delvefall{% endblock %}</title>
         <meta name="viewport" content="width=device-width, initial-scale=1">
-        {# the search-engine snippet. pages override the block with their own
-           sentence, search.html says which card its results are about #}
-        {# the sentence leads with the shortcut rather than the machinery: the
-           reason to come here is that it takes one card name and no learning,
-           and the clever part underneath is what makes that possible rather
-           than what is being sold. still says similar, unique and the game's
-           full name, which is what people actually search for #}
+        {# the fallback for any page that does not override. google prints
+           about 155 characters and this one runs to 220, so it is cut #}
         <meta name="description" content="{% block metadesc %}The quick way to find Magic: The Gathering cards similar to any card you name. Type a card, get everything that does the same thing, plus the cards nothing else resembles. No search syntax to learn and nothing to look up.{% endblock %}">
-        {# the unfurl card a pasted link grows in discord and friends. every
-           page gets the logo and its own title and sentence, search.html
-           overrides the block with the card's art and name #}
+        {# the unfurl card a pasted link grows in discord. search.html
+           overrides it with the card's own art and name #}
         {% block og %}
         <meta property="og:site_name" content="Delvefall">
         <meta property="og:type" content="website">
@@ -23,42 +17,32 @@
         <meta property="og:image" content="{{ request.url_root.rstrip('/') ~ static_url('DelvefallLogo.png') }}">
         <meta name="twitter:card" content="summary">
         {% endblock %}
-        {# search console proof of ownership, one tag per verified property (delvefall.com) #}
+        {# search console ownership, one tag per verified property #}
         <meta name="google-site-verification" content="oWhTi5fndKHhGtea_eqlff2CttnTOc6FSFMMsxTmYV8">
-        {# every meaningful page is mostly card pictures from this one host,
-           preconnecting shaves the dns+tls handshake off the first one #}
+        {# every meaningful page is card pictures from this one host, so this
+           shaves the dns+tls handshake off the first of them #}
         <link rel="preconnect" href="https://cards.scryfall.io">
         <link rel="icon" type="image/png" href="{{ static_url('DelvefallLogo.png') }}">
         <link rel="stylesheet" href="{{ static_url('style-ink.css') }}">
-        {# every page declares one canonical url or none of them do. /precons
-           carries a sort, an era and a depth, so the same board is reachable at
-           32 addresses, and without this google is free to treat them as 32
-           thin pages competing with each other.
-           the default is the path with the query string dropped, which is right
-           wherever the query string is a control rather than the content.
-           search.html is the one page where the query string is the content, so
-           it overrides this with the card's own address #}
+        {# /precons carries a sort, an era and a depth, so the same board is
+           reachable at 32 addresses that would otherwise compete.
+           the default drops the query string, right wherever it is a control.
+           search.html is the one page where the query string IS the content,
+           so it overrides this #}
         {% block canonical %}<link rel="canonical" href="{{ request.url_root.rstrip('/') ~ request.path }}">{% endblock %}
         {% block head_extra %}{% endblock %}
 
-        {# how the module scripts on every page find the shared helpers, and the
-           ONLY reason this exists: static files are cached for a year, which is
-           safe only because static_url stamps a content hash onto every url the
-           templates emit. a plain `import "./dom.js"` would go out unstamped and
-           a fix to it would sit behind a year-old cache in every browser that
-           had already been here. the map puts the stamped url back in front of
-           the bare name, so imports cache-bust like everything else.
+        {# static files are cached for a year, safe only because static_url
+           stamps a content hash on every url the templates emit. a plain
+           `import "./dom.js"` would go out unstamped and a fix to it would sit
+           behind a year-old cache. the map puts the stamped url back in front
+           of the bare name.
 
-           IN THE HEAD, and it has to be. an import map only applies to module
-           tags the parser meets AFTER it, and it used to sit at the foot of the
-           body on the reasoning that the scripts block held the first module tag
-           on any page. that reasoning was one partial away from wrong, and a
-           partial did it: it included a module halfway up the body, which the
-           map then arrived too late for, and every browser answered `Failed to
-           resolve module specifier "decks"` and dropped the script. it failed
-           silently for as long as nobody looked.
-           the partial in question is gone now, which changes nothing: the head
-           is the one place no include can get in front of #}
+           IN THE HEAD, and it has to be: an import map only applies to module
+           tags the parser meets AFTER it. at the foot of the body, a partial
+           including a module halfway up the page got `Failed to resolve module
+           specifier "decks"` and was dropped, silently. the head is the one
+           place no include can get in front of #}
         <script type="importmap">
         {"imports": {
             "dom": "{{ static_url('js/dom.js') }}",
@@ -70,40 +54,31 @@
     </head>
     <body class="{% block bodyclass %}{% endblock %}">
 
-        {# the home page swaps this whole strip out for its big centered
-           search, every other page gets the compact header bar #}
+        {# the home page swaps this whole strip out for its big centered search #}
         {% block header %}
         <header>
             <div class="header-inner">
-                {# the outline variant, same reason as the home hero: the
-                   plain tray is the header's own ink #}
+                {# the outline variant: the plain tray is the header's own ink #}
                 <img class="logo" src="{{ static_url('DelvefallLogoOutline.png') }}" alt="Delvefall logo" width="50" height="50">
                 <a class="site-name" href="/">Delvefall</a>
-                {# no autofocus here on purpose: on a results page it would
-                   steal focus from the page (space and the arrow keys would
-                   type instead of scroll, and phones would pop the keyboard
-                   over the results). the home hero keeps its own autofocus,
-                   there the search IS the page. press / to focus this one #}
+                {# no autofocus on purpose: on a results page space and the
+                   arrow keys would type instead of scroll, and phones would pop
+                   the keyboard over the results. press / to focus it #}
                 <form action="/search" method="get" class="search-form" autocomplete="off">
                     <input type="text" name="q" placeholder="Search for a card by name..." aria-label="card name" value="{{ query or '' }}">
                     <button type="submit">Search</button>
                     <div id="suggestions"></div>
                 </form>
-                {# the links exist once and render twice: as the desktop row,
-                   and inside the collapsed menu that replaces it below tablet
-                   width. only one of the two is ever displayed, so screen
-                   readers meet one nav, and a new page added here lands in
-                   both without anyone remembering the second copy #}
+                {# once here, rendered twice below: the desktop row and the
+                   collapsed menu. only one is ever displayed, so screen readers
+                   meet one nav and a new link lands in both #}
                 {% set nav_items %}
                     <a href="/unique">Unique cards</a>
-                    {# the lens is one idea with several views, so it gets one
-                       nav item and its own hub rather than a tab per view.
-                       /precons keeps its url, it is just reached from there #}
+                    {# one nav item for the lens, /precons is reached from it #}
                     <a href="/deck">Deck lens</a>
                     <a href="/guide">How it works</a>
-                    {# leaves the site, so it carries the little box-and-arrow
-                       (css, on target=_blank) and says so out loud for screen
-                       readers, since the icon is decorative to them #}
+                    {# the css hangs the box-and-arrow off target=_blank. the
+                       icon is decorative to screen readers, hence the label #}
                     <a href="https://discord.gg/kfjYbRYKbg" target="_blank" rel="noopener" aria-label="Discord (opens in a new tab)">Discord</a>
                 {% endset %}
                 <nav class="header-links">{{ nav_items }}</nav>
@@ -119,21 +94,17 @@
             {% block content %}{% endblock %}
         </main>
 
-        {# the home page leaves this out (it overrides the block empty): no
-           card data is shown there beyond the ghost chips, and the wall of
-           attribution under an otherwise bare hero was the loudest thing on
-           the page. every page that actually shows cards still carries it,
-           which is what the fan content policy and scryfall's terms ask for #}
+        {# every page that shows card data carries this, which is what the fan
+           content policy and scryfall's terms ask for. the home page overrides
+           the block empty, it shows none #}
         {% block footer %}
         <footer>
             <p>Card data and images from <a href="https://scryfall.com">Scryfall</a>.
             The concept tags come from <a href="https://tagger.scryfall.com">Scryfall Tagger</a>,
             applied by hand by its volunteers.
             Unofficial Fan Content, not approved or endorsed by Wizards of the Coast.</p>
-            {# quiet, and quiet is the whole placement decision: the ask sits
-               here and at the foot of a read deck, never on the landing page,
-               because the landing page is where nobody has been given anything
-               yet #}
+            {# the ask sits here and at the foot of a read deck, never on the
+               landing page, where nobody has been given anything yet #}
             <p class="footer-links"><a href="/privacy">Privacy</a>
             <a href="/support">Support</a></p>
         </footer>
@@ -142,15 +113,11 @@
         <script>
         /*
             autocomplete, shared by the search bar and the report box on the
-            results page. waits a moment after each keypress then asks the
-            server for card names matching what's typed so far, so you can
-            find a card even if you only half remember the name.
+            results page.
 
-            two details that took learning: answers can arrive out of order
-            on a slow connection, so each request takes a number and stale
-            answers get dropped instead of painting over fresh ones. and the
-            arrow keys walk the list like every other search box on the
-            internet, enter picks, escape closes
+            answers can arrive out of order on a slow connection, so each
+            request takes a number and stale answers get dropped instead of
+            painting over fresh ones
         */
         function wireSuggest(input, box, pick) {
             var timer;
@@ -233,8 +200,8 @@
             });
         }
 
-        //the collapsed menu closes like the filters fold: escape, or a click
-        //anywhere that isn't it. the home page has no header, hence the guard
+        //closes on escape or a click elsewhere. the home page has no header,
+        //hence the guard
         var navMenu = document.querySelector(".nav-menu");
         if (navMenu) {
             document.addEventListener("click", function(e) {
@@ -255,8 +222,8 @@
             document.querySelector(".search-form").submit();
         });
 
-        //press / anywhere to jump to the search bar, like scryfall. not
-        //while typing somewhere else, / is a legal character in text
+        //press / to jump to the search bar, like scryfall. not while typing
+        //somewhere else, / is a legal character in text
         document.addEventListener("keydown", function(e) {
             if (e.key != "/" || e.ctrlKey || e.metaKey || e.altKey) {
                 return;
@@ -271,28 +238,20 @@
         });
 
         /*
-            one rule for every link to a card on this site, picture or name: a
-            plain click goes further INTO delvefall, ctrl (cmd on a mac) opens
-            that card on scryfall in a new tab.
+            one rule for every card link on the site: a plain click goes
+            further INTO delvefall, ctrl (cmd on a mac) opens it on scryfall.
 
-            the pictures used to run the other way round and it cost two
-            things. every card picture was an outbound link, so pages spent
-            their ranking signal on scryfall instead of on this site's own
-            card pages, which are the pages worth finding. and the ctrl-click
-            that hopped you here was hijacked into a SAME TAB navigation,
-            which is the one thing ctrl-click does not mean anywhere else on
-            the web. inverted, both stop fighting: the common move is the
-            plain one, and ctrl-click opens a new tab like it always does.
+            it used to run the other way round, which spent every page's
+            ranking signal on scryfall instead of on this site's own card
+            pages, and hijacked ctrl-click into a SAME TAB navigation.
 
-            delegated on the document so it covers the links rendered with the
-            page and the ones the dealer, load more and the swap queue build
-            later, without every one of them remembering to wire it up
+            delegated on the document, so it covers links the dealer, load
+            more and the swap queue build later
         */
         function scryfallSearch(name) {
-            //an exact-name search rather than the card's own permalink, so a
-            //link only needs the name it is already printing and no query has
-            //to carry a second url. scryfall sends a single result straight
-            //to the card
+            //an exact-name search rather than the card's permalink, so a link
+            //only needs the name it is already printing. scryfall sends a
+            //single result straight to the card
             return "https://scryfall.com/search?q=" + encodeURIComponent('!"' + name + '"');
         }
 
@@ -311,14 +270,11 @@
         });
         </script>
 
-        {# the shared rotate / flip / transform overlay for card pictures.
-           it wires every .card-frame on the page after load, and pages that
-           add cards later (load more, the unique dealer) call
-           enhanceCardFrames themselves #}
+        {# wires every .card-frame on the page after load. pages that add cards
+           later call enhanceCardFrames themselves #}
         <script src="{{ static_url('cards.js') }}"></script>
 
-        {# the import map these need is in the head, where no partial's own
-           module tag can get in front of it #}
+        {# the import map these need is in the head, see above #}
         {% block scripts %}{% endblock %}
 
     </body>
