@@ -26,9 +26,8 @@
     daily update.</p>
     {% else %}
 
-    {# every control keeps the other, so picking one never silently throws the
-       other away. built as one query string per link rather than nested
-       conditionals #}
+    {# every control keeps the other, so picking one never throws the other
+       away #}
     {% macro board_url(s, e, n) -%}
     /precons{% set parts = [] %}
     {%- if s != 'original' %}{% set _ = parts.append('sort=' ~ s) %}{% endif %}
@@ -37,22 +36,15 @@
     {{- '?' ~ parts|join('&') if parts else '' -}}
     {%- endmacro %}
 
-    {# what is measured, then which end of it. ten buttons in one row is the
-       same five numbers listed twice: "most expensive" and "cheapest" are one
-       sum read from either end, not two things to choose between. /search
-       splits its sorts the same way and for the same reason.
-
-       the urls stay ten, because each end really is its own page with its own
-       title and its own question, and that is what lets someone searching for
-       the cheapest precons land here already sorted. only the control folds #}
+    {# what is measured, then which end of it: "most expensive" and "cheapest"
+       are one sum read from either end. only the CONTROL folds to five, the
+       urls stay ten, because each end is its own page with its own title and
+       that is what lets a search for the cheapest precons land here sorted #}
     <nav class="precon-eras precon-sorts" aria-label="rank by">
         <span class="precon-depth-label">Rank by:</span>
         {% for m in metrics %}
-            {# the reading to travel to, which is this metric read in the
-               direction already on screen. it was written as a conditional with
-               the SAME expression on both sides, so it looked like the current
-               metric was being treated differently and it never was. it is only
-               read in the else below, which is that condition anyway #}
+            {# this metric read in the direction already on screen. only used in
+               the else below, which is already the "not current" branch #}
             {% set to = m[sort.dir] %}
             {% if m.key == sort.metric.key %}
                 <span class="precon-era on" aria-current="true">{{ m.label }}</span>
@@ -85,10 +77,7 @@
                 <a class="precon-era" href="{{ board_url(sort.key, key, hide_new)|trim }}">{{ label }}</a>
             {% endif %}
         {% endfor %}
-        {# the settling window, on or off. it is a view control like the era
-           cut rather than a different measurement: those decks are still new,
-           this just stops them standing between decks whose numbers have
-           stopped moving #}
+        {# a view control like the era cut, not a different measurement #}
         {% if new_here or hide_new %}
         <a class="precon-era{{ ' on' if hide_new }}" rel="nofollow"
            href="{{ board_url(sort.key, era, not hide_new)|trim }}"
@@ -96,31 +85,23 @@
         {% endif %}
     </nav>
 
-    {# only where money is on screen. the other four rankings do not change
-       with it, and a control that does nothing is worse than no control #}
+    {# only where money is on screen, the other four do not change with it #}
     {% if sort.metric.key == 'price' %}{% include "partials/currency.html" %}{% endif %}
 
-    {# the honest bit, and it is about THIS number rather than about the idea of
-       measuring decks. a reader who meets "19.4 years" or "#1204" with no scale
-       cannot tell a good score from a bad one, and a leaderboard nobody can
-       read is a leaderboard nobody believes #}
     <details class="precon-method">
         <summary>What {{ sort.label|lower }} means here, and what it doesn't</summary>
-        {# the range is read off the first and last row on screen rather than
-           remembered in the code, so it follows the era cut and the currency
-           and it cannot rot. it used to be a sentence in a constant, and all
-           five of them were drifting the day after they were written: age
-           grows daily, prices move daily, and the ends of the board move
+        {# read off the first and last row on screen rather than held in a
+           constant, so it follows the era cut and the currency and cannot rot.
+           age grows daily, prices move daily, and the ends of the board move
            whenever the ingest picks up a new precon #}
         <p>{{ sort.means }}{% if span %} On the board below that runs from
         <strong>{{ prefix }}{{ ('%.' ~ sort.decimals ~ 'f')|format(span.top) }}{{ suffix }}</strong>
         at the top to
         <strong>{{ prefix }}{{ ('%.' ~ sort.decimals ~ 'f')|format(span.bottom) }}{{ suffix }}</strong>
         at the bottom.{% endif %}</p>
-        {# what is still moving, per number, because it is different per number.
-           salt is the big one and it is not a hedge: EDHREC's survey runs once
-           a year, so a card printed since the last one has had no chance to be
-           voted on and the deck holding it reads mild whether it is or not #}
+        {# salt is the big one: EDHREC's survey runs once a year, so a card
+           printed since the last one has had no chance to be voted on and the
+           deck holding it reads mild whether it is or not #}
         <p><strong>On the newest decks this is still settling.</strong>
         {{ sort.settling }}</p>
         {% if sort.metric.key == 'original' %}
@@ -206,15 +187,13 @@
         <li class="precon-row">
             <div class="precon-place">{{ r.place }}</div>
             <div class="precon-main">
-                {# the deck keeps the ranking you clicked it from, so its page
-                   opens on the standing that made you click rather than on a
-                   number you never asked about #}
+                {# carries the ranking you clicked from, so the deck's page
+                   opens on the standing that made you click #}
                 <div class="precon-name"><a href="/precons/{{ r.slug }}{% if sort.key != 'original' %}?sort={{ sort.key }}{% endif %}">{{ r.name }}</a></div>
                 <div class="precon-sub">
                     {% if r.leaders %}
-                        {# the commander identifies a precon to a player far better
-                           than the product name does, and it is a card, so it links
-                           into the site like every other card name here #}
+                        {# the commander identifies a precon to a player better
+                           than the product name does #}
                         {% for leader in r.leaders %}
                         <a href="/search?q={{ leader | urlencode }}" data-card="{{ leader }}">{{ leader }}</a>{{ '' if loop.last else ' / ' }}
                         {% endfor %}
@@ -224,17 +203,15 @@
                     {% if r.new %}<span class="precon-new"
                         title="published inside the last year, so its salt, price and play rate are all still settling">new</span>{% endif %}
                     {% if r.source %}
-                    {# wizards' own page for the list. for the older sets it is
-                       that deck's page, for recent ones the set announcement
-                       carrying all of its decks, so the label says decklist
-                       rather than promising this exact deck's page #}
+                    {# for older sets this is the deck's own page, for recent
+                       ones the set announcement carrying all of them, so the
+                       label promises a decklist and not this deck's page #}
                     &middot; <a class="precon-source" href="{{ r.source }}" target="_blank" rel="noopener"
                         aria-label="official decklist for {{ r.name }} (opens in a new tab)">official decklist</a>
                     {% endif %}
                 </div>
                 {% if r.cards %}
-                {# whichever number the board is sorted by, this is the cards
-                   that made it, so the ranking can always be checked #}
+                {# the cards that made whichever number the board is sorted by #}
                 <div class="precon-drivers"><span class="precon-drivers-label">{{ sort.cards }}:</span>
                     {% for d in r.cards %}<a href="/search?q={{ d | urlencode }}" data-card="{{ d }}">{{ d }}</a>{{ '' if loop.last else ', ' }}{% endfor %}
                 </div>
@@ -242,28 +219,22 @@
             </div>
             <div class="precon-score">
                 <div class="precon-figure">{{ prefix }}{{ ('%.' ~ sort.decimals ~ 'f')|format(r.figure) }}{{ suffix }}</div>
-                {# the vivid number, under the one the board actually sorts on.
-                   the collective total is the fact people repeat ("this deck
-                   is 900 years old"), and the AVERAGE is the only one a
-                   ranking can honestly use, because precons hold anywhere from
-                   53 to 66 nonland cards and a sum quietly rewards the bigger
-                   deck for being bigger #}
+                {# the total is the memorable number but the board sorts on the
+                   average: precons hold 53 to 66 nonland cards, and a sum
+                   rewards the bigger deck for being bigger #}
                 {% if sort.metric.key == 'age' and r.age_total %}
                 <div class="precon-subfigure" title="every card's age added together, across the {{ r.age_cards }} cards that aren't basic lands">{{ '%.0f'|format(r.age_total) }} years all told</div>
                 {% endif %}
-                {# the bar is the comparison, the number is the receipt. width is
-                   relative to the decks currently on screen, which is why the
-                   top row is always full and the bottom row always a stub #}
+                {# width is relative to the decks currently on screen, which is
+                   why the top row is always full and the bottom always a stub #}
                 <div class="precon-bar precon-bar-{{ sort.metric.key }}"><span style="width: {{ '%.1f'|format(r.fill) }}%"></span></div>
             </div>
         </li>
         {% endfor %}
     </ol>
 
-    {# the other nine questions this same board answers, spelled out rather
-       than left as a row of buttons above. it is the honest internal linking
-       for a page that exists ten times: each one names what it ranks, so a
-       reader and a crawler meet the same list of things this data can say #}
+    {# the internal linking for a page that exists ten times: each one names
+       what it ranks, so a reader and a crawler meet the same list #}
     <nav class="precon-also">
         <h2>The same 166 decks, ranked another way</h2>
         <ul>

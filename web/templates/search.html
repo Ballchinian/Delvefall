@@ -32,10 +32,8 @@
 
 {% block head_extra %}
     {% if card %}
-    {# breadcrumbs: the one rich result type a card page honestly claims.
-       google reads it and prints the snippet's url line as a trail,
-       "Delvefall > card name". the last crumb is this page, so it names
-       itself and leaves the url to the canonical above #}
+    {# the one rich result a card page honestly claims. the last crumb is this
+       page, so it names itself and leaves the url to the canonical above #}
     <script type="application/ld+json">
     {
         "@context": "https://schema.org",
@@ -53,8 +51,8 @@
     {% if not_found %}
         <p class="message">Couldn't find a card called "{{ query }}", maybe check the spelling?</p>
     {% elif card %}
-        {# the searched card and its two pickers, shared with /deck/swap, which
-           asks the same question about the card it is offering to replace #}
+        {# shared with /deck/swap, which asks the same question about the card
+           it is offering to replace #}
         {% include "partials/anchorcard.html" %}
 
         <form class="filter-bar" action="/search" method="get">
@@ -68,29 +66,20 @@
             {% if request.args.get('yestags') %}
             <input type="hidden" name="yestags" value="{{ request.args.get('yestags') }}">
             {% endif %}
-            {# the rules text / concepts slider was here until 2026-07-22.
-               an even blend of the two axes beat every other position of it,
-               including both ends, so the control was asking a question with
-               one right answer. see read_blend in app.py #}
+            {# the rules text / concepts slider was here until 2026-07-22: an
+               even blend beat every other position of it, both ends included,
+               so the control had one right answer. see read_blend in app.py #}
             {% include "partials/filters.html" %}
-            {# sort and apply ride the extra filters line, out of the filter
-               box's way, where the sort list has room for its options #}
-            {# WHAT to sort by and WHICH END first, as two controls. one list of
-               nine was mostly the same four ideas written twice, and the pair
-               reads the way scryfall's does, which is the sort control this
-               audience has already learned.
-               the direction's wording belongs to the field ("cheapest first",
-               "saltiest first"), so its options are rendered for the field on
-               screen and the script below rewrites them when the field
-               changes. with no javascript they are simply correct on arrival,
-               which is the state that matters since Apply is doing the work #}
-            {# the direction sits BEFORE the field, which reads backwards and is
-               deliberate. .filter-actions is a right hand cluster (margin-left:
-               auto), so it grows leftwards: with the direction second, picking a
-               sortable field made it appear BETWEEN the field and Apply and shoved
-               the field a whole control to the left, out from under the cursor
-               that had just used it. in front, it grows into the empty space on
-               the left and the field and Apply never move #}
+            {# the direction's wording belongs to the field ("cheapest first"),
+               so its options are rendered for the field on screen and the
+               script rewrites them on change. with no javascript they are
+               correct on arrival, which is what matters since Apply does the
+               work.
+               it sits BEFORE the field, which reads backwards and is
+               deliberate: .filter-actions is a right hand cluster and grows
+               leftwards, so with the direction second, picking a sortable
+               field shoved the field a whole control to the left, out from
+               under the cursor that had just used it #}
             <span class="filter-actions">
                 {% set spec = sort_fields[sort_field] %}
                 <select name="dir" aria-label="which end first" class="sort-dir"
@@ -106,55 +95,37 @@
                 <button type="submit">Apply</button>
             </span>
         </form>
-        {# a filter that can never match says so instead of handing back an
-           empty grid with no explanation: an inverted range or a number box
-           holding something that isn't a number #}
+        {# an inverted range or a non-number in a number box, said out loud
+           rather than handed back as an empty grid #}
         {% for e in errors %}
         <p class="message">{{ e }}</p>
         {% endfor %}
 
-        {# the heading names the card, because "cards similar to Sol Ring" is
-           the phrase this page answers and the one people search for.
-           it used to carry a line under it saying the same thing again in the
-           two other phrasings people use, on the reasoning that "alternatives"
-           and "cards like it" are what the list holds. they are, and the
-           heading already said so: a sentence whose whole content is the
-           heading reworded is a sentence between the reader and the cards #}
+        {# "cards similar to Sol Ring" is the phrase people search, so the
+           heading is it verbatim #}
         <h2>Cards similar to {{ card.name }}
             <a href="#" id="report-missing" class="report-open">expected a card that isn't here?</a></h2>
 
-        {# the report bar. hidden until one of the two entry points opens it:
-           the "expected a card" link above (a missing report, which asks for
-           the card's name) or a flag on a result card (a misplaced report,
-           which just asks why in the user's own words). it posts to /feedback
-           with the page's whole query string so the server judges the report
-           against exactly what the user was looking at #}
-        {# the report bar, shared with /deck/swap. hidden until the "expected a
-           card" link above, a flag on a result, or the tag link in the panel
-           opens it #}
+        {# hidden until one of three things opens it: the "expected a card" link
+           above, a flag on a result, or the tag link in the panel. posts to
+           /feedback with the page's whole query string, so the server judges
+           the report against exactly what was on screen #}
         {% include "partials/reportbar.html" %}
 
         {% if not results %}
         <p class="message">Nothing matched with these filters.</p>
         {% endif %}
-        {# the sorted-on figure is the one the eye should land on, so the grid
-           names it and the css moves the ink. every card carries all five
-           readings in all five sorts, and the class is the only thing that
-           changes: the match badge for best-match, and one of the four numbers
-           under the card for the other four sorts.
-           the price used to be the foreground for three of the five, which was
-           the price standing in for figures the row could not show. best-match
-           orders by the badge, so the badge is what it should point at, and the
-           date sorts now have an age figure of their own to point at #}
-        {# results-grid names the ONE grid on the site that is the page rather
-           than a panel inside one, which is what lets the css widen it past
-           the reading column on a monitor with the room. the swap page's and
-           the deck pages' grids sit inside a reading and stay in the column #}
+        {# every card carries all five readings in all five sorts. the focus
+           class is the only thing that changes, and the css moves the ink to
+           the figure being sorted on.
+           results-grid names the ONE grid that is the page rather than a panel
+           inside one, which is what lets the css widen it past the reading
+           column. the swap and deck grids sit inside a reading and stay in it #}
         <div class="card-grid results-grid {{ focus }}">
             {% for r in results %}
             <div class="result">
-                {# the ? in the picture's corner is the misplaced-card report,
-                   it fades in with the rest of the hover overlay #}
+                {# the ? is the misplaced-card report, it fades in with the
+                   rest of the hover overlay #}
                 <div class="card-frame" data-sideways="{{ '1' if r.sideways else '' }}" data-flip="{{ '1' if r.flip else '' }}" data-back="{{ r.image_back }}">
                     <a href="/search?q={{ r.name | urlencode }}" data-card="{{ r.name }}" data-scryfall="{{ r.scryfall_uri }}" title="search {{ r.name }} here. ctrl-click to open it on scryfall">
                         <img src="{{ r.image }}" alt="{{ r.name }}" width="488" height="680" loading="lazy">
@@ -170,20 +141,16 @@
                 <div class="more-lines" title="{{ r.more_text }}">+{{ r.more_count }} more matching {% if r.more_count == 1 %}line{% else %}lines{% endif %}</div>
                 {% endif %}
                 {% if r.concept_tags %}
-                {# the tags and what they are, and nothing else. a "concept
-                   match 63%" alongside is a second number for a card that
-                   already prints its match on the badge above, in units nobody
-                   asked for. the line tooltip beside it names the matched line
-                   and stops, and these two are the same kind of label #}
+                {# no percentage alongside: the card already prints its match
+                   on the badge above #}
                 <div class="concept-tags" title="community tags shared with your card">{{ r.concept_tags }}</div>
                 {% endif %}
             </div>
             {% endfor %}
         </div>
 
-        {# the button either pages the tier it is in or steps down to the next
-           band of weaker matches, saying in words how much worse they get so
-           nobody opens a pile of faint resemblances by accident #}
+        {# pages the current tier, or steps down to the next band and says in
+           words how much worse it gets #}
         {% if has_more or next_band %}
         <div class="load-more-wrap">
             <button id="load-more"{% if next_band %} data-next="{{ next_band.lo }}" data-words="{{ next_band.words }}"{% endif %}>
@@ -196,15 +163,13 @@
 
 {% block scripts %}
     {% if card %}
-    {# the values only the server knows, handed to search.js on window. it is a
-       module and cannot be reached into, so this is the whole boundary between
-       what jinja renders and what the browser runs #}
+    {# search.js is a module and cannot be reached into, so window is the whole
+       boundary between what jinja renders and what the browser runs #}
     <script>
         //the token -> url map manaFill in cards.js renders rules text with
         window.MANA_URLS = {{ mana_urls() | tojson }};
         //the searched card's own figures, so results added by load more can
-        //name what their arrows are measured against, exactly like the
-        //server-rendered ones do
+        //name what their arrows are measured against
         window.ANCHOR = {price: {{ (card.price or 'no listed price') | tojson }}, rank: {{ (card.rank or 'unranked') | tojson }}, salt: {{ (card.salt_text or 'no salt score') | tojson }}, age: {{ (card.age or 'no printing date') | tojson }}};
         window.SORT_DIRS = {{ sort_fields | tojson }};
         //the canonical name find_card landed on, not the typo that was typed,
