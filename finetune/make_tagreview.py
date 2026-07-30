@@ -1,21 +1,18 @@
 #builds finetune/testing_list/tag_review.md, the hand judged answer to "is this
 #tag about what the rules text says?"
 #
-#learnable_tags() in make_training.py keeps a tag if the current model puts its
-#cards in one tight blob. that is a different question, and in the 0.5 to 0.75
+#learnable_tags() in make_training.py keeps a tag if the CURRENT model puts its
+#cards in one tight blob, which is a different question and in the 0.5 to 0.75
 #band mostly a wrong one: ramp (0.638), rummage (0.541), scry-like (0.525),
 #converge (0.538) and triggered-ability (0.727) are all printed in plain words
-#and all excluded, because the model doing the judging does not cluster them.
-#using a model to decide what its successor may learn is circular, and it costs
-#exactly the mechanics a retrain is meant to fix.
+#and all excluded. using a model to decide what its successor may learn is
+#circular, and it costs exactly the mechanics a retrain is meant to fix.
 #
-#so the AUC answers a smaller question: "already well represented", not
-#"learnable in principle". this file answers the latter.
-#
-#from the repo root with DATABASE_URL set:
+#so the AUC answers "already well represented" and this file answers "learnable
+#in principle".
 #    python finetune/make_tagreview.py
-#it merges. verdicts already in tag_review.md win and anything new arrives as ?,
-#so rerunning after a tagger update never loses a decision.
+#with DATABASE_URL set. it MERGES: verdicts already in tag_review.md win and
+#anything new arrives as ?, so rerunning after a tagger update loses no decision
 
 import os
 import re
@@ -26,9 +23,8 @@ import psycopg
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(HERE, "traindata")
-#it sits with the other hand-marked files rather than beside the script, because
-#the verdicts in it are written by hand and nothing can rebuild them. it is an
-#input on every run after the first, see the merge below
+#with the other hand-marked files, not beside the script: nothing can rebuild the
+#verdicts in it, and it is an INPUT on every run after the first
 REVIEW = os.path.join(HERE, "testing_list", "tag_review.md")
 
 #the four verdicts and what each means downstream:
@@ -41,18 +37,16 @@ REVIEW = os.path.join(HERE, "testing_list", "tag_review.md")
 #  ?     not yet judged
 VERDICTS = ("text", "card", "junk", "?")
 
-#the seed verdicts, and only for tags tag_review.md has never listed. a verdict
-#already written in the file wins, so revising one means editing the file rather
-#than this dictionary.
+#seeds, and only for tags tag_review.md has never listed. a verdict already in
+#the file wins, so revising one means editing the file rather than this dict.
 #
-#the typal-* and synergy-* families are settled by counting: of the 42 typal
-#tags with 20+ cards, 89% of their cards print the thing the tag names in their
-#own rules text, and the named creature types are at 100% (typal-vampire 82 of
-#82, typal-zombie 120 of 120). synergy-* is 80% the same way. the handful
-#reading 0% are slug wording rather than absent concepts: a card tagged
-#synergy-blocker says "blocks", not "blocker", and typal-coupling never names
-#itself at all. so both families are text. the tag goes on the card that cares
-#about the type, which the rules text says, not on every card that is that type
+#the typal-* and synergy-* families are settled by counting: of the 42 typal tags
+#with 20+ cards, 89% of their cards print the thing the tag names in their own
+#rules text, and the named creature types are at 100% (typal-vampire 82 of 82,
+#typal-zombie 120 of 120). synergy-* is 80% the same way. the handful reading 0%
+#are slug WORDING rather than absent concepts, a card tagged synergy-blocker
+#saying "blocks" and typal-coupling never naming itself at all. the tag goes on
+#the card that cares about the type, not on every card that is that type
 PROPOSED = {
     #plainly printed on the card
     "triggered-ability": "text", "symmetrical": "text", "burn-you": "text",
@@ -145,11 +139,11 @@ PROPOSED = {
     "references-keyword": "junk",   #"call back to a keyword from an older set"
     "sneaky-self-trigger": "junk",  #"worded so it is easy to miss", a note on phrasing
 
-    #tags the AUC keeps, pulled in by scanning the kept list for the shapes
-    #judged junk or card on the excluded side. the set-mechanic family scores
-    #0.86 to 0.999 because "enters tapped" templating really is distinctive
-    #text, which is the point: a high AUC says a tag is easy to spot, never
-    #that it is worth learning
+    #tags the AUC keeps, found by scanning the kept list for the shapes judged
+    #junk or card on the excluded side. the set-mechanic family scores 0.86 to
+    #0.999 because "enters tapped" templating really is distinctive text, which
+    #is the point: a high AUC says a tag is EASY TO SPOT, never that it is worth
+    #learning
     "token-errata": "junk", "discard-with-set-s-mechanic": "junk",
     "burn-with-set-s-mechanic": "junk", "ramp-with-set-s-mechanic": "junk",
     "threaten-with-set-s-mechanic": "junk", "tapland-with-set-s-mechanic": "junk",
@@ -160,9 +154,8 @@ PROPOSED = {
 }
 
 #the kept side needs examining too, or a tag the AUC waves through gets trained
-#on with nobody having asked whether it should be. reviewing all 547 is not a
-#good use of an evening, so the kept side is filtered to the shapes that turned
-#out to be junk or card on the excluded side
+#on with nobody having asked. reviewing all 547 is not an evening well spent, so
+#it is filtered to the shapes that turned out junk or card on the excluded side
 SUSPECT_KEPT = (
     r"storyline|booster|-model$|^40k|^dnd-|errata|black-border|vanity|invitational"
     r"|set-s?-mechanic|^staple|^bear-with|^meme|fun-ruling|notorious|rules-nightmare"
@@ -172,19 +165,16 @@ SUSPECT_KEPT = (
 
 
 def inherit_verdicts(parents, proposed):
-    #a slug pattern is the wrong tool for finding a family. SUSPECT_KEPT looks
-    #for "set-s-mechanic" and sails past counterspell-with-set-mechanic,
+    #a slug pattern is the wrong tool for finding a family: SUSPECT_KEPT looks for
+    #"set-s-mechanic" and sails past counterspell-with-set-mechanic,
     #giant-growth-with-set-mechanic and naturalize-with-set-mechanic, spelled
-    #without the s, all three in the training set at AUC 0.96 to 0.99. templated
-    #text scores high, which says nothing about whether the label is worth
-    #learning.
+    #without the s, all three in the training set at AUC 0.96 to 0.99.
     #
-    #so this asks tagger's tree instead of the spelling.
-    #staple-with-set-s-mechanic is a root with sixteen children, each a name for
-    #a design slot ("bear" is a 2/2 for 2), so a tag under a junk root is junk
-    #until someone says otherwise. same principle as BLOCKED_ROOTS in
-    #ingest/tags.py. a verdict in the file still wins, so an inherited proposal
-    #is never a decision
+    #so this asks tagger's TREE instead of the spelling.
+    #staple-with-set-s-mechanic is a root with sixteen children, each naming a
+    #design slot ("bear" is a 2/2 for 2), so a tag under a junk root is junk until
+    #someone says otherwise. same principle as BLOCKED_ROOTS in ingest/tags.py.
+    #a verdict in the file still wins, so an inherited proposal is never a decision
     out = {}
     for tag in parents:
         seen, frontier = set(), list(parents.get(tag, ()))
@@ -201,10 +191,8 @@ def inherit_verdicts(parents, proposed):
 
 
 def read_verdicts():
-    #the file is the source of truth, the same way pairs.md is for the axis
-    #bakeoffs: a human's judgement written down in a form both a person and the
-    #pipeline can read. make_training.py imports this rather than keeping its own
-    #copy of the regex, so the two can never drift about what the file says
+    #make_training.py imports this rather than keeping its own copy of the regex,
+    #so the two can never drift about what the file says
     if not os.path.exists(REVIEW):
         return {}
     out = {}
@@ -216,24 +204,19 @@ def read_verdicts():
 
 
 def trainable_tags(scores, bar):
-    #which tags the pipeline may train on, and the one place that decides it:
-    #make_training.py builds the pairs from this and exam_tags.py scores against
-    #it, so a model is never judged on a tag set it was not taught.
+    #THE one place deciding which tags the pipeline may train on: make_training.py
+    #builds the pairs from this and exam_tags.py scores against it, so a model is
+    #never judged on a tag set it was not taught.
     #
-    #the review outranks the AUC both ways, because they answer different
-    #questions: the AUC asks whether the current model already clusters a tag,
-    #the review asks whether the rules text says it at all. one example each:
+    #the review outranks the AUC both ways, the two answering different questions:
     #  rescued  ramp, rummage, scry-like, converge and triggered-ability are
-    #           printed in plain words and the AUC excludes them, because the
-    #           model doing the judging does not cluster them
-    #  removed  the *-with-set-s-mechanic family scores 0.86 to 0.999 because
-    #           "This land enters tapped" really is distinctive text. still a
-    #           set-design observation rather than anything a search should
-    #           learn, and a high AUC never claimed otherwise
+    #           printed in plain words and the AUC excludes them
+    #  removed  the *-with-set-s-mechanic family scores 0.86 to 0.999 on
+    #           templating alone, and is still set-design trivia
     #
-    #an unreviewed tag falls through to the AUC: the review covers the excluded
-    #side plus the kept tags that looked suspicious, not all 706. a tag left at
-    #? counts as unlearnable, since not judged is not approved
+    #an unreviewed tag falls through to the AUC, the review covering the excluded
+    #side plus the suspicious kept ones rather than all 706. a tag left at ?
+    #counts as unlearnable: not judged is not approved
     verdicts = read_verdicts()
     auc_keep = {t for t, a in scores.items() if a >= bar}
     if not verdicts:
@@ -277,14 +260,12 @@ def main():
     desc = {t: (d or "").strip() for t, d in conn.execute("SELECT tag, description FROM tags")}
     parents = {t: list(p or ()) for t, p in conn.execute("SELECT tag, parents FROM tags")}
     existing = read_verdicts()
-    #ancestry consults the file's verdicts as well as the proposals, and the
-    #file wins where they disagree. otherwise a root judged in the file rather
-    #than in the dict would not reach its children, and the file is the one that
-    #outranks
+    #ancestry consults the file's verdicts as well as the proposals, or a root
+    #judged in the file rather than the dict would never reach its children
     inherited = inherit_verdicts(parents, {**PROPOSED, **existing})
 
-    #up to three short single-line cards per tag, because a whole paragraph of
-    #oracle text does not help anyone judge a tag at a glance
+    #short ones: a whole paragraph of oracle text does not help anyone judge a
+    #tag at a glance
     print("pulling examples...")
     examples = {}
     for tag, name, text in conn.execute("""
@@ -305,12 +286,10 @@ def main():
     conn.close()
 
     excluded = sorted((t for t, a in auc.items() if a < bar), key=lambda t: -auc[t])
-    #a kept tag reaches the review three ways: its slug looks like something
-    #already judged junk, the tree puts it under something already judged junk,
-    #or somebody has written a verdict for it. the second catches a family whose
-    #members are not spelled alike, which the first missed. the third is the
-    #catch-all: if a judgement exists for a tag it belongs in the file where it
-    #can be argued with, whichever side of the bar the tag landed on
+    #three ways a kept tag reaches the review: its slug looks like something
+    #already judged junk, the TREE puts it under something judged junk (catching
+    #families not spelled alike, which the slug missed), or a verdict already
+    #exists for it, in which case it belongs where it can be argued with
     flagged = sorted((t for t, a in auc.items()
                       if a >= bar and (re.search(SUSPECT_KEPT, t) or t in inherited
                                        or t in PROPOSED or t in existing)),
@@ -324,17 +303,15 @@ def main():
             return PROPOSED[tag]
         if tag in inherited:
             return inherited[tag]
-        #the two families, settled by the word-match count in the note above.
         #a rule rather than fifty dictionary lines, so a new typal tag next set
         #arrives already judged
         if tag.startswith("typal-") or tag.startswith("synergy-"):
             return "text"
         return "?"
 
-    #a judged tag that fell out of the AUC population (renamed by tagger, or
-    #its single-line cards dropped under 10) must still be listed, or this
-    #regeneration would silently forget a human's decision. it keeps its
-    #verdict and shows up without a score
+    #a judged tag that fell out of the AUC population (renamed by tagger, or its
+    #single-line cards dropped under 10) is still listed, or regenerating would
+    #silently forget a human's decision. it keeps its verdict, minus a score
     unmeasured = sorted(t for t in existing if t not in auc)
 
     groups = {"?": [], "text": [], "card": [], "junk": []}
@@ -431,9 +408,8 @@ ground and the leak is coming back.
                 continue
             f.write("\n## " + title + " (" + str(len(groups[kind])) + ")\n\n" + blurb + "\n\n")
             for tag in groups[kind]:
-                #a tag the AUC already keeps is a different decision: judging it
-                #junk removes training data rather than adding it, so say which
-                #side of the bar each one came from
+                #judging a KEPT tag junk removes training data rather than adding
+                #it, so each one says which side of the bar it came from
                 side = " **(the AUC keeps this one)**" if tag in kept_side else ""
                 score = ("auc %.3f" % auc[tag]) if tag in auc else "not measured this round"
                 f.write("- [" + verdict(tag) + "] `" + tag + "` "

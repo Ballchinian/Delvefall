@@ -1,20 +1,18 @@
 #which base model starts highest on the line -> tag objective, before any fine
-#tuning. bakeoff_lines.py asks a different question and picked EmbeddingGemma
-#for it; the objective changed, so the base is remeasured rather than
-#inherited. good at paraphrase does not mean good at "what is this line about".
+#tuning. bakeoff_lines.py picked EmbeddingGemma for a DIFFERENT question, and
+#good at paraphrase does not mean good at "what is this line about", so the base
+#is remeasured rather than inherited.
 #
-#from the repo root, no database, everything comes out of traindata:
 #    python finetune/bakeoff_tags.py
-#same held out cards and tag pool as exam_tags.py, so the numbers sit beside it.
+#no database, everything comes out of traindata. same held out cards and tag pool
+#as exam_tags.py, so the numbers sit beside it.
 #
-#this is the text scorer: lines ranked against each tag's words
-#("slug: description"), which is what training optimises. not comparable to
-#exam_tags.py's centroid headline, since the production model was never taught
-#what a slug says and text retrieval would flatter a stock model against it.
-#compare bases with bases.
+#this is the TEXT scorer, ranking lines against each tag's words. not comparable
+#to exam_tags.py's centroid headline: the production model was never taught what
+#a slug says, and text retrieval would flatter a stock model against it.
 #
-#prompts are not cosmetic: embeddinggemma and bge score much lower bare, so each
-#model is given the one it ships with. the prompt is printed with the score.
+#prompts are not cosmetic, embeddinggemma and bge scoring much lower bare, so
+#each model gets the one it ships with and the prompt prints with the score
 
 import os
 import sys
@@ -41,11 +39,10 @@ KS = (1, 5, 10)
 
 
 def load_pool():
-    #the trainable pool is whatever train_tags.jsonl contains: make_training.py
-    #already applied the AUC and the review before writing it, so reading the
-    #file back needs neither tag_learnability.json nor make_tagreview.py. that
-    #keeps this runnable from three data files and two scripts, which matters
-    #when the whole lot has to reach a colab box
+    #make_training.py already applied the AUC and the review before writing
+    #train_tags.jsonl, so reading it back needs neither tag_learnability.json nor
+    #make_tagreview.py. that keeps this runnable from three data files and two
+    #scripts, which matters when the whole lot has to reach a colab box
     text = {}
     for line in open(os.path.join(DATA_DIR, "train_tags.jsonl"), encoding="utf-8"):
         p = json.loads(line)["positive"]
@@ -61,11 +58,10 @@ def load_pool():
     return tags, [text[t] for t in tags], rows, golds
 
 
-#some models ship a prompt name whose value is the empty string, which is not
-#the same as shipping a prompt. bge-small does exactly that, so taking the key
-#at face value scores it with no retrieval prefix while reporting that it used
-#its own. these are the documented prefixes for the models that want one, used
-#when the shipped value is blank
+#some models ship a prompt NAME whose value is the empty string, which is not the
+#same as shipping a prompt. bge-small does exactly that, so trusting the key
+#scores it with no retrieval prefix while reporting that it used its own. these
+#are the documented prefixes, used when the shipped value is blank
 FALLBACK = {
     "BAAI/bge-small-en-v1.5": ("Represent this sentence for searching relevant passages: ", ""),
     "Qwen/Qwen3-Embedding-0.6B":
@@ -74,8 +70,8 @@ FALLBACK = {
 
 
 def prompts_for(model, name):
-    #the real prompt strings, not just the names, because an empty string is a
-    #missing prompt wearing a name
+    #the prompt STRINGS, not the names: an empty string is a missing prompt
+    #wearing a name
     have = getattr(model, "prompts", None) or {}
     q = d = ""
     for key in ("query", "search_query", "Retrieval-query"):

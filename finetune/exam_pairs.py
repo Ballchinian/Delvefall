@@ -1,11 +1,10 @@
-#the card-report bakeoff, third exam runner: axis 1's absolute tests. parses
-#the user reports out of testing_list/pairs.md and scores each pair the way
-#the site itself would - the report's anchor line as the picked line, the
-#winning pair chosen by idf-weighted similarity (best_sim in web/app.py),
-#the calibration map the ingest wrote into meta, the site's default gate.
-#should-match passes at or above the gate, should-not below it.
-#run from the repo root with DATABASE_URL set:
+#axis 1's absolute tests: the user reports in testing_list/pairs.md, each scored
+#the way the site would. the report's anchor line as the picked line, the winning
+#pair chosen by idf-weighted similarity (best_sim in web/app.py), and the
+#calibration map the ingest wrote into meta. should-match passes at or above the
+#gate, should-not below it.
 #    python -m finetune.exam_pairs
+#with DATABASE_URL set
 
 import os
 import re
@@ -20,18 +19,18 @@ import psycopg
 from common.cards import clean_line
 from ingest.update import MECH_CALIBRATION as SEED_CALIBRATION
 
-#where the site's strong tier ends at blend 0 (tier_cut in web/app.py),
-#in calibrated display units
+#where a PURE mechanical score's strong tier ends, in display units. web/app.py's
+#TIER_CUT is 70 because its badge averages the two axes and averages rarely reach
+#80; one axis alone sits at 80, which is the model's real quality boundary
 GATE = 80
 
 PAIRS_MD = os.path.join(os.path.dirname(os.path.abspath(__file__)), "testing_list", "pairs.md")
 
-#the map the site would use, resolved in main the way load_calibration in
-#web/app.py does it: the meta row the ingest wrote wins, the seed holds for
-#a database the new ingest hasn't touched yet
+#resolved in main the way load_calibration in web/mirror.py does it: the meta row
+#the ingest wrote wins, the seed holding for a database it has not touched yet
 MECH_CALIBRATION = None
 
-#copies from web/app.py (web/ can't be imported, railway deploys it alone).
+#copies from web/mirror.py (web/ can't be imported, railway deploys it alone).
 #tools/check_sync.py keeps them identical
 
 
@@ -84,10 +83,9 @@ def find_card(conn, name):
 
 
 def score_pair(conn, anchor_id, anchor_db_name, anchor_line, other_id):
-    #best_sim from web/app.py with the report's anchor line pinned: the
-    #winning pair is chosen by weighted similarity, the number returned is
-    #that pair's real similarity. cleaning with the database's card name,
-    #same as the ingest did when it made the row
+    #best_sim from web/app.py with the anchor line pinned: the winning pair is
+    #chosen by WEIGHTED similarity, the number returned is that pair's real one.
+    #cleaned with the database's card name, as the ingest did when it made the row
     sql = """
         SELECT 1 - (a.embedding <=> b.embedding) AS sim,
                coalesce(s.count, 1) AS count,
@@ -101,8 +99,8 @@ def score_pair(conn, anchor_id, anchor_db_name, anchor_line, other_id):
     rows = conn.execute(sql + " AND a.line_text = %s", (other_id, anchor_id, picked)).fetchall()
     pinned = True
     if not rows:
-        #the pasted line no longer cleans to a database row (retemplated
-        #text, or clean_line moved on) - score every anchor line instead
+        #the pasted line no longer cleans to a database row (retemplated text, or
+        #clean_line moved on), so score every anchor line instead
         pinned = False
         rows = conn.execute(sql, (other_id, anchor_id)).fetchall()
     best = None

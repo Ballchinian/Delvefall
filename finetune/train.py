@@ -3,9 +3,8 @@
 #--objective picks what it learns:
 #   lines  lines that mean the same thing land close together. what the site
 #          shipped. attribution reads tags off it indirectly, at 88%/82%
-#   tags   a line lands close to the text of its tags. trained on single-line
-#          cards, where a human's tag can only belong to that line. the
-#          replacement for lines
+#   tags   a line lands close to the text of its tags, trained on single-line
+#          cards where a human's tag can only belong to that line
 #   both   a mix, experimental
 #
 #three losses under --objective lines:
@@ -13,13 +12,11 @@
 #   triplets       anchor, variant, flipped anchor                pull and push
 #   labeled flips  anchor vs flipped, label 0                     push apart
 #
-#the exam triplets are a held out evaluator, never training data. under
-#--objective tags they are a regression guard instead.
+#the exam triplets are a HELD OUT evaluator, never training data, and under
+#--objective tags a regression guard rather than a target.
 #
-#the judge is recall @10 on the held out cards, printed during training and
-#measured properly by
-#    python -m finetune.exam_tags
-#as bakeoff_lines.py is for --objective lines.
+#the judge is recall @10 on the held out cards, printed as training goes and
+#measured properly by python -m finetune.exam_tags
 
 import os
 import sys
@@ -33,31 +30,28 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 random.seed(7)
 HERE = os.path.dirname(os.path.abspath(__file__))
 
-#rare classes get oversampled, bloated ones capped, so enters/dies and
-#may/can't do not drown the rest out. the classes with the biggest multipliers
-#are rare in the mine and each answers a failure users hit
+#rare classes oversampled and bloated ones capped, so enters/dies and may/can't
+#do not drown the rest out. the biggest multipliers are the classes rarest in the
+#mine, each answering a failure users actually hit
 CAP = 1500
 OVERSAMPLE = {"loot order flip": 5, "attack/block flip": 2, "hand/battlefield flip": 2,
               "self/general flip": 5, "mana amount variant": 5, "subtype variant": 3,
               "etb wrapper": 2,
-              #both mine rare and both answer a failure at rank 1, so both get
+              #both mine rare and both answer a failure at rank 1, so both are
               #lifted into the 500-800 band
               "restriction target flip": 5, "toughness null": 2,
-              #mines only 179 after the guards keeping it off removal pairs,
-              #but answers 8% of the harvested false positives. its partner
-              #"same trigger, different effect" hits the cap unaided
+              #only 179 after the guards keeping it off removal pairs, but it
+              #answers 8% of the harvested false positives. its partner "same
+              #trigger, different effect" hits the cap unaided
               "same opening, conflicting qualifier": 3}
 
-#the tag objective flattens for a different reason: seven tags carry 23% of the
-#36k pairs (activated-ability alone is 1843), so uncapped the model spends a
-#quarter of its time on labels that say little. the tail is the opposite, 296
-#of 654 tags have under 20 pairs each
+#the tag objective flattens for the opposite reason: seven tags carry 23% of the
+#36k pairs (activated-ability alone is 1843), so uncapped a quarter of training
+#goes on labels that say little, while 296 of 654 tags have under 20 pairs each
 TAG_CAP = 300
 
 
 def load_tag_pairs():
-    #(line, "slug: description") from finetune/traindata/train_tags.jsonl, the
-    #single-line cards where a human's tag can only belong to the one line
     rows = load_jsonl("train_tags.jsonl")
     by_tag = {}
     for r in rows:
@@ -73,10 +67,8 @@ def load_tag_pairs():
     return out
 
 
-#the tag objective's files are in traindata, the line objective's in
-#legacy/traindata, and both folders are searched so neither has to move. a
-#missing file is skipped rather than fatal, which means a run silently trains on
-#less if one is misplaced
+#both folders are searched so neither objective's files have to move. a missing
+#file is SKIPPED rather than fatal, so a misplaced one silently trains on less
 def load_jsonl(name):
     for folder in (os.path.join(HERE, "traindata"),
                    os.path.join(HERE, "legacy", "traindata")):
@@ -104,14 +96,12 @@ def balance(rows):
 
 def main():
     ap = argparse.ArgumentParser()
-    #the tuned line-to-line model, not a stock base. it is already 768 dims so
-    #nothing downstream moves, and it already knows tap from untap, which is
-    #what lets the guards see the umbrella-tag problem instead of a model
-    #relearning magic from scratch.
+    #the tuned line-to-line model, not a stock base: already 768 dims so nothing
+    #downstream moves, and it already knows tap from untap.
     #
-    #the tag bakeoff puts five stock bases in a 2.5 point band zero shot, and the
-    #leader is 384 dims: taking it would mean changing EMBED_DIMS, the column
-    #type and the hnsw index for a lead unlikely to survive fine tuning.
+    #the tag bakeoff puts five stock bases in a 2.5 point band zero shot and the
+    #leader is 384 dims, which would mean changing EMBED_DIMS, the column type
+    #and the hnsw index for a lead unlikely to survive fine tuning.
     #
     #laptop smoke test: --model sentence-transformers/all-MiniLM-L6-v2
     ap.add_argument("--model", default="BallchinianMan/mtg-tuned-embeddinggemma-300m")
@@ -126,10 +116,9 @@ def main():
     import torch
     from datasets import Dataset
     from sentence_transformers import SentenceTransformer, SentenceTransformerTrainer, SentenceTransformerTrainingArguments
-    #v5 moved these under .sentence_transformer and deprecated the old paths.
-    #try the new ones, fall back to the old, so this runs on either: colab
-    #installs whatever is latest that day and there is no reason for a version
-    #bump to be the thing that fails an hour into a training run
+    #v5 moved these under .sentence_transformer. both paths are tried because
+    #colab installs whatever is latest that day, and a version bump should not be
+    #what fails an hour into a training run
     try:
         from sentence_transformers.sentence_transformer.losses import (
             MultipleNegativesRankingLoss, ContrastiveLoss)
@@ -145,7 +134,7 @@ def main():
 
     is_gemma = "gemma" in args.model.lower()
     #embeddinggemma is trained to see a task prompt, so train and eval with the
-    #same one. the tuned model must then be used with this prefix forever
+    #same one. the tuned model must then be used with this prefix FOREVER
     prefix = "task: sentence similarity | query: " if is_gemma else ""
     batch = args.batch or (16 if is_gemma else 64)
 
@@ -164,9 +153,8 @@ def main():
             "positive": [prefix + r["positive"] for r in tag_pairs],
         })
 
-        #near misses as explicit negatives: attack-trigger is not block-trigger,
-        #discard is not random-discard. in-batch negatives rarely supply these,
-        #since a random other row is usually nothing like the anchor
+        #near misses as EXPLICIT negatives. in-batch negatives rarely supply
+        #these, a random other row usually being nothing like the anchor
         tag_trips = load_jsonl("train_tag_triplets.jsonl")
         if tag_trips:
             print("  plus " + str(len(tag_trips)) + " sibling triplets")
@@ -196,8 +184,8 @@ def main():
             "positive": [prefix + r["positive"] for r in triplets],
             "negative": [prefix + r["negative"] for r in triplets],
         })
-        #labeled pairs for the contrastive loss: every flip is a 0, and an equal
-        #helping of positives are 1s so the loss sees both sides
+        #every flip is a 0, with an equal helping of positives as 1s so the
+        #contrastive loss sees both sides
         ones = random.sample(pairs, min(len(pairs), len(negatives)))
         train_sets["labeled"] = Dataset.from_dict({
             "sentence1": [prefix + r["anchor"] for r in negatives] + [prefix + r["anchor"] for r in ones],
@@ -205,9 +193,8 @@ def main():
             "label": [0] * len(negatives) + [1] * len(ones),
         })
 
-    #the exam triplets, held out from all training data. the target under
-    #--objective lines, a regression guard under tags: there to catch the
-    #retrain forgetting what lines mean, not to be maximised
+    #the target under --objective lines, a regression guard under tags: there to
+    #catch the retrain forgetting what lines mean, not to be maximised
     ev_a, ev_p, ev_n = [], [], []
     for num, name, anchor, pos, neg in TRIPLETS:
         ev_a.append(prefix + clean_line(anchor[1], anchor[0]))
@@ -216,9 +203,8 @@ def main():
     evaluator = TripletEvaluator(anchors=ev_a, positives=ev_p, negatives=ev_n, name="exam")
 
     #the number that decides the retrain: given a held out line and every
-    #trainable tag, are the right tags in its top ten? the ship bar from
-    #exam_tags.py, computed here so a run reports it as it goes. tag texts come
-    #from the training file, so this needs no database
+    #trainable tag, are the right tags in its top ten? computed here so a run
+    #reports it as it goes, off the training file rather than a database
     tag_ir = None
     if args.objective in ("tags", "both"):
         held = load_jsonl("tag_testset.jsonl")
@@ -239,8 +225,7 @@ def main():
             print("tag retrieval evaluator: " + str(len(queries)) + " held out lines against "
                   + str(len(corpus)) + " tags")
 
-    #a real run is hours on a gpu box. --limit proves the wiring in minutes
-    #on a laptop first
+    #a real run is hours on a gpu box, so --limit proves the wiring on a laptop
     if args.limit:
         train_sets = {k: v.select(range(min(args.limit, len(v)))) for k, v in train_sets.items()}
         print("LIMIT: " + str(args.limit) + " rows per dataset, this is a smoke test not a run")
@@ -251,8 +236,8 @@ def main():
     if tag_ir:
         print("tags before training:", tag_ir(model))
 
-    #the base is usually already tuned, so name the output for the objective
-    #instead of stacking prefixes into mtg-tuned-mtg-tuned-embeddinggemma-300m
+    #the base is usually already tuned, so the output is named for the objective
+    #rather than stacking into mtg-tuned-mtg-tuned-embeddinggemma-300m
     stem = args.model.split("/")[-1]
     for old in ("mtg-tuned-", "mtg-tagtuned-"):
         if stem.startswith(old):
@@ -270,26 +255,25 @@ def main():
         num_train_epochs=args.epochs,
         per_device_train_batch_size=batch,
         learning_rate=2e-5,
-        #a float is a ratio, an int a literal step count. transformers v5 folded
-        #warmup_ratio into this argument, so 0.1 is the first 10% of training.
-        #on v4 it is not, which is why requirements.txt pins the version
+        #a float is a ratio, an int a literal step count: v5 folded warmup_ratio
+        #into this argument so 0.1 is the first 10% of training, and v4 does not,
+        #which is why requirements.txt pins the version
         warmup_steps=0.1,
         fp16=torch.cuda.is_available() and not is_gemma,  #T4 has no bf16, keep gemma in fp32
         eval_strategy="no",
         save_strategy="no",
         logging_steps=100,
         report_to=[],
-        #load bearing for the tag objective. MultipleNegativesRanking treats
+        #LOAD BEARING for the tag objective. MultipleNegativesRanking treats
         #every other row's positive as this row's negative, which is wrong here:
-        #the same line appears 4.3 times under different true tags, and a batch
-        #of 64 expects three copies of activated-ability. uncorrected the loss
-        #pushes a line away from tags it has. NO_DUPLICATES bars a repeated
-        #value in any column, so one tag text cannot be positive and negative in
-        #the same batch.
+        #the same line appears 4.3 times under different true tags and a batch of
+        #64 expects three copies of activated-ability, so uncorrected the loss
+        #pushes a line away from tags it has. NO_DUPLICATES bars a repeated value
+        #in any column.
         #
         #it does not catch line A batched against a row whose positive is a
         #different tag A also carries. rarer (654 tags, batches of 16 to 64) but
-        #still a false negative, and maskable with the (line, tag) table from
+        #still a false negative, maskable with the (line, tag) table from
         #train_tags.jsonl if a retrain ever plateaus on it
         batch_sampler=BatchSamplers.NO_DUPLICATES,
     )

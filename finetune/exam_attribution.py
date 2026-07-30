@@ -1,20 +1,18 @@
-#the exam for ingest/attribute.py, the same idea as the axis files in
-#testing_list: hand judged answers that outlive whatever the scorer does today.
-#from the repo root with DATABASE_URL set, after an attribute run, it prints
-#precision and recall per card and overall:
+#the exam for ingest/attribute.py: hand judged answers that outlive whatever the
+#scorer does today. after an attribute run, prints precision and recall per card:
 #    python -m finetune.exam_attribution
+#with DATABASE_URL set.
 #
-#the labels were read off the live site card by card. the rule for adding more:
-#list only the tags a line is genuinely about. a tag the card carries for
-#reasons outside its rules text (unique-mana-cost is about the mana cost,
-#invitational-card about where the card came from) belongs to no line, so it
-#goes in no set here and attribute.py is expected to leave it out of line_tags.
+#the rule for adding labels: list only the tags a line is GENUINELY about. a tag
+#the card carries for reasons outside its rules text (unique-mana-cost is about
+#the mana cost, invitational-card about where the card came from) belongs to no
+#line, so it goes in no set here and attribute.py is expected to leave it out.
 #whole-card searches read card_tags and still see it.
 #
-#known and accepted: "modal" lands on a modal card's mode lines rather than the
-#"choose two" header that declares the modality. the mode lines neighbour other
-#cards' mode lines, so the statistics genuinely say that. it is consistent, so
-#the header is excluded from scoring below rather than counted as a miss.
+#known and accepted: "modal" lands on the mode lines rather than the "choose two"
+#header declaring the modality, because those lines neighbour other cards' mode
+#lines and the statistics genuinely say so. consistent, so the header is excluded
+#from scoring below rather than counted as a miss
 
 import os
 import sys

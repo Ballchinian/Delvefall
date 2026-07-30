@@ -1,9 +1,8 @@
-#the axis-2 exam runner. scores the concept engine (common/concept.py over the
-#ingested tagger data) against the testing_list/axis2.md entries plus the judged
-#separation pairs, and shows raw and displayed side by side so the calibration
-#map stays honest.
-#run from the repo root with DATABASE_URL set:
+#the axis-2 exam: scores common/concept.py against testing_list/axis2.md plus the
+#judged separation pairs, showing raw and displayed side by side so the
+#calibration map stays honest.
 #    python -m finetune.exam_concepts
+#with DATABASE_URL set
 
 import os
 import sys
