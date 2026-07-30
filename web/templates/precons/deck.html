@@ -1,9 +1,14 @@
 {% extends "base.html" %}
 {% import "partials/deckways.html" as ways %}
 
-{% block title %}{{ deck.name }} through the deck lens - Delvefall{% endblock %}
+{# the deck's name is the query, so it leads and nothing gets in front of it.
+   "through the deck lens" was the four words after it, and they are the site's
+   own vocabulary rather than anybody's search: somebody typing this deck's
+   name wants its list, its price or what to upgrade, and none of those words
+   were here. "precon" is, because it is in the query almost every time #}
+{% block title %}{{ deck.name }} precon: salt, price and age - Delvefall{% endblock %}
 
-{% block metadesc %}{{ deck.name }}{% if deck.leaders %}, the {{ deck.leaders|join(' / ') }} precon{% endif %}: how original its cards are, how salty, what it costs, how played it is and how old, each ranked against all {{ total }} Commander precons.{% endblock %}
+{% block metadesc %}{{ deck.name }}{% if deck.leaders %}, the {{ deck.leaders|join(' / ') }} precon{% endif %}: how original its cards are, how salty, what it costs and how played, against all {{ total }} Commander precons.{% endblock %}
 
 {% block content %}
 {# data-opened is which standing the arrows should open on: the sort the

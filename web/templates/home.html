@@ -2,8 +2,23 @@
 
 {# a bare "Delvefall" title is the one word nobody searching for this has ever
    heard, and a brand-only title is only worth it once the brand is the query.
-   the phrase people actually type goes first, the name after #}
-{% block title %}Find Magic: The Gathering cards similar to any card - Delvefall{% endblock %}
+   the phrase people actually type goes first, the name after.
+   "cards similar to any card" said the same word twice and ran to 63
+   characters, past where google truncates, so the tail it cut was the brand.
+   this says both halves of what the search box does, similar and unique, and
+   carries both names of the game once each: MTG and Magic: The Gathering are
+   typed about equally and the short one has to be in the part that survives.
+   the deck side is deliberately absent. this page IS a card search box, and a
+   title promising deck scoring over a page that does not do it is the kind of
+   mismatch google demotes. the lens has its own page and its own title #}
+{% block title %}Find similar MTG cards, and Magic's most unique - Delvefall{% endblock %}
+
+{# about 155 characters, which is the whole snippet google prints. the previous
+   one ran to 220, so the sentence a searcher read stopped mid-promise, and the
+   half it lost was every part of the site that is not the search box. this
+   version names all four things somebody could be looking for: similar cards,
+   unique cards, a Commander deck read, and the precons #}
+{% block metadesc %}Type a Magic card name and get every similar MTG card, ranked by how close. Plus the game's most unique cards, and your Commander deck against every precon.{% endblock %}
 
 {% block bodyclass %}home{% endblock %}
 

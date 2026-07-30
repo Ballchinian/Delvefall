@@ -1,8 +1,19 @@
 {% extends "base.html" %}
 
-{% block title %}The deck lens - Delvefall{% endblock %}
+{# "The deck lens" is the name of the thing, and the name is the problem: it
+   is 25 characters of which none are a word anybody types, and the two that
+   are lose outright to decklens.app, which owns the exact phrase and is a deck
+   analyzer too. the query is "commander deck analyzer", so that leads, and
+   the three metrics after it are the ones people search by name. salt above
+   all: it is EDHREC's word, every rival tool advertises a salt rating, and
+   nothing else here is a term with its own following.
+   originality is last because it is the metric no other tool has, so it is
+   the one worth spending the overrun on #}
+{% block title %}Commander deck analyzer: salt, price, originality - Delvefall{% endblock %}
 
-{% block metadesc %}Paste a Commander decklist or import one from Archidekt or Moxfield: see how original, how salty, how expensive, how played and how old it is against every Commander precon, and get card-by-card swaps to move it.{% endblock %}
+{# cut to about 155 from 226. the clause google was dropping was the swaps,
+   which is the half that offers to DO something rather than just report #}
+{% block metadesc %}Paste a Commander decklist or import from Moxfield or Archidekt: see how original, salty, expensive, played and old it is against every precon, and swap cards.{% endblock %}
 
 {% block content %}
 <div class="guide deck-hub">
