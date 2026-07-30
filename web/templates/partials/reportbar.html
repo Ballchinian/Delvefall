@@ -1,21 +1,13 @@
-{# the report bar, shared by /search and /deck/swap.
-
-   hidden until one of its entry points opens it. three shapes:
+{# the report bar, shared by /search and /deck/swap. three shapes:
      missing    a card that should have been in the results, and is not
      misplaced  a card that is here and should not be, flagged on the card
      tag        a community tag sitting on the wrong line
 
-   MISSING IS /search ONLY, and that is not laziness. the server answers a
-   missing report by checking the card against the page's filters and cutoff
-   before storing anything ("your price filter hides it", "it is already in the
-   results at 74%"), and those sentences are written against /search's filters
-   and /search's tier cut. the swap tool has neither: its bar is a gate, its
-   exclusions are the deck's colours and curve. it would answer confidently and
-   wrongly, so it is not offered.
-
-   the two that DO transfer are the ones about a judgement rather than about a
-   list: this suggestion is bad, this tag is on the wrong line. both are the
-   same complaint wherever they are made from #}
+   MISSING IS /search ONLY. the server answers one by checking the card against
+   the page's filters and tier cut before storing ("your price filter hides
+   it", "it is already in the results at 74%"), and the swap tool has neither:
+   its bar is a gate and its exclusions are the deck's colours and curve. it
+   would answer confidently and wrongly #}
 {% set mode = mode | default('search') %}
 <div id="report-bar" hidden>
     <p id="report-title"></p>
@@ -26,11 +18,10 @@
             <div id="report-suggest"></div>
         </span>
         {% endif %}
-        {# the tag report picks from the card's own tags rather than typing one:
-           the state each is in right now is what tells the server which way the
-           complaint runs, so it has to be one of these exact slugs.
-           on the swap page the chips change as the queue is walked, so the
-           script refills this from the panel rather than jinja rendering it #}
+        {# picked, never typed: the state each tag is in right now is what tells
+           the server which way the complaint runs, so it has to be one of these
+           exact slugs. on the swap page the chips change as the queue is
+           walked, so the script refills this from the panel #}
         <select id="report-tag-pick" hidden aria-label="which tag is on the wrong line">
             {% for chip in tag_chips %}
             <option value="{{ chip.tag }}">{{ chip.tag }}{% if chip.state == 'aside' %} (set aside){% elif chip.state == 'kept' %} (put back by you){% elif chip.state == 'off' %} (switched off){% else %} (kept){% endif %}</option>

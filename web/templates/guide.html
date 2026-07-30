@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 
-{# "How it works" on its own is a heading, not a title: it names no subject, so
-   it only ever matches a query that already had the brand in it #}
+{# "How it works" alone names no subject, so it only ever matched a query that
+   already had the brand in it #}
 {% block title %}How it works: finding similar Magic cards - Delvefall{% endblock %}
 
 {% block metadesc %}How Delvefall works: type a Magic card name and get the similar cards, no search syntax required. What every number on a result means, and the optional filter syntax.{% endblock %}
@@ -16,14 +16,11 @@
 
     {% if demo %}
     <h2>Reading a result</h2>
-    {# each part carries an info mark and the explanation waits in a dialog
-       until it is asked for. as a numbered list beside the card it is six
-       paragraphs on screen at all times and a row too wide for a phone #}
+    {# the explanations wait in a dialog: as a numbered list beside the card
+       they are six paragraphs on screen and a row too wide for a phone #}
     <p>Every <span class="guide-info-demo">i</span> below opens an explanation of that part.</p>
-    {# focus-badge so the mock shows the state somebody actually lands on: a
-       best-match search, where the percent is the figure the page is ordered by
-       and therefore the one in ink. without it this card would demonstrate a
-       rule the real page never uses #}
+    {# focus-badge so the mock shows the state somebody actually lands on.
+       without it this card demonstrates a rule the real page never uses #}
     <div class="guide-demo focus-badge">
         <div class="result">
             <div class="card-frame">
@@ -47,10 +44,8 @@
                 </span> 
             </div>
             <div class="result-price"><span class="price-figure much-cheaper">$0.25<span class="price-vs">&darr;</span></span><span class="result-rank">#412<span class="rank-vs">&uarr;</span></span><span class="result-salt much-saltier"><i class="salt-mark" aria-hidden="true"></i>1.32<span class="salt-vs">&uarr;</span></span><span class="result-age">13.6 years<span class="age-vs">&uarr;</span></span>
-                {# one mark, not two. the row answers two questions, what the
-                   numbers are and what the arrows mean, but two marks a
-                   centimetre apart on one line of figures read as clutter long
-                   before they read as two topics #}
+                {# one mark for both questions: two a centimetre apart on one
+                   line of figures read as clutter #}
                 <button class="guide-info" aria-label="where the four numbers come from"
                     data-title="The four numbers"
                     data-body="Price is the cheapest paper printing, from Scryfall. The # is play rate: EDHREC's rank for how often Commander decks run a card, where #1 is the most played in the format. The shaker is salt, EDHREC's survey of the cards players least enjoy facing, 0 to about 3. Age counts from a card's first printing, so a reprint doesn't make an old card new. The arrow compares this card to the one you searched.">i</button></div>
@@ -132,18 +127,14 @@
     <p>It deals at random from everything within 5% of the best card left, so it is a draw
     rather than a running order and no two people walk the same sequence.</p>
 
-    {# the one thing about the lens somebody cannot work out by using it. the
-       rest of this section described the pages themselves, which anybody who
-       has reached them has already read #}
+    {# the one thing about the lens nobody can work out by using it #}
     <h2 id="decks">The deck lens</h2>
     <p><a href="/deck">The lens</a> reads the most original half of a deck. The other half
     is lands and the staples every deck brings, which tell no two decks apart. Salt and age
     drop basic lands, play rate drops every land.</p>
 
-    {# the section this page was missing, and the reason it exists: everything
-       above is a description of what is on screen, which anyone using the site
-       can see for themselves. these are the rules that decide what NEVER
-       reaches the screen, and every one of them has been mistaken for a bug #}
+    {# the rules that decide what NEVER reaches the screen. every one of them
+       has been mistaken for a bug #}
     <h2 id="hidden">Rules you can't see</h2>
     <p>Three things that look like bugs and aren't.</p>
     <ul>

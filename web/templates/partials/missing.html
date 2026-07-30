@@ -1,14 +1,8 @@
-{# the lines the parser could not read, and a way to fix each one on the spot.
+{# the lines the parser could not read, each with a lookup to fix it in place.
 
-   telling somebody a card was dropped and leaving them to go and edit the
-   paste is the version where nobody bothers, and the reading quietly comes
-   from 71 cards instead of 72. so each line gets a lookup: find the card you
-   meant, and it goes into the list right here.
-
-   the pair it produces (what the export wrote against what it meant) is worth
-   as much as the fix: a line a person could resolve and the parser could not
-   is a parser bug that has already been diagnosed, and it lands in the same
-   review queue as every other report #}
+   the pair a fix produces (what the export wrote against what it meant) is
+   worth as much as the fix itself: a line a person could resolve and the parser
+   could not is a diagnosed parser bug, and it lands in the review queue #}
 <div class="deck-missing" id="deck-missing">
     <strong>{{ missing|length }} line{{ '' if missing|length == 1 else 's' }} didn't match a card:</strong>
     <ul class="deck-missing-list">
@@ -28,16 +22,14 @@
     <span class="deck-missing-why">Anything the site doesn't hold (a token, a sticker, a
     typo) is simply left out. If one of these is a real card, find it and it goes back into
     the list.</span>
-    {# its own form, carrying its own copy of the list. that copy is one of the
-       fields the fix writes into, so pressing this reads the deck the user is
-       actually looking at, and the name travels with it like everywhere else #}
+    {# its own copy of the list, and the fix writes into that field, so pressing
+       this reads the deck as corrected rather than as pasted #}
     <form class="deck-missing-again" method="post" action="{{ reread or '/deck/read' }}" hidden>
         <input type="hidden" name="list" value="{{ pasted or '' }}">
-        {# the deck's id, so fixing a line it could not read is a CORRECTION to
-           the deck you are holding rather than a second copy of it on the shelf.
-           the class matters as much as the value: on /deck/open the entry may
-           not exist yet when jinja draws this, and the script fills it in the
-           moment it does #}
+        {# so a fix is a CORRECTION to the deck you are holding, not a second
+           copy on the shelf. the class matters as much as the value: on
+           /deck/open the entry may not exist yet when jinja draws this, and the
+           script fills it in the moment it does #}
         <input type="hidden" name="did" class="deck-did-field" value="{{ did or '' }}">
         <input type="hidden" name="name" value="{{ deck_name or '' }}">
         <input type="hidden" name="commander" value="{{ commander or '' }}">

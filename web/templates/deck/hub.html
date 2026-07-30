@@ -1,18 +1,12 @@
 {% extends "base.html" %}
 
-{# "The deck lens" is the name of the thing, and the name is the problem: it
-   is 25 characters of which none are a word anybody types, and the two that
-   are lose outright to decklens.app, which owns the exact phrase and is a deck
-   analyzer too. the query is "commander deck analyzer", so that leads, and
-   the three metrics after it are the ones people search by name. salt above
-   all: it is EDHREC's word, every rival tool advertises a salt rating, and
-   nothing else here is a term with its own following.
-   originality is last because it is the metric no other tool has, so it is
-   the one worth spending the overrun on #}
+{# "The deck lens" was 25 characters of which none are a word anybody types,
+   and it loses the two that are to decklens.app, which owns the phrase and is
+   a deck analyzer too. the query is "commander deck analyzer", and salt leads
+   the metrics because it is EDHREC's word and every rival tool advertises it #}
 {% block title %}Commander deck analyzer: salt, price, originality - Delvefall{% endblock %}
 
-{# cut to about 155 from 226. the clause google was dropping was the swaps,
-   which is the half that offers to DO something rather than just report #}
+{# about 155, cut down from 226 #}
 {% block metadesc %}Paste a Commander decklist or import from Moxfield or Archidekt: see how original, salty, expensive, played and old it is against every precon, and swap cards.{% endblock %}
 
 {% block content %}
@@ -24,24 +18,16 @@
 
     {% if error %}<p class="deck-error">{{ error }}</p>{% endif %}
 
-    {# the shelf is full, said at the moment somebody tries to read another
-       deck. reading a deck SAVES it, so a full shelf is a reading that cannot
-       be kept, and the alternative (quietly dropping the oldest to make room)
-       is a save deleting a save.
-
-       it sits with the errors rather than beside the panel it is about,
-       because it is the answer to the button that was just pressed. hidden
-       until then: hub.js reveals it, and only when the shelf is actually
-       full #}
+    {# reading a deck SAVES it, so a full shelf is a reading that cannot be
+       kept, and dropping the oldest to make room would be a save deleting a
+       save. hub.js reveals this, and only when the shelf is actually full #}
     <p class="deck-error" id="deck-full" hidden>Your saved decks are full. Forget one on
     the right and this will go through: reading a deck saves it, and the shelf will not
     drop an old deck to make room for a new one.</p>
 
     <div class="deck-hub-cols">
         <div class="deck-hub-main">
-            {# two inputs, not one clever one. a single box sniffing at its own
-               contents is the version where validating is hardest and the
-               error messages are worst: here each control checks exactly one
+            {# two inputs and not one clever one, so each checks exactly one
                shape and can say exactly what was wrong with it #}
             <form class="deck-import" action="/deck/open" method="post">
                 <label for="url">Import from Archidekt or Moxfield</label>
@@ -62,10 +48,8 @@
                     placeholder="1 Sol Ring&#10;1 Arcane Signet&#10;1 Nekusar, the Mindrazer&#10;...">{{ pasted or '' }}</textarea>
                 <div class="deck-paste-go">
                     <button type="submit">Read this deck</button>
-                    {# the floor is said here as well as on the reading, because
-                       finding it out afterwards means having pasted for nothing.
-                       any list is still read, so this is a boundary on the
-                       ranking rather than on the paste box #}
+                    {# any list is still read: the floor is a boundary on the
+                       RANKING, not on the paste box #}
                     <span class="deck-hub-note">Text, CSV or .dek, from Moxfield, Archidekt,
                     MTGO, Arena or a plain list of names. All of them work. Any length is
                     read; placing it against the precons takes {{ deck_min }} nonland
@@ -81,22 +65,15 @@
             readable from either end.</p>
         </div>
 
-        {# the decks this browser has read before. it is localStorage, so it
-           never leaves the machine and there is still nothing stored on our
-           side and still no account. the panel says so, because "recent decks"
-           reads like an account to anyone who does not already know that #}
+        {# localStorage, so it never leaves the machine and nothing is stored on
+           our side. the panel says so, because a list that fills up on its own
+           reads like an account #}
         <aside class="deck-recent" id="deck-recent" hidden>
             <h2>Your saved decks</h2>
             <ul class="deck-recent-list" id="deck-recent-list"></ul>
-            {# saying WHEN it saves, because "decks you've read" gave no clue and
-               a list that fills up on its own reads like an account keeping
-               notes on you. it is one sentence and it answers the whole thing:
-               what triggers it, where it lives, and how to stop.
-
-               HOW FULL IT IS is the other half of that, and it is filled in by
-               the script because only the browser knows. it is the number that
-               decides whether the next deck can be read at all, so learning it
-               by being turned away is learning it too late #}
+            {# how full it is comes from the script, because only the browser
+               knows. it is the number that decides whether the next deck can be
+               read at all, so being turned away is learning it too late #}
             <p class="deck-hub-note">Saved to this browser the moment a deck is read, and
             every change you make to it after that. Never sent anywhere, and nothing is kept
             on our side. <span id="deck-recent-room"></span>
@@ -105,18 +82,14 @@
     </div>
 </div>
 
-{# the form the recent list posts through. one hidden form reused by every
-   entry, rather than a form per row.
+{# one hidden form reused by every entry in the recent list.
 
-   it carries the NAME as well as the list, and that is not cosmetic: without
-   it, reopening a deck from here landed on a page that had never heard of the
-   commander, retitled the deck "72 cards" and wrote that back into this list
-   as a second entry for a deck already in it #}
+   it carries the NAME, and that is not cosmetic: without it, reopening a deck
+   landed on a page that had never heard of the commander, retitled the deck
+   "72 cards" and wrote that back as a second entry for a deck already here #}
 <form id="deck-recent-form" action="/deck/open" method="post" hidden>
     <input type="hidden" name="list" id="deck-recent-list-field">
-    {# WHICH saved deck this is, which is not the same question as what is in it.
-       the list above is wherever the deck has got to, the id is the deck itself,
-       and it is the id that travels: two rows may hold the very same cards, and
+    {# the id, not the cards: two rows may hold the very same list, and
        reopening one of them has to come back to that one #}
     <input type="hidden" name="did" id="deck-recent-did-field">
     <input type="hidden" name="name" id="deck-recent-name-field">

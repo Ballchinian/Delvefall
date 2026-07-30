@@ -1,11 +1,9 @@
 {% extends "base.html" %}
 {% import "partials/deckways.html" as ways %}
 
-{# the deck's name is the query, so it leads and nothing gets in front of it.
-   "through the deck lens" was the four words after it, and they are the site's
-   own vocabulary rather than anybody's search: somebody typing this deck's
-   name wants its list, its price or what to upgrade, and none of those words
-   were here. "precon" is, because it is in the query almost every time #}
+{# the deck's name is the query, so nothing gets in front of it. "through the
+   deck lens" was the site's own vocabulary; "precon" is in the real query
+   almost every time #}
 {% block title %}{{ deck.name }} precon: salt, price and age - Delvefall{% endblock %}
 
 {% block metadesc %}{{ deck.name }}{% if deck.leaders %}, the {{ deck.leaders|join(' / ') }} precon{% endif %}: how original its cards are, how salty, what it costs and how played, against all {{ total }} Commander precons.{% endblock %}
@@ -14,9 +12,8 @@
 {# data-opened is which standing the arrows should open on: the sort the
    visitor arrived with, so a click off the salt board lands on salt #}
 <div class="guide precons deck-detail" data-opened="{{ opened }}">
-    {# back to the board you came from, still sorted the way it was. dropping
-       the sort here put people back on the originality board after they had
-       clicked through from the price one #}
+    {# keeps the sort: dropping it put people back on the originality board
+       after they had clicked through from the price one #}
     <p class="precon-back"><a href="/precons{% if back != 'original' %}?sort={{ back }}{% endif %}">&larr; All precons</a></p>
 
     <h1>{{ deck.name }}</h1>
@@ -41,19 +38,12 @@
     {% include "partials/standing.html" %}
     {% endif %}
 
-    {# no whole-deck grid here, deliberately. every standing panel above already
-       opens into its own pictures, so a second grid of the same cards was the
-       page saying "view every card image" six times #}
+    {# no whole-deck grid here on purpose: every standing panel above already
+       opens into its own pictures, so a second one said "view every card image"
+       six times #}
     {% if cards %}
-    {# where you go from here, and the same two rows /deck/read carries: one on
-       into the deck, one at the cards. the wording is this page's own, because
-       "run it through the lens" and "change it" are different offers, but
-       "view it" reads identically on a precon and on your own deck and is the
-       same macro call with the same fields.
-
-       both post the deck's own list to the same front doors a paste goes
-       through, so a precon lands on the shelf as a deck like any other. no new
-       paths, just these ones pointed at it #}
+    {# both post the deck's own list to the same front doors a paste goes
+       through, so a precon lands on the shelf as a deck like any other #}
     <div class="deck-modes-pick deck-modes-after">
         {{ ways.way("/deck/open", "Run it through the deck lens", "Open it as a deck",
                     decklist,

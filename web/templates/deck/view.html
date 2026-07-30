@@ -20,16 +20,13 @@
 
     <h1>{{ deck_name or 'Your deck' }}</h1>
 
-    {# what a swap session left behind, and the deck's own list. the same three
-       blocks the end of /deck/swap draws, from the same partial, so the two
-       pages cannot disagree about them again #}
+    {# the same three blocks the end of /deck/swap draws, from one partial, so
+       the two pages cannot disagree about them again #}
     {% with list_text = pasted %}{% include "partials/deckchanges.html" %}{% endwith %}
 
     {% include "partials/deckcards.html" %}
 
-    {# the other two modes, offered from here rather than making somebody go
-       back a page to reach them. this page is where you land to check a deck
-       arrived, and "it did, now compare it" is the next thing you want #}
+    {# the other two modes, so reaching them costs no trip back a page #}
     <div class="deck-modes-pick deck-modes-after">
         {{ ways.way("/deck/read", "Compare it", "See the reading", pasted,
                     body="How original it is, how salty, what it costs, how played its

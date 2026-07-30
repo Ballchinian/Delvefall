@@ -12,43 +12,28 @@
 
     <h1 id="deck-title">{{ deck_name or 'Your deck' }}</h1>
 
-    {# the receipt. it costs a click to show this and it buys the one thing an
-       IMPORT most needs: proof the list arrived whole. a link that quietly
-       read 40 of your 100 cards is the failure nobody notices until the
-       numbers look wrong #}
+    {# proof the list arrived whole. an import that quietly read 40 of your 100
+       cards is the failure nobody notices until the numbers look wrong #}
     <p class="deck-detail-sub">{{ matched }} card{{ '' if matched == 1 else 's' }} read in{% if missing %},
     {{ missing|length }} not found{% endif %}.</p>
 
-    {# this deck could not be saved, because the shelf in this browser is full.
-       /deck refuses at the paste box, which is the right place and covers every
-       ordinary way in; this is for the ways that do not pass through it, a
-       precon handed straight to the lens above all.
-
-       a NOTE and not a block: the deck on screen works, every mode below works,
-       and the only thing it will not do is still be here tomorrow. that is worth
-       saying and not worth stopping anybody over #}
+    {# /deck refuses a full shelf at the paste box, which covers every ordinary
+       way in. this is for the ways that do not pass through it, a precon handed
+       straight to the lens above all. a note and not a block: everything on the
+       page works, the deck just will not be here tomorrow #}
     <p class="deck-error" id="deck-save-full" hidden>This deck is not saved:
     your saved decks are full. Forget one on <a href="/deck">the deck page</a> and read this
     deck again to keep it.</p>
 
     {% if missing %}{% with reread = '/deck/read' %}{% include "partials/missing.html" %}{% endwith %}{% endif %}
 
-    {# who leads it, which is the only thing that turns a pile of cards into a
-       deck with a name. a list has no way to say it (the parser is blind to
-       which board a card was in on purpose) and an import only sometimes does,
-       so the page asks, with the deck's own legends as the answers.
+    {# the parser is blind to which board a card was in, on purpose, and an
+       import only sometimes says, so the page asks. the answers are the deck's
+       own legends, filtered in the browser rather than on the server.
 
-       one legend in the list means the question is already answered and this
-       just shows the answer. the filter is there for the deck that runs six #}
-    {# two questions, and they really are two. one box labelled "who's the
-       commander?" whose answer silently becomes the deck's name as well means a
-       deck cannot be called anything else, and one control answers something it
-       never asked.
-
-       the commander box is laid out like the card search in the header,
-       because that is what it is: type a bit of a name, pick from what drops
-       down. it filters the deck's own legends rather than asking the server,
-       since the answer is one of about two cards we already hold #}
+       two boxes and not one: a single "who's the commander?" whose answer
+       silently became the name as well meant a deck could not be called
+       anything else #}
     <div class="deck-lead" id="deck-lead">
         <label for="deck-lead-input">Who's the commander?</label>
         <div class="deck-lead-search">
@@ -61,9 +46,7 @@
         <span class="deck-hub-note">Names the deck unless you give it one below, and only
         in this browser. Nothing is sent anywhere or saved on our side.</span>
 
-        {# optional, and empty by default. a deck called after its commander is
-           right nearly every time, so this is the escape hatch for the person
-           running three Krenko decks rather than a question everybody answers #}
+        {# the escape hatch for the person running three Krenko decks #}
         <label for="deck-name-input" class="deck-lead-second">Call it something else</label>
         <div class="deck-lead-search">
             <input id="deck-name-input" type="text" spellcheck="false" autocomplete="off"
@@ -72,40 +55,29 @@
         </div>
     </div>
 
-    {# three rows separated by rules, not three bordered cards side by side.
-       every field on them rides the shared macro, so a mode cannot quietly stop
-       carrying the deck's name the way "read another deck" once did.
-
-       seen is deliberately EMPTY here, and it costs nothing either way: the
-       unmatched lines are settled on THIS page, and none of the three below
-       draws them. it matters on the rows that point back at /deck/open, which
-       is the page that does, and those take the macro's default of '1' #}
+    {# seen is deliberately EMPTY here: the unmatched lines are settled on THIS
+       page and none of the three below draws them. it matters on rows pointing
+       back at /deck/open, which do draw them, and those take the default '1' #}
     <div class="deck-modes-pick">
-        {# the mode an IMPORT wants first: it answers "did all of it arrive"
-           rather than answering it sideways through a figure, and checking the
-           deck is what comes before deciding anything about it #}
+        {# first because it answers "did all of it arrive" directly #}
         {{ ways.way("/deck/view", "View it", "See the cards", pasted,
                     body="Every card in the deck, as cards, with the list to copy and
                           whatever has been changed since it was imported.",
                     name=deck_name, commander=commander, did=did, seen='') }}
 
-        {# COMPARE, not "read". "read it" next to "view it" was two words for
-           looking at something, and the difference between them (one shows you
-           the cards, one places the deck against 166 precons) was carried
-           entirely by the sentence underneath #}
+        {# "compare", not "read": next to "view it" they were two words for
+           looking at something, and only the sentence underneath told them
+           apart #}
         {{ ways.way("/deck/read", "Compare it", "See the reading", pasted,
                     body="How original it is, how salty, what it costs, how played its
                           cards are and how old, each one placed against every Commander
                           precon.",
                     name=deck_name, commander=commander, did=did, seen='') }}
 
-        {# which way to push the deck. one control and not two, because the
-           choice is one choice: "cheaper" names a field and a direction
-           together, and a pair of dropdowns would let somebody ask for price
-           sorted newest, which means nothing.
-
-           it sits UNDER the button rather than above it so the mode reads as a
-           mode first, which is why this one is called rather than rendered #}
+        {# one control and not two: "cheaper" names a field and a direction
+           together, and a pair of dropdowns would allow price sorted newest.
+           called rather than rendered so the select can sit under the button,
+           since opening it inside one would submit the form #}
         {% call ways.way("/deck/swap", "Change it", "Walk it card by card", pasted,
                          body="Walk the deck a card at a time, worst first, and swap what
                                you want to. Ends with a list you can paste back.",
@@ -122,10 +94,8 @@
     </div>
 </div>
 
-{# the deck's own legendary creatures, for the picker to filter. it is the
-   whole candidate list up front rather than a lookup per keystroke, because
-   the answer is one of about two cards and asking the server about a list we
-   already hold would be slower and no more correct #}
+{# the whole candidate list up front rather than a lookup per keystroke: the
+   answer is one of about two cards we already hold #}
 <script id="deck-lead-data" type="application/json">{{ picker | tojson }}</script>
 <script id="deck-remember" type="application/json">{{ {
     'text': pasted,

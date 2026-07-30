@@ -38,17 +38,15 @@
             </div>
             {% endfor %}
         </div>
-        {# a tag report's whole subject is the slug and which way it was wrong,
-           and the direction is the bit that decides what the label becomes #}
+        {# the direction is what decides which label this becomes #}
         {% if r.kind == 'tag' %}
         <div class="fb-meta"><strong>tag: {{ r.tag }}</strong>
             {% if r.tag_was == 'kept' %}the picker KEPT it on the picked line, user says it does not belong
             {% elif r.tag_was == 'aside' %}the picker SET IT ASIDE, user says the line IS about it
             {% else %}direction unrecorded{% endif %}</div>
         {% endif %}
-        {# which page it was filed from. absent means /search, which is where
-           nearly all of them come from and was the only source until the swap
-           tool got a report bar #}
+        {# absent means /search, which was the only source until the swap tool
+           got a report bar #}
         {% if r.source == 'swap' %}
         <div class="fb-meta"><strong>from the swap tool</strong> - the site PROPOSED this card
             as a replacement, so a complaint here is a stronger negative than the same words
@@ -84,16 +82,15 @@
     <div class="fb-export"><pre>{{ pair_md }}</pre></div>
     {% endif %}
     {% if deck_md %}
-    {# not an eval file at all. these are decklist lines a person could read
-       and parse_decklist could not, each with the card it turned out to mean,
-       so the list is a to-do for the line reader rather than for the model #}
+    {# not an eval file: lines a person could read and parse_decklist could not,
+       so this is a to-do for the line reader rather than for the model #}
     <h3>decklist lines the parser missed, for parse_decklist</h3>
     <div class="fb-export"><pre>{{ deck_md }}</pre></div>
     {% endif %}
     {% if tag_md %}
-    {# these do not go in an md file at all: they belong in the LABELS dict in
+    {# not an md file: these belong in the LABELS dict in
        finetune/exam_attribution.py, the only exam testing which line a tag
-       lands on, which holds three hand labelled cards #}
+       lands on #}
     <h3>tag reports, for the LABELS dict in finetune/exam_attribution.py</h3>
     <div class="fb-export"><pre>{{ tag_md }}</pre></div>
     {% endif %}

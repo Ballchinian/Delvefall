@@ -3,15 +3,13 @@
 
 {% block title %}{{ deck_name or 'Your deck' }} through the lens - Delvefall{% endblock %}
 
-{# a pasted list is nobody's business but the person who pasted it, and there
-   is no url to index anyway, so this page asks not to be crawled #}
+{# a pasted list is nobody's business, and there is no url to index anyway #}
 {% block head_extra %}<meta name="robots" content="noindex">{% endblock %}
 
 {% block content %}
 <div class="guide precons deck-detail" data-opened="{{ opened }}">
-    {# the list rides the link, so going back to change something keeps the
-       deck AND its name. a plain href to /deck lost both, and the page you
-       landed on then invented a new entry called "72 cards" #}
+    {# the list rides the link, so going back keeps the deck AND its name. a
+       plain href to /deck lost both and invented an entry called "72 cards" #}
     <form class="precon-back deck-back" method="post" action="/deck/open">
         <input type="hidden" name="list" value="{{ pasted }}">
         <input type="hidden" name="did" value="{{ did }}">
@@ -24,67 +22,52 @@
 
     <h1>{{ deck_name or 'Your deck' }}</h1>
     {# what did not match is settled on the page BEFORE this one and does not
-       follow the deck here. by now the question has been answered one way or
-       the other, and carrying the list of misses into the reading just puts a
-       list of things that are not in the deck above the deck #}
+       follow the deck here #}
     <p class="deck-detail-sub">{{ matched }} card{{ '' if matched == 1 else 's' }} read.</p>
 
     {% if ranked and panels %}
     {% include "partials/standing.html" %}
     {% elif not ranked %}
-    {# saying nothing is better than saying something unearned. the score
-       averages the top half of the list, so a shorter one would be averaging
-       fewer numbers than every deck it got ranked against.
-
-       it says both numbers because one of them alone is a dead end: "needs 20"
-       leaves you counting your own paste to find out how far off you are, and
-       most of the time the answer is that the lands did not count #}
+    {# the score averages the top half of the list, so a shorter one would
+       average fewer numbers than every deck it is ranked against.
+       both numbers, because "needs 20" alone leaves you counting your own
+       paste, and the answer is usually that the lands did not count #}
     <p class="deck-section-note deck-unranked">Too few cards to place against the precons.
     That needs at least {{ min_cards }} nonland cards and this deck has
     {{ counted }}.</p>
     {% endif %}
 
-    {# where you go from here, at the BOTTOM on purpose: the reading is what was
-       asked for, and a page that opens by offering to change your deck has
-       stopped being a lens. it is also what stops the only way on being the
-       back link at the top of a page you have just scrolled the length of.
-
-       the same rows /deck/open offers, minus the one you are standing on #}
+    {# at the BOTTOM on purpose: the reading is what was asked for. the same
+       rows /deck/open offers, minus the one you are standing on #}
     <div class="deck-modes-pick deck-modes-after">
         {{ ways.way("/deck/view", "View it", "See the cards", pasted,
                     body="Every card in the deck, as cards, with the list to copy and
                           whatever has been changed since it was imported.",
                     name=deck_name, commander=commander, did=did) }}
 
-        {# the one row that FOLLOWS the standing on screen, and on the one
-           standing it cannot act on it is not there at all: originality has no
-           swap axis, and the nearest thing to one ("cards fewer people play")
-           read as the wrong button on the wrong panel, because that is what it
-           was. the pager fills the axis in and rewrites the go line.
+        {# this row FOLLOWS the standing on screen, and is absent on
+           originality, which has no swap axis. the pager fills the axis in and
+           rewrites the go line.
 
-           swaps is only filled when the deck ranked, so an empty one means
-           there is no standing to walk away from and nothing here can be
-           offered honestly. it is also the guard that keeps this row from
-           rendering at all: the fields read swaps.salt, and a deck under
-           min_cards used to reach them with an empty dict and 500 the whole
-           page, losing the paste #}
+           the `if swaps` is load-bearing, not tidiness: the fields read
+           swaps.salt, and a deck under min_cards reached them with an empty
+           dict and 500'd the whole page, losing the paste #}
         {% if swaps %}
         <form class="deck-mode" id="deck-swap-start" method="post" action="/deck/swap" hidden>
             <input type="hidden" name="list" value="{{ pasted }}">
-            {# which saved deck this is, carried on so every swap made over
-               there writes itself onto the right one. see deck_did() #}
+            {# carried on so every swap made over there writes itself onto the
+               right saved deck. see deck_did() #}
             <input type="hidden" name="did" value="{{ did }}">
             <input type="hidden" name="name" value="{{ deck_name }}">
             <input type="hidden" name="commander" value="{{ commander }}">
             <input type="hidden" name="seen" value="1">
-            {# filled in by the pager: which axis this offers depends on which
-               standing is on screen and which end of it is being read #}
+            {# the pager rewrites these: the axis depends on which standing is
+               on screen and which end of it is being read #}
             <input type="hidden" name="axis" value="{{ swaps.salt.axis }}">
             <input type="hidden" name="dir" value="{{ swaps.salt.dir }}">
             <button type="submit">
-                {# the same mark the macro would have given this row. this one
-                   form is hand written because the pager rewrites its axis, so
-                   it has to carry the swap arrows itself #}
+                {# hand written rather than off the macro, because the pager
+                   rewrites its axis, so it carries the mark itself #}
                 <i class="mode-mark mode-change" aria-hidden="true"></i>
                 <span class="deck-mode-title">Change it</span>
                 <span class="deck-mode-body">Walk the deck one card at a time, worst first,
@@ -104,11 +87,8 @@
     the originality and age figures for the same reason: a mana base is not what makes a
     deck a deck. Nothing here was saved.</p>
 
-    {# the one place on the site that asks, besides the footer link. it is here
-       because the reading is finished directly above it, which is the only
-       moment the user has actually been handed something. a statement of what
-       the site costs, not an appeal, and it stays a sentence: no button, no
-       panel, nothing that competes with the deck they came to read #}
+    {# the only place besides the footer link that asks, and it is here because
+       the reading finishes directly above. a sentence, never a button #}
     <p class="deck-detail-foot deck-support">Delvefall is free and has no ads. It costs
     {{ running_cost }} to run. <a href="/support">You can chip in</a> if you found this
     useful.</p>

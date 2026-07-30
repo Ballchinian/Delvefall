@@ -1,48 +1,28 @@
-{# what a swap session did, and the deck it left behind. THE one copy of it.
-
-   /deck/view and the end of /deck/swap were the same three blocks twice, with
-   two sets of ids and two builders reading the same four fields off the same
-   shelf entry. they drifted the way two copies do: one said "What changed" and
-   the other "Your swaps", one counted the swaps in a sentence and the other did
-   not, and only one of them let you put a card back.
+{# what a swap session did, for /deck/view and the end of /deck/swap.
 
    the blocks arrive EMPTY and are filled by js/changes.js, because none of this
    ever reached the server: a swap session lives in this browser's own shelf and
    a page can only ask for it once it is running. the whole list is the one
-   exception, rendered server side where the page has it, so a deck with no
-   script running still hands its list back.
+   exception, rendered server side, so a deck with no script running still hands
+   its list back #}
 
-   both pages pass their own state to the same painter. the only thing that
-   differs is whether putting a card back is offered, and now it is offered on
-   both #}
-
-{# the swaps themselves. hidden until there are some, so a deck nobody has
-   changed shows nothing rather than an empty heading #}
+{# hidden until there are swaps, so an unchanged deck shows no empty heading #}
 <div id="deck-changes" hidden>
     <h2>Your swaps</h2>
-    {# only /deck/view fills this. on the swap page the swaps are the thing you
-       just spent the session making and counting them back is the page telling
-       you what you did a moment ago #}
+    {# only /deck/view fills this: on the swap page it would be counting back
+       what the session just did #}
     <p class="deck-section-note" id="deck-changes-note"></p>
     <ul class="swap-made" id="deck-changes-list"></ul>
 
-    {# the same swaps as pictures, folded. names are the fast read and are right
-       most of the time; the pictures are for the moment somebody wants to check
-       what they actually did, which is exactly when a list of names is the
-       wrong medium #}
+    {# the same swaps as pictures, folded #}
     <details class="deck-card-open swap-pairs-box" id="deck-changes-pics">
         <summary>View the swapped card images</summary>
         <div class="swap-pairs" id="deck-changes-pairs"></div>
     </details>
 </div>
 
-{# the cards that came IN, on their own.
-
-   importing the whole deck again is the wrong shape for how people actually
-   build: categories, groupings and everything else a builder holds are lost the
-   moment a list is replaced wholesale. what somebody wants back from a session
-   is the handful of cards that changed, so they can add those and leave the
-   rest of their deck alone #}
+{# the cards that came IN, on their own: replacing a list wholesale loses the
+   categories and groupings the builder holds #}
 <div class="deck-list-box" id="deck-added-box" hidden>
     <h2>Just the new cards</h2>
     <p class="deck-section-note">The cards this deck has gained, on their own. Paste these
@@ -54,9 +34,8 @@
     </div>
 </div>
 
-{# the deliverable. OPEN and not a fold: this is the thing a session is for, and
-   it should not need a click first. the box is a fixed ten rows either way, so
-   an open one costs the same height whether the deck is 40 lines or 400 #}
+{# open and not folded: the box is a fixed ten rows either way, so it costs the
+   same height whether the deck is 40 lines or 400 #}
 <div class="deck-list-box">
     <h2>The whole list</h2>
     <p class="deck-section-note" id="deck-list-note">Every line this deck was read from,
