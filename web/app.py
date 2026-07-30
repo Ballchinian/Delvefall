@@ -3397,14 +3397,10 @@ def deck_swappable(conn, oracle_ids, currency):
 
 
 def deck_colors(conn, oracle_ids):
-    #what the deck can cast, as the union of its cards' colour identities.
-    #
-    #the union rather than the COMMANDER's identity, which is the stricter and
-    #more correct reading, because parse_decklist is deliberately blind to
-    #which board a card is in and cannot say which line was the commander. the
-    #union is the safe direction to be wrong in: it can only ever be as wide as
-    #cards the deck is already playing. one illegal card in a pasted list
-    #widens it, which is worth fixing the day the parser learns about sections
+    #the UNION rather than the commander's identity, which is stricter and more
+    #correct, because parse_decklist is blind to which board a card is in. the
+    #union is the safe direction to be wrong in: it is only ever as wide as cards
+    #the deck already plays. one illegal card in a paste widens it
     row = conn.execute("""
         SELECT string_agg(DISTINCT letter, '') AS letters
         FROM cards c, regexp_split_to_table(c.color_identity, '') AS letter
@@ -3412,21 +3408,14 @@ def deck_colors(conn, oracle_ids):
     """, ([str(o) for o in oracle_ids],)).fetchone()
     return (row["letters"] or "") if row else ""
 
-#the axes a deck can be moved along, and they are deliberately the SAME four
-#fields the search sort offers, read the same way: the direction names the
-#CONCEPT you want more of, never the column underneath. that is not tidiness.
-#it is the model already learned on /search, and inventing a second vocabulary
-#for the same four ideas is the nine-combinations mistake wearing a new hat.
+#the SAME four fields the search sort offers, read the same way: the direction
+#names the CONCEPT you want more of, never the column underneath. "best" is
+#absent, there being no such thing as moving a deck toward better matching.
 #
-#"best" is absent because it is not an axis. there is no such thing as moving
-#a deck toward better matching.
-#
-#"better" is which way the COLUMN moves for a card the user would call an
-#improvement, and it is not the same question as the label. play rate is where
-#the two come apart: "less played" is ascending play rate but DESCENDING
-#edhrec_rank, because rank 1 is the most played card in the format. get this
-#backwards and the tool confidently suggests Sol Ring to someone asking for
-#something more obscure
+#"better" is which way the COLUMN moves, which is NOT the same question as the
+#label. play rate is where they come apart: "less played" is ascending play rate
+#but DESCENDING edhrec_rank, rank 1 being the most played card in the format.
+#backwards, the tool suggests Sol Ring to someone asking for something obscure
 SWAP_AXES = {
     ("price", "asc"):     {"goal": "cheaper",     "better": "lower"},
     ("price", "desc"):    {"goal": "pricier",     "better": "higher"},
@@ -3438,9 +3427,8 @@ SWAP_AXES = {
     ("salt", "desc"):     {"goal": "saltier",     "better": "higher"},
 }
 
-#the card column each axis reads. price is None because it depends on the
-#currency the page is showing, and resolving it anywhere but price_col would
-#be a second place for the three currencies to disagree
+#price is None because it depends on the currency on screen, and resolving it
+#anywhere but price_col is a second place for the three to disagree
 SWAP_COLUMNS = {"price": None, "played": "edhrec_rank",
                 "released": "released_at", "salt": "salt"}
 
@@ -3457,12 +3445,10 @@ def swap_column(field, currency):
 #else, the comparable boundary is /search's TIER_CUT of 70, because an average
 #of two axes rarely reaches 80.
 #
-#75 rather than 70 because this is the page that proposes a card for a slot rather than handing back a list to browse, so it
-#wants better answers than a search does. it is the only number on the site set
-#above its calibrated boundary.
-#
-#a real tightening and not a nominal one, measured over 224 queue cards across
-#14 precons on both the salt and the price axes:
+#75 rather than 70 because this page PROPOSES a card for a slot rather than
+#handing back a list to browse. the only number on the site set above its
+#calibrated boundary, and a real tightening: measured over 224 queue cards across
+#14 precons on both the salt and price axes,
 #
 #  rule            skipped   median offer
 #  rules >= 80        10%          14
@@ -3470,51 +3456,28 @@ def swap_column(field, currency):
 #  blend >= 75        18%           8      (this)
 #  blend >= 80        32%           5
 #
-#so a fifth of queue cards get passed over. that is the price of the bar and it
-#is paid openly: a skipped card is named under "nothing close enough" rather
-#than quietly vanishing. 70 is the setting if that reads as too harsh in use,
-#and the table is what the choice costs.
+#so a fifth of queue cards are passed over. 70 is the setting if that reads as
+#too harsh in use, and the table is what the choice costs.
 #
-#there is NO looser pass and no strict-mode toggle. this had a "show weaker
-#matches" button borrowed from /search's band walking, on the reasoning that
-#an empty list needs an escape hatch. the better reasoning is that an empty
-#list IS the answer: a card with nothing above the bar has nothing that does
-#its job, and offering something worse is the TOOL lowering its standards
-#rather than the user choosing to. so a card with no suggestions is skipped,
-#and the page says which cards it skipped instead of letting them vanish.
-#
-#that makes four controls this site does without for having one right answer,
-#alongside the blend, the uniqueness bar and the search threshold
+#NO looser pass and no strict-mode toggle: an empty list IS the answer, and
+#offering something worse is the tool lowering its standards rather than the user
+#choosing to. a skipped card is named under "nothing close enough"
 SWAP_GATE = 75
 
-#the swap tool scores on both axes, same as /search, and for the same reason:
-#an even split beats every other setting when measured, and either axis alone is
-#a specialist's view. a constant rather than a request parameter, because no
-#page on the site carries the slider
+#its own constant rather than BLEND: the same value, but a separate decision
 SWAP_BLEND = 0.5
 
-#how many cards the queue offers before asking whether to keep going. a batch
-#rather than a lid: somebody who has walked twelve cards and wants a thirteenth
-#is exactly the person this is for.
-# the page holds SWAP_DEEP cards in queue order
-#and reveals them a batch at a time, which costs one extra column of json and
-#no extra database work: the candidates for a card are still fetched only when
-#the user actually reaches it
+#a BATCH rather than a lid. the page holds SWAP_DEEP cards in queue order and
+#reveals them a batch at a time, which costs one column of json and no extra
+#database work: a card's candidates are fetched only when it is reached
 SWAP_QUEUE = 12
 
-#the real end of the queue. the whole deck is still not worth scanning, because
-#on any axis only the tail is worth acting on, but 48 is deep enough that
-#nobody reaches it by accident and shallow enough that the json stays small
+#the real end of the queue. the whole deck is not worth scanning, only the tail
+#being worth acting on, and 48 keeps the json small
 SWAP_DEEP = 48
 
-#how many replacements are revealed per card, and how many the answer holds.
-#
-#a hard five reads as "past about six the tail is padding", and it is the same
-#mistake as capping the queue: somebody who has read five and wants a sixth is
-#exactly who this is for, and the deeper list is free. the query already scans
-#200 rows per line and cuts at the very end, so holding 48 costs one bigger json
-#and no extra database work.
-#
+#the deeper list is FREE: the query already scans 200 rows per line and cuts at
+#the very end, so holding 48 costs one bigger json and no extra database work.
 #twelve is the batch every other list on this site reveals at a time
 SWAP_OFFER = 12
 SWAP_OFFER_DEEP = 48
@@ -3546,73 +3509,54 @@ SWAP_MV_FLOOR = 5
 
 
 def swap_mv_range(cmc):
-    #the mana values a replacement for this slot may cost, low and high, both
-    #inclusive. min() and not max(): the floor only ever OPENS the range, so a
-    #three drop still reaches down to one rather than being dragged up to five
+    #min() and NOT max(): the floor only ever OPENS the range, so a three drop
+    #still reaches down to one rather than being dragged up to five
     band = SWAP_MV_BAND if cmc <= SWAP_MV_HIGH else SWAP_MV_BAND_HIGH
     return min(cmc - band, SWAP_MV_FLOOR), cmc + band
 
-#how close to the card's OWN rarest line another of its lines has to be before
-#it is worth anchoring on too. 0.9 keeps genuine second abilities and drops
-#riders: a card whose two lines are equally distinctive gets searched on both,
-#a card carrying one real ability plus a keyword everybody has gets searched
-#on the ability. see the anchoring note in swap_candidates for what this is
-#actually protecting against
+#how close to the card's OWN rarest line another has to be to be worth anchoring
+#on too. 0.9 keeps genuine second abilities and drops riders: one real ability
+#plus a keyword everybody has gets searched on the ability
 SWAP_ANCHOR_FRAC = 0.9
 
-#a floor on the matched pair with BOTH sides weighted by how many cards carry
-#the line, the same arithmetic the in-deck pairing uses. it survives anchoring
-#as a backstop rather than the main defence: anchoring decides which of OUR
-#lines is worth searching, this catches a candidate answering a rare line of
-#ours with a line of theirs that half the format shares.
+#a floor on the matched pair with BOTH sides weighted by how many cards carry the
+#line. a backstop rather than the main defence: anchoring decides which of OUR
+#lines is worth searching, this catches a candidate answering a rare line of ours
+#with one half the format shares.
 #
-#low on purpose. at 0.75 this stops being a backstop and becomes a second gate:
-#it removes every mana rock in the game from "find me a less played Sol Ring",
-#whose correct answers are all mana rocks sharing one very common line. an
-#exclusion that fires on the honest case is worse than the thing it guards
-#against.
+#LOW on purpose. at 0.75 it becomes a second gate and removes every mana rock in
+#the game from "find me a less played Sol Ring", whose correct answers are all
+#mana rocks sharing one very common line.
 #
-#always an exclusion, never the number on screen: the badge stays the display
-#score and the list still reads in descending order of the figure the user can
-#actually see, which is the promise the whole site runs on
+#always an EXCLUSION, never the number on screen: the badge stays the display
+#score, so the list still reads in descending order of what the user can see
 SWAP_PAIR_CUT = 0.2
 
 
 def swap_queue(cards, field, direction):
-    #the order the tool walks the deck in: the cards FURTHEST from where the
-    #user wants to go, worst first, because that is where a swap buys the most.
+    #worst first, the exact inverse of "better", off the SAME flag, so the queue
+    #and the suggestions can never disagree about which way is up on an axis.
     #
-    #it is the exact inverse of "better". one flag drives both, which is what
-    #keeps the queue and the suggestions from ever disagreeing about which way
-    #is up on an axis.
-    #
-    #a card with no value on the axis drops out rather than sorting as zero: an
-    #unpriced card is unknown, not free, and it would otherwise head up the
-    #"make this cheaper" queue forever
+    #a card with no value on the axis DROPS OUT rather than sorting as zero: an
+    #unpriced card is unknown, not free, and would head the "cheaper" queue forever
     axis = SWAP_AXES[(field, direction)]
     key = "price" if field == "price" else SWAP_COLUMNS[field]
     rows = [c for c in cards if c.get(key) is not None]
-    #basics can never be swapped into anything and deck_swappable has already
-    #dropped them for having no rules lines. belt and braces, because a queue
-    #built off any other source would put nine Islands at the top of a salt
-    #list on the strength of the protest votes they carry
+    #belt and braces, deck_swappable having already dropped them for having no
+    #rules lines: any other source puts nine Islands at the top of a salt queue
+    #on the strength of the protest votes they carry
     rows = [c for c in rows if not is_basic_land(c.get("type_line") or "")]
     rows.sort(key=lambda c: c[key], reverse=(axis["better"] == "lower"))
     return rows[:SWAP_DEEP]
 
 
 def swap_card_json(c, currency, anchor=None):
-    #one card on the swap page, in the same shape and the same words the
-    #results grid uses. the card leaving and every card that could take its
-    #place go through here, so the two sides can never drift apart: whatever
-    #the outgoing card says about its price is what a candidate says about
-    #its own, and the comparison between them means something because both
-    #numbers came out of the same function.
+    #the card leaving and every card that could replace it go through HERE, so
+    #the comparison between them means something: both numbers came out of one
+    #function.
     #
-    #anchor is the card being replaced. given one, every figure also carries
-    #its verdict AGAINST that card, which is the whole question a swap asks
-    #and exactly what the search page already computes against the searched
-    #card. no new vocabulary: cheaper, pricier, milder, saltier, more played
+    #given an anchor, every figure also carries its verdict against that card,
+    #in the same vocabulary /search uses: cheaper, milder, more played
     price = price_in(c, currency)
     salt = None if c["salt"] is None else float(c["salt"])
     out = {
