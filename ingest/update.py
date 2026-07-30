@@ -1,18 +1,14 @@
-#the daily updater. asks scryfall if their bulk card file changed, and if it
-#did, only does the heavy embedding work for cards that are actually new or
-#have different text than last time. most days thats a handful of cards, so
-#the run finishes in seconds after the download.
+#the daily updater. the heavy embedding work only touches cards that are new or
+#whose text changed, so most days the run finishes in seconds after the download.
 #
-#prices take a second, bigger download: the oracle file carries one price
-#per card (whatever printing scryfall prefers), so the default_cards file
-#(every printing) gets streamed through to find each card's cheapest paper
-#printing instead.
+#prices need a second, bigger download: the oracle file carries one price per
+#card (whatever printing scryfall prefers), so default_cards (every printing)
+#gets streamed through for each card's cheapest paper printing instead.
 #
-#running this against a brand new empty database seeds the whole thing
-#(everything counts as new, ~61k lines to embed, takes a few minutes).
-#github actions runs it every day, or run it yourself from the repo root:
+#against an empty database everything counts as new, ~61k lines to embed and a
+#few minutes. github actions runs it daily, or from the repo root:
 #    python -m ingest.update
-#with DATABASE_URL set to the postgres connection string
+#with DATABASE_URL set
 
 import os
 import sys
@@ -32,33 +28,27 @@ BULK_URL = "https://api.scryfall.com/bulk-data"
 DOWNLOAD_FILE = "oracle-cards.jsonl.gz"
 PRICES_FILE = "default-cards.jsonl.gz"
 
-#my fine tuned embeddinggemma (a sentence-transformers model), taught to score
-#a line against what it is about. it sits in a private repo on hugging face, so
-#HF_TOKEN has to be set or the download 401s. the prompt was glued to the front
-#of every line during training, encoding without it gives useless vectors.
-#pointing EMBED_MODEL at anything else makes the next run rebuild every vector
-#on its own.
+#a fine tuned embeddinggemma, taught to score a line against what it is about. it
+#sits in a PRIVATE hugging face repo, so HF_TOKEN has to be set or the download
+#401s. the prompt was glued to the front of every line during training, and
+#encoding without it gives useless vectors.
 #
-#it scores 78% recall @10 on the tag exam, 26/31 on the line-to-line regression
-#guard and 94% precision on line attribution. lines.embedding_v1 still holds the
-#vectors the model before it produced
+#pointing EMBED_MODEL anywhere else makes the next run rebuild every vector.
+#78% recall @10 on the tag exam, 26/31 on the line-to-line regression guard, 94%
+#precision on attribution. embedding_v1 still holds the previous model's vectors
 EMBED_MODEL = "BallchinianMan/mtg-tagtuned-embeddinggemma-300m"
 EMBED_PROMPT = "task: sentence similarity | query: "
 EMBED_DIMS = 768
 
-#axis 1's calibration map: raw cosine -> the percent the site shows, piecewise
-#linear. raw cosine is arbitrary per model, so this map belongs to the model
-#above and lives right next to it. a swap needs the anchors refitted, and a map
-#left behind on the wrong model reads a near verbatim match as 62%.
+#axis 1's calibration map: raw cosine -> displayed percent. raw cosine is
+#arbitrary per model, so this BELONGS to the model above and lives next to it. a
+#swap needs the anchors refitted, and a map left on the wrong model reads a near
+#verbatim match as 62%.
 #
-#the anchors put a hand judged "yes these match" at 88 and a "no" at 59, so the
-#two separate by nearly thirty points, and about three quarters of results clear
-#the 70 gate. sat lower, too many results land in the 60-70 band and the axis
-#reads stingy next to concepts.
-#
-#both maps ride to the website through the meta table (written in main
-#below, next to the model name they belong to), so the site and the
-#pipeline can never disagree about what a percent means
+#the anchors put a hand judged "yes" at 88 and a "no" at 59, so the two separate
+#by nearly thirty points and about three quarters of results clear the 70 gate.
+#sat lower, too many land in the 60-70 band and the axis reads stingy next to
+#concepts. both maps ride to the site through meta, written in main below
 MECH_CALIBRATION = [(0.0, 0), (0.30, 30), (0.42, 45), (0.62, 65), (0.76, 80), (0.90, 92), (1.0, 100)]
 
 
@@ -78,9 +68,8 @@ def get_with_retries(url, tries=3):
 
 
 def download_bulk(item, path):
-    #stream the file straight to disk rather than holding it in memory on top of
-    #the objects parsed out of it. item is one entry from the bulk-data listing,
-    #which knows its own url and its own size
+    #straight to disk rather than into memory on top of the objects parsed out
+    #of it
     url = bulk_uri(item)
     print("downloading " + url)
     print("(its about " + str(bulk_size(item) // (1024 * 1024)) + "mb compressed so this can take a while)")
@@ -100,8 +89,8 @@ def download_bulk(item, path):
 
 
 def finish_price(prices, keys):
-    #the cheapest finish (nonfoil, foil, etched) of one printing. scryfall
-    #sends strings like "0.25" or None for finishes that dont exist
+    #the cheapest finish of one printing. scryfall sends strings like "0.25", or
+    #None for finishes that dont exist
     best = None
     for k in keys:
         p = prices.get(k)
@@ -113,10 +102,8 @@ def finish_price(prices, keys):
 
 
 def cheapest_prices(item):
-    #oracle_id -> [usd, eur], the lowest price across every paper printing,
-    #plus oracle_id -> the earliest released_at, when the card first existed.
-    #the default_cards file is a couple of gigabytes opened up, so read_bulk
-    #walks it a line at a time instead of holding the whole thing
+    #oracle_id -> [usd, eur] across every paper printing, plus oracle_id -> the
+    #earliest released_at
     download_bulk(item, PRICES_FILE)
     print("scanning every printing for the cheapest price and first release...")
     best = {}
@@ -129,16 +116,15 @@ def cheapest_prices(item):
             oid = c["card_faces"][0].get("oracle_id")  #reversible cards keep it per face
         if not oid:
             continue
-        #the debut counts every printing, even the ones the price hunt
-        #skips below: a digital only debut is still the card's debut.
-        #iso dates compare fine as strings
+        #the debut counts every printing, including the ones the price hunt skips
+        #below: a digital only debut is still the card's debut. iso dates compare
+        #fine as strings
         rel = c.get("released_at")
         if rel and (oid not in debut or rel < debut[oid]):
             debut[oid] = rel
-        #versions you cant actually buy as the real paper card dont
-        #count: arena/mtgo printings, oversized promos, and memorabilia
-        #(gold border world championship decks would underprice half the
-        #expensive staples in the game)
+        #things you cannot buy as the real paper card. memorabilia matters most:
+        #gold border world championship decks would underprice half the expensive
+        #staples in the game
         if c.get("digital") or c.get("oversized") or c.get("set_type") == "memorabilia":
             continue
         prices = c.get("prices", {})
@@ -158,24 +144,20 @@ def cheapest_prices(item):
 
 
 def card_hash(card):
-    #hashed over the cleaned lines, which is what actually gets embedded, rather
-    #than over the raw oracle text they come from. a change to clean_line, to
-    #REMINDER_KEYWORDS or to the prefix word catalogs moves the hash of exactly
-    #the cards it affects, and they rebuild on the next run without anyone
-    #having to force one.
+    #hashed over the CLEANED lines, which is what gets embedded, rather than the
+    #raw oracle text. so a change to clean_line, REMINDER_KEYWORDS or the prefix
+    #catalogs moves the hash of exactly the cards it affects and they rebuild by
+    #themselves.
     #
-    #the raw text is only a proxy for that input, and the two come apart the
-    #moment the cleaner changes: the text sits still, nothing reembeds, and the
-    #database goes on holding a line the site no longer computes. since the line
-    #picker matches page lines to rows by text, picking one then silently
-    #searches the whole card. tools/check_sync.py cannot catch that either, since
-    #both copies of clean_line agree with each other and only disagree with what
-    #is already on disk.
+    #hashing the raw text instead comes apart the moment the cleaner changes: the
+    #text sits still, nothing reembeds, and the database holds a line the site no
+    #longer computes. the line picker matches page lines to rows BY TEXT, so
+    #picking one then silently searches the whole card. check_sync.py cannot see
+    #it either, both copies of clean_line agreeing with each other and only
+    #disagreeing with what is already on disk.
     #
-    #the face rides along too, so a line moving from front to back is a change
-    #even when its text is identical. the name rides along because clean_line
-    #swaps it for "this card" inside the text, so a rename rewrites every line
-    #without touching the raw text either
+    #face rides along so a line moving front to back counts as a change, and the
+    #name because clean_line swaps it for "this card" inside the text
     parts = [card["name"]]
     for line, face in split_lines(card):
         parts.append(str(face) + ":" + line)
@@ -183,23 +165,16 @@ def card_hash(card):
 
 
 def recompute_uniqueness(conn):
-    #fills lines.nn_sim (how close the closest line on any OTHER card gets to
-    #this one) and rolls the scores up into cards.uniqueness for the /unique
-    #page. its the search query turned inside out: search asks "whats
-    #closest", this asks "how far away is even the closest thing".
+    #fills lines.nn_sim and rolls it up into cards.uniqueness.
     #
-    #everything gets recomputed from scratch whenever lines changed, same
-    #philosophy as line_stats. incremental sounds tempting until you notice a
-    #new card can make an old card less unique (it might be its new nearest
-    #neighbor), and a deleted card can make its old neighbors more unique, so
-    #patching only the changed rows would quietly rot every score around them.
+    #recomputed from scratch rather than incrementally, because a new card can
+    #make an old one LESS unique (it may be its new nearest neighbour) and a
+    #deleted card can make its old neighbours more unique. patching only the
+    #changed rows would rot every score around them.
     #
-    #this pulls every embedding out of postgres and does the math in numpy,
-    #which is fine here and would not be in the web app. asking pgvector for 31k
-    #exact nearest neighbors takes ~370ms each on the railway box (measured),
-    #call it three hours of pegged production database, while one big matrix
-    #multiply on the ingest runner takes about a minute. all-pairs work belongs
-    #next to the big cpu, one-query-at-a-time work belongs next to the data
+    #the math is numpy, not pgvector: 31k exact nearest neighbour queries measured
+    #~370ms each on the railway box, call it three hours of pegged production
+    #database, against about a minute for one matrix multiply on the runner
     print("recomputing uniqueness scores...")
     import numpy as np  #late import like torch below, the no-op runs skip it
 
@@ -231,9 +206,8 @@ def recompute_uniqueness(conn):
             sims[r, rows_of_card[owners[start + r]]] = -2.0  #below any real cosine
         nn_sim[start:start + block] = sims.max(axis=1)
 
-    #COPY the scores into a temp table and update from there, one round trip
-    #instead of 58k. the IS DISTINCT FROM means unchanged rows dont get
-    #rewritten, which on a normal day is nearly all of them
+    #a temp table and one update, rather than 58k round trips. IS DISTINCT FROM
+    #keeps unchanged rows from being rewritten, nearly all of them on a normal day
     with conn.cursor() as cur:
         cur.execute("CREATE TEMP TABLE nn_tmp (id bigint PRIMARY KEY, nn_sim real) ON COMMIT DROP")
         with cur.copy("COPY nn_tmp (id, nn_sim) FROM STDIN") as copy:
@@ -245,11 +219,9 @@ def recompute_uniqueness(conn):
             WHERE l.id = t.id AND l.nn_sim IS DISTINCT FROM t.nn_sim
         """)
 
-        #a card is as unique as its most isolated line. DISTINCT ON keeps one
-        #row per card and the ORDER BY makes it the line with the lowest
-        #nearest neighbor similarity, so a card with Flying plus one ability
-        #nobody else has still counts as unique, the Flying line just never
-        #wins the argmin
+        #a card is as unique as its most isolated line, so DISTINCT ON plus the
+        #ORDER BY takes the argmin: Flying plus one ability nobody else has still
+        #counts as unique, the Flying line just never wins
         cur.execute("""
             UPDATE cards c SET uniqueness = (1 - s.nn_sim)::real, unique_line = s.line_text
             FROM (SELECT DISTINCT ON (oracle_id) oracle_id, nn_sim, line_text
@@ -272,18 +244,16 @@ def main():
 
     conn = psycopg.connect(db_url)
 
-    #make sure the tables exist. schema.sql is all IF NOT EXISTS so this is
-    #free on every run after the first
+    #schema.sql is all IF NOT EXISTS, so this is free after the first run
     schema_path = os.path.join(os.path.dirname(__file__), "..", "common", "schema.sql")
     with open(schema_path, encoding="utf-8") as f:
         conn.execute(f.read())
     conn.commit()
     register_vector(conn)
 
-    #the calibration maps go into meta before the gate below, so even a
-    #nothing-changed run leaves them in place for the website to read. the
-    #site carries seed copies but the database's word wins, which is what
-    #keeps a model swap atomic: new vectors and their new map arrive together
+    #before the gate below, so even a nothing-changed run leaves them in place.
+    #the site carries seed copies but the database's word wins, which is what
+    #makes a model swap atomic: new vectors and their new map arrive together
     for key, cal in (("mech_calibration", MECH_CALIBRATION),
                      ("concept_calibration", CONCEPT_CALIBRATION)):
         conn.execute("""
@@ -292,9 +262,8 @@ def main():
         """, (key, json.dumps(cal)))
     conn.commit()
 
-    #vectors from two different models cant be compared with each other, so
-    #if the database was embedded by anything other than the model above,
-    #every line needs redoing this run
+    #vectors from two models cannot be compared, so a database embedded by any
+    #other one needs every line redone this run
     row = conn.execute("SELECT value FROM meta WHERE key = 'embed_model'").fetchone()
     model_changed = row is None or row[0] != EMBED_MODEL
     if model_changed:
@@ -304,22 +273,20 @@ def main():
     bulk = None
     prices_bulk = None
     for item in get_with_retries(BULK_URL).json()["data"]:
-        #oracle_cards = one entry per unique card instead of every single
-        #printing. default_cards = every printing, the price scan needs those
+        #oracle_cards is one entry per card, default_cards is every printing and
+        #is what the price scan needs
         if item["type"] == "oracle_cards":
             bulk = item
         if item["type"] == "default_cards":
             prices_bulk = item
     updated_at = bulk["updated_at"]
 
-    #the gate: if we already processed this exact bulk file, stop right here.
-    #this is what makes rerunning the workflow basically free. unless the
-    #model changed, then theres a full rebuild to do either way
+    #the gate that makes rerunning the workflow free: this exact bulk file was
+    #already processed. a model change rebuilds either way
     row = conn.execute("SELECT value FROM meta WHERE key = 'scryfall_updated_at'").fetchone()
     if not model_changed and row and row[0] == updated_at:
-        #the bulk file might be old news while the uniqueness scores arent:
-        #the first run after the /unique feature shipped, or a recompute that
-        #died halfway. any line without a score means theres finishing to do
+        #the bulk file can be old news while the scores are not: a recompute that
+        #died halfway leaves lines with no score, and those still need finishing
         if conn.execute("SELECT 1 FROM lines WHERE nn_sim IS NULL AND NOT whole LIMIT 1").fetchone():
             recompute_uniqueness(conn)
         else:
@@ -329,8 +296,8 @@ def main():
 
     download_bulk(bulk, DOWNLOAD_FILE)
     print("loading cards...")
-    #filtered while the file is read rather than after, so the two thirds of
-    #scryfall's list that keep_card throws out are never all in memory at once
+    #filtered while reading rather than after, so the two thirds of scryfall's
+    #list keep_card throws out are never in memory at once
     offered = 0
     cards = []
     for c in read_bulk(DOWNLOAD_FILE):
@@ -343,21 +310,19 @@ def main():
 
     cheapest, debut = cheapest_prices(prices_bulk)
 
-    #what do we already have? oracle_id -> hash of the text we embedded last time
+    #oracle_id -> hash of the text embedded last time
     have = {}
     for oracle_id, text_hash in conn.execute("SELECT oracle_id, text_hash FROM cards"):
         have[str(oracle_id)] = text_hash
 
-    #which cards the database is holding, off the same query rather than asked
-    #for again. kept separately because the model check below empties the hash
-    #map and the stale scan still needs the ids
+    #kept separately because the model check below empties the hash map, and the
+    #stale scan still needs the ids
     held = set(have)
 
     if model_changed:
-        #forget the stored hashes so every card counts as new and gets
-        #embedded again. the old vectors stay put for now, the site keeps
-        #searching on them while the new ones compute. only the hashes go, so a
-        #swap run still removes the cards scryfall dropped
+        #every card counts as new and reembeds. only the HASHES go: the old
+        #vectors stay put so the site keeps searching while the new ones compute,
+        #and a swap run still removes the cards scryfall dropped
         have = {}
 
     new_cards = []
@@ -366,15 +331,13 @@ def main():
     card_rows = []  #every kept card, for the upsert below
     for c in cards:
         h = card_hash(c)
-        #the cheapest printing's price when the scan found one, falling back
-        #to the oracle file's own (scryfall's preferred printing). strings,
-        #floats or None, postgres takes any of them into a numeric column
+        #the scan's cheapest, falling back to the oracle file's own price.
+        #strings, floats or None, postgres takes any of them into numeric
         prices = c.get("prices", {})
         low = cheapest.get(c["oracle_id"], [None, None])
         usd = low[0] if low[0] is not None else prices.get("usd")
         eur = low[1] if low[1] is not None else prices.get("eur")
-        #the earliest printing's date from the scan, falling back to the
-        #oracle file's own (scryfall's preferred printing, could be a reprint)
+        #same fallback, and the oracle file's date could be a reprint's
         rel = debut.get(c["oracle_id"]) or c.get("released_at")
         card_rows.append((c["oracle_id"], c["name"], c.get("mana_cost", ""), c.get("type_line", ""),
                           get_text(c), get_image(c), c.get("scryfall_uri", ""), h,
@@ -390,9 +353,8 @@ def main():
         else:
             unchanged += 1
 
-    #cards in the database that arent in the kept list anymore, either scryfall
-    #dropped them or the filters got stricter. they need to go or they sit in
-    #search results forever
+    #scryfall dropped them or the filters got stricter. they have to go or they
+    #sit in search results forever
     kept_ids = set()
     for c in cards:
         kept_ids.add(c["oracle_id"])
@@ -403,14 +365,14 @@ def main():
     print(str(len(new_cards)) + " new, " + str(len(changed_cards)) + " changed, "
           + str(unchanged) + " unchanged, " + str(len(stale)) + " to remove")
 
-    #every card row gets offered every run, not just the new and changed ones.
-    #prices move daily and wizards edits the game changer list now and then,
-    #so waiting for a rules text change would leave those stale forever. the
-    #WHERE on the conflict clause skips rows where nothing actually differs,
-    #otherwise every run rewrites all ~31k rows (a day of dead tuples and wal
-    #for the autovacuum to mop up) just to store the same values. it also
-    #makes updated_at mean "last actually changed". the slow embedding work
-    #below still only happens when text changed
+    #every card row is offered every run, not just the new and changed ones:
+    #prices move daily and wizards edits the game changer list, so waiting on a
+    #text change would leave those stale forever.
+    #
+    #the WHERE on the conflict clause skips rows where nothing differs. without
+    #it every run rewrites all ~31k rows to store the same values, a day of dead
+    #tuples and wal for autovacuum to mop up, and updated_at stops meaning "last
+    #actually changed". the slow embedding below still waits on a text change
     print("writing " + str(len(card_rows)) + " card rows (keeps prices and filters fresh)...")
     with conn.cursor() as cur:
         cur.executemany("""
@@ -450,8 +412,7 @@ def main():
 
     work = new_cards + changed_cards
     if work:
-        #collect every line from every new or changed card so the model runs
-        #once over one big batch instead of once per card
+        #one big batch, so the model runs once rather than once per card
         texts = []
         faces = []
         wholes = []
@@ -463,17 +424,16 @@ def main():
                 faces.append(face)
                 wholes.append(False)
                 owners.append(i)
-            #multi-line cards also get one whole-card row (all their cleaned
-            #lines together), retrieval material for the line-merging blind
-            #spot. single-line cards would just duplicate their line
+            #one whole-card row for the line-merging blind spot. single-line
+            #cards would only duplicate their line
             if len(card_lines) > 1:
                 texts.append("\n".join(line for line, face in card_lines))
                 faces.append(0)
                 wholes.append(True)
                 owners.append(i)
 
-        #imported down here so the nothing-changed runs never pay the slow
-        #torch import, it takes longer than the entire rest of the script
+        #down here so nothing-changed runs never pay the torch import, which
+        #takes longer than the entire rest of the script
         print("loading the model (downloads ~1.2gb the very first time)...")
         from sentence_transformers import SentenceTransformer
         model = SentenceTransformer(EMBED_MODEL)
@@ -481,37 +441,28 @@ def main():
         embs = model.encode(texts, batch_size=64, show_progress_bar=True,
                             normalize_embeddings=True, prompt=EMBED_PROMPT)
 
-        #all the writes ride in one transaction (one commit at the very end),
-        #so a crash halfway through leaves the database exactly how it was.
-        #executemany batches the rows into pipelined round trips, one insert
-        #at a time would take half an hour from github's servers on the seed
+        #one transaction, one commit at the end, so a crash halfway leaves the
+        #database exactly as it was
         with conn.cursor() as cur:
             if model_changed:
-                #the truncate lives down here on purpose: doing it before the
-                #slow encode above would hold the table lock the whole time
-                #and hang every search on the site. the alter resizes the
-                #column to the new model's dims.
+                #DOWN HERE on purpose: truncating before the slow encode would
+                #hold the table lock for the whole encode.
                 #
-                #CASCADE is required, not decoration. line_tags carries a foreign
-                #key onto lines(id), and postgres refuses to truncate a table
-                #that is referenced by one whether or not the referencing table
-                #holds a single row. dropping the attribution is right anyway:
-                #line ids are bigserial and every row is about to be rebuilt, so
-                #the old line_tags point at ids that stop meaning anything.
-                #ingest/attribute.py builds them again from the new lines.
+                #CASCADE is required, not decoration. line_tags has a foreign key
+                #onto lines(id), and postgres refuses to truncate a referenced
+                #table whether or not the referencing one holds a single row.
+                #dropping the attribution is right anyway, line ids being
+                #bigserial and every row about to be rebuilt.
                 #
-                #what this costs even down here: TRUNCATE takes an ACCESS
-                #EXCLUSIVE lock on lines and holds it until this transaction
-                #commits, and the commit is after all 61k rows have gone in from
-                #a github runner over the network. every search on the site
-                #blocks for that whole stretch, because every search reads lines.
+                #what it still costs: TRUNCATE takes an ACCESS EXCLUSIVE lock and
+                #holds it until this transaction commits, which is after all 61k
+                #rows have gone in from a github runner over the network. every
+                #search blocks for that stretch, since every search reads lines.
                 #the COPY below is what keeps it to seconds instead of minutes.
                 #
-                #this branch is for a model already chosen. trying one out goes
-                #through ingest/backfill_embeddings.py instead: it fills
-                #embedding_v2, which nothing is reading yet, the site flips over
-                #with EMBED_COLUMN, no lock anybody waits on, and it can be
-                #put back
+                #this branch is for a model already CHOSEN. trying one out goes
+                #through backfill_embeddings.py, which fills embedding_v2 with
+                #nothing reading it and no lock anybody waits on
                 cur.execute("TRUNCATE lines CASCADE")
                 cur.execute("ALTER TABLE lines ALTER COLUMN embedding TYPE vector(" + str(EMBED_DIMS) + ")")
             #changed cards get their old lines thrown out and rebuilt fresh
@@ -526,16 +477,13 @@ def main():
                 c = work[owners[j]][0]
                 rows.append((c["oracle_id"], text, embs[j], faces[j], wholes[j]))
             print("writing " + str(len(rows)) + " lines...")
-            #COPY, like the uniqueness pass above and the salt and tag ingests.
-            #executemany pipelines its round trips and is fine for the handful of
-            #rows a normal day brings, but a full reseed is 61k of them carrying
-            #a 3kb vector each.
+            #COPY rather than executemany: a full reseed is 61k rows carrying a
+            #3kb vector each.
             #
-            #TEXT format on purpose, not binary. binary wants a real uuid object
-            #per row and scryfall hands us strings, so it would mean converting
-            #61k ids to buy back less than the conversion costs. the vector
-            #round trips exactly either way, since pgvector prints every float
-            #it stores
+            #TEXT format, not binary. binary wants a real uuid object per row and
+            #scryfall hands us strings, so it would mean converting 61k ids to
+            #buy back less than the conversion costs. the vector round trips
+            #exactly either way, pgvector printing every float it stores
             with cur.copy("COPY lines (oracle_id, line_text, embedding, face, whole) FROM STDIN") as copy:
                 for r in rows:
                     copy.write_row(r)
@@ -550,18 +498,16 @@ def main():
             cur.executemany("DELETE FROM cards WHERE oracle_id = %s", gone)
 
     if work or stale:
-        #recount how common every line is. its one group by over ~61k rows,
-        #way easier than trying to patch the counts incrementally.
+        #one group by over ~61k rows, rather than patching the counts.
         #
-        #counted per shape, not per exact text: a run of mana symbols collapses
-        #to one placeholder first, so "Overload {4}{R}" and "Overload {2}{R}"
-        #share a bucket. count exact text and any keyword with a varying cost
-        #dodges the idf weighting, fragmenting into one and two card texts that
-        #each draw the full 1.0 weight a unique ability gets (overload: 27
-        #card-lines, 22 texts, biggest on 2), which is enough to match
-        #Vandalblast to Dynacharge at 99% on the keyword alone. still keyed by
-        #exact text, which is what the search joins on. no braces, no change:
-        #Flying = 2517
+        #counted PER SHAPE, not per exact text: a run of mana symbols collapses
+        #to a placeholder first, so "Overload {4}{R}" and "Overload {2}{R}" share
+        #a bucket. counting exact text lets any keyword with a varying cost dodge
+        #the idf weighting, fragmenting into one and two card texts that each
+        #draw the full 1.0 weight of a unique ability (overload: 27 card-lines,
+        #22 texts, biggest on 2), enough to match Vandalblast to Dynacharge at
+        #99% on the keyword alone. still KEYED by exact text, which is what the
+        #search joins on, and lines with no braces are unaffected: Flying = 2517
         print("recounting how common every line is...")
         conn.execute("TRUNCATE line_stats")
         conn.execute(r"""
@@ -574,8 +520,7 @@ def main():
             ) t
         """)
 
-    #remember which bulk file this was so tomorrow's run can skip it, and
-    #which model made the vectors so the next swap rebuilds automatically
+    #what tomorrow's gate reads, and what the next model swap compares against
     conn.execute("""
         INSERT INTO meta (key, value) VALUES ('scryfall_updated_at', %s)
         ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
@@ -586,11 +531,8 @@ def main():
     """, (EMBED_MODEL,))
     conn.commit()
 
-    #uniqueness runs after the commit above on purpose: its derived data, so
-    #if it dies halfway the database is still fully consistent and the NULL
-    #check at the gate finishes the job on the next run. the NULL check here
-    #catches databases from before the /unique feature even on days when no
-    #cards changed
+    #AFTER the commit above on purpose: derived data, so dying halfway leaves the
+    #database consistent and the NULL check at the gate finishes it next run
     if work or stale or conn.execute("SELECT 1 FROM lines WHERE nn_sim IS NULL AND NOT whole LIMIT 1").fetchone():
         recompute_uniqueness(conn)
 

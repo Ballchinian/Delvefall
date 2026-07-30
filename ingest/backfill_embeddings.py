@@ -1,30 +1,25 @@
-#fills a second embedding column so a new model can be tried without losing
-#the old vectors.
+#fills a second embedding column so a new model can be tried without losing the
+#old vectors. swapping EMBED_MODEL and running the daily update instead
+#overwrites every vector in place, a ONE WAY DOOR: the only way back is rerunning
+#the old model over the whole corpus, gpu and private repo and all, and no code
+#tag resurrects vectors that were never stored.
 #
-#the problem it solves: swapping EMBED_MODEL and running the daily update
-#overwrites every vector in place. that is a one way door. the old numbers are
-#gone, and the only way back is rerunning the old model over the whole corpus,
-#which needs the gpu and the private repo all over again. a code tag cannot
-#resurrect vectors that were never stored.
-#
-#so this writes into lines.embedding_v2 instead, leaving lines.embedding
-#exactly as the site is serving it. when the fill is done:
+#this writes lines.embedding_v2 and leaves lines.embedding as the site is serving
+#it. when the fill is done:
 #    EMBED_COLUMN=embedding_v2   on the web service   -> the site reads the new model
 #    unset it                                         -> straight back to the old one
-#both sets of numbers stay in the database the whole time, so the comparison is
-#a variable flip rather than a restore, and it happens on one deployment rather
-#than prod against a staging copy.
+#both sets stay in the database throughout, so the comparison is a variable flip
+#rather than a restore, on one deployment rather than prod against staging.
 #
-#run it from the repo root, with DATABASE_URL and HF_TOKEN set:
+#with DATABASE_URL and HF_TOKEN set:
 #    python -m ingest.backfill_embeddings --model BallchinianMan/whatever-is-new
-#it needs torch and the model, so it belongs wherever the training ran rather
-#than on a laptop. reruns are safe: it only fills rows that are still NULL,
-#so a run that dies halfway picks up where it stopped.
+#needs torch and the model, so it belongs wherever the training ran. reruns are
+#safe, only NULL rows being filled, so a run that dies picks up where it stopped.
 #
-#when the trial ends, whichever way it went:
+#when the trial ends, either way:
 #    ALTER TABLE lines DROP COLUMN embedding_v2;      (drops the index with it)
 #and if the new model won, swap EMBED_MODEL in update.py and let the next daily
-#run rebuild the real column from scratch.
+#run rebuild the real column.
 
 import os
 import sys
@@ -37,9 +32,8 @@ from ingest.update import EMBED_MODEL, EMBED_PROMPT
 
 TARGET = "embedding_v2"
 
-#rows per encode-and-write cycle. the whole corpus is ~60k lines, and doing it
-#in one go means holding every vector in memory and losing the lot if the
-#connection drops an hour in. committing per batch is what makes a rerun cheap
+#rows per encode-and-write cycle, over a ~60k line corpus. committing per batch
+#is what keeps a dropped connection an hour in from costing the lot
 BATCH = 2000
 
 
@@ -66,8 +60,8 @@ def main():
     schema_path = os.path.join(os.path.dirname(__file__), "..", "common", "schema.sql")
     with open(schema_path, encoding="utf-8") as f:
         conn.execute(f.read())
-    #the trial column is made here rather than in schema.sql, so it only exists
-    #while a trial is running and a finished one can drop it cleanly
+    #made here rather than in schema.sql, so the column only exists while a trial
+    #is running and a finished one can drop it cleanly
     conn.execute("ALTER TABLE lines ADD COLUMN IF NOT EXISTS " + TARGET + " vector(768)")
     conn.commit()
 
@@ -81,8 +75,8 @@ def main():
         if model_name == EMBED_MODEL:
             print("WARNING: that is the model already in lines.embedding, so this fills")
             print("the second column with a copy of the first. pass --model to use a new one.")
-        #imported down here so a finished run costs nothing: the torch import
-        #alone takes longer than everything else in this script
+        #down here so a finished run costs nothing, the torch import alone taking
+        #longer than everything else in this script
         from sentence_transformers import SentenceTransformer
         model = SentenceTransformer(model_name)
 
@@ -106,25 +100,23 @@ def main():
     left = conn.execute("SELECT count(*) FROM lines WHERE " + TARGET + " IS NULL").fetchone()[0]
     print(str(total - left) + "/" + str(total) + " rows carry " + TARGET)
 
-    #the index is built at the end rather than existing during the fill: an
-    #hnsw graph that has to absorb 60k updates one batch at a time is both slow
-    #to write and worse connected than one built over the finished column
+    #at the end rather than during the fill: an hnsw graph absorbing 60k updates
+    #a batch at a time is both slow to write and worse connected than one built
+    #over the finished column
     if args.index:
         if left:
             print("not building the index, " + str(left) + " rows are still empty")
         else:
-            #the build is serial on purpose. a parallel maintenance worker
-            #allocates a shared memory segment, and railway's container cannot
-            #grow /dev/shm to the ~61mb one asks for: the build dies with
-            #DiskFull "could not resize shared memory segment", which reads like
-            #the disk is full when there is plenty of room (847mb database).
-            #zero workers means no segment, no failure, and a build that is
-            #slower but finishes.
+            #SERIAL on purpose. a parallel maintenance worker allocates a shared
+            #memory segment and railway's container cannot grow /dev/shm to the
+            #~61mb one asks for, so the build dies with DiskFull "could not
+            #resize shared memory segment" - which reads like a full disk when
+            #there is plenty of room (847mb database). zero workers means no
+            #segment and a slower build that finishes.
             #
-            #maintenance_work_mem is raised for this session too where the plan
-            #allows it. 64mb cannot hold a 60k by 768 graph, so pgvector spills
-            #to a slower on-disk path and warns about it. neither setting
-            #outlives the connection
+            #64mb of maintenance_work_mem cannot hold a 60k by 768 graph, so
+            #pgvector spills to a slower on-disk path. neither setting outlives
+            #the connection
             print("building the hnsw index, this takes a few minutes...")
             try:
                 conn.execute("SET max_parallel_maintenance_workers = 0")
@@ -140,9 +132,8 @@ def main():
                 conn.commit()
                 print("done")
             except Exception as e:
-                #the vectors are the expensive part and they are already
-                #committed, so say so loudly rather than let a failed index
-                #read as a failed run
+                #the vectors are the expensive part and are already committed, so
+                #say so loudly rather than let a failed index read as a failed run
                 conn.rollback()
                 print("\nINDEX BUILD FAILED: " + str(e)[:160])
                 print("the vectors are fine and committed, this is only the index.")

@@ -1,22 +1,15 @@
-#pulls edhrec's salt scores into cards.salt, by way of mtgjson's AtomicCards
-#file. edhrec runs an annual salt survey (players vote on how much a card
-#annoys them) and mtgjson carries the result as edhrecSaltiness. scryfall does
-#not have this number at all, which is why it comes from a second source.
-#run it from the repo root like the rest of the ingest:
+#edhrec's annual salt survey into cards.salt, by way of mtgjson's AtomicCards
+#(edhrecSaltiness). scryfall does not carry this number at all, hence a second
+#source.
 #    python -m ingest.salt
-#with DATABASE_URL set. reruns are free: the meta gate skips the work unless
+#with DATABASE_URL set. reruns are free, the meta gate skipping the work unless
 #mtgjson published a newer version.
 #
-#it is the only opinion in the database. every other number here is derived
-#from what a card does, and this one is what players think of facing it, which
-#no amount of reading rules text will ever produce. the votes are stored as
-#cast: protest votes are still votes, and dropping the ones that look wrong
-#would mean the column no longer measures what it claims to.
+#the votes are stored AS CAST, protest votes included: dropping the ones that
+#look wrong would mean the column stops measuring what it claims to.
 #
-#the file is 158mb of json for one float per card, so this takes the .xz
-#(25mb) and streams it through ijson rather than parsing the whole thing into
-#memory. the numbers land on ~31k of our cards, joined on oracle id with no
-#name matching, exactly like ingest/decks.py
+#158mb of json for one float per card, so this takes the .xz (25mb) and streams
+#it through ijson. joined on oracle id with no name matching, like decks.py
 
 import os
 import sys
@@ -33,9 +26,8 @@ META_URL = "https://mtgjson.com/api/v5/Meta.json"
 ATOMIC_URL = "https://mtgjson.com/api/v5/AtomicCards.json.xz"
 ATOMIC_FILE = "AtomicCards.json.xz"
 
-#its own meta key, separate from the one ingest/decks.py writes. sharing
-#'mtgjson_version' would mean whichever script ran second saw the version
-#already recorded and skipped itself forever
+#its own key, separate from decks.py's. sharing 'mtgjson_version' would mean
+#whichever ran second saw it already recorded and skipped itself forever
 META_KEY = "mtgjson_salt_version"
 
 
@@ -56,11 +48,9 @@ def download(url, path):
 
 
 def read_salt(path):
-    #oracle_id -> salt, streamed a card at a time. AtomicCards is keyed by
-    #card NAME with a list of faces under each, so kvitems walks the names and
-    #the faces carry both the score and the oracle id we actually join on.
-    #both faces of a two-faced card carry the same score (edhrec rates whole
-    #cards), so the first face that has one wins
+    #AtomicCards is keyed by card NAME with a list of faces under each, so
+    #kvitems walks the names and the faces carry the oracle id to join on. both
+    #faces share a score (edhrec rates whole cards), so the first one wins
     out = {}
     with lzma.open(path, "rb") as f:
         for name, faces in ijson.kvitems(f, "data"):
@@ -86,14 +76,12 @@ def main():
         conn.execute(f.read())
     conn.commit()
 
-    #through the retrier like every other version check in the ingest. a single
-    #502 from mtgjson would otherwise fail the step that decides whether there
-    #is any work to do at all
+    #through the retrier: a single 502 would otherwise fail the step that decides
+    #whether there is any work to do at all
     print("asking mtgjson for its version...")
     version = get_with_retries(META_URL).json()["data"]["version"]
 
-    #same gate as the rest of the ingest. an empty salt column means a first
-    #run (or one that died halfway), do the work anyway
+    #an empty salt column means a first run, or one that died halfway
     row = conn.execute("SELECT value FROM meta WHERE key = %s", (META_KEY,)).fetchone()
     if (row and row[0] == version
             and conn.execute("SELECT 1 FROM cards WHERE salt IS NOT NULL LIMIT 1").fetchone()):
@@ -106,9 +94,9 @@ def main():
     salt = read_salt(ATOMIC_FILE)
     print("mtgjson has salt for " + str(len(salt)) + " cards")
 
-    #COPY into a temp table and update from there, one round trip instead of
-    #31k. IS DISTINCT FROM means unchanged rows are not rewritten, and on a
-    #normal day (the survey runs yearly) that is every one of them
+    #a temp table and one update, rather than 31k round trips. IS DISTINCT FROM
+    #keeps unchanged rows from being rewritten, which with a yearly survey is
+    #every one of them
     with conn.cursor() as cur:
         cur.execute("CREATE TEMP TABLE salt_tmp (oracle_id uuid PRIMARY KEY, salt real) ON COMMIT DROP")
         with cur.copy("COPY salt_tmp (oracle_id, salt) FROM STDIN") as copy:
@@ -129,8 +117,7 @@ def main():
     print("updated " + str(touched) + " cards, " + str(have) + "/" + str(total) + " now carry a salt score")
     conn.close()
 
-    #the download is a quarter of a gigabyte uncompressed and nothing else
-    #needs it, so it does not get left behind on the runner
+    #a quarter of a gigabyte uncompressed, not left behind on the runner
     try:
         os.remove(ATOMIC_FILE)
     except OSError:

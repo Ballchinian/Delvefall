@@ -1,26 +1,18 @@
-#works out which tags each line of a card is about, so the search page can
-#narrow the concept axis to the ability you picked instead of always scoring
-#the whole card's tag vector.
+#which tags each LINE is about, so the search page can narrow the concept axis to
+#the ability you picked. tagger tags cards, not lines, so a card tagged
+#donate-token and evasion gives no way to know the first belongs to its token
+#mode and the last to its "Flying, double strike" line.
 #
-#the problem this solves: tagger tags cards, not lines. a card tagged
-#donate-token, gives-pp-counters-to-all and evasion offers no way to know that
-#the first belongs to its token mode and the last to its "Flying, double strike"
-#line, so without this the concept axis searches all of them at once no matter
-#which line you pick.
+#the inference is corpus-shaped rather than semantic: for a line, pull its
+#nearest neighbour lines from other cards, then ask of each of its card's tags
+#what share of those neighbours carry it against the share the whole game does.
+#that ratio is the LIFT. no model and no understanding needed, which is the point
+#- "Overload {6}{U}" means nothing by itself, but its neighbours are other
+#overload cards tagged sweeper-one-sided, so the tag still lands right.
 #
-#the inference is corpus-shaped rather than semantic. for a line, pull its
-#nearest neighbour lines from every other card, then ask of each of its card's
-#tags: what share of those neighbour cards carry this tag, against the share
-#the whole game carries it? that ratio is the lift, and a high one means this
-#line is why the card got the tag. it needs no model and no understanding:
-#"Overload {6}{U}" carries no meaning at all, but its neighbours are other
-#overload cards, and those are tagged sweeper-one-sided, so the tag lands on
-#the right line anyway.
-#
-#run it from the repo root, after the card and tag ingests:
+#from the repo root, after the card and tag ingests:
 #    python -m ingest.attribute
-#with DATABASE_URL set. needs numpy and psycopg, no torch and no model, since
-#every embedding it reads is already in the database.
+#with DATABASE_URL set. no torch, every embedding it reads is already stored
 
 import os
 import sys
@@ -29,41 +21,34 @@ import numpy as np
 import psycopg
 from pgvector.psycopg import register_vector
 
-#how many neighbour lines vote. 200 is wide enough that a common line still
-#gathers a varied neighbourhood and narrow enough that a rare one doesn't
-#reach past its real family into noise
+#how many neighbour lines vote. wide enough that a common line still gathers a
+#varied neighbourhood, narrow enough that a rare one does not reach past its real
+#family into noise
 NEIGHBOURS = 200
 
-#a tag has to appear in a line's neighbourhood at least this many times more
-#often than in the game at large before that line is credited with it. 1.5 is
-#low because the ratio is what decides which line owns a tag, and the floor
-#only exists to reject lines whose neighbourhood is indifferent to it.
-#evergreen tags sit near the bottom of this range ("Flying, double strike"
-#lifts evasion 2.4x, which is weak but still the right line for it)
+#the minimum lift before a line is credited with a tag. low because the RATIO is
+#what decides which line owns a tag and this only rejects neighbourhoods that are
+#indifferent to it. evergreen tags sit near the bottom ("Flying, double strike"
+#lifts evasion 2.4x, weak but still the right line)
 FLOOR = 1.5
 
-#below this a line has no claim on a tag at all. 1.0 is the neutral point of
-#a lift ratio (the neighbourhood carries the tag exactly as often as the game
-#does), so anything at or under it is evidence of nothing and the tag is left
-#off every line rather than parked on the least-bad one
+#below this a line has no claim at all. 1.0 is the neutral point of a lift ratio,
+#so anything near it is evidence of nothing and the tag goes on NO line rather
+#than the least-bad one
 NOISE = 1.15
 
-#once a tag's best line is known, any other line within this fraction of that
-#best also gets it. modal cards are why: each mode line lifts "modal" hard,
-#and crediting only the single strongest would make picking any other mode
-#silently drop the tag.
+#once a tag's best line is known, other lines within this fraction of it share
+#the credit. modal cards are why: each mode lifts "modal" hard, and crediting
+#only the strongest would make picking any other mode drop the tag.
 #
-#tuned for precision rather than recall: a tag set aside by mistake can be
-#clicked back on (the page's yestags), so a miss costs one click, while a
-#wrong tag quietly drags the whole search sideways. measured against a
-#hand-labelled Shadrix Silverquill, 0.4 gives 88% precision / 82% recall and
-#0.6 gives 93% / 76%. one card is a thin measurement, so the third digit here
-#carries no weight
+#tuned for PRECISION over recall, a set-aside tag costing one click on the page's
+#yestags while a wrong one drags the whole search sideways. against a
+#hand-labelled Shadrix Silverquill, 0.4 gives 88% precision / 82% recall and 0.6
+#gives 93% / 76%. one card is thin, so the third digit here means nothing
 RATIO = 0.6
 
-#which column the vectors come out of, so a trial model's attribution can be
-#built and measured without disturbing the live one. kept identical to the copy
-#in web/app.py, and tools/check_sync.py fails the push if the two drift
+#so a trial model's attribution can be built without disturbing the live one.
+#tools/check_sync.py fails the push if this drifts from web/mirror.py
 EMBED_COLUMNS = ("embedding", "embedding_v2")
 
 
@@ -92,9 +77,8 @@ def main():
         print("no cards yet, nothing to attribute")
         return
 
-    #every tag a card carries, rolled up, is what the neighbours vote with.
-    #only the typed ones get attributed though: the inherited ancestors follow
-    #from the tree at query time, the same way they do for a whole card
+    #neighbours vote with a card's whole rolled-up set, but only the TYPED tags
+    #get attributed: the inherited ancestors follow from the tree at query time
     print("reading tags...")
     all_tags = {}
     typed_tags = {}
@@ -133,11 +117,9 @@ def main():
     for i, oid in enumerate(owners):
         rows_of_card.setdefault(oid, []).append(i)
 
-    #same blocked multiply as the uniqueness pass: the embeddings are
-    #normalized so cosine is a plain dot product, and blocking keeps the
-    #similarity matrix around 100mb instead of the 13gb the whole thing would
-    #need. argpartition beats a sort here, nothing cares about the order
-    #within a neighbourhood, only who is in it
+    #the same blocked multiply as the uniqueness pass, keeping the similarity
+    #matrix near 100mb instead of 13gb. argpartition rather than a sort, nothing
+    #caring about the order within a neighbourhood, only who is in it
     print("finding neighbourhoods...")
     k = min(NEIGHBOURS, len(ids) - 1)
     neighbours = np.zeros((len(ids), k), dtype=np.int32)
@@ -155,26 +137,19 @@ def main():
     lines_on_card = {oid: len(idxs) for oid, idxs in rows_of_card.items()}
 
     def assign(lift_of):
-        #per card and per tag, which of its lines earned it. the best line
-        #sets the bar and everything within RATIO of it shares the credit.
-        #
-        #a tag no line shows any evidence for lands on no line at all. tags like
-        #invitational-card describe the card rather than an ability, so picking
-        #an ability should drop them: Omnath's unique-mana-cost has no business
-        #turning up under "when this card enters, draw a card". whole-card
-        #searches never read this table, so nothing is lost there. parking such
-        #a tag on every line instead is the single largest source of false
-        #positives on the hand-labelled cards
+        #a tag no line shows evidence for lands on NO line. tags like
+        #invitational-card describe the card rather than an ability, and Omnath's
+        #unique-mana-cost has no business turning up under "when this card
+        #enters, draw a card". parking those on every line instead was the single
+        #largest source of false positives on the hand-labelled cards
         out = {}
         for oid, line_idxs in rows_of_card.items():
             for tag in typed_tags.get(oid, ()):
                 lifts = [(i, lift_of.get((i, tag), 0.0)) for i in line_idxs]
                 best = max(l for _, l in lifts)
-                #a lift of 1.0 means the neighbourhood carries the tag at
-                #exactly the rate the whole game does, which is no evidence
-                #whatsoever. a bar of "above zero" is not enough: Omnath's
-                #unique-mana-cost sits at 1.0x on "when this card enters, draw
-                #a card" and would clear it
+                #a bar of "above zero" is not enough: Omnath's unique-mana-cost
+                #sits at exactly 1.0x on "when this card enters, draw a card",
+                #which is no evidence at all, and would clear it
                 if best < NOISE:
                     continue
                 #near-best only when the signal is weak, since RATIO of a
@@ -185,12 +160,11 @@ def main():
                         out[(i, tag)] = l
         return out
 
-    #pass one: neighbours vote with their whole card's tags, because card-level
-    #tags are all there is to start from. that is also its flaw, since a
-    #neighbour card with five lines donates all five lines' worth of tags to
-    #whichever one line matched, so each neighbour's vote is damped by how many
-    #lines it has. a one-line card knows exactly which line earned its tags and
-    #speaks at full volume
+    #pass one: neighbours vote with their whole CARD's tags, card-level tags
+    #being all there is to start from. that is also its flaw, a five-line
+    #neighbour donating all five lines' worth of tags to whichever line matched,
+    #so each vote is damped by the line count. a one-line card speaks at full
+    #volume, knowing exactly which line earned its tags
     print("scoring, pass one (cards vote)...")
     lift_of = {}
     for i in range(len(ids)):
@@ -213,11 +187,10 @@ def main():
             lift_of[(i, tag)] = (hit / total_vote) / base_rate.get(tag, 1.0)
     first = assign(lift_of)
 
-    #pass two: now that every line has a provisional guess, neighbours vote
-    #with their own line's tags instead of their card's, which is the thing
-    #pass one could not do. measured against a hand-labelled card this lifts
-    #precision from 60% to 88% at the same neighbourhood, because a line that
-    #merely sits on a card with an unrelated ability stops donating it
+    #pass two: with a provisional guess on every line, neighbours can now vote
+    #with their own LINE's tags. against a hand-labelled card this lifts
+    #precision from 60% to 88% at the same neighbourhood, a line merely sitting
+    #on a card with an unrelated ability stopping donating it
     print("scoring, pass two (lines vote)...")
     line_tags_now = {}
     for (i, tag) in first:
@@ -237,11 +210,10 @@ def main():
                     hits += 1
             lift2[(i, tag)] = (hits / len(nb)) / base_rate.get(tag, 1.0)
 
-    #pass two sharpens, it does not get to erase. a rare tag can be real on one
-    #line and still have no neighbour line carrying it yet (Omnath's
-    #sweeper-one-sided), and pass two reads zero for that. so pass two's answer
-    #wins wherever it found anything at all for a tag, and pass one's stands
-    #where it found nothing
+    #pass two SHARPENS, it does not erase. a rare tag can be real on one line and
+    #still have no neighbour line carrying it yet (Omnath's sweeper-one-sided),
+    #where pass two reads zero. so it wins wherever it found anything for a tag,
+    #and pass one stands where it found nothing
     print("assigning...")
     second = assign(lift2)
     seen_in_second = {(owners[i], tag) for i, tag in second}

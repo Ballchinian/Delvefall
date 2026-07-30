@@ -1,17 +1,13 @@
-#pulls scryfall tagger's community tags (the official oracle_tags bulk file,
-#one download, updated daily) into card_tags + tags for the concept axis.
-#taggings get rolled up the tag tree before anything is counted, so a card
-#tagged gives-nimble is gives-evasion too and the counts, the idf and the
-#norms all agree on that.
-#run it from the repo root like the updater:
+#scryfall tagger's community tags into card_tags + tags, for the concept axis.
+#taggings are rolled up the tag tree BEFORE anything is counted, so a card tagged
+#gives-nimble is gives-evasion too and the counts, idf and norms all agree.
 #    python -m ingest.tags
-#with DATABASE_URL set. reruns are free: the meta gate skips the work unless
-#scryfall published a newer bulk file.
+#with DATABASE_URL set. reruns are free, the meta gate skipping the work unless
+#scryfall published a newer file.
 #
-#everything gets ingested except the trivia subtrees below, so curation is a
-#blocklist rather than an allowlist. rare tags are the high-precision signal
-#(two cards sharing "wheel" says more than two sharing "removal") and idf
-#weighting already mutes the mega-broad ones
+#curation is a BLOCKLIST, not an allowlist: rare tags are the high-precision
+#signal (sharing "wheel" says more than sharing "removal") and idf weighting
+#already mutes the mega-broad ones
 
 import os
 import sys
@@ -24,10 +20,9 @@ from ingest.update import BULK_URL, get_with_retries, download_bulk
 
 TAGS_FILE = "oracle-tags.jsonl.gz"
 
-#subtree roots whose tags say nothing about what a card does: naming schemes,
-#set-design cycles (unrelated to the cycling mechanic, which has no bare tag
-#of its own, taggers only tag interactions like synergy-cycling), wordplay,
-#vanilla-ness, templating syntax, and type-line trivia
+#subtree roots that say nothing about what a card does. "cycle" is set-design
+#cycles, NOT the cycling mechanic, which has no bare tag of its own (taggers only
+#tag interactions like synergy-cycling)
 BLOCKED_ROOTS = [
     "card-names",
     "cycle",
@@ -39,13 +34,12 @@ BLOCKED_ROOTS = [
     "intervening-if-clause",
 ]
 
-#what an inherited tag is worth next to one a human actually typed. measured
-#against the calibration anchors: undamped rollup left only .078 between a
-#real concept match and a generic near-miss (it was .199 before rollup) and
-#pushed 1 in 1000 random pairs above the near-substitute anchor. 0.5 keeps
-#the sibling links it was all for (delney/tetsuko .000 -> .158) while the
-#random-pair tail lands at .695 against .677 for no rollup at all.
-#changing this means refitting common/concept.py's CALIBRATION
+#what an inherited tag is worth next to a typed one. undamped rollup left only
+#.078 between a real concept match and a generic near-miss (.199 before rollup)
+#and pushed 1 in 1000 random pairs above the near-substitute anchor. 0.5 keeps
+#the sibling links it was all for (delney/tetsuko .000 -> .158) with the random
+#pair tail at .695 against .677 for no rollup at all.
+#CHANGING THIS means refitting common/concept.py's CALIBRATION
 INHERITED_WEIGHT = 0.5
 
 
@@ -68,12 +62,10 @@ def main():
             bulk = item
     updated_at = bulk["updated_at"]
 
-    #same gate as the card updater: seen this exact file already, stop. an
-    #empty card_tags table means a first run (or a died-halfway one), do the
-    #work anyway. a weight of 0 means the same thing: schema.sql just added
-    #the column and nothing has filled it, and skipping here would leave the
-    #concept axis scoring every pair at zero until scryfall happens to
-    #publish a new tag file
+    #the same gate as the card updater, plus the checks that catch a run which
+    #died halfway. a weight of 0 counts as unfilled: schema.sql having just added
+    #the column, skipping here would leave the concept axis scoring every pair at
+    #zero until scryfall happened to publish a new tag file
     row = conn.execute("SELECT value FROM meta WHERE key = 'tagger_updated_at'").fetchone()
     if (row and row[0] == updated_at
             and conn.execute("SELECT 1 FROM card_tags LIMIT 1").fetchone()
@@ -84,10 +76,8 @@ def main():
         conn.close()
         return
 
-    #to disk and back rather than straight into memory, because the file arrives
-    #gzipped and read_bulk is what knows how to open one. the whole tag list is
-    #held either way: the tree walk below needs every tag before it can decide
-    #which subtrees to drop
+    #the whole list is held in memory either way, the tree walk below needing
+    #every tag before it can decide which subtrees to drop
     download_bulk(bulk, TAGS_FILE)
     all_tags = list(read_bulk(TAGS_FILE))
     os.remove(TAGS_FILE)
@@ -106,8 +96,7 @@ def main():
     kept = [t for t in all_tags if t["id"] not in blocked_ids]
     print("blocked " + str(len(blocked_ids)) + " trivia tags, kept " + str(len(kept)))
 
-    #tagger knows cards this database filters out (un-sets, digital only), so
-    #only links to cards we actually have make it in
+    #tagger knows cards this database filters out (un-sets, digital only)
     ours = set()
     for (oid,) in conn.execute("SELECT oracle_id FROM cards"):
         ours.add(str(oid))
@@ -124,9 +113,9 @@ def main():
     for t in kept:
         parent_of[t["slug"]] = [by_id[p]["slug"] for p in t.get("parent_ids", []) if p in kept_ids]
 
-    #a tag plus everything above it. the cache doubles as the cycle guard: the
-    #placeholder set is in place before the walk climbs, so a tag that reaches
-    #itself finds a partial answer instead of recursing forever
+    #the cache doubles as the CYCLE GUARD: the placeholder set is in place before
+    #the walk climbs, so a tag reaching itself finds a partial answer rather than
+    #recursing forever
     anc_cache = {}
 
     def ancestors(slug):
@@ -138,19 +127,18 @@ def main():
             out |= ancestors(p)
         return out
 
-    #the rolled up set is what the whole axis scores on. tagger expects tools
-    #to climb: gives-nimble and gives-unblockable are both gives-evasion, and
-    #matching tag names exactly scores those two zero against each other
+    #tagger expects tools to climb: gives-nimble and gives-unblockable are both
+    #gives-evasion, and exact name matching scores those two zero against each
+    #other
     rolled = set()
     for oid, slug in links:
         for a in ancestors(slug):
             rolled.add((oid, a))
     print("rolled " + str(len(links)) + " taggings into " + str(len(rolled)) + " card-tag rows")
 
-    #counts come from the rolled set on purpose. idf has to mean "how many
-    #cards have this concept", and dozens of tagger's parent tags carry no
-    #direct taggings at all (recursion, mill): counted raw they land at the
-    #highest idf in the table and drown out every real signal
+    #counted off the ROLLED set, so idf means "how many cards have this concept".
+    #dozens of tagger's parent tags carry no direct taggings at all (recursion,
+    #mill) and counted raw they take the highest idf in the table
     count_of = {}
     for oid, slug in rolled:
         count_of[slug] = count_of.get(slug, 0) + 1
@@ -168,9 +156,7 @@ def main():
         with cur.copy("COPY tags (tag, parents, card_count, description) FROM STDIN") as copy:
             for r in tag_rows:
                 copy.write_row(r)
-        #the derived weights the concept scorer reads: idf per tag, then each
-        #card's vector length from those. baked here so every query agrees on
-        #them and none has to recompute 31k norms
+        #baked here so every query agrees on them and none recomputes 31k norms
         cur.execute("UPDATE tags SET idf = ln((SELECT count(*) FROM cards)::float / greatest(card_count, 1))")
         cur.execute("UPDATE card_tags ct SET weight = t.idf * CASE WHEN ct.inherited THEN %s ELSE 1 END "
                     "FROM tags t WHERE t.tag = ct.tag", (INHERITED_WEIGHT,))
@@ -186,10 +172,8 @@ def main():
         """, (updated_at,))
     conn.commit()
 
-    #concept uniqueness, the tag-space counterpart of lines.nn_sim: 1 minus
-    #the best cosine any other card's idf-weighted tag vector manages. same
-    #all-pairs-in-blocks trick as the ingest's uniqueness pass. untagged
-    #cards stay NULL, unknown is not the same as unique
+    #the tag-space counterpart of lines.nn_sim, same all-pairs-in-blocks trick as
+    #the uniqueness pass. untagged cards stay NULL: unknown is not unique
     print("computing concept uniqueness...")
     import math
     import numpy as np

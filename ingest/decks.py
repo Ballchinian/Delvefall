@@ -1,18 +1,14 @@
-#pulls the preconstructed commander decks from mtgjson into decks + deck_cards.
-#they are the calibration set for deck originality: a single deck's score is
-#not a sentence anyone can read, "more original than every precon but two" is,
-#and that comparison needs a fair population to sit against. precons are it,
-#every one of them is 100 singleton cards built to the same brief.
-#run it from the repo root like the updater:
+#mtgjson's precons into decks + deck_cards, the calibration set for deck
+#originality: a score is not a readable sentence, "more original than every
+#precon but two" is, and that needs a fair population to sit against. precons are
+#it, every one being 100 singleton cards built to the same brief.
 #    python -m ingest.decks
-#with DATABASE_URL set. reruns are free: the meta gate skips the work unless
+#with DATABASE_URL set. reruns are free, the meta gate skipping the work unless
 #mtgjson published a newer version.
 #
-#no scryfall involvement and no name matching: mtgjson carries
-#identifiers.scryfallOracleId on every card in every deck, which is the same
-#key cards is built on, so the join is exact. measured on the 2026-07-22 file,
-#6254 of 6257 distinct precon cards land in our table and 6248 of those already
-#carry a uniqueness score
+#NO NAME MATCHING: mtgjson carries identifiers.scryfallOracleId on every card, so
+#the join is exact. on the 2026-07-22 file, 6254 of 6257 distinct precon cards
+#land in our table and 6248 of those already carry a uniqueness score
 
 import os
 import sys
@@ -27,31 +23,26 @@ from ingest.update import get_with_retries
 DECKLIST_URL = "https://mtgjson.com/api/v5/DeckList.json"
 DECK_URL = "https://mtgjson.com/api/v5/decks/%s.json"
 
-#which of mtgjson's per-deck fields this script copies across. nothing reads
-#the string, it is a marker: change it whenever this starts filling a column
-#it did not fill before, and the gate in main() forces exactly one rebuild to
+#nothing reads the string, it is a MARKER: change it whenever this starts filling
+#a column it did not before, and the gate in main() forces exactly one rebuild to
 #go and get it
 DECK_FIELDS = "source"
 
-#the only deck type worth having. mtgjson publishes 2990 decks across theme
-#decks, jumpstart, secret lair drops and mtgo redemption piles, none of which
-#are 100 card singleton commander decks and so none of which are comparable to
-#a pasted list. that comparability is the whole point of the table
+#mtgjson publishes 2990 decks across theme decks, jumpstart, secret lair drops
+#and mtgo redemption piles. none are 100 card singleton commander decks, so none
+#are comparable to a pasted list, which is the whole point of the table
 DECK_TYPE = "Commander Deck"
 
-#mtgjson serves one file per deck and we want about 190 of them, so this is
-#the one place in the pipeline that makes a lot of small requests. a shared
-#session keeps it to one connection and the pause keeps it neighbourly
+#one file per deck and about 190 of them, the one place in the pipeline making a
+#lot of small requests
 REQUEST_PAUSE = 0.1
 
 
 def fetch_decks(entries):
-    #one file per deck, keyed by the mtgjson fileName. a deck that fails to
-    #download is skipped rather than fatal: 189 of 190 still calibrates fine.
-    #
-    #the misses come back with the decks because main() has to know. it holds
-    #the version marker back when the list is short, and a marker written over
-    #an incomplete run leaves the board a deck down until mtgjson publishes again
+    #a deck that fails to download is skipped rather than fatal, 189 of 190
+    #calibrating fine. the misses come back WITH the decks because main() holds
+    #the version marker back when the list is short: a marker written over an
+    #incomplete run leaves the board a deck down until mtgjson publishes again
     session = requests.Session()
     session.headers.update(HEADERS)
     out = {}
@@ -79,11 +70,9 @@ def fetch_decks(entries):
 
 
 def deck_cards(deck):
-    #the cards in one deck as (oracle_id, count, is_commander). counts are kept
-    #because a deck is not 100 distinct cards, it is 63 spells and 37 lands, and
-    #anything measuring the mana base later will want to know. the originality
-    #query does not use them: nine Islands say nothing about a deck's ideas that
-    #one Island does not, so it reads distinct rows
+    #counts are kept because a deck is not 100 distinct cards, it is 63 spells
+    #and 37 lands. the ORIGINALITY query ignores them and reads distinct rows,
+    #nine Islands saying nothing about a deck's ideas that one Island does not
     leaders = {c.get("identifiers", {}).get("scryfallOracleId")
                for c in deck.get("commander", [])}
     seen = {}
@@ -91,9 +80,8 @@ def deck_cards(deck):
         oid = card.get("identifiers", {}).get("scryfallOracleId")
         if not oid:
             continue
-        #the same card can appear in both boards, and a primary key on
-        #(deck, oracle_id) means the copies have to be summed here rather
-        #than inserted twice
+        #the same card can appear in both boards, and the primary key on
+        #(deck, oracle_id) means the copies are summed here, not inserted twice
         if oid in seen:
             seen[oid]["count"] += card.get("count", 1)
         else:
@@ -102,13 +90,12 @@ def deck_cards(deck):
 
 
 def drop_reprint_editions(decks):
-    #collector's edition decks are the same 100 cards in a different treatment,
-    #and mtgjson lists them separately: 16 of the 190 on the 2026-07-22 file.
-    #left in they would count twice in every average and hand the leaderboard
-    #duplicate rows. two decks holding the identical set of cards are the same
-    #deck for our purposes, so the card set is the identity. the shorter name
-    #wins because "Tyranid Swarm" is the deck and "Tyranid Swarm Collector's
-    #Edition" is a product listing
+    #collector's editions are the same 100 cards in a different treatment, listed
+    #separately: 16 of the 190 on the 2026-07-22 file. left in they count twice
+    #in every average and hand the leaderboard duplicate rows.
+    #
+    #the CARD SET is the identity, and the shorter name wins because "Tyranid
+    #Swarm" is the deck and "Tyranid Swarm Collector's Edition" is a product
     keep = {}
     for slug in sorted(decks, key=lambda s: (len(decks[s]["name"]), s)):
         fingerprint = tuple(sorted(oid for oid, _, _ in decks[slug]["cards"]))
@@ -134,17 +121,15 @@ def main():
     listing = get_with_retries(DECKLIST_URL).json()
     version = listing["meta"]["version"]
 
-    #same gate as the tag ingest: seen this exact version already, stop. an
-    #empty deck_cards means a first run (or one that died halfway), do the
-    #work anyway.
+    #the same gate as the tag ingest, and an empty deck_cards means a first run
+    #or one that died halfway.
     #
-    #DECK_FIELDS is the third condition, and it is what forces the one rerun a
-    #new column needs: schema.sql adds the column empty, mtgjson's version has
-    #not moved, and without this it stays empty until mtgjson happens to
-    #publish. it asks the marker rather than the data. "is any deck's source
-    #empty?" reads like the same question, but the day mtgjson ships one
-    #Commander deck with no source field the answer is yes forever and this
-    #redownloads all 190 files every night for nothing
+    #DECK_FIELDS is what forces the single rerun a new column needs: schema.sql
+    #adds it empty, mtgjson's version has not moved, and without this it stays
+    #empty until mtgjson happens to publish. it asks the MARKER, not the data.
+    #"is any deck's source empty?" reads like the same question, but the day
+    #mtgjson ships one Commander deck with no source the answer is yes forever
+    #and this redownloads all 190 files nightly for nothing
     row = conn.execute("SELECT value FROM meta WHERE key = 'mtgjson_version'").fetchone()
     fields = conn.execute("SELECT value FROM meta WHERE key = 'mtgjson_deck_fields'").fetchone()
     if (row and row[0] == version
@@ -172,15 +157,13 @@ def main():
     decks = drop_reprint_editions(decks)
     print("got " + str(before) + " decks, " + str(len(decks)) + " after dropping reprint editions")
 
-    #a card mtgjson knows about and we do not cannot be scored, and a foreign
-    #key would refuse the row anyway. dropping it quietly is right: it is a
-    #handful of cards (3 of 6257 measured) and they are cards our own ingest
-    #chose not to keep, not gaps in mtgjson
+    #a card we do not have cannot be scored and the foreign key would refuse the
+    #row anyway. dropping it quietly is right: 3 of 6257 measured, and they are
+    #cards our own ingest chose not to keep rather than gaps in mtgjson
     known = {str(r[0]) for r in conn.execute("SELECT oracle_id FROM cards")}
 
     with conn.cursor() as cur:
-        #rebuilt from scratch every time the version moves, same philosophy as
-        #line_stats and the tag tables. the cascade clears deck_cards with it
+        #the cascade clears deck_cards with it
         cur.execute("TRUNCATE decks CASCADE")
         missing = 0
         card_rows = []
@@ -193,31 +176,25 @@ def main():
                     missing += 1
                     continue
                 card_rows.append((slug, oid, count, commander))
-        #the deck rows go one at a time above because there are 166 of them and
-        #each one has to land before its cards can point at it. the cards are
-        #16k and they all go together, which is the difference between one
-        #round trip and sixteen thousand
+        #the deck rows go one at a time above, each having to land before its
+        #cards can point at it. the cards are 16k and go together
         cur.executemany("""INSERT INTO deck_cards (deck_slug, oracle_id, count, is_commander)
                            VALUES (%s, %s, %s, %s)""", card_rows)
         rows = len(card_rows)
-        #the version marker only goes in when every deck landed, because that is
-        #the whole claim it makes: "this run processed mtgjson <version>". a run
-        #that lost a deck did not.
-        #
-        #the cost of leaving it out is that tomorrow redownloads all 190 files,
-        #about twenty seconds of small requests next to the two gigabytes this
-        #same workflow already pulls. if a deck file is broken at mtgjson's end
-        #rather than in transit that repeats nightly, which is the right way
-        #round: the log names the deck every time instead of the board quietly
-        #being wrong
+        #the version marker only goes in when EVERY deck landed, that being the
+        #whole claim it makes. the cost of leaving it out is tomorrow
+        #redownloading all 190 files, twenty seconds of small requests next to
+        #the two gigabytes this workflow already pulls. a file broken at
+        #mtgjson's end repeats that nightly, which is the right way round: the
+        #log names the deck every time instead of the board quietly being wrong
         if missed:
             print("NOT recording the version: " + str(len(missed))
                   + " deck(s) did not download, so tomorrow will try them again")
         else:
             cur.execute("""INSERT INTO meta (key, value) VALUES ('mtgjson_version', %s)
                            ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value""", (version,))
-        #written in the same transaction as the rows it describes, so a run
-        #that dies halfway leaves neither and the next one does the work again
+        #same transaction as the rows it describes, so a run that dies halfway
+        #leaves neither and the next one does the work again
         cur.execute("""INSERT INTO meta (key, value) VALUES ('mtgjson_deck_fields', %s)
                        ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value""", (DECK_FIELDS,))
     conn.commit()
