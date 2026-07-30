@@ -95,21 +95,36 @@ REMINDER_KEYWORDS = {
 #one keyword name plus any mana symbols, eg "Cycling {2}" or "Flying"
 _BARE_KEYWORD = re.compile(r"[A-Za-z][A-Za-z'’ -]*(?:\s*\{[^}]*\})*")
 
+#a keyword whose cost is spelled out after a dash instead of printed as mana
+#symbols: "Cycling—Pay 2 life", "Morph—Discard a card", "Flashback—{1}{U},
+#Exile X blue cards from your graveyard". what follows the dash is the price of
+#using the keyword, not what the keyword does, so the rule is still only in the
+#parens. 56 lines across 16 keywords read this way
+_DASH_COST = re.compile(r"[A-Za-z][A-Za-z'’ ]*(?:\s*\{[^}]*\})*\s*[–—]\s*\S")
+
 
 def reminder_is_the_rule(stripped):
-    #true when removing the parens left nothing but keyword names and mana
-    #symbols ("Cycling {2}", "Flying, double strike") AND the leading keyword
-    #is one whose reminder text carries the actual rule. anything with a real
-    #sentence in it kept its meaning and doesnt need the reminder back
+    #true when removing the parens left nothing but keyword names, mana symbols
+    #and costs ("Cycling {2}", "Cycling—Pay 2 life", "Flying, double strike")
+    #AND the leading keyword is one whose reminder text carries the actual rule.
+    #anything with a real sentence in it kept its meaning and doesnt need the
+    #reminder back
     text = stripped.strip().rstrip(".")
     if not text:
         return False
+    first = re.split(r"[^A-Za-z'’-]", text, maxsplit=1)[0].lower()
+    if first not in REMINDER_KEYWORDS:
+        return False
+    #a cost written as words. ". " means a sentence follows the cost, and a
+    #sentence is meaning rather than a price: Visions of Glory's "Flashback
+    #{8}{W}{W}. This spell costs {X} less to cast this way" says what it does
+    if ". " not in text and _DASH_COST.match(text):
+        return True
     for part in text.split(","):
         part = part.strip()
         if part and not _BARE_KEYWORD.fullmatch(part):
             return False
-    first = re.split(r"[^A-Za-z'’-]", text, maxsplit=1)[0].lower()
-    return first in REMINDER_KEYWORDS
+    return True
 
 
 def clean_line(line, card_name):

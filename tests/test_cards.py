@@ -52,6 +52,30 @@ class TestReminderIsTheRule:
         #a list of bare keywords led by an evergreen one stays stripped
         assert not reminder_is_the_rule("Flying, double strike")
 
+    def test_a_cost_spelled_out_after_a_dash_is_still_a_cost(self):
+        #wizards write the cost either as mana symbols or as words after a dash,
+        #and the words are the price rather than the effect. 56 lines read this
+        #way, over 13 keywords: without this Street Wraith's cycling line stores
+        #as "Cycling—Pay 2 life" and never mentions drawing a card
+        assert reminder_is_the_rule("Cycling—Pay 2 life")
+        assert reminder_is_the_rule("Morph—Discard a card")
+        assert reminder_is_the_rule("Buyback—Sacrifice a land")
+        assert reminder_is_the_rule("Flashback—{1}{U}, Exile X blue cards from your graveyard")
+        assert reminder_is_the_rule("Splice onto Arcane—An opponent gains 5 life")
+
+    def test_a_sentence_after_the_cost_still_counts_as_meaning(self):
+        #Visions of Glory and Fugitive Codebreaker say what they do in the line
+        #itself, so they keep nothing back and the reminder stays dropped
+        assert not reminder_is_the_rule(
+            "Flashback {8}{W}{W}. This spell costs {X} less to cast this way")
+        assert not reminder_is_the_rule(
+            "Disguise {5}{R}. This cost is reduced by {1} for each instant")
+
+    def test_a_dash_cost_under_an_unlisted_keyword_is_still_false(self):
+        #the dash is not what decides it, the keyword is
+        assert not reminder_is_the_rule("Flying—Pay 2 life")
+        assert not reminder_is_the_rule("Landfall—Draw a card")
+
     def test_empty_is_false_rather_than_an_error(self):
         assert not reminder_is_the_rule("")
         assert not reminder_is_the_rule("   ")

@@ -40,17 +40,25 @@ REMINDER_KEYWORDS = {
 
 _BARE_KEYWORD = re.compile(r"[A-Za-z][A-Za-z'’ -]*(?:\s*\{[^}]*\})*")
 
+#the same keyword with its cost written out after a dash rather than printed as
+#mana symbols, eg "Cycling—Pay 2 life"
+_DASH_COST = re.compile(r"[A-Za-z][A-Za-z'’ ]*(?:\s*\{[^}]*\})*\s*[–—]\s*\S")
+
 
 def reminder_is_the_rule(stripped):
     text = stripped.strip().rstrip(".")
     if not text:
         return False
+    first = re.split(r"[^A-Za-z'’-]", text, maxsplit=1)[0].lower()
+    if first not in REMINDER_KEYWORDS:
+        return False
+    if ". " not in text and _DASH_COST.match(text):
+        return True
     for part in text.split(","):
         part = part.strip()
         if part and not _BARE_KEYWORD.fullmatch(part):
             return False
-    first = re.split(r"[^A-Za-z'’-]", text, maxsplit=1)[0].lower()
-    return first in REMINDER_KEYWORDS
+    return True
 
 
 def clean_line(line, card_name):
