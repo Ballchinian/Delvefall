@@ -1,22 +1,13 @@
 /*
-    the rotate / flip / transform controls, shared by every card image on
-    the site (the searched card, the similar-cards grid, the unique page).
-
-    any .card-frame div with data attributes gets wired up:
-      data-sideways="1"  battles and split cards, printed sideways. they
-                         start vertical like every other card so the grid
+    the rotate / flip / transform controls. any .card-frame with these gets wired:
+      data-sideways="1"  battles and split cards. they START vertical so the grid
                          stays uniform, "rotate" turns them readable
-      data-flip="1"      kamigawa flip cards, "flip" turns them 180 so the
-                         bottom half reads
-      data-back="url"    double faced cards, "transform" shows the other
-                         face. backs are always upright, so transforming
-                         drops any rotation and both faces stay vertical
-                         until rotated again
+      data-flip="1"      kamigawa flip cards, turned 180
+      data-back="url"    double faced. backs are always upright, so transforming
+                         DROPS any rotation
 
-    the buttons live on a hover overlay over the art, translucent and small
-    so they never disturb the layout or really cover the picture. pages that
-    add frames after load (load more, the unique dealer) call
-    enhanceCardFrames again; the wired marker keeps reruns free
+    pages that add frames after load call enhanceCardFrames again; the wired
+    marker keeps reruns free
 */
 function enhanceCardFrames(root) {
     root.querySelectorAll(".card-frame").forEach(function(frame) {
@@ -48,8 +39,8 @@ function enhanceCardFrames(root) {
             var front = img.src;
             var showingBack = false;
             var backImg = null;
-            //the button only appears on hover, so fetching the back on
-            //mouseenter means it has usually arrived before any click
+            //the button only appears on hover, so a fetch on mouseenter has
+            //usually arrived before any click
             var preload = function() {
                 if (!backImg) {
                     backImg = new Image();
@@ -72,8 +63,8 @@ function enhanceCardFrames(root) {
                 showingBack = !showingBack;
                 preload();
                 if (showingBack && !backImg.complete) {
-                    //hold the front until the back is ready, swapping to a
-                    //still-loading image is the blank delay that felt bad
+                    //hold the front until the back is ready: swapping to a
+                    //still-loading image is a blank frame
                     backImg.onload = function() {
                         if (showingBack) {
                             showFace();
@@ -91,13 +82,10 @@ function enhanceCardFrames(root) {
 }
 
 /*
-    the client twin of app.py's mana filter, for rules text that arrives as
-    json (the /more results, the unique dealer). appends text to el with the
-    {T} and {2}{W/U} tokens swapped for the same self-hosted svgs the server
-    renders, built as dom nodes so a line full of quotes can't break out of
-    the markup. the token -> url map rides in as window.MANA_URLS, inlined
-    by the pages that deal in rules text, and a token with no entry stays
-    text, same as the server side
+    the client twin of app.py's mana filter, for rules text arriving as json.
+    built as DOM NODES, so a line full of quotes cannot break out of the markup.
+    the token -> url map rides in as window.MANA_URLS, and a token with no entry
+    stays text, same as the server side
 */
 function manaFill(el, text) {
     var re = /\{([^}]+)\}/g;
@@ -121,12 +109,9 @@ function manaFill(el, text) {
 }
 
 /*
-    title tooltips don't exist on touch screens, and the ones on results
-    carry real information (which of your lines matched, the blend split,
-    the extra matching pairs). so on devices without hover, tapping one of
-    those elements shows its title in a small bubble instead. tapping the
-    same element again, or anywhere else, closes it. mice keep the native
-    tooltips and never enter this path
+    title tooltips do not exist on touch screens, and the ones on results carry
+    real information, so a tap shows the title in a bubble instead. mice keep the
+    native tooltips and never enter this path
 */
 document.addEventListener("click", function(e) {
     if (window.matchMedia("(hover: hover)").matches) {
@@ -141,8 +126,8 @@ document.addEventListener("click", function(e) {
             return;
         }
     }
-    //links and buttons keep doing their job (the unique page's "what comes
-    //closest?" link lives inside a .more-lines)
+    //links and buttons keep working: /unique's "what comes closest?" link lives
+    //inside a .more-lines
     if (!el || !el.title || e.target.closest("a, button")) {
         return;
     }

@@ -1,26 +1,17 @@
-//the unmatched lines of a pasted deck, and the offer to name what they were
-//meant to be. it fills in partials/missing.html.
+//the unmatched lines of a pasted deck, filling in partials/missing.html.
 //
-//a file rather than a <script> block inlined into the two pages that show the
-//box: nothing in it needs rendering, so nothing in it needs to be a template.
-//as a file it gets the content-hashed url static_url stamps, which is what lets
-//it be cached at all.
+//a file rather than an inline block, so it gets the content-hashed url
+//static_url stamps and can be cached at all.
 //
-//wireSuggest is base.html's, reached as a global exactly the way search.js
-//reaches it. it is the one autocomplete on the site and it belongs to the page
-//rather than to any of the scripts that ask it for a card name
+//wireSuggest is base.html's, reached as a global the way search.js reaches it
 
 (function () {
     var box = document.getElementById("deck-missing");
     if (!box) return;
 
-    /*
-        the list every form on this page is carrying. adding a card writes to
-        all of them at once, because the paste box, the two mode buttons and
-        the swap form each hold their own copy of the text: one field updated
-        and the others not is how you get a reading of a deck the user is no
-        longer looking at
-    */
+    /* ALL of them at once: the paste box, the two mode buttons and the swap form
+       each hold their own copy, and one field updated without the others is a
+       reading of a deck the user is no longer looking at */
     function fields() {
         return Array.prototype.slice.call(
             document.querySelectorAll('input[name="list"], textarea[name="list"]'));
@@ -44,29 +35,17 @@
         var drop = row.querySelector(".deck-missing-drop");
         input.focus();
         input.select();
-        /* the same autocomplete the search bar and the report box use, wired
-           the same way, so a card is found here exactly as it is found there */
         wireSuggest(input, drop, function (name) {
             input.value = name;
             take(row, btn.dataset.raw, name);
         });
-        /* typing the whole name and pressing enter works too. wireSuggest only
-           answers enter when one of its own rows is highlighted, and the
-           server resolves a typed name the same forgiving way the search bar
-           does, so there is nothing to be gained by insisting on the dropdown.
-
-           it asks the EVENT whether that already happened, rather than looking
-           at whether the dropdown is open. those are not the same question and
-           the difference was the common case: type a full card name, the
-           suggestions appear because they always do, and enter did nothing at
-           all, because wireSuggest ignores enter with no row highlighted and
-           this handler bowed out to it anyway.
-
-           the state cannot be read off the dom either. wireSuggest hides the box
-           and clears the highlight BEFORE this listener runs, so by the time we
-           look, every trace of it having acted is already gone and we would fire
-           a second time on top of it. defaultPrevented is the one flag that
-           survives, because it lives on the event both handlers are holding */
+        /* typing the whole name and pressing enter works too. it asks the EVENT
+           whether wireSuggest already handled it, never the dom: wireSuggest
+           ignores enter with no row highlighted, so keying off "is the dropdown
+           open" made the common case (a full name typed, suggestions showing) do
+           nothing at all. and it hides the box and clears the highlight BEFORE
+           this listener runs, so every trace is gone by the time we could look.
+           defaultPrevented is the one flag that survives */
         input.addEventListener("keydown", function (e) {
             if (e.key !== "Enter" || e.defaultPrevented) return;
             e.preventDefault();
@@ -74,12 +53,9 @@
         });
     });
 
-    /* one flight per ROW, not per box: two unmatched lines can be fixed at the
-       same time and neither should wait on the other.
-       without it, two quick presses of enter sent two posts and addLine ran
-       twice on the way back, so the card the user was recovering landed in
-       their decklist twice. the fix row is only hidden once an answer arrives,
-       so the input stays live for the whole round trip */
+    /* one flight per ROW, not per box, so two lines can be fixed at once.
+       without it, two quick presses of enter sent two posts and addLine ran twice,
+       putting the recovered card in the decklist twice */
     function take(row, raw, name) {
         if (row.dataset.sending) {
             return;
@@ -98,11 +74,9 @@
             row.querySelector(".deck-missing-fix").hidden = true;
             said.textContent = "added " + j.name;
             box.querySelector(".deck-missing-again").hidden = false;
-            /* the deck this browser is about to remember has just changed, so
-               the payload it will be remembered from changes with it. without
-               this, a card fixed here is in the reading and then gone the next
-               time the deck is opened out of the recent list, which is the one
-               place the fix most needs to have stuck */
+            /* the payload modes.js remembers the deck from has to move too, or a
+               card fixed here is in the reading and gone the next time the deck
+               is opened off the shelf */
             var mem = document.getElementById("deck-remember");
             if (mem) {
                 try {
