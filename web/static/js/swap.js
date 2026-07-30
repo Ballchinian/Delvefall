@@ -1,22 +1,16 @@
-//the swap tool: the lens with a hand on it. it reads its whole session out of
-//the #swap-data island templates/deck/swap.html renders, and leans on manaFill
-//from cards.js, which base.html loads above the scripts block. type="module"
-//defers on its own, which keeps that order: cards.js runs while the page
-//parses, this runs once it is parsed and before DOMContentLoaded, so nothing it
-//looks up is missing
+//the swap tool. reads its whole session out of the #swap-data island
+//deck/swap.html renders, and needs manaFill from cards.js, which base.html
+//loads above the scripts block. type="module" defers, which keeps that order
 
-//a bare specifier, resolved by the import map base.html emits, so this
-//picks up dom.js at its content-hashed url rather than an unstamped one
-//that the year-long static cache would freeze
+//bare specifiers, resolved by base.html's import map, so these arrive
+//content-hashed rather than frozen unstamped in the year-long static cache
 import { el, cardLink, resultCard, pairCard } from "dom";
 import { wireReports } from "report";
-//the end of a session is /deck/view's change blocks, so it is /deck/view's
-//painter that draws them, and rebuild is shared the other way since /deck/view
-//needs it to put a card back
+//the end of a session is /deck/view's change blocks, so /deck/view's painter
+//draws them. rebuild goes the other way, /deck/view needs it to put a card back
 import { paintChanges, rebuild, addedList, carryList } from "changes";
-//the shelf, through the one file that owns it. reading and writing localStorage
-//here instead means a second copy of the key and a second idea of which entry a
-//deck is, which is how the two drift apart
+//the shelf, through the one file that owns it: a second copy of the key here
+//would be a second idea of which entry a deck is
 import { find, patch } from "decks";
 (function () {
     var dataEl = document.getElementById("swap-data");
@@ -24,75 +18,46 @@ import { find, patch } from "decks";
     var D = JSON.parse(dataEl.textContent);
     if (!D.queue.length) return;
 
-    /* one card name, drawn the way every card name on this site is drawn: a
-       link into delvefall, ctrl-click out to scryfall. the handler for that
-       lives in base.html and keys off data-card, so anything carrying it gets
-       the behaviour without wiring anything up */
     /*
         the deck grows and never shrinks. a card swapped IN has to be excluded
         from every later suggestion or the tool offers it twice, and a card
-        swapped OUT has to stay excluded too, or the next card's list happily
-        suggests the thing just taken out. one list does both jobs
+        swapped OUT has to stay excluded, or the next card's list suggests the
+        thing just taken out. one list does both jobs
     */
     var deck = D.deck.slice();
     var at = 0;
 
-    /*
-        THE SHELF ENTRY THIS DECK ALREADY HAS, read once at the start.
-
-        a session used to begin with an empty swaps list and end by writing it
-        over whatever was there, so a deck's history was only ever its most
-        recent visit: swap two cards today, one card tomorrow, and the shelf
-        said one card. it was also the number the review drew from, so the work
-        did not vanish quietly, it vanished visibly.
-
-        the swaps now ACCUMULATE. this session's decisions are appended to
-        everything the deck has ever been through, and the only thing that takes
-        one back out is putting it back by hand. a deck starts over by being
-        pasted in as a new list, which is a new entry and a new history.
-    */
-    /* which saved deck this is, carried in a hidden field from the page that
-       sent us here. it used to be worked out by matching the decklist against
-       every entry on the shelf two ways, because the key WAS the list and the
-       list moves during a session. an id does not move */
+    /* which saved deck this is, carried in a hidden field. it used to be found
+       by matching the decklist against every entry two ways, because the key
+       WAS the list, and the list moves during a session. an id does not */
     var entry = find(D.did);
 
-    /* every swap this deck has ever had, this session's included as they are
-       made. the ones carried in are already applied to the list the page is
-       holding, which is what the rebuild below has to account for */
+    /* every swap this deck has EVER had, accumulating across sessions: only
+       putting one back by hand takes it out. the ones carried in are already
+       applied to the list the page is holding, which rebuild has to account
+       for */
     var swaps = (entry && entry.swaps ? entry.swaps.slice() : []);
 
-    /* the deck as it was imported, which is what a rebuild starts from. the
-       list this page is holding already has the carried swaps in it, so
-       replaying them onto it would look for cards that left long ago */
+    /* the deck as IMPORTED, which is what a rebuild starts from. the list this
+       page holds already has the carried swaps in it, so replaying them onto it
+       would look for cards that left long ago */
     var baseList = (entry && entry.text) || D.text;
 
-    /*
-        how far into the queue this session has agreed to go. a fixed twelve
-        card queue stops a working tool for no reason: somebody who has walked
-        twelve and wants a thirteenth is exactly who this is for.
-
-        so the queue is deep and the SESSION is the batch. reaching the end
-        offers the next batch rather than finishing, and the count in the
-        header says what has been checked rather than promising a total that
-        was never the real end of the list
-    */
+    /* the queue is deep and the SESSION is the batch: reaching the end offers
+       the next batch rather than finishing */
     var limit = Math.min(D.batch, D.queue.length);
 
     /*
-        every card's replacements once they have been asked for. undefined
-        means not asked yet, "pending" means in flight, an array means
-        answered, and an EMPTY array is a real answer rather than a failure:
-        it says nothing in the game does this card's job and moves the deck
-        the right way, which is why those cards get skipped instead of being
-        offered something worse
+        every card's replacements once asked for. undefined means not asked,
+        "pending" means in flight, an array means answered, and an EMPTY array
+        is a real answer rather than a failure: nothing in the game does this
+        card's job and moves the deck the right way
     */
     var cache = {};
     var nothing = [];
 
-    /* how far ahead to look. the count only climbs if answers arrive before
-       the user does, and three is enough to stay in front of someone reading
-       a card without opening twelve connections to say hello */
+    /* enough to stay in front of someone reading a card without opening twelve
+       connections to say hello */
     var LOOKAHEAD = 3;
 
     var $ = function (id) { return document.getElementById(id); };
@@ -100,71 +65,48 @@ import { find, patch } from "decks";
     var skipBtn = $("swap-skip"), backBtn = $("swap-back");
 
     /*
-        every decision this session has made, in the order it made them, so the
-        walk runs backwards as well as forwards.
+        every decision this session has made, so the walk runs backwards too.
 
-        it exists because the queue used to be a one way door: one misplaced
-        click on "Swap this in" and the only way to reconsider was to reach the
-        end of the batch and hunt the pair down in the review. a card at a time
-        is the whole shape of this tool, so moving between them has to be
-        symmetric.
-
-        each entry is the index it was made AT, which is not the same as at-1
-        when it lands: show() steps silently over cards nothing could replace,
-        so walking back by subtraction would stop on dead ends the forward walk
-        deliberately hid
+        each entry is the index it was made AT, which is NOT at-1 when it lands:
+        show() steps silently over cards nothing could replace, so walking back
+        by subtraction would stop on dead ends the forward walk hid
     */
     var trail = [];
 
-    /*
-        what the two pickers on the card leaving have been told, for the card on
-        screen only. picking a line or switching a tag off is a statement about
-        THIS card ("replace this ability, not that one"), so it means nothing on
-        the next one and is cleared when the queue moves.
-
-        the same three names /search puts in its url, because they end up in the
-        same two functions on the server
-    */
+    /* what the pickers were told about the card ON SCREEN only, cleared when
+       the queue moves. the same three names /search puts in its url, because
+       they reach the same two functions on the server */
     var picks = {lines: [], notags: [], yestags: []};
 
     function clearPicks() {
         picks = {lines: [], notags: [], yestags: []};
     }
 
-    /* has the user narrowed anything on the card in front of them. it is the
-       difference between "nothing in the game does this" and "nothing does this
-       ONCE YOU SAID that", and those two deserve opposite behaviour */
+    /* the difference between "nothing in the game does this" and "nothing does
+       this ONCE YOU SAID that". the two get opposite behaviour in render() */
     function picked() {
         return !!(picks.lines.length || picks.notags.length || picks.yestags.length);
     }
 
-    /* the cache key is the card PLUS what the pickers were told, so narrowing
-       to one line asks a genuinely new question rather than being handed the
-       whole card's answer back out of the cache */
+    /* the card PLUS what the pickers were told, so narrowing to one line asks a
+       new question rather than being handed the whole card's answer back */
     function keyFor(card) {
         return card.oracle_id + "|" + picks.lines.join(",") + "|" +
             picks.notags.join(",") + "|" + picks.yestags.join(",");
     }
 
-    /* the panel above the suggestions, and the answer to "which of this card's
-       abilities am I actually replacing". it arrives as HTML the server
-       rendered from the same partial /search draws its searched card with, so
-       there is one description of this panel and not two */
+    /* HTML, rendered by the server from the same partial /search draws its
+       searched card with, so there is one description of this panel and not two */
     var panels = {};
 
-    /* what each answer held back for costing the wrong amount, keyed the same
-       way the cards are. it is kept beside the list rather than inside it
-       because it is a fact about the ANSWER and not about any card in it: an
-       answer of three cards that turned eleven away is a different answer from
-       one that turned none away, and the list alone cannot tell you which */
+    /* what each answer held back for costing the wrong amount. beside the list
+       rather than inside it, because it is a fact about the ANSWER: three cards
+       having turned eleven away is a different answer from three that turned
+       none away, and the list alone cannot say which */
     var held = {};
 
-    /*
-        ask for one card's replacements, once. the result is cached whichever
-        way it comes back, so walking forwards and the look-ahead never ask
-        the same question twice, and an empty answer is remembered as an
-        answer rather than retried forever
-    */
+    /* cached whichever way it comes back, so the walk and the look-ahead never
+       ask twice and an empty answer is not retried forever */
     function load(i, force) {
         var card = D.queue[i];
         if (!card) return Promise.resolve();
@@ -176,9 +118,8 @@ import { find, patch } from "decks";
             headers: {"Content-Type": "application/json"},
             body: JSON.stringify({card: card.oracle_id, deck: deck, colors: D.colors,
                                   axis: D.axis, dir: D.dir,
-                                  /* only for the card on screen: the look-ahead
-                                     is fetching the UNPICKED answer, which is
-                                     what the next card opens on */
+                                  /* the look-ahead fetches the UNPICKED
+                                     answer, which is what a card opens on */
                                   lines: i === at ? picks.lines : [],
                                   notags: i === at ? picks.notags : [],
                                   yestags: i === at ? picks.yestags : []})
@@ -187,14 +128,12 @@ import { find, patch } from "decks";
             cache[key] = cards;
             if (j.panel) panels[key] = j.panel;
             held[key] = {n: j.offband || 0, lo: j.mv_lo, hi: j.mv_hi};
-            /* a card with nowhere to go is named at the end, but only when the
-               PLAIN question got no answer: narrowing to one line and finding
-               nothing is the user's own filter, not a fact about the card */
+            /* only the PLAIN question counts: narrowing to one line and finding
+               nothing is the user's filter, not a fact about the card */
             if (!cards.length && key === card.oracle_id + "|||" && nothing.indexOf(card) === -1) {
                 nothing.push(card);
             }
-            /* the answer may have arrived for the card being looked at, in
-               which case the page was waiting on exactly this */
+            /* the page may have been waiting on exactly this */
             if (i === at) show();
         }).catch(function () {
             /* leave it uncached so moving on and coming back can retry */
@@ -211,23 +150,18 @@ import { find, patch } from "decks";
     }
 
     function show() {
-        /* walk past anything already known to have nowhere to go. the skip is
-           silent here because those cards are named together at the end, and
-           stopping on each one to say "nothing" would be twelve dead ends.
-           judged on the PLAIN answer, since that is what the queue moves on */
+        /* walk past anything known to have nowhere to go. silent, because those
+           cards are named together at the end. judged on the PLAIN answer,
+           since that is what the queue moves on */
         while (at < limit) {
             var known = cache[D.queue[at].oracle_id + "|||"];
             if (Array.isArray(known) && !known.length) { at++; continue; }
             break;
         }
         if (at >= limit) return finish();
-        /* said here rather than on every state change, because this is the one
-           function that knows which card is actually on screen. at has already
-           stepped over the dead ends above, so this is the card being looked
-           at and not the card the loop started from */
+        /* after the loop above, so this is the card on screen and not the one
+           the walk started from */
         $("swap-at").textContent = at + 1;
-        /* nothing decided yet means nowhere to go back to, and a control that
-           cannot do anything is worse than one that is not there */
         if (backBtn) backBtn.hidden = !trail.length;
 
         var card = D.queue[at];
@@ -235,11 +169,8 @@ import { find, patch } from "decks";
         var out = $("swap-out-card");
         options.innerHTML = "";
 
-        /* the panel, with its rules lines and its tag chips. it is the same one
-           /search puts above its results, so the tool that PROPOSES a card no
-           longer gives you less say over the match than the one that lists
-           them. until the first answer lands there is nothing to draw it from,
-           so the plain picture stands in */
+        /* until the first answer lands there is no panel to draw, so the plain
+           picture stands in */
         if (panels[key]) {
             out.innerHTML = panels[key];
             wirePanel(out);
@@ -259,15 +190,9 @@ import { find, patch } from "decks";
         prefetch();
     }
 
-    /*
-        the panel's two pickers, doing on this page what a reload does on
-        /search. the markup is identical, so the classes and the four chip
-        states are the ones the css already knows; only what a click MEANS
-        differs, because there is no url here to put the answer in.
-
-        a click re-asks for this card's replacements with the narrower question
-        attached, which is the same round trip the page already makes per card
-    */
+    /* what a reload does on /search: a click re-asks for this card's
+       replacements with the narrower question attached, which is the same round
+       trip the page already makes per card */
     function wirePanel(root) {
         root.querySelectorAll(".oracle-line").forEach(function (line) {
             line.onclick = function () {
@@ -277,9 +202,8 @@ import { find, patch } from "decks";
                 repick();
             };
         });
-        /* four states, and clicking one means the obvious opposite of whichever
-           it is in. notags is "ignore this", yestags is "the line picker guessed
-           wrong, put it back": two lists because they answer two questions */
+        /* two lists because they answer two questions: notags is "ignore this",
+           yestags is "the line picker guessed wrong, put it back" */
         root.querySelectorAll(".tag-chip").forEach(function (chip) {
             chip.onclick = function () {
                 var state = chip.dataset.state;
@@ -290,9 +214,8 @@ import { find, patch } from "decks";
                 repick();
             };
         });
-        /* the panel is redrawn whenever the card or the picks change, so its
-           link and the report's tag list are rewired every time rather than
-           once at load: the old ones went out of the dom with the old panel */
+        /* rewired every time and not once at load: the panel is redrawn on
+           every card and every pick, and the old handlers went out with it */
         if (reports) {
             reports.fillTags(root);
             var link = root.querySelector("#report-tag");
@@ -311,33 +234,20 @@ import { find, patch } from "decks";
     }
 
     /*
-        one card, from dom.js, which is the only place on the site that draws
-        one now. the card leaving and the cards that could replace it go
-        through it together: two builders would eventually be two different
-        presentations of the same numbers, which is how a page starts lying
-        without anyone editing it.
-
-        anchorName is set for candidates and empty for the outgoing card. it is
+        anchorName is set for candidates and EMPTY for the outgoing card. it is
         what turns a bare figure into a verdict ("cheaper than Stasis"), and its
-        absence is why the card leaving carries no arrows: a card compared
-        against itself has nothing to say
+        absence is why the card leaving carries no arrows.
+
+        the flag rides the same flag: a report says "this is a bad match for
+        that", so the card being matched against has nothing to flag
     */
-    /* the flag is on the SUGGESTIONS and not on the card leaving. a report says
-       "this is a bad match for that", so the card being matched against has
-       nothing to flag: it is the question, not an answer to it */
     function build(c, anchorName) {
         return resultCard(c, anchorName, {flag: !!anchorName});
     }
 
-    /*
-        reports, off the same bar and the same code /search uses.
-
-        the query string is BUILT rather than read, because this page is a POST
-        result and has no url of its own. it carries exactly what /feedback
-        already knows how to read: which card is being matched against, which of
-        its lines are picked, and which tags are switched off. so the server
-        needed no new shape for this, only a note saying where it came from
-    */
+    /* the query string is BUILT rather than read, because this page is a POST
+       result with no url of its own. it carries exactly what /feedback already
+       reads, so the server needed no new shape, only the from=swap marker */
     var reports = wireReports({
         grid: options,
         query: function () {
@@ -346,26 +256,16 @@ import { find, patch } from "decks";
             if (picks.lines.length) p.set("lines", picks.lines.join(","));
             if (picks.notags.length) p.set("notags", picks.notags.join(","));
             if (picks.yestags.length) p.set("yestags", picks.yestags.join(","));
-            //so a report can be read back knowing it was made about a proposed
-            //replacement rather than about a search result
+            //a complaint about a PROPOSED card, not about a search result
             p.set("from", "swap");
             return p.toString();
         }
     });
 
-    /*
-        the suggestions, revealed a batch at a time out of the whole answer the
-        server sent. it used to send five and that was the lot.
-
-        the batch is the same D.offer the rest of the site reveals (twelve), and
-        the deeper list costs NOTHING extra to fetch: the query already scanned
-        two hundred rows per line and threw all but five away at the very end.
-        so this is one round trip either way, and reaching the bottom of twelve
-        is answered from what the page is already holding.
-
-        `shown` is per card and resets in render(), because twelve into one
-        card's list says nothing about the next card's
-    */
+    /* revealed a batch of D.offer at a time out of the whole answer the server
+       already sent: the query scanned two hundred rows per line either way, so
+       reaching the bottom costs no round trip.
+       `shown` is per card and resets in render() */
     var shown = 0;
     var moreBtn = $("swap-options-more");
 
@@ -374,9 +274,8 @@ import { find, patch } from "decks";
         for (var i = options.children.length; i < Math.min(shown, cards.length); i++) {
             var c = cards[i];
             var card = build(c, outName);
-            /* the picture stays a link to scryfall like everywhere else on the
-               site, so the swap gets its own button rather than making the
-               whole card a target that fights the link inside it */
+            /* its own button rather than making the whole card a target, which
+               would fight the card link inside it */
             var take_btn = el("button", "swap-take", card, "Swap this in");
             take_btn.type = "button";
             take_btn.addEventListener("click", (function (pick) {
@@ -394,11 +293,8 @@ import { find, patch } from "decks";
         enhanceCardFrames(options);
     }
 
-    /* the matches that were the right card at the wrong cost, said out loud.
-       without it the tool answers "one card" and looks like it has run out of
-       ideas, when what actually happened is that it turned eleven away for
-       being the wrong thing to put in this slot. that is a judgement worth
-       arguing with, and an unstated one cannot be argued with at all */
+    /* without this the tool answers "one card" and looks out of ideas, when it
+       turned eleven away for costing the wrong amount */
     function costNote(h) {
         if (!h || !h.n || h.lo === null || h.lo === undefined) return "";
         return " " + h.n + (h.n === 1 ? " other match was" : " other matches were")
@@ -409,17 +305,9 @@ import { find, patch } from "decks";
     function render(cards, h) {
         options.innerHTML = "";
         if (!cards.length) {
-            /*
-                nothing to offer, and WHY decides what happens next.
-
-                the card's own answer being empty is a fact about the card, so
-                the queue moves on and it gets named at the end. an answer
-                emptied by the PICKERS is the user's own doing, and moving them
-                off the card they are working on for it would be the page
-                undoing their click: they narrowed to one ability, got nothing,
-                and want to widen it again. so it says so and stays put, which
-                is what /search does with a filter that matches nothing
-            */
+            /* WHY it is empty decides what happens next. empty on the card's own
+               answer is a fact about the card, so the queue moves on. emptied by
+               the PICKERS is the user's own filter, so it stays put and says so */
             if (!picked()) { at++; return show(); }
             note.textContent = "Nothing matches with those lines and tags."
                 + costNote(h) + " Widen it above, or keep the card you have.";
@@ -440,35 +328,22 @@ import { find, patch } from "decks";
     });
 
     function take(c) {
-        /* the WHOLE card on both sides, not just the names. the review at the
-           end draws them as pictures and offers to put one back, and neither
-           is possible from a name: the outgoing card has already left the
-           screen by then and there is no url to ask about it again */
+        /* the WHOLE card on both sides, not the names: the review draws them as
+           pictures and there is no url to ask about the outgoing one again */
         swaps.push({out: D.queue[at], in: c, match: c.match});
         deck.push(c.oracle_id);
         trail.push({at: at, took: true});
-        /* written down HERE, on the decision, rather than at the end of the
-           batch. somebody who swaps three cards and closes the tab has made
-           three decisions about their deck, and a tool built to be left half
-           walked cannot only save the sessions that were finished */
+        /* on the decision, not at the end of the batch: this tool is built to be
+           walked a card at a time and left */
         remember();
         at++;
         clearPicks();
         show();
     }
 
-    /*
-        one step back up the trail, undoing whatever was decided there.
-
-        a swap is unwound completely: the card that came in leaves the deck
-        list, so it can be offered again, and the pair stops existing. that is
-        the same thing "put it back" does in the review at the end, and it has
-        to be, or the same decision could be undone two ways with two results.
-
-        the card that went OUT is not requeued, because it never left the queue:
-        the trail holds the index it was at, so going back simply stands on it
-        again with nothing decided
-    */
+    /* a swap is unwound the same way revert() does it below, or one decision
+       could be undone two ways with two results. the card that went OUT is not
+       requeued: it never left the queue, and the trail holds its index */
     function back() {
         if (!trail.length) return;
         var step = trail.pop();
@@ -476,39 +351,30 @@ import { find, patch } from "decks";
             var s = swaps.pop();
             var at_in = deck.indexOf(s["in"].oracle_id);
             if (at_in > -1) deck.splice(at_in, 1);
-            /* the same reason take() writes: undoing a swap is a decision too,
-               and the shelf has to lose it as surely as the screen does */
+            /* undoing a swap is a decision too, and the shelf has to lose it */
             remember();
         }
         at = step.at;
         clearPicks();
-        /* the review is only up once a batch has run out, and going back means
-           the walk is live again */
+        /* going back means the walk is live again */
         $("swap-done").hidden = true;
         $("swap-batch-note").hidden = true;
         $("swap-live").hidden = false;
         show();
     }
 
-    /*
-        put one back. the card that came in leaves the deck list (so later
-        suggestions can offer it again) and the card that went out is NOT
-        requeued: the queue is walked once and rewinding it would reorder
-        everything decided after this point. the swap simply stops existing,
-        which is what "revert" has to mean for the exports to stay true
-    */
+    /* the card that went out is NOT requeued: rewinding the queue would reorder
+       everything decided after this point. the swap just stops existing */
     function revert(i) {
         var s = swaps[i];
         var at_in = deck.indexOf(s["in"].oracle_id);
         if (at_in > -1) deck.splice(at_in, 1);
         swaps.splice(i, 1);
-        /* the trail records the DECISION, so undoing one from the review has to
-           take its step with it or going back afterwards would try to unwind a
-           swap that is no longer there. matched on the card it was made at,
-           never on position: the review's order and the trail's are the same
-           today and nothing enforces that.
-           a swap CARRIED IN from an earlier session has no step in this
-           session's trail, and the loop simply finds nothing, which is right */
+        /* the step has to go too, or going back afterwards unwinds a swap that
+           is no longer there. matched on the CARD, never on position: the
+           review's order and the trail's agree today and nothing enforces it.
+           a swap carried in from an earlier session has no step here, and the
+           loop finding nothing is right */
         for (var t = 0; t < trail.length; t++) {
             if (trail[t].took && D.queue[trail[t].at] === s.out) {
                 trail[t].took = false;
@@ -526,13 +392,9 @@ import { find, patch } from "decks";
     });
     if (backBtn) backBtn.addEventListener("click", back);
 
-    /* another batch. everything decided so far stays decided: the swaps list,
-       the cards nothing could replace and the growing deck are all untouched,
-       so this genuinely continues the session rather than restarting it */
-    /* where the batch about to run started, and what had been decided by then.
-       finish() compares against these to say what the batch turned up, which is
-       the difference between "that did nothing" and "that checked twelve cards
-       and none of them had anywhere to go" */
+    /* where the next batch starts and what was decided by then. finish()
+       compares against these to tell "that did nothing" apart from "that checked
+       twelve cards and none had anywhere to go" */
     var batchFrom = null;
     var batchSwaps = 0;
 
@@ -544,45 +406,35 @@ import { find, patch } from "decks";
         $("swap-more").hidden = true;
         $("swap-done").hidden = true;
         $("swap-batch-note").hidden = true;
-        /* rebuilt by finish() from the full list, so leaving it up during the
-           batch would show a stale answer next to live cards */
+        /* finish() rebuilds it from the full list, so leaving it up during the
+           batch shows a stale answer next to live cards */
         $("swap-nothing").hidden = true;
         $("swap-live").hidden = false;
         show();
     });
 
-    /* bound once, not in finish(): that runs at the end of every batch, so
-       binding there stacked another listener each time and redrew the frames
-       once per batch on a single click */
+    /* bound once, NOT in finish(): that runs per batch, so binding there stacked
+       a listener each time and redrew the frames once per batch on one click */
     $("swap-nothing-box").addEventListener("toggle", function () {
         if (this.open) enhanceCardFrames(this);
     });
 
     function finish() {
-        /* the end of a BATCH, not necessarily the end of the queue. if the
-           deck has more cards worth looking at, say so and offer them rather
-           than closing the session on a number that was only ever a batch
-           size. the extra cards cost nothing until they are reached: their
-           candidates are still fetched one card at a time */
+        /* the end of a BATCH, not necessarily of the queue */
         var more_left = D.queue.length - limit;
         if (more_left > 0) {
             $("swap-more-left").textContent = Math.min(D.batch, more_left);
             $("swap-more").hidden = false;
         } else {
-            /* the queue is out. the button was hidden by the press that used up
-               the last of it and there was no branch here to say anything, so
-               the control somebody had been pressing simply vanished. a button
-               that disappears without a word reads as a button that broke,
-               which is what it was reported as */
+            /* without this branch the button vanished silently when the queue ran
+               out, and was reported as broken */
             $("swap-more").hidden = true;
         }
-        /* the header still says the card the walk stopped on, which is the
-           whole batch once it has been walked */
+        /* the walk stopped on the last card, which is the whole batch */
         $("swap-at").textContent = Math.min(at, limit);
 
-        /* say what the batch just did. a batch that found nothing puts the page
-           back exactly where it was, so without a word here the button reads as
-           broken: it is the one outcome the screen cannot show by itself */
+        /* a batch that found nothing puts the page back exactly where it was, so
+           without a word here the button reads as broken */
         var say = "";
         if (batchFrom !== null) {
             var walked = limit - batchFrom;
@@ -595,9 +447,8 @@ import { find, patch } from "decks";
                   + D.goal + ", so there was nothing to offer. They are listed below.";
             batchFrom = null;
         }
-        /* and where that leaves the queue. said on EVERY finish, not only after
-           a press, because "there is nothing more to load" is exactly the fact
-           the vanishing button was failing to communicate */
+        /* on EVERY finish and not only after a press: "there is nothing more to
+           load" is the fact the vanishing button failed to communicate */
         if (more_left <= 0) {
             say += (say ? " " : "") + "That is every card in this deck worth checking, all "
                 + D.queue.length + " of them. There are no more to load.";
@@ -610,13 +461,11 @@ import { find, patch } from "decks";
         var done = $("swap-done");
         done.hidden = false;
 
-        /* the cards nothing could replace, named together rather than one
-           dead end at a time on the way through */
+        /* named together rather than one dead end at a time on the way through */
         if (nothing.length) {
-            /* how many of them were not short of an answer but short of one at
-               the right cost. the heading above says no card does what these
-               do, which the mana value band can turn into a lie, so the count
-               that makes it a lie is printed next to it */
+            /* the heading says no card does what these do, which the mana value
+               band can turn into a lie, so the count that makes it one goes
+               next to it */
             var costly = nothing.filter(function (c) {
                 var h = held[c.oracle_id + "|||"];
                 return h && h.n;
@@ -634,56 +483,39 @@ import { find, patch } from "decks";
             list.innerHTML = "";
             pics.innerHTML = "";
             nothing.forEach(function (c) {
-                /* a link like every other card name on the site. these were the
-                   only names on the page you could not click, which made the
-                   one group you might want to go and check the one group with
-                   nowhere to go from */
                 el("li", "swap-made-row", list).appendChild(cardLink(c.name, "swap-made-out"));
-                /* no anchor name: there is no card it lost to, which is the
-                   whole point of it being in this list */
+                /* no anchor name: there is no card it lost to */
                 pics.appendChild(build(c, ""));
             });
             box.hidden = false;
         }
 
-        /* the swaps, the new cards and the list, all three drawn by the painter
-           /deck/view uses, onto the partial they now share.
-
-           build and not pairCard: a card being weighed against another carries
-           its match percent and its verdicts, which is the whole question a
-           swap asks and is this page's alone. no note, because the swaps are
-           what the last twenty minutes were spent making and counting them back
-           is the page narrating your own move to you */
-        /* from the deck as IMPORTED, with every swap it has ever had replayed
-           onto it, this session's and the ones carried in alike. rebuilding
-           from the list the page is holding would apply the carried ones twice */
+        /* build and not pairCard: a card weighed against another carries its
+           match percent and verdicts, which is this page's question alone.
+           rebuilt from the deck as IMPORTED, because the list this page holds
+           would apply the carried swaps twice */
         var built = rebuild(baseList, swaps);
         paintChanges({swaps: swaps, added: addedList(swaps),
                       newList: built, text: D.text, goal: D.goal},
                      {draw: build, onRevert: revert});
 
-        /* the deck as it now stands. the fold is server rendered from the deck
-           that ARRIVED, so every swap has left a tile showing a card that is no
-           longer in it */
+        /* the fold is server rendered from the deck that ARRIVED, so every swap
+           has left a tile showing a card no longer in it */
         repaintDeck();
 
-        /* every way on from here carries the deck AS IT NOW STANDS, the back
-           link included. jinja rendered them with the list the session opened
-           on, because at page build time that is the only list there is; this
-           is the moment the new one exists */
+        /* jinja rendered every way on with the list the session opened on,
+           because at build time that is the only list there is. this is the
+           moment the new one exists */
         carryList(built);
 
         remember();
     }
 
-    /* only what the review needs to draw a card. the rest of the queue row is
-       about picking, and picking is over by the time a swap is written down */
+    /* only what the review needs to draw a card, picking being over by now */
     function keep(c) {
-        /* the verdicts ride along too. the server worked them out against the
-           card being replaced when it sent the candidate, and they are the whole
-           reading of a swap: without them the review shows two prices and leaves
-           the arithmetic to whoever is looking. only the card coming IN carries
-           them, because the one going out is what they were measured against */
+        /* the verdicts ride along: the server worked them out against the card
+           being replaced. only the card coming IN carries them, since the one
+           going out is what they were measured against */
         return {oracle_id: c.oracle_id, name: c.name, image: c.image,
                 image_back: c.image_back || "",
                 sideways: !!c.sideways, flip: !!c.flip,
@@ -694,29 +526,20 @@ import { find, patch } from "decks";
     }
 
     /*
-        hand the session back to the deck it belongs to, in this browser.
+        the session, onto the same localStorage shelf the hub keeps. the server
+        stores nothing.
 
-        without this a swap session evaporates the moment the tab closes, and
-        the work it represents (twelve judgement calls about somebody's deck) is
-        exactly the kind of thing worth being able to come back to. the server
-        still stores nothing: this is the same localStorage shelf the hub keeps.
+        RUNS ON EVERY DECISION, not at the end of a batch: it used to wait for
+        finish(), so walking away mid session lost every swap made in it.
 
-        IT RUNS ON EVERY DECISION, not at the end of a batch. it used to wait
-        for finish(), which meant walking away mid session lost every swap made
-        in it, and the tool is explicitly built to be walked a card at a time
-        and left. a swap is a decision, and a decision is worth writing down the
-        moment it is made.
-
-        that is also why the two lists are COMPUTED here rather than read off the
-        page: the boxes holding them are drawn by finish(), so mid session they
-        hold the last batch's answer or nothing at all. rebuild and addedList
-        are the same two functions that fill those boxes, run against the same
-        swaps, so the stored deck and the drawn deck cannot disagree
+        the two lists are COMPUTED here rather than read off the page, because
+        the boxes holding them are drawn by finish() and mid session hold the
+        last batch's answer or nothing
     */
     function remember() {
-        /* no entry means this deck is not on the shelf: reached from a precon,
-           or deleted from the hub in another tab. the session on screen works
-           either way, it just has nowhere to be written */
+        /* no entry means this deck is not on the shelf: reached from a precon, or
+           deleted from the hub in another tab. the session still works, it just
+           has nowhere to be written */
         if (!entry) return;
         patch(D.did, {
             swaps: swaps.map(function (s) {
@@ -728,35 +551,16 @@ import { find, patch } from "decks";
         });
     }
 
-    /*
-        the original text with the names substituted, rather than a list
-        rebuilt from our own data. the paste path drops duplicate counts on the
-        way in, so a rebuilt list would quietly return someone's 30 basics as
-        one line each. substituting leaves every count, every section header
-        and every bit of the user's own formatting exactly where it was
-    */
-    /*
-        the deck's fold, brought up to date with the session.
-
-        the grid is rendered by the server from the deck that ARRIVED, so after
-        a swap one of its tiles is a card that is no longer in the deck. the
-        swap holds both sides whole, which is exactly enough to draw the one
-        that replaced it, and it goes through the same builder every other card
-        on the site does.
-
-        it walks from the ORIGINAL tile every time rather than patching the last
-        paint, which is what makes a revert work: putting a card back is just
-        this running again with one fewer swap in the list
-    */
+    /* walks from the ORIGINAL tile every time rather than patching the last
+       paint, which is what makes a revert work: putting a card back is this
+       running again with one fewer swap in the list */
     var bornTiles = null;
 
     function repaintDeck() {
         var grid = document.querySelector(".deck-card-fold .deck-card-grid");
         if (!grid) return;
-        /* the deck as it ARRIVED, kept as markup, captured before anything has
-           been rewritten. it is what a revert puts back, and keeping the html
-           rather than the card data means the restored tile is the server's own
-           tile again rather than a redrawing of it that has to agree */
+        /* kept as MARKUP, captured before anything is rewritten, so a revert
+           puts the server's own tile back rather than a redrawing of it */
         if (!bornTiles) {
             bornTiles = {};
             Array.prototype.slice.call(grid.children).forEach(function (t) {
@@ -771,8 +575,7 @@ import { find, patch } from "decks";
             var born = tile.dataset.born;
             var swap = byOut[born];
             var showing = tile.dataset.oid;
-            /* already right: swapped and showing the card that came in, or
-               untouched and showing the card it was born as */
+            /* already right, either way round */
             if (swap ? showing === swap["in"].oracle_id : showing === born) return;
 
             var fresh;
@@ -788,16 +591,14 @@ import { find, patch } from "decks";
                 if (!fresh) return;
             }
             fresh.dataset.born = born;
-            /* whether it is past the first batch is a fact about its POSITION,
-               and swapping a card does not move it */
+            /* is-over is a fact about POSITION, and a swap does not move a tile */
             if (tile.classList.contains("is-over")) fresh.classList.add("is-over");
             tile.replaceWith(fresh);
         });
         enhanceCardFrames(grid);
     }
 
-    /* the two copy buttons are wired by paintChanges, along with everything
-       else on the partial they sit in */
+    /* the copy buttons are wired by paintChanges, with the rest of the partial */
 
     show();
 })();

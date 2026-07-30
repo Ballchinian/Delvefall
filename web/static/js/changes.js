@@ -35,6 +35,10 @@ function nameOf(line) {
                .replace(LINE_TRAILERS, " ").trim().toLowerCase();
 }
 
+/* the original text with the names SUBSTITUTED, never a list regenerated from
+   our own data: the paste path drops duplicate counts on the way in, so a
+   rebuilt list would hand back somebody's 30 basics as one line each. this way
+   every count, section header and bit of their formatting stays put */
 export function rebuild(text, swaps) {
     text = text || "";
     (swaps || []).forEach(function (s) {
