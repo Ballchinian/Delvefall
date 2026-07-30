@@ -3482,24 +3482,19 @@ SWAP_DEEP = 48
 SWAP_OFFER = 12
 SWAP_OFFER_DEEP = 48
 
-#how far a replacement's mana value may sit from the card leaving. similarity
-#is on RULES TEXT, so a two mana rock and a six mana rock score identically on
-#the ability that makes them rocks. on /search that is browsing and the user
-#judges. here the page is proposing a card for a specific slot, and a curve is
-#a real constraint that the text cannot see.
+#similarity is on RULES TEXT, so a two mana rock and a six mana rock score
+#identically on the ability that makes them rocks. on /search the user judges;
+#here the page proposes a card for a specific slot, and a curve is a real
+#constraint the text cannot see.
 #
-#not one flat number, because a flat one is barely a constraint at the bottom
-#of the curve and close to a blackout at the top. two either way reaches 89% of
-#the format at three mana and 10.7% of it at eight, because the
-#format thins out fast past five: 7,497 nonland commander-legal cards cost
-#three and 292 cost eight, which is how Ancient Silver Dragon's "less salty"
-#list comes back holding one card while /search shows fourteen of them.
+#NOT one flat number: two either way reaches 89% of the format at three mana and
+#10.7% at eight, because the format thins fast past five (7,497 nonland
+#commander-legal cards cost three, 292 cost eight). that is how Ancient Silver
+#Dragon's "less salty" list came back holding one card while /search showed
+#fourteen.
 #
-#past five it widens to three. past eight it stops measuring distance
-#downwards at all and just reaches to five: up there everything is a finisher,
-#and the gap between an eight drop and an eleven drop is not a difference
-#anybody builds around. the two fives below are the same number by coincidence
-#and not by rule, so they are two constants
+#the two fives below are the same number by COINCIDENCE, not by rule, hence two
+#constants
 SWAP_MV_BAND = 2
 SWAP_MV_BAND_HIGH = 3
 #where the wider band starts
@@ -3607,13 +3602,10 @@ def swap_figure(card, field, currency="usd"):
 
 
 def anchor_panel(conn, card, currency, picked=(), dropped=(), forced=(), mode="search"):
-    #everything partials/anchorcard.html needs, built once for both the pages
-    #that draw it. /search renders it into the page; /deck/swap/cards renders it
-    #to a string and the browser drops it in, because the card it is about
-    #changes as the queue is walked.
-    #
-    #the card dict is MUTATED with its display figures the same way /search does
-    #it, so the two cannot print a price one way here and another way there
+    #built once for both pages that draw the partial. /search renders it into the
+    #page; /deck/swap/cards renders it to a string, the card changing as the queue
+    #is walked. the display figures are set the SAME way /search sets them, so the
+    #two cannot print a price differently
     card = dict(card)
     card["sideways"] = sideways(card.get("layout"), card.get("type_line"))
     card["flip"] = card.get("layout") == "flip"
@@ -3631,11 +3623,9 @@ def anchor_panel(conn, card, currency, picked=(), dropped=(), forced=(), mode="s
 
 def swap_candidates(conn, card, deck_ids, colors, field, direction, currency="usd",
                     picked=(), dropped=(), forced=()):
-    #what could take this card's slot. one nearest neighbour walk per line of
-    #the outgoing card, exactly as /search does, with the deck's own
-    #constraints folded into the WHERE so the LIMIT bites after them rather
-    #than before: a narrow deck digs deeper into the rankings instead of
-    #thinning out a list that was already cut off
+    #one nearest neighbour walk per line of the outgoing card, as /search does,
+    #with the deck's constraints folded into the WHERE so the LIMIT bites AFTER
+    #them: a narrow deck digs deeper rather than thinning an already-cut list
     axis = SWAP_AXES[(field, direction)]
     col = swap_column(field, currency)
     qlines = conn.execute("""
@@ -3643,33 +3633,24 @@ def swap_candidates(conn, card, deck_ids, colors, field, direction, currency="us
         FROM lines l LEFT JOIN line_stats s ON s.line_text = l.line_text
         WHERE l.oracle_id = %s AND NOT l.whole AND l.""" + EMBED_COL + """ IS NOT NULL
     """, (card["oracle_id"],)).fetchall()
-    #NOTHING TO OFFER STILL ANSWERS IN THREE PARTS. the caller unpacks this into
-    #(cards, offband, mv), so a bare [] here is not an empty answer, it is a
-    #ValueError on the unpack and a 500 on a page that had a perfectly ordinary
-    #thing to say. no cards, none held back for their cost, and no band to name
+    #NOTHING TO OFFER STILL ANSWERS IN THREE PARTS: the caller unpacks
+    #(cards, offband, mv), so a bare [] is a ValueError and a 500 on a page that
+    #had a perfectly ordinary thing to say
     if not qlines:
         return [], 0, (None, None)
 
-    #anchor on what makes this card THIS card: its rarest lines, not whichever
-    #of them happens to match something best.
+    #anchor on what makes this card THIS card, its RAREST lines, not whichever
+    #matches something best. "one matching ability is enough" is right for
+    #/search, where the user browses and judges, and wrong for a slot: Stasis
+    #matched Sunken City perfectly on its upkeep tax while the untap lock, the
+    #reason anyone plays or hates it, went unexamined.
     #
-    #this is the other half of the Stasis problem and the half that matters.
-    #"one matching ability is enough" is right for /search, where the user is
-    #browsing and judging, and wrong for a slot replacement, where the ability
-    #that matched has to be the ability the user is replacing. Stasis matched
-    #Sunken City perfectly on its upkeep tax while the untap lock, the entire
-    #reason anyone plays or hates the card, went unexamined.
+    #RELATIVE to the card's own best line, never an absolute bar: Sol Ring is one
+    #common line and nothing else, so an absolute cut returns nothing at all.
     #
-    #relative to the card's own best line, never an absolute bar. Sol Ring is one
-    #common line and nothing else, so its defining line is the common one and
-    #mana rocks are the honest answer. an absolute cut throws all of them out and
-    #returns nothing at all.
-    #
-    #a line the user picked wins outright, and the anchoring below is skipped
-    #for it. the fraction exists to guess which line makes this card this card;
-    #somebody who has clicked a line has answered that question themselves, and
-    #re-narrowing their pick would be the tool overruling the control it just
-    #offered. this is the same precedence /search gives a picked line
+    #a PICKED line wins outright and skips the anchoring. the fraction exists to
+    #guess which line makes this card this card, and somebody who clicked one has
+    #answered that themselves
     chosen = [ql for ql in qlines if ql["line_text"] in picked] if picked else []
     if chosen:
         qlines = chosen
@@ -3679,51 +3660,43 @@ def swap_candidates(conn, card, deck_ids, colors, field, direction, currency="us
 
     where = ""
     params = []
-    #never suggest a card the deck is already running. commander is singleton,
-    #so without this the best answer for your Counterspell is reliably the
-    #Arcane Denial sitting four rows below it
+    #commander is singleton, so without this the best answer for your
+    #Counterspell is reliably the Arcane Denial four rows below it
     where += " AND c.oracle_id <> ALL(%s::uuid[])"
     params.append([str(o) for o in deck_ids])
-    #the deck's colour identity, read the deckbuilding way: every letter of the
-    #card's identity has to be one the deck can already produce, and colourless
-    #always fits. without it most of the list is unplayable and the tool looks
-    #like it has not read the deck
+    #read the deckbuilding way: every letter of the card's identity has to be one
+    #the deck can already produce, and colourless always fits
     if colors is not None:
         where += " AND c.color_identity ~ %s"
         params.append("^[" + colors + "]*$")
     where += " AND c.legal_commander"
-    #a land slot stays a land slot. the text similarity cannot see the
-    #difference, and offering a creature for a land is the single most obvious
-    #way for a suggestion to read as broken
+    #a land slot stays a land slot: the text similarity cannot see the difference,
+    #and offering a creature for a land is the most obvious way to read as broken
     where += " AND (c.type_line ILIKE %s) = %s"
     params.append("%Land%")
     params.append(bool("Land" in (card["type_line"] or "")))
-    #the mana value band is NOT in this where clause, and that is deliberate.
-    #it is applied below, after every candidate has been scored, so the page can
-    #say how many real matches it held back for being the wrong cost. filtered
-    #here they would be indistinguishable from cards that never matched at all,
-    #which is the whole reason this looked broken: a tool that answers "one
-    #card" without saying it turned fourteen away is a tool nobody can argue
-    #with. everything else stays in the SQL, where the LIMIT can bite after it
+    #the mana value band is NOT in this where clause. it is applied AFTER scoring,
+    #so the page can say how many real matches it held back for costing the wrong
+    #amount: filtered here they are indistinguishable from cards that never
+    #matched, and a tool answering "one card" without saying it turned fourteen
+    #away cannot be argued with. everything else stays in the sql, where the LIMIT
+    #bites after it
     mv_lo, mv_hi = (swap_mv_range(card["cmc"])
                     if card.get("cmc") is not None else (None, None))
-    #and the axis itself, as an EXCLUSION rather than a sort applied later.
-    #this is the one the notes warned about: similarity finds the same EFFECT,
-    #and the effect is what people voted salt on, so the neighbours of a salty
-    #card are salty too and merely sorting them puts the least bad offender at
-    #the top of a list of offenders. the same reasoning holds on every axis,
-    #since a "cheaper" list whose best entry costs more is not cheaper at all.
-    #a NULL fails the comparison and drops out, which is right: a card nobody
-    #has priced or voted on cannot be shown to be an improvement
+    #the axis as an EXCLUSION, never a sort applied later: similarity finds the
+    #same EFFECT, and the effect is what people voted salt on, so the neighbours
+    #of a salty card are salty too and sorting them puts the least bad offender at
+    #the top of a list of offenders.
+    #a NULL fails the comparison and drops out, which is right: a card nobody has
+    #priced or voted on cannot be shown to be an improvement
     here = card.get("price" if field == "price" else SWAP_COLUMNS[field])
     if here is None:
         return [], 0, (None, None)
     where += " AND " + col + (" < %s" if axis["better"] == "lower" else " > %s")
     params.append(here)
 
-    #EVERY pair per card now, not just the best one, so a suggestion can say
-    #"+2 more matching lines" the way a search result does. the best one still
-    #decides the ranking and the number on the badge
+    #EVERY pair per card, so a suggestion can say "+2 more matching lines". the
+    #best one still decides the ranking and the badge
     pairs_by_card, meta = {}, {}
     for ql in qlines:
         w = line_weight(ql["count"])
@@ -3759,17 +3732,11 @@ def swap_candidates(conn, card, deck_ids, colors, field, direction, currency="us
     #the concepts half, which is what makes a suggestion scored the way
     #everything else on the site is scored rather than on rules text alone.
     #
-    #it re-ranks the candidates the lines found, and never adds any of its own.
-    #that is not a shortcut, it is the Stasis rule holding: a replacement for a
-    #slot has to share a real line with the card leaving, where a search result
-    #only has to be about the same thing. a concept-only card could not clear
-    #the gate anyway (no line means mech 0, so a 50/50 blend caps it at 50
-    #against a bar of 75), so the rule and the arithmetic agree.
-    #
-    #the tag picker's answers ride in exactly as they do on /search: dropped
-    #tags are ones the user switched off, forced are ones the line picker set
-    #aside and they put back, and picking a line narrows the vector to what
-    #that line is about
+    #re-ranks the candidates the LINES found and never adds any of its own. not a
+    #shortcut but the Stasis rule holding: a slot replacement has to share a real
+    #line with the card leaving, where a search result only has to be about the
+    #same thing. a concept-only card could not clear the gate anyway (no line
+    #means mech 0, so a 50/50 blend caps it at 50 against a bar of 75)
     concept_raw = {}
     shared = {}
     ids = list(pairs_by_card)
@@ -3790,9 +3757,7 @@ def swap_candidates(conn, card, deck_ids, colors, field, direction, currency="us
                 GROUP BY ct.oracle_id, nc.norm
             """, (atags, aweights, anorm, ids)).fetchall():
                 concept_raw[r["oracle_id"]] = r["raw"]
-            #which tags each candidate actually shares, rarest first: the chips
-            #that say WHY the concepts side ranked a card where it did, same
-            #query and same ordering the results page uses
+            #same query and ordering the results page uses
             for r in conn.execute("""
                 SELECT ct.oracle_id, ct.tag FROM card_tags ct
                 JOIN unnest(%s::text[], %s::real[]) AS a(tag, weight) ON a.tag = ct.tag
@@ -3801,22 +3766,17 @@ def swap_candidates(conn, card, deck_ids, colors, field, direction, currency="us
             """, (atags, aweights, ids)).fetchall():
                 shared.setdefault(r["oracle_id"], []).append(r["tag"])
 
-    #NO ANCHOR VECTOR MEANS THE CONCEPT AXIS SITS OUT, exactly as it does on a
-    #search. the condition has to match the one guarding find_similar's ranking,
-    #and this is the third place that has had to learn it.
+    #NO ANCHOR VECTOR MEANS THE CONCEPT AXIS SITS OUT, matching find_similar's
+    #ranking condition. this is the THIRD place that has had to learn it.
     #
-    #without it the tool answered NOTHING, and answered it silently. every
-    #candidate scored concept 0, so the badge was half its rules-text percent,
-    #and half of even a perfect 100 is 50 against a gate of 75: no suggestion
-    #could survive whatever the deck held. picking a keyword line did it (that
-    #line owns no tags, so there is no vector), and so did switching every tag
-    #chip off. measured on Faerie Mastermind: 17 suggestions with the best at
-    #91%, and none at all once "Flash" was picked
+    #without it the tool answered nothing, silently: every candidate scored
+    #concept 0, so the badge was half its rules-text percent, and half of a
+    #perfect 100 is 50 against a gate of 75. measured on Faerie Mastermind, 17
+    #suggestions with the best at 91%, and none at all once "Flash" was picked
     blending = bool(atags) and bool(anorm)
 
     out = []
-    #real matches on every count except what they cost, which is the one
-    #exclusion worth reporting: the others are all "this is not the same card"
+    #the ONE exclusion worth reporting: the others all mean "not the same card"
     offband = 0
     for oid, pairs in pairs_by_card.items():
         weighted, raw, ours, theirs = pairs[0]
@@ -3837,9 +3797,8 @@ def swap_candidates(conn, card, deck_ids, colors, field, direction, currency="us
         if mv_lo is not None and cmc is not None and not (mv_lo <= cmc <= mv_hi):
             offband += 1
             continue
-        #the abilities beyond the one on the badge. a pair reusing a line
-        #already shown is skipped, so the count means genuinely different
-        #abilities matched rather than the same one matching twice
+        #a pair reusing a line already shown is skipped, so the count means
+        #genuinely different abilities matched
         more = []
         used_ours, used_theirs = [ours], [theirs]
         for p in pairs[1:]:
@@ -3848,36 +3807,30 @@ def swap_candidates(conn, card, deck_ids, colors, field, direction, currency="us
             used_ours.append(p[2])
             used_theirs.append(p[3])
             more.append('"' + p[3] + '" (' + str(mech_display(p[1])) + '%) matches "' + p[2] + '"')
-        #every figure carried against the card LEAVING, which is the anchor
-        #here in exactly the way the searched card is the anchor on /search
+        #every figure carried against the card LEAVING, the anchor here in the way
+        #the searched card is the anchor on /search
         row = swap_card_json(meta[oid], currency, anchor=card)
-        #the tooltip only claims to break a blend apart when there was one, the
-        #same call the results grid makes about its own badge
+        #the tooltip only claims to break a blend apart when there was one
         row.update({"match": pct, "their_line": theirs, "our_line": ours,
                     "blended": blending, "mech_pct": mech_pct, "concept_pct": concept_pct,
                     "concept_tags": ", ".join(shared.get(oid, [])[:3]),
                     "more_count": len(more), "more_text": "\n".join(more)})
         out.append(row)
-    #ranked by the number printed on them, which is the promise the whole site
-    #runs on. the axis is not a tiebreak here because it is already a gate:
-    #everything in this list is a genuine improvement, so the only open
-    #question left is which one does the job best
+    #the axis is NOT a tiebreak here, being already a gate: everything in this
+    #list is a genuine improvement, so the only question left is which is closest
     out.sort(key=lambda c: -c["match"])
-    #the held-back count rides back with the list rather than being recovered
-    #from it later, because it cannot be: those cards are gone by then
+    #the held-back count rides back WITH the list, because it cannot be recovered
+    #from it later: those cards are gone by then
     return out[:SWAP_OFFER_DEEP], offband, (mv_lo, mv_hi)
 
 
 def read_axis():
-    #the axis off the request, falling back to the default rather than
-    #erroring: an unknown field is a stale link, not an attack, and the
-    #tool has a sensible thing to do with one.
+    #falls back to the default rather than erroring: an unknown field is a stale
+    #link, not an attack.
     #
-    #a "goal" of "price:asc" is the same thing said in one field, which is what
-    #the picker on the modes page sends. it has to be one control because the
-    #choice is one choice: "cheaper" is a field AND a direction, and two
-    #dropdowns would let somebody pick "price" and "newer" and mean nothing.
-    #the pair is still accepted, because every link and form already sends it
+    #a "goal" of "price:asc" says it in ONE field, which is what the modes picker
+    #sends: "cheaper" is a field AND a direction, and two dropdowns would allow
+    #"price" and "newer". the pair is still accepted, every link sending it
     goal = request.values.get("goal", "")
     if goal.count(":") == 1:
         f, d = goal.split(":")
@@ -4005,14 +3958,9 @@ def deck_swap_cards():
     cur = read_currency()
     with pool.connection() as conn:
         #aliased c because price_col hands back a c-qualified column name, so
-        #every query that reads a price has to call the table the same thing.
-        #price_usd and price_eur come along because price_in reads the raw
-        #columns: this row is the ANCHOR every candidate's verdict is measured
-        #against, so it has to answer the same questions a candidate does.
-        #
-        #the full CARD_FIELDS rather than the seven numbers a verdict needs,
-        #because the panel above the suggestions is the same one /search draws
-        #and that wants the oracle text, the art and the layout
+        #every query reading a price has to call the table the same thing.
+        #the full CARD_FIELDS rather than the numbers a verdict needs, the panel
+        #above the suggestions being the same one /search draws
         row = conn.execute("SELECT " + ", ".join("c." + f for f in CARD_FIELDS.split(", ")) +
                            ", c.cmc, " + price_col(cur) +
                            " AS price FROM cards c WHERE c.oracle_id = %s",
@@ -4022,22 +3970,17 @@ def deck_swap_cards():
         card = dict(row)
         panel = anchor_panel(conn, card, cur, picked_idx, dropped, forced, mode="swap")
         #the TEXTS the picker resolved to, which is what the line table is keyed
-        #on. build_lines already did that work inside anchor_panel, so reading
-        #it back here beats doing it twice and risking two answers
+        #on. read back out of anchor_panel rather than done twice
         picked = [l["text"] for l in panel["card_lines"] if l["selected"]]
         picked = [clean_line(t, card["name"]) for t in picked]
         cards, offband, mv = swap_candidates(conn, card, deck_ids, colors, field, direction,
                                              currency=cur, picked=picked, dropped=dropped, forced=forced)
-    #an empty list is a real answer here, not a miss, so it comes back as one
-    #rather than as an error the page has to interpret.
+    #an empty list is a REAL answer, not a miss, so it comes back as one.
     #
-    #the panel rides back as RENDERED HTML rather than as data the browser
-    #rebuilds. that is what keeps partials/anchorcard.html the only description
-    #of this card anywhere: a json shape plus a javascript builder would be a
-    #second one, and the two would drift the first time only one was edited
-    #offband is how many matches were the right card at the wrong cost, and mv
-    #is the window they missed, so the page can name both rather than saying a
-    #number nobody can check
+    #the panel rides back as RENDERED HTML, never as data the browser rebuilds,
+    #which keeps partials/anchorcard.html the only description of this card
+    #anywhere. offband and mv let the page name the cards held back for their cost
+    #rather than printing a number nobody can check
     return {"cards": cards, "gate": SWAP_GATE, "axis": field, "dir": direction,
             "offband": offband,
             "mv_lo": None if mv[0] is None else int(mv[0]),
@@ -4046,9 +3989,7 @@ def deck_swap_cards():
 
 
 def card_json(c, currency):
-    #one dealt (or revisited) card the way the /unique frontend wants it.
-    #layout and image_back are what let the page offer the rotate and
-    #turn-over buttons
+    #layout and image_back are what let the page offer rotate and turn-over
     price = price_label(c, currency)
     return {
         "oracle_id": str(c["oracle_id"]),
@@ -4071,12 +4012,9 @@ def card_json(c, currency):
 
 @app.route("/unique/cards", methods=["POST"])
 def unique_cards():
-    #deals UNIQUE_PAGE random cards whose uniqueness clears the bar, skipping
-    #ones the browser has already been shown. the filters ride in on the query
-    #string like everywhere else, but the seen list arrives as a json body
-    #because after enough dealing it outgrows what a url can carry. its a
-    #random draw from everything that qualifies, not the top of a ranking, so
-    #every press feels like a fresh pack
+    #a RANDOM draw from everything that qualifies, never the top of a ranking.
+    #the seen list arrives as a json BODY because after enough dealing it
+    #outgrows what a url can carry
     filters = read_filters()
     body = request.get_json(silent=True) or {}
     seen = []
@@ -4250,16 +4188,13 @@ def filter_reasons(card, filters):
         reasons.append("its mana value (" + str(card["cmc"]) + ") is under your minimum")
     if filters["mvmax"] is not None and float(card["cmc"]) > filters["mvmax"]:
         reasons.append("its mana value (" + str(card["cmc"]) + ") is over your maximum")
-    #salt, which this was silent about while filter_sql had bounded it since the
-    #widget shipped. that silence had a cost and it landed in the one place this
-    #function exists to protect: a missing-card report whose card was hidden by a
-    #salt bound came back "nothing hides it, the model just scores it low" and was
-    #filed against the model. the review queue is the training set, so a filter
-    #the diagnosis cannot see becomes a labelled example that is simply wrong.
-    #
-    #the missing case is the same call price makes, and the same one filter_sql
-    #makes: a card nobody has voted on fails both comparisons, so any bound hides
-    #it. unvoted is not mild
+    #salt, which this was SILENT about while filter_sql had bounded it: a
+    #missing-card report whose card a salt bound hid came back "nothing hides it,
+    #the model just scores it low" and was filed against the model. the review
+    #queue is the training set, so a filter the diagnosis cannot see becomes a
+    #labelled example that is wrong.
+    #unvoted is not mild: a card nobody voted on fails both comparisons, so any
+    #bound hides it, the same call price and filter_sql make
     salt = None if card["salt"] is None else float(card["salt"])
     if (filters["smin"] is not None or filters["smax"] is not None) and salt is None:
         reasons.append("nobody has voted on how salty it is, and any salt filter hides unvoted cards")
@@ -4285,19 +4220,13 @@ def filter_reasons(card, filters):
 
 @app.route("/feedback", methods=["POST"])
 def feedback():
-    #the report bar on the results page posts here. the page's whole query
-    #string rides along exactly like /more does, so the report is judged
-    #against the same anchor, picked lines, filters and cutoff the user was
-    #actually looking at.
+    #the page's whole query string rides along like /more's does, so the report is
+    #judged against the same anchor, lines, filters and cutoff the user saw.
     #
-    #two kinds: 'missing' (a good card that should have been in the results,
-    #a future pairs.md entry) and 'misplaced' (a bad card that shouldn't be
-    #here, with the user's reason in their own words, a future triplets.md
-    #negative). nobody is asked to name a replacement card, most players
-    #couldn't quote one on the spot. missing reports get diagnosed before
-    #anything is stored: when a filter is what's hiding the card, the user
-    #learns that on the spot and the review queue never hears about it,
-    #because that's not the model's fault
+    #'missing' is a future pairs.md entry, 'misplaced' a future triplets.md
+    #negative. missing reports are DIAGNOSED before anything is stored: when a
+    #filter is what hides the card, the user learns that on the spot and the
+    #review queue never hears about it
     body = request.get_json(silent=True) or {}
     kind = body.get("kind", "")
     if kind not in ("missing", "misplaced", "tag"):
@@ -4314,21 +4243,17 @@ def feedback():
     dropped = read_dropped()
     forced = read_forced()
 
-    #the ip is stored only as the day's one-way token, same as the visit
-    #counter: enough to spot one source flooding reports within an hour,
-    #nothing that survives as a real address.
+    #stored only as the day's one-way token, same as the visit counter.
     #
-    #read BEFORE the connection is borrowed rather than inside it. the first
-    #report of a day reaches todays_salt() through here, which borrows a
-    #connection of its own, and the pool only holds four. four reports landing
-    #together on a day boundary would each sit on one and wait for a fifth
+    #read BEFORE the connection is borrowed: the first report of a day reaches
+    #todays_salt() through here, which borrows one of its own, and the pool holds
+    #FOUR. four reports landing on a day boundary each sit on one and wait for a
+    #fifth
     ip = visitor_token(client_ip())
 
     with pool.connection() as conn:
-        #a gentle lid, there's no login so this is all the abuse control there
-        #is. the window is 1 hour so the token rotating at midnight only ever
-        #RESETS the lid, never carries a stale grudge, which is exactly what a
-        #spam limiter should do
+        #there is no login, so this is all the abuse control there is. an hour,
+        #so the token rotating at midnight only ever RESETS the lid
         recent = conn.execute("SELECT count(*) AS n FROM feedback WHERE ip = %s AND ip <> '' AND created_at > now() - interval '1 hour'",
                               (ip,)).fetchone()["n"]
         if recent >= 20:
@@ -4340,11 +4265,9 @@ def feedback():
         snap = dict(filters)
         snap["min"] = TIER_CUT
         snap["sort"] = read_sort()
-        #the tag switches ride along: a concept percent scored against a narrowed
-        #tag vector is not the one the full card would give, and a report is
-        #unreadable later without knowing which tags made it. BOTH sides are
-        #kept, since the ones put back by hand shape the vector as much as the
-        #ones switched off
+        #a concept percent scored against a narrowed vector is not the one the
+        #full card gives, so a report is unreadable later without knowing which
+        #tags made it. BOTH sides: the ones put back shape it as much
         if dropped:
             snap["notags"] = sorted(dropped)
         if forced:
@@ -4352,12 +4275,10 @@ def feedback():
         #scale marker: reports from before 2026-07-15 stored raw-cosine
         #percents, everything after stores calibrated display percents
         snap["cal"] = 1
-        #WHICH PAGE the report was made from, because the same complaint means
-        #different things depending on where it was made. "this is a bad match"
-        #on /search is about the ranking; the same words on the swap tool are
-        #about a card the site actively PROPOSED for somebody's deck, which is a
-        #stronger claim and a more useful negative. an unknown value is dropped
-        #rather than stored, so the field can never hold whatever was in the url
+        #WHICH PAGE it was filed from: "bad match" on /search is about the
+        #ranking, the same words on the swap tool are about a card the site
+        #PROPOSED, which is a stronger negative. an unknown value is dropped, so
+        #the field can never hold whatever was in the url
         src = request.args.get("from", "")
         if src in ("swap",):
             snap["from"] = src
@@ -4458,14 +4379,11 @@ def feedback():
             return {"ok": False, "stored": False, "msg": "Say a few words about why it's a bad match first."}
 
         got_pct = best_sim(conn, card["oracle_id"], got["oracle_id"], picked)
-        #the same split the missing branch makes, and for the same reason. the
-        #database keeps the mechanical percent and the snapshot keeps the concept
-        #half, because the review needs the two axes apart to route a report.
-        #
-        #the sentence quotes the number the page actually BADGED. quoting the
-        #mech half answers "shows at 92% right now" about a card the page badged
-        #78%, which is the site contradicting its own results at the exact moment
-        #somebody has told it that number is wrong
+        #the same split the missing branch makes: the database keeps the mech
+        #percent and the snapshot the concept half, the review needing the two
+        #axes apart to route a report.
+        #the sentence quotes the number the page BADGED. quoting the mech half
+        #answers "shows at 92% right now" about a card the page badged 78%
         shown_pct = got_pct
         cpct = concept_between(conn, card["oracle_id"], got["oracle_id"], dropped, picked, forced)
         #a None cpct is the anchor having no vector, which is the ranking's own
@@ -4495,13 +4413,10 @@ def admin_allowed():
 
 
 def report_markdown(r, line_texts, n):
-    #one accepted report in the shape pairs.md uses, ready to paste (the
-    #separators mirror that file exactly). missing reports become should-match
-    #entries (the anchor and the good card), misplaced reports become
-    #should-NOT entries (the anchor, the bad card and the user's reason).
-    #promotion into triplets.md happens by hand at review time. the anchor
-    #quotes only the picked lines when the report came from a line-picked
-    #search
+    #one accepted report in the shape pairs.md uses, ready to paste. missing
+    #becomes a should-match entry, misplaced a should-NOT one; promotion into
+    #triplets.md happens by hand. the anchor quotes only the PICKED lines when
+    #the report came from a line-picked search
     def q(lines):
         if not lines:
             return "`(card no longer in the database)`"
@@ -4683,23 +4598,14 @@ def admin_act():
     return redirect("/admin?key=" + ADMIN_KEY)
 
 
-#the search bar calls this while you type to fill the suggestion dropdown.
-#names that start with what you typed come first, then names with it anywhere,
-#then trigram matches to catch typos. one query, tiered like find_card: the
-#substring tiers read alphabetically, the fuzzy tier closest-first (its
-#alphabetical CASE key is NULL, which sorts after every real name). this is
-#the hottest route on the site, it fires on every pause in typing
-#how many names the dropdown offers, and how many rows are asked for to fill it.
-#the two differ because the odd card name occurs twice in the pool and the
-#duplicates collapse HERE rather than in sql: every ordering key is derived from
-#the name, so a DISTINCT would have to carry all three into the select list to
-#say what one python check says.
-#
-#asking for exactly the eight it shows meant every duplicate cost a row off the
-#end, so the one query that fires on every pause in typing quietly handed back
-#seven suggestions, or six. the spare four are free (the LIMIT is what the index
-#walk stops at, and it is the same walk either way) and they cannot all be
-#duplicates
+#one query, tiered like find_card: the substring tiers read alphabetically, the
+#fuzzy tier closest-first (its alphabetical CASE key is NULL, which sorts after
+#every real name). the HOTTEST route on the site, firing on every pause in typing
+#SHOW and ROWS differ because the odd card name occurs twice in the pool and the
+#duplicates collapse HERE, every ordering key being derived from the name.
+#asking for exactly the eight shown meant every duplicate cost a row off the end,
+#so this quietly handed back seven suggestions, or six. the spare four are free:
+#the LIMIT is where the index walk stops, and it is the same walk either way
 SUGGEST_SHOW = 8
 SUGGEST_ROWS = 12
 
