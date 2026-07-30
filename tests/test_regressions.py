@@ -49,8 +49,7 @@ class TestConceptOnlyCardsSortOnSalt:
     def test_a_concept_only_find_sorts_among_the_salted(self):
         #min_pct 0 puts every candidate in the strong tier, so this is measuring
         #the sort and nothing else
-        results, _, _ = app.find_similar(seed.ANCHOR, [], plain_filters(), 0, "salty",
-                                         blend=0.5, how_many=20)
+        results, _, _ = app.find_similar(seed.ANCHOR, [], plain_filters(), 0, "salty", how_many=20)
         names = [r["name"] for r in results]
         ghost = next(r for r in results if r["name"] == "Fixture Ghost")
 
@@ -64,8 +63,7 @@ class TestConceptOnlyCardsSortOnSalt:
         assert names[-1] != "Fixture Ghost"
 
     def test_the_mild_direction_agrees(self):
-        results, _, _ = app.find_similar(seed.ANCHOR, [], plain_filters(), 0, "mild",
-                                         blend=0.5, how_many=20)
+        results, _, _ = app.find_similar(seed.ANCHOR, [], plain_filters(), 0, "mild", how_many=20)
         names = [r["name"] for r in results]
         assert names.index("Fixture Ghost") > names.index("Fixture Stranger")
         #the half that bites: at 2.00 the ghost is milder than the twin's 2.50,
@@ -79,8 +77,7 @@ class TestConceptOnlyCardsSortOnSalt:
         conn.commit()
         try:
             for sort in ("salty", "mild"):
-                results, _, _ = app.find_similar(seed.ANCHOR, [], plain_filters(), 0, sort,
-                                                 blend=0.5, how_many=20)
+                results, _, _ = app.find_similar(seed.ANCHOR, [], plain_filters(), 0, sort, how_many=20)
                 assert results[-1]["name"] == "Fixture Cousin", sort
         finally:
             conn.execute("UPDATE cards SET salt = 0.10 WHERE oracle_id = %s", (seed.COUSIN,))

@@ -40,29 +40,21 @@ import visitors
 from visitors import client_ip, visitor_token, _utc_day
 from views.meta import bp as meta_bp
 
-#say what a .js file is rather than asking the machine we happen to be on.
-#python reads its mime table from the host: linux says text/javascript, but a
-#windows box reads the registry and plenty of them answer text/plain.
-#
-#a classic <script> would survive that by sniffing the body and running it
-#regardless. the pages load <script type="module">, which is strictly mime
-#checked per spec: a browser hard refuses text/plain, renders nothing and gives
-#one console line to explain it. without this line the site looks broken on a
-#windows dev box and fine on railway, which is the worst shape a bug can take
+#python reads its mime table from the HOST: linux says text/javascript, a
+#windows box reads the registry and plenty answer text/plain. <script
+#type="module"> is strictly mime checked per spec, so a browser hard refuses
+#text/plain and renders nothing. broken on a windows dev box, fine on railway
 mimetypes.add_type("text/javascript", ".js")
 
 app = Flask(__name__)
 
-#railway terminates tls one proxy in front of this app, so without this
-#flask believes every request was plain http on an internal hostname. the
-#canonical and og:url tags embed request.url_root, and those must say https
-#on the real domain or google treats every page as its http twin
+#railway terminates tls one proxy in front, so without this flask believes every
+#request was plain http on an internal hostname. the canonical and og:url tags
+#embed request.url_root, and those must say https on the real domain
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
-#one canonical domain: once CANONICAL_HOST names the real domain, every other
-#host 301s to it, https and all. unset means no redirect, so this ships safely
-#before dns is ready. only GET/HEAD move, and railway's healthcheck host is
-#left alone so the deploy still passes its check
+#unset means no redirect, so this ships safely before dns is ready. only GET/HEAD
+#move, and railway's healthcheck host is left alone or the deploy fails its check
 CANONICAL_HOST = os.environ.get("CANONICAL_HOST", "").strip().rstrip("/").lower()
 
 
@@ -82,19 +74,15 @@ def force_canonical_host():
 #/more payloads are prose-heavy and shrink several times over
 Compress(app)
 
-#static files may cache for a year because static_url below stamps a content
-#hash onto every url the templates emit: changing a file changes its url, so
-#a stale cache can never serve an old stylesheet against a new page
+#a year is safe only because static_url below stamps a content hash onto every
+#url the templates emit
 app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 60 * 60 * 24 * 365
 
-#a lid on any request body, checked by werkzeug before it reads the stream.
-#DECK_MAX_CHARS below looks like it already does this and it does not: it
-#trims the text after request.form has parsed the whole body into memory, so
-#the paste box is capped and the process is not.
-#
-#1mb rather than something tighter because /unique/cards really does post a
-#seen list of up to 4000 uuids, about 170kb, and the paste box takes 60000
-#chars. both sit well under it, and a 5mb paste gets a 413 without being read
+#checked by werkzeug BEFORE it reads the stream. DECK_MAX_CHARS looks like it
+#does this and does not: it trims after request.form has parsed the whole body
+#into memory, so the paste box is capped and the process is not.
+#1mb because /unique/cards posts a seen list of up to 4000 uuids (~170kb) and the
+#paste box takes 60000 chars. a 5mb paste gets a 413 without being read
 app.config["MAX_CONTENT_LENGTH"] = 1024 * 1024
 
 _static_hash = {}
@@ -102,17 +90,10 @@ _static_hash = {}
 
 @app.template_global()
 def static_url(filename):
-    #the hash is memoised against the file's mtime and size rather than against
-    #its name alone, and the stat is the whole point of this function working.
-    #
-    #memoised on the name alone, an edited file would keep the hash it had when
-    #the process started, so the page goes on emitting ?v=<old> while the file
-    #underneath changes. static files are cached for a year, so a browser that
-    #already loaded that url never asks again: the fix sits on disk, gets served,
-    #and reaches nobody. it only bites in development, which is where it is
-    #hardest to notice.
-    #
-    #in production the process restarts on deploy and the stat changes nothing.
+    #memoised against the file's MTIME AND SIZE, never its name alone: on the
+    #name, an edited file keeps the hash it had at startup and the page goes on
+    #emitting ?v=<old> behind a year-long cache, so the fix reaches nobody. it
+    #only bites in development, where it is hardest to notice
     path = os.path.join(app.static_folder, filename)
     try:
         st = os.stat(path)
@@ -160,17 +141,10 @@ _mana_urls = {"stamp": None, "map": {}}
 
 @app.template_global()
 def mana_urls():
-    #memoised against the FOLDER, not built once and kept for the life of the
-    #process. that is the same call static_url makes about the file it stamps,
-    #and for the same reason: a map built once at the first request pins every
-    #symbol to the hash it had then, so an edited svg goes on being served under
-    #its old url behind a year long cache. one escape hatch from the stamping
-    #discipline is one place it does not hold.
-    #
-    #scandir hands back the sizes and mtimes along with the names, so the check
-    #is one directory walk rather than a stat per file. in production the symbols
-    #never move, so this builds once at the first request and every one after
-    #compares a tuple
+    #memoised against the FOLDER for the same reason static_url stats its file:
+    #built once, the map pins every symbol to the hash it had then.
+    #scandir hands back sizes and mtimes with the names, so the check is one
+    #directory walk rather than a stat per file
     folder = os.path.join(app.static_folder, "symbols")
     with os.scandir(folder) as entries:
         stamp = tuple(sorted((e.name, e.stat().st_mtime_ns, e.stat().st_size)
@@ -209,20 +183,14 @@ with pool.connection() as _conn:
             created_at    timestamptz DEFAULT now()
         )
     """)
-    #the third kind of report, and the one column the CREATE above does not
-    #carry: a 'tag' report says the line picker put a tag on the wrong line, so
-    #its subject is a slug rather than a second card. it is an ALTER in
-    #common/schema.sql because the table shipped before the kind did, and it has
-    #to be one here for the same reason the table itself is here: railway only
-    #deploys web/, so a database the ingest has never touched only ever gets
-    #what this block asks for. without it /feedback 500s on a tag report and
-    #/admin 500s reading the column back, which is the pair of pages that make
-    #the report worth filing
+    #a 'tag' report's subject is a slug rather than a second card, so it needs a
+    #column the CREATE above does not carry. an ALTER here as well as in
+    #schema.sql, because a database the ingest has never touched only gets what
+    #this block asks for. without it /feedback 500s on a tag report and /admin
+    #500s reading the column back
     _conn.execute("ALTER TABLE feedback ADD COLUMN IF NOT EXISTS tag text NOT NULL DEFAULT ''")
-    #privacy-preserving visitor counting. same reason as the feedback table:
-    #these live in common/schema.sql too, but railway only deploys web/, so
-    #the app makes sure they exist. what each holds is explained at
-    #todays_salt/count_visit below
+    #also in schema.sql, and also here because railway only deploys web/. what
+    #each holds is at todays_salt/count_visit below
     _conn.execute("CREATE TABLE IF NOT EXISTS visit_salt (day date PRIMARY KEY, salt text NOT NULL)")
     _conn.execute("""CREATE TABLE IF NOT EXISTS visit_seen (
         day   date NOT NULL,
@@ -230,30 +198,23 @@ with pool.connection() as _conn:
         PRIMARY KEY (day, token)
     )""")
     _conn.execute("CREATE TABLE IF NOT EXISTS visit_daily (day date PRIMARY KEY, uniques int NOT NULL)")
-    #/privacy says plainly that an ip address is never stored, so any row still
-    #holding a real one has to go or that page is not telling the truth about
-    #what is on disk. length tells them apart with nothing left over: a token is
-    #a sha256 hex digest, exactly 64 characters, and no address of either family
-    #reaches that. the rate limit only ever looks an hour back, so clearing them
-    #costs nothing.
-    #
-    #this is in common/schema.sql too. it runs here as well so it lands on the
-    #next deploy instead of waiting for an ingest, and after the first run it
-    #matches no rows
+    #/privacy says an ip address is never stored, so any row still holding one has
+    #to go. LENGTH tells them apart with nothing left over: a token is a sha256
+    #hex digest, exactly 64 characters, and no address of either family reaches
+    #that. the rate limit only looks an hour back, so clearing them costs nothing.
+    #here as well as in schema.sql, so it lands on the next deploy rather than
+    #waiting for an ingest. after the first run it matches no rows
     _conn.execute("UPDATE feedback SET ip = '' WHERE ip <> '' AND length(ip) <> 64")
 
 #the review page at /admin only exists when this is set in the environment
 ADMIN_KEY = os.environ.get("ADMIN_KEY", "")
 
-#where the tip jar lives. ko-fi hosts the payment side entirely, so this is a
-#plain link out and no money, card details or account ever touch this server.
-#not an environment variable: it is a public url that never changes, and
-#hiding a constant in railway only means the next person cannot find it
+#ko-fi hosts the payment side entirely, so no money, card details or account ever
+#touch this server. not an env var: a public url that never changes
 KOFI_URL = "https://ko-fi.com/ballchinian"
 
-#what /support says the money is for. a real number is the persuasion, and a
-#small one is the point: "support us" asks to be trusted, "£10 a month for the
-#database and the domain" can be checked against the bill
+#a real number is the persuasion: "support us" asks to be trusted, "£10 a month"
+#can be checked against the bill
 RUNNING_COST = "about £10 a month"
 
 #the display columns the frontend needs, so every query grabs the same set
@@ -267,79 +228,58 @@ CARD_TYPES = ["Creature", "Instant", "Sorcery", "Artifact", "Enchantment", "Plan
 #counterpart to scryfall's random card button
 UNIQUE_PAGE = 1
 
-#how the dealer picks. the window is relative: whatever the best available card
-#scores, the draw happens among cards within UNIQUE_BAND of it, which keeps
-#every deal near the top of what is actually left. a fixed "top 100 unseen"
-#works only while the pool is deep, and with filters on or a long trail the
-#hundredth card can sit miles below the first, so a 25% follows a 3% and the
-#page stops looking like it deals unique cards at all.
+#the window is RELATIVE: the draw happens among cards within UNIQUE_BAND of
+#whatever the best available one scores. a fixed "top 100 unseen" works only
+#while the pool is deep, and with filters on the hundredth card sits miles below
+#the first, so a 25% follows a 3%.
 #
-#the two bounds under it pull against each other on purpose. MIN_POOL widens
-#a thin band so the page does not become a fixed running order that every
-#visitor walks in the same sequence. MAX_DROP then caps that widening, because
-#the top of the concepts axis is one card at 100, then 83, then 81, then a
-#crowd at 67: an unbounded "top 25 whatever they score" there deals a 67 and a
-#100 in the same breath, which is the exact jumping about this is meant to
-#stop. so: prefer the band, widen it when it is lonely, never widen it far
+#the two bounds pull against each other. MIN_POOL widens a thin band, so the page
+#is not one running order every visitor walks. MAX_DROP caps that widening: the
+#top of the concepts axis is one card at 100, then 83, 81, then a crowd at 67, and
+#an unbounded "top 25" there deals a 67 and a 100 in the same breath
 UNIQUE_BAND = 0.05
 UNIQUE_MIN_POOL = 25
 UNIQUE_MAX_DROP = 0.08
 UNIQUE_WINDOW = 80
 
 
-#the mechanics <-> concepts slider maps its detents to these axis-2 weights
-#(a 5% step is too fine to see on the page, so the detents are coarser). results
-#are ordered by (1-w) * mech percent + w * concept percent, and once the
-#slider moves the badge shows that same blend, so the list always reads in
-#descending order of the number on it
-BLEND_WEIGHTS = (0.0, 0.25, 0.5, 0.75, 1.0)
-
-#the middle detent is where a first-time visitor lands: half rules text, half
-#concepts. either pure end is a specialist's view, and someone who has never
-#touched the slider is better served by both axes at once
-BLEND_DEFAULT = 2
+#how the two axes are weighed against each other: results are ordered by
+#(1-BLEND) * mech percent + BLEND * concept percent, and the badge shows that
+#same number, so the list always reads in descending order of what is printed
+#on it.
+#
+#an even blend beat every other position of the slider this replaced, including
+#both pure ends, so the choice never needed making. see web/history.md
+BLEND = 0.5
 
 
 #---- the anchor's side of the concept axis ----
 
-#the searched card's tag vector, which is what every axis-2 query scores
-#against. dropping a tag on the page has to drop the inherited rows that only
-#existed because of it, so the kept set is rebuilt the way ingest/tags.py
-#built it in the first place: start from the tags a human actually typed,
-#minus the dropped ones, then climb the tree. the weights come straight from
-#card_tags, already carrying the inherited damping, so nothing here has to
-#know what that damping is.
+#the searched card's tag vector, what every axis-2 query scores against.
+#dropping a tag has to drop the inherited rows that only existed because of it,
+#so the kept set is rebuilt the way ingest/tags.py built it: the tags a human
+#typed, minus the dropped ones, then climb the tree.
 #
-#the norm is recomputed over whatever survived, and that is the whole point.
-#reusing the baked card_tag_norms row would put a shrunken numerator over a
-#full-card denominator and quietly deflate every score, which would move the
-#cutoff without moving the calibration. with nothing dropped this returns the
-#baked norm to the digit, so the default path is a true no-op
-#the line -> tag attribution, running at 94% precision / 82% recall, so picking
-#a line moves both axes. it stayed dark below that, on the grounds that a
-#concepts side quietly ignoring the right tag is worse than one ignoring
-#nothing.
+#the NORM is recomputed over whatever survived. reusing the baked
+#card_tag_norms row puts a shrunken numerator over a full-card denominator and
+#deflates every score, moving the cutoff without moving the calibration. with
+#nothing dropped it returns the baked norm to the digit
+#the line -> tag attribution, at 94% precision / 82% recall.
 #
-#on by default rather than switched on by a railway variable: a shipped feature
-#depending on an env var disappears the first time one gets reset, silently,
-#with the site still returning 200s. set LINE_TAGS=0 to turn it off, which is
-#the kill switch if the attribution ever regresses.
+#ON by default rather than switched on by an env var, which disappears the first
+#time one gets reset, silently, with the site still returning 200s. LINE_TAGS=0
+#is the kill switch if the attribution regresses.
 #
-#with it off every path below falls through to the same behaviour as no
-#attribution at all: picking a line moves the rules-text side only,
-#and the concepts side reads the whole card. those fallbacks are the ones
-#already written for a database whose line_tags was never built, so it stays
-#safe on a database the attribution has never run against
+#with it off every path below falls through to the fallbacks already written for
+#a database whose line_tags was never built: picking a line moves the rules-text
+#side only, and the concepts side reads the whole card
 LINE_TAGS = os.environ.get("LINE_TAGS", "1").strip().lower() not in ("0", "false", "off", "no", "")
 
 @app.context_processor
 def feature_flags():
-    #base.html builds the nav for every page, so the flags have to reach every
-    #template rather than the handful that pass them explicitly.
-    #
     #deck_min rides along because the paste box and the reading both quote the
-    #floor, and the hub is rendered from two places with different arguments.
-    #passing it by hand meant one of them would eventually say a stale number
+    #floor, and the hub renders from two places with different arguments: passed
+    #by hand, one of them eventually says a stale number
     return {"line_tags_on": LINE_TAGS, "kofi_url": KOFI_URL, "running_cost": RUNNING_COST,
             "deck_min": DECK_MIN_FOR_RANK}
 
@@ -912,20 +852,14 @@ def read_number(name, label, errors):
         return None
 
 
-def tier_cut(blend):
-    #where the strong tier ends, in calibrated display units. nothing on the page
-    #exposes it: a knob for "how similar" on a similarity site is bloat, and its
-    #real job of keeping the price sorts meaningful is done by the split itself,
-    #since everything under the cut pages in behind the weaker-matches button
-    #instead of joining the sorts.
-    #
-    #80 at both ends of the slider: pure mechanics pins the model's real quality
-    #boundary there, and pure concepts shows the calibrated concept score, where
-    #good matches also read 80+. the mixed detents show an average of two axes,
-    #and averages rarely reach 80, so they sit at 70. with the slider fixed at
-    #the middle only the 70 is reachable, and the branch is what makes 70 an
-    #argument rather than a bare number
-    return 70 if 0 < blend < len(BLEND_WEIGHTS) - 1 else 80
+#where the strong tier ends, in calibrated display units. nothing on the page
+#exposes it: everything under the cut pages in behind the weaker-matches button
+#rather than joining the sorts, which is what keeps the price sorts meaningful.
+#
+#70 and not 80 because the badge is an AVERAGE of two axes, and averages rarely
+#reach 80. either pure axis alone would sit at 80, which is where the model's
+#real quality boundary is
+TIER_CUT = 70
 
 
 #the sort is a field plus a direction rather than one entry per combination. as
@@ -1090,20 +1024,6 @@ def currency_urls():
     for code in CURRENCY_SIGNS:
         out[code] = request.path + "?" + urlencode(keep + [("cur", code)])
     return out
-
-
-def read_blend():
-    #fixed at the middle, with no slider on the page. an even blend of the two
-    #axes beats either end on its own and beats every other detent, so the
-    #choice never needed making, and a control asking readers to make it was the
-    #most misunderstood thing on the site.
-    #
-    #the machinery underneath still works off this number: BLEND_WEIGHTS,
-    #tier_cut and the two-axis scoring. putting the slider back means restoring
-    #the input and the four lines below, not rebuilding the ranking. a stale
-    #blend= in an old link is ignored rather than honoured, which is what makes
-    #every shared url agree about what it shows
-    return BLEND_DEFAULT
 
 
 def read_picked():
@@ -1352,7 +1272,7 @@ def band_words(step):
     return BAND_WORDS[min(step, len(BAND_WORDS)) - 1]
 
 
-def find_similar(oracle_id, picked, filters, min_pct, sort, offset=0, how_many=20, band=None, blend=0.0,
+def find_similar(oracle_id, picked, filters, min_pct, sort, offset=0, how_many=20, band=None,
                  currency="usd", dropped=(), forced=(), anchor_price=None, anchor_rank=None,
                  anchor_salt=None, anchor_released=None):
     #every candidate card keeps all its matching line pairs now instead of
@@ -1462,15 +1382,13 @@ def find_similar(oracle_id, picked, filters, min_pct, sort, offset=0, how_many=2
         #an empty vector (every tag dropped, or an untagged card) means the
         #concept side has nothing to say, so it sits the round out rather than
         #dividing by a zero norm
-        atags, aweights, anorm = anchor_vector(conn, oracle_id, dropped, picked, forced) if blend > 0 else ([], [], 0.0)
-        #no anchor vector means the concept axis sits out entirely, rather than
+        atags, aweights, anorm = anchor_vector(conn, oracle_id, dropped, picked, forced)
+        #no anchor vector means the concept axis SITS OUT entirely, rather than
         #scoring every candidate at zero and dragging the blend down with it.
         #picking a keyword line is how that happens: the line owns no tags, so
-        #there is no vector, and scoring it as zero halves every card's score and
-        #returns nothing at all above the cutoff. ranking on rules text alone is
-        #both what survives and what the person who clicked "Vigilance, trample,
-        #haste" was asking for
-        if blend > 0 and atags:
+        #scoring it as zero would halve every card's score and return nothing at
+        #all above the cutoff
+        if atags:
             have = {oid for oid, pairs in ranked}
             #cards the lines never found, injected as candidates when their
             #concept score alone is worth considering at the current cutoff,
@@ -1524,7 +1442,7 @@ def find_similar(oracle_id, picked, filters, min_pct, sort, offset=0, how_many=2
             def blended(entry):
                 oid, pairs = entry
                 mech = mech_display(pairs[0][1]) if pairs else 0
-                return (1 - blend) * mech + blend * concept_display(concept_raw.get(oid, 0.0))
+                return (1 - BLEND) * mech + BLEND * concept_display(concept_raw.get(oid, 0.0))
             ranked.sort(key=blended, reverse=True)
             gate_score = blended
         else:
@@ -1643,7 +1561,7 @@ def find_similar(oracle_id, picked, filters, min_pct, sort, offset=0, how_many=2
         #they read off the same kept vector the scoring used, so a tag the
         #user switched off never turns up as the reason for a match
         chips = {}
-        if blend > 0 and atags and ids:
+        if atags and ids:
             for r in conn.execute("""
                 SELECT ct.oracle_id, ct.tag FROM card_tags ct
                 JOIN unnest(%s::text[], %s::real[]) AS a(tag, weight) ON a.tag = ct.tag
@@ -1689,8 +1607,8 @@ def find_similar(oracle_id, picked, filters, min_pct, sort, offset=0, how_many=2
         #alone above, and blending a zero concept score in here would badge a
         #perfect textual match as 50% while the gate let it through on 100.
         #the condition has to match the one guarding the ranking exactly
-        if blend > 0 and atags:
-            percent = int(round((1 - blend) * mech_pct + blend * concept_pct))
+        if atags:
+            percent = int(round((1 - BLEND) * mech_pct + BLEND * concept_pct))
         else:
             percent = mech_pct
         price = price_label(c, currency)
@@ -1724,7 +1642,7 @@ def find_similar(oracle_id, picked, filters, min_pct, sort, offset=0, how_many=2
             "scryfall_uri": c["scryfall_uri"],
             "percent": percent,
             #the tooltip only claims to break a blend apart when there was one
-            "blended": blend > 0 and bool(atags),
+            "blended": bool(atags),
             "mech_pct": mech_pct,
             "concept_only": concept_only,
             "concept_pct": concept_pct,
@@ -1810,25 +1728,20 @@ def search():
     #be on the page like the other three are
     card["salt_text"] = salt_label(card["salt"])
     card["age"] = age_label(card["released_at"])
-    blend = read_blend()
-    min_pct = tier_cut(blend)
     sort = read_sort()
     sort_field, sort_dir = read_sort_parts()
     card_lines, picked = build_lines(card, read_picked())
     dropped = read_dropped()
     forced = read_forced()
 
-    #the tag chips only mean anything while the concepts side is switched on,
-    #so at detent 0 (pure rules text) they stay off the page rather than
-    #sitting there as a control that changes nothing
     with pool.connection() as conn:
-        chips = anchor_chips(conn, card["oracle_id"], dropped, picked, forced) if blend > 0 and LINE_TAGS else []
+        chips = anchor_chips(conn, card["oracle_id"], dropped, picked, forced) if LINE_TAGS else []
     #anchorcard.html reads these names, and /deck/swap builds the same set out
     #of anchor_panel(). they are passed explicitly rather than through it here
     #because this route already had every one of them in hand
 
-    results, has_more, next_band = find_similar(card["oracle_id"], picked, filters, min_pct, sort,
-                                                blend=BLEND_WEIGHTS[blend], currency=filters["cur"],
+    results, has_more, next_band = find_similar(card["oracle_id"], picked, filters, TIER_CUT, sort,
+                                                currency=filters["cur"],
                                                 dropped=dropped, forced=forced,
                                                 anchor_price=price_in(card, filters["cur"]),
                                                 anchor_rank=card["edhrec_rank"],
@@ -1836,8 +1749,8 @@ def search():
                                                 anchor_released=card["released_at"])
     resp = make_response(render_template("search.html", query=query, card=card, card_lines=card_lines,
                                          picked_count=len(picked), results=results, has_more=has_more,
-                                         next_band=next_band, min_pct=min_pct, errors=filters["errors"],
-                                         blend=blend, cur=filters["cur"], types=CARD_TYPES,
+                                         next_band=next_band, min_pct=TIER_CUT, errors=filters["errors"],
+                                         cur=filters["cur"], types=CARD_TYPES,
                                          tag_chips=chips, dropped_count=sum(1 for c in chips if c["state"] == "off"),
                                          aside_count=sum(1 for c in chips if c["state"] == "aside"),
                                          line_tags_on=LINE_TAGS,
@@ -1848,9 +1761,8 @@ def search():
                                          #own ?sort=salt&dir=desc focus the same
                                          #figure
                                          focus=focus_class(sort_field)))
-    #the blend cookie is gone with the slider. it is actively DELETED rather
-    #than left alone, or anyone who moved the slider before today keeps a
-    #stale preference in their browser forever, invisible and doing nothing
+    #the slider's cookie, actively DELETED rather than left alone, or anyone who
+    #moved it before 2026-07-22 keeps a stale preference forever, doing nothing
     if request.cookies.get("blend") is not None:
         resp.delete_cookie("blend", samesite="Lax")
     return resp
@@ -1882,9 +1794,8 @@ def unique_top():
     #cached an hour like the precon board, and for the same reason: the scores
     #only move when the ingest reruns and the list is identical for everyone.
     #
-    #pure rules-text uniqueness rather than the blend the dealer uses. the
-    #blend is a slider the visitor moves, and a page google reads once needs
-    #one fixed meaning. this is also the number the h1 makes a claim about
+    #pure rules-text uniqueness rather than the blend the dealer uses: this is
+    #the number the h1 makes a claim about
     if _unique_top["rows"] and time.time() - _unique_top["at"] < 3600:
         return _unique_top["rows"]
     try:
@@ -1908,7 +1819,7 @@ def unique_top():
 
 @app.route("/unique")
 def unique():
-    return render_template("unique.html", types=CARD_TYPES, blend=read_blend(), cur=read_currency(),
+    return render_template("unique.html", types=CARD_TYPES, cur=read_currency(),
                            top=unique_top(), top_n=UNIQUE_TOP)
 
 
@@ -3865,11 +3776,10 @@ def swap_column(field, currency):
 #the match a suggestion has to clear before the page will offer it, IN BLENDED
 #DISPLAY UNITS, the same number /search badges.
 #
-#80 would be a different scale rather than a stricter setting: that is the
-#calibrated boundary for rules text alone (see tier_cut, which returns it at
-#either end of the blend for exactly this reason). scored on both axes like
-#everything else, the comparable boundary is /search's mixed cut of 70, because
-#an average of two axes rarely reaches 80.
+#80 would be a different SCALE rather than a stricter setting: that is the
+#calibrated boundary for rules text alone. scored on both axes like everything
+#else, the comparable boundary is /search's TIER_CUT of 70, because an average
+#of two axes rarely reaches 80.
 #
 #75 rather than 70 because this is the page that proposes a card for a slot rather than handing back a list to browse, so it
 #wants better answers than a search does. it is the only number on the site set
@@ -3898,7 +3808,7 @@ def swap_column(field, currency):
 #and the page says which cards it skipped instead of letting them vanish.
 #
 #that makes four controls this site does without for having one right answer,
-#alongside the blend slider, the uniqueness bar and the search threshold
+#alongside the blend, the uniqueness bar and the search threshold
 SWAP_GATE = 75
 
 #the swap tool scores on both axes, same as /search, and for the same reason:
@@ -4244,7 +4154,7 @@ def swap_candidates(conn, card, deck_ids, colors, field, direction, currency="us
     shared = {}
     ids = list(pairs_by_card)
     atags, anorm = [], 0.0
-    if SWAP_BLEND > 0 and ids:
+    if ids:
         atags, aweights, anorm = anchor_vector(conn, card["oracle_id"], dropped, picked, forced)
         if atags and anorm:
             for r in conn.execute("""
@@ -4562,12 +4472,10 @@ def unique_cards():
             pass
 
     where, fparams = filter_sql(filters)
-    #no uniqueness bar: the dealer works from whatever is left rather than
-    #from a number anyone has to learn. the slider decides which KIND of
-    #unique it is ranking on: rules-text isolation, tag-space isolation, or a
-    #mix. cards with no searchable lines stay excluded, untagged cards count
-    #as 0 on the concept side
-    w = BLEND_WEIGHTS[read_blend()]
+    #no uniqueness bar: the dealer works from whatever is left rather than from
+    #a number anyone has to learn. cards with no searchable lines stay excluded,
+    #untagged cards count as 0 on the concept side
+    w = BLEND
     blended = "((1 - %s) * c.uniqueness + %s * coalesce(c.concept_uniqueness, 0))"
     cond = """
         FROM cards c
@@ -4620,9 +4528,8 @@ def unique_card():
     except ValueError:
         return {"card": None}
     with pool.connection() as conn:
-        #the trail arrows show the same blended number a fresh deal would,
-        #using the remembered slider position
-        w = BLEND_WEIGHTS[read_blend()]
+        #the trail arrows show the same blended number a fresh deal would
+        w = BLEND
         c = conn.execute("SELECT " + CARD_FIELDS + """, uniqueness, unique_line,
                             ((1 - %s) * uniqueness + %s * coalesce(concept_uniqueness, 0)) AS blended_u
                           FROM cards WHERE oracle_id = %s""",
@@ -4651,10 +4558,9 @@ def more():
         band = int(request.args["band"])
     except (KeyError, ValueError):
         band = None
-    blend = read_blend()
     filters = read_filters()
-    results, has_more, next_band = find_similar(card["oracle_id"], picked, filters, tier_cut(blend), read_sort(), offset,
-                                                band=band, blend=BLEND_WEIGHTS[blend], currency=filters["cur"],
+    results, has_more, next_band = find_similar(card["oracle_id"], picked, filters, TIER_CUT, read_sort(), offset,
+                                                band=band, currency=filters["cur"],
                                                 dropped=read_dropped(), forced=read_forced(),
                                                 anchor_price=price_in(card, filters["cur"]),
                                                 anchor_rank=card["edhrec_rank"],
@@ -4784,8 +4690,6 @@ def feedback():
     reason = str(body.get("reason", "")).strip()[:500]
 
     filters = read_filters()
-    blend = read_blend()
-    min_pct = tier_cut(blend)
     _, picked = build_lines(card, read_picked())
     dropped = read_dropped()
     forced = read_forced()
@@ -4814,17 +4718,13 @@ def feedback():
         row = conn.execute("SELECT value FROM meta WHERE key = 'embed_model'").fetchone()
         model = row["value"] if row else ""
         snap = dict(filters)
-        snap["min"] = min_pct
+        snap["min"] = TIER_CUT
         snap["sort"] = read_sort()
-        #the slider position changes what the numbers the user saw MEANT
-        #(blended past detent 0), so it rides in the snapshot too
-        snap["blend"] = blend
-        #same reasoning for the tag switches: a concept percent scored against
-        #a narrowed tag vector is not the one the full card would give, and a
-        #report is unreadable later without knowing which tags made it. both
-        #sides are kept, since the ones put back by hand shape the vector just
-        #as much as the ones switched off. the picked lines narrow it too and
-        #they have a column of their own below
+        #the tag switches ride along: a concept percent scored against a narrowed
+        #tag vector is not the one the full card would give, and a report is
+        #unreadable later without knowing which tags made it. BOTH sides are
+        #kept, since the ones put back by hand shape the vector as much as the
+        #ones switched off
         if dropped:
             snap["notags"] = sorted(dropped)
         if forced:
@@ -4852,23 +4752,18 @@ def feedback():
             expected_pct = best_sim(conn, card["oracle_id"], expected["oracle_id"], picked)
             if expected_pct is None:
                 return {"ok": False, "stored": False, "msg": expected["name"] + " has no rules text the matcher can search, so it can never appear."}
-            #the number quoted back is the one the page badges: past detent 0
-            #that is (1-w) * mech + w * concept, and answering in pure mech
-            #contradicts what the user is looking at (a 100% mech match badges
-            #50% at the middle detent, and "it's already there at 100%" reads
-            #as the site denying its own page). the database keeps the mech
-            #percent, the snapshot keeps the concept half, so the review can
+            #the number quoted back is the one the PAGE BADGES, not the mech
+            #half: a 100% mech match badges 50% here, and "it's already there at
+            #100%" reads as the site denying its own page. the database keeps the
+            #mech percent and the snapshot the concept half, so the review can
             #still take the blend apart
-            w = BLEND_WEIGHTS[blend]
             shown_pct = expected_pct
-            if w > 0:
-                cpct = concept_between(conn, card["oracle_id"], expected["oracle_id"], dropped, picked, forced)
-                #none means the anchor had no vector, so the page ranked on
-                #rules text alone and the quoted number has to do the same.
-                #the same condition the ranking uses, reached the same way
-                if cpct is not None:
-                    snap["concept_pct"] = cpct
-                    shown_pct = int(round((1 - w) * expected_pct + w * cpct))
+            cpct = concept_between(conn, card["oracle_id"], expected["oracle_id"], dropped, picked, forced)
+            #none means the anchor had no vector, so the page ranked on rules
+            #text alone and the quoted number has to do the same
+            if cpct is not None:
+                snap["concept_pct"] = cpct
+                shown_pct = int(round((1 - BLEND) * expected_pct + BLEND * cpct))
             full = conn.execute("""SELECT color_identity, price_usd, price_eur, cmc, type_line, game_changer, legal_commander, oracle_text, salt
                                    FROM cards WHERE oracle_id = %s""", (expected["oracle_id"],)).fetchone()
             reasons = filter_reasons(full, filters)
@@ -4881,7 +4776,7 @@ def feedback():
             if reasons:
                 return {"ok": True, "stored": False,
                         "msg": expected["name"] + " matches at " + str(shown_pct) + "%, but your filters hide it: " + "; ".join(reasons) + "."}
-            if shown_pct >= min_pct:
+            if shown_pct >= TIER_CUT:
                 return {"ok": True, "stored": False,
                         "msg": expected["name"] + " is in the results at " + str(shown_pct) + "%, it may just be further down the list."}
             #a real gap: nothing hides the card, the model just scores it under the cutoff
@@ -4947,25 +4842,20 @@ def feedback():
         #database keeps the mechanical percent and the snapshot keeps the concept
         #half, because the review needs the two axes apart to route a report.
         #
-        #the sentence quotes the number the page actually badged, which past
-        #detent 0 is the blend of the two. quoting the mech half instead answers
-        #"shows at 92% right now" about a card the page badged 78%, which is the
-        #site contradicting its own results at the exact moment somebody has told
-        #it that number is wrong
+        #the sentence quotes the number the page actually BADGED. quoting the
+        #mech half answers "shows at 92% right now" about a card the page badged
+        #78%, which is the site contradicting its own results at the exact moment
+        #somebody has told it that number is wrong
         shown_pct = got_pct
-        if blend > 0:
-            cpct = concept_between(conn, card["oracle_id"], got["oracle_id"], dropped, picked, forced)
-            #a None cpct is the anchor having no vector at all, which is the
-            #ranking's own signal to score on rules text alone, so the mech
-            #percent stands as the number the page showed.
-            #a None got_pct is the card having no searchable lines, which cannot
-            #happen for a card that was ON the page, but blending it would 500
-            #rather than say something odd, so the raw value stands there too
-            if cpct is not None:
-                snap["concept_pct"] = cpct
-                if got_pct is not None:
-                    w = BLEND_WEIGHTS[blend]
-                    shown_pct = int(round((1 - w) * got_pct + w * cpct))
+        cpct = concept_between(conn, card["oracle_id"], got["oracle_id"], dropped, picked, forced)
+        #a None cpct is the anchor having no vector, which is the ranking's own
+        #signal to score on rules text alone. a None got_pct is a card with no
+        #searchable lines, which cannot happen for a card that was ON the page,
+        #but blending it would 500 rather than say something odd
+        if cpct is not None:
+            snap["concept_pct"] = cpct
+            if got_pct is not None:
+                shown_pct = int(round((1 - BLEND) * got_pct + BLEND * cpct))
         conn.execute("""INSERT INTO feedback (kind, anchor_id, anchor_name, got_id, got_name,
                                               got_pct, reason, picked_lines, filters, embed_model, ip)
                         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
@@ -5003,23 +4893,19 @@ def report_markdown(r, line_texts, n):
         anchor_lines = line_texts.get(r["anchor_id"], [])
     day = r["created_at"].strftime("%Y-%m-%d")
 
-    #a report filed with the slider away from mechanics was judging blended
-    #numbers, and probably belongs in axis2.md rather than pairs.md. the
-    #stored pcts stay mechanical either way, this note carries the rest
+    #the stored pcts are always MECHANICAL, and the page badged a blend, so the
+    #concept half is what makes the two numbers add up. a report judged on it is
+    #often an axis2.md entry rather than a pairs.md one.
+    #
+    #absent on the oldest rows, and on any card whose anchor had no vector: the
+    #ranking dropped to rules text there, so the mech percent IS what was badged
     mode = ""
     try:
         snap = json.loads(r["filters"] or "{}")
     except ValueError:
         snap = {}
-    if snap.get("blend"):
-        try:
-            at = str(int(BLEND_WEIGHTS[int(snap["blend"])] * 100)) + "% concepts"
-        except (ValueError, IndexError):
-            at = "detent " + str(snap["blend"])
-        mode = "; slider at " + at + " (user saw blended numbers"
-        if "concept_pct" in snap:
-            mode += ", concept score " + str(snap["concept_pct"]) + "%"
-        mode += ") - consider axis2.md"
+    if "concept_pct" in snap:
+        mode = "; concept score " + str(snap["concept_pct"]) + "% (user saw the blend) - consider axis2.md"
 
     #a tag report is not a pairs.md entry at all. it belongs in the LABELS dict
     #in finetune/exam_attribution.py, keyed by card name and LINE INDEX, so it
