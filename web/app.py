@@ -1116,32 +1116,23 @@ def rank_verdict(rank, anchor):
     return "more-played" if rank < anchor else "less-played"
 
 
-#salt is judged on the GAP alone, no ratio test. price needs one because 25p
-#against 10p is 2.5x and nobody would call it much more expensive, but salt is
-#an average of votes rather than an amount of something: 0.1 against 0.2 is
-#double and means nothing, while half a point is half a point wherever it
-#lands. the pool's whole interquartile range is 0.31, so 0.4 is a gap wider
-#than the middle half of every card in the game, and 0.1 is the point below
-#which two cards are just the same card
+#salt is judged on the GAP alone, no ratio test: it is an average of votes
+#rather than an amount of something, so 0.1 against 0.2 is double and means
+#nothing. the pool's whole interquartile range is 0.31, so 0.4 is a gap wider
+#than the middle half of every card in the game
 SALT_BAND = 0.1
 SALT_MUCH_GAP = 0.4
 
-#a year, because a year is the unit two cards are contemporary in: four sets a
-#year means a six month gap says nothing about whether a card is from the same
-#era as the one you searched. no MUCH gap to go with it, since there is no
-#colour on this one to earn (see below)
+#a year is the unit two cards are contemporary in: four sets a year means a six
+#month gap says nothing. no MUCH gap, there being no colour here to earn
 AGE_BAND_DAYS = 365.25
 
 
 def salt_verdict(salt, anchor):
-    #which side of the searched card this one sits on for annoyance, in the
-    #same four states the price verdict uses: a small move gets the arrow
-    #alone, a big one earns colour. green for less salt and red for more,
-    #matching money, because a colour that means "worse" in one row and
-    #nothing in the next is a colour nobody learns to read.
-    #
-    #the play-rate arrow stays colourless and that is not an inconsistency:
-    #more played is not better or worse, where more annoying is
+    #four states like the price verdict: a small move gets the arrow alone, a big
+    #one earns colour, green for less salt, matching money. the play-rate arrow
+    #stays colourless because more played is not better or worse, where more
+    #annoying is
     if anchor is None or salt is None:
         return ""
     diff = salt - anchor
@@ -1154,15 +1145,9 @@ def salt_verdict(salt, anchor):
 
 
 def age_verdict(released, anchor):
-    #which side of the searched card this one was printed. it is the fourth
-    #arrow and it took the longest to arrive, because the row had no age figure
-    #for an arrow to sit on until one was added.
-    #
-    #TWO states where the other three have four. price and salt each have a
-    #better end, so a big move there earns colour; older is not better than
-    #newer any more than more-played is better than less, so this returns a
-    #direction and nothing else. same call the play rate arrow already makes,
-    #and the rule the guide now states: colour means one end is better
+    #TWO states where the other three have four: price and salt each have a
+    #better end, so a big move there earns colour, where older is no better than
+    #newer. the rule the guide states is that colour means one end is better
     if anchor is None or released is None:
         return ""
     diff = (anchor - released).days
@@ -1172,11 +1157,9 @@ def age_verdict(released, anchor):
     return "older" if diff > 0 else "newer"
 
 
-#everything under the cut is split into 10 point bands, and only one is ever on
-#the page at a time, so a sort inside it is a sort among cards that match about
-#as well as each other. left as one undivided pile the sorts run over the whole
-#thing, and "cheapest first" is useless the moment it opens: the cheapest card
-#in a pile reaching down to 0% is a 0% card
+#everything under the cut splits into 10 point bands, one on the page at a time,
+#so a sort inside it runs among cards that match about as well as each other. as
+#one undivided pile, the cheapest card in it is a 0% match
 WEAK_BAND = 10
 
 
@@ -1184,11 +1167,9 @@ def band_of(score):
     return int(score // WEAK_BAND) * WEAK_BAND
 
 
-#how each step down gets described. plain english rather than a percent range
-#because the range means different things at different slider positions, and
-#nobody reading "60 to 69%" knows whether that is nearly good or hopeless.
-#past the ladder every further step is "weaker again", which is honest: by
-#then the only thing worth saying is that it keeps going down
+#plain english rather than a percent range: nobody reading "60 to 69%" knows
+#whether that is nearly good or hopeless. past the ladder every step is "weaker
+#again", by which point the only honest thing to say is that it keeps going down
 BAND_WORDS = ("weaker matches", "weaker still", "weaker again")
 
 
@@ -1199,13 +1180,11 @@ def band_words(step):
 def find_similar(oracle_id, picked, filters, min_pct, sort, offset=0, how_many=20, band=None,
                  currency="usd", dropped=(), forced=(), anchor_price=None, anchor_rank=None,
                  anchor_salt=None, anchor_released=None):
-    #every candidate card keeps all its matching line pairs now instead of
-    #just the best one, so results can show "+2 more matching lines".
+    #every candidate keeps ALL its matching line pairs, not just the best, so
+    #results can show "+2 more matching lines".
     #
-    #cards split around min_pct: the strong ones are the real results, and
-    #everything under the line waits in 10 point bands behind a button that
-    #names the band it is about to show. band=None is the strong tier, an
-    #int is that band's lower edge
+    #cards split around min_pct, and everything under it waits in 10 point bands.
+    #band=None is the strong tier, an int is that band's lower edge
     pairs_by_card = {}  #other card's oracle_id -> list of (weighted score, real similarity, our line, their line)
     prices = {}         #other card's oracle_id -> price in the chosen currency, for the price sorts
     ranks = {}          #other card's oracle_id -> edhrec rank, for the played sorts
@@ -1239,21 +1218,18 @@ def find_similar(oracle_id, picked, filters, min_pct, sort, offset=0, how_many=2
             qlines = chosen
 
     def hunt(ql):
-        #one line's nearest neighbor walk through the hnsw index, ~10-20ms
-        #where the exact scan it replaced measured 200-250ms. <=> is cosine
-        #distance, so similarity is 1 minus it. grab way more than we need
-        #since a bunch will get merged per card.
+        #one line's walk through the hnsw index, ~10-20ms where the exact scan it
+        #replaced measured 200-250ms. <=> is cosine distance, so similarity is 1
+        #minus it.
         #
-        #one query per line on purpose. the obvious "one big query" (the
-        #anchor's lines CROSS JOIN LATERAL the scan) was built and measured
-        #at 2.3x SLOWER: with the anchor embedding as a lateral outer column
-        #postgres detoasts the ~3kb vector again for every one of the 61k
-        #distance evaluations, while a bound parameter gets detoasted once.
+        #ONE QUERY PER LINE. the obvious "one big query" (the anchor's lines
+        #CROSS JOIN LATERAL the scan) measured 2.3x SLOWER: as a lateral outer
+        #column, postgres detoasts the ~3kb vector again for every one of the 61k
+        #distance evaluations, where a bound parameter is detoasted once.
         #
-        #no l.id tiebreak on the ORDER BY: a second sort key pushes the
-        #planner off the index and back onto the full scan. the 400 cut
-        #stays deterministic anyway, walking an unchanged graph returns the
-        #same rows in the same order, and only the ingest changes the graph
+        #NO l.id tiebreak on the ORDER BY: a second sort key pushes the planner
+        #off the index and back onto the full scan. the 400 cut is deterministic
+        #anyway, since only the ingest changes the graph
         with pool.connection() as c:
             return c.execute("""
                 SELECT l.oracle_id, l.line_text, l.face, 1 - (l.""" + EMBED_COL + """ <=> %s) AS sim, """ + pcol + """ AS price, c.edhrec_rank, c.released_at, c.salt
@@ -1263,12 +1239,10 @@ def find_similar(oracle_id, picked, filters, min_pct, sort, offset=0, how_many=2
                 LIMIT 400
             """, [ql["embedding"], oracle_id] + fparams + [ql["embedding"]]).fetchall()
 
-    #multi-line cards pay for their scans side by side instead of one after
-    #the other, each hunt on its own pooled connection. the main thread
-    #holds NO connection while they run (holding one while workers wait on
-    #the pool is how a pool deadlocks), and 3 workers keeps a connection
-    #free for /suggest even when two searches land at once. map preserves
-    #line order, so results merge exactly as the sequential loop did
+    #the scans run side by side, each on its own pooled connection. the main
+    #thread holds NO connection while they do: holding one while workers wait on
+    #the pool is how a pool deadlocks. 3 workers keeps one free for /suggest with
+    #two searches in flight, and map preserves line order
     if len(qlines) > 1:
         with ThreadPoolExecutor(max_workers=min(3, len(qlines))) as ex:
             per_line = list(ex.map(hunt, qlines))
@@ -1295,17 +1269,13 @@ def find_similar(oracle_id, picked, filters, min_pct, sort, offset=0, how_many=2
             ranked.append((oid, pairs))
         ranked.sort(key=lambda x: x[1][0][0], reverse=True)
 
-        #the concepts side of the slider. one promise keeps it honest: the
-        #badge is (1-w) * mech + w * concept, and the min-match line cuts on
-        #that SAME number, so nothing under the cutoff ever shows above the
-        #fold no matter which axis it leaned on
+        #the badge is (1-BLEND) * mech + BLEND * concept and the cutoff cuts on
+        #that SAME number, so nothing under it shows above the fold whichever
+        #axis a card leaned on
         concept_raw = {}
-        #the anchor's vector arrives as two arrays instead of a subquery over
-        #card_tags, because the user can now switch tags off: the kept set and
-        #its norm are decided in anchor_vector and both queries just read them.
-        #an empty vector (every tag dropped, or an untagged card) means the
-        #concept side has nothing to say, so it sits the round out rather than
-        #dividing by a zero norm
+        #two arrays rather than a subquery over card_tags, because the user can
+        #switch tags off: anchor_vector decides the kept set and its norm, and
+        #both queries just read them
         atags, aweights, anorm = anchor_vector(conn, oracle_id, dropped, picked, forced)
         #no anchor vector means the concept axis SITS OUT entirely, rather than
         #scoring every candidate at zero and dragging the blend down with it.
@@ -1428,17 +1398,11 @@ def find_similar(oracle_id, picked, filters, min_pct, sort, offset=0, how_many=2
             dated.sort(key=lambda x: (flip * dates[x[0]].toordinal(), -gate_score(x)))
             wanted = dated + undated
         elif sort in ("salty", "mild"):
-            #a card nobody voted on has no salt, which is not the same as
-            #being mild, so it sinks on BOTH directions rather than being
-            #claimed as the least annoying card in the results. same call the
-            #price and date sorts make about their own missing values.
-            #
-            #the concept injection carries salt the same way it carries price,
-            #rank and date, so a card the lines never found sorts on the number
-            #its own frame prints. leave salt out of that and a concept find with
-            #a real score sinks into the unvoted pile while the card sitting
-            #there shows the number that should have floated it, since the frame
-            #reads its figure off the cards row either way
+            #no salt is not the same as MILD, so an unvoted card sinks on both
+            #directions rather than being claimed the least annoying result.
+            #the concept injection carries salt like it carries price, rank and
+            #date, or a concept find with a real score sinks into the unvoted pile
+            #while its own frame prints the number that should have floated it
             salted = []
             unsalted = []
             for entry in wanted:
@@ -1453,16 +1417,12 @@ def find_similar(oracle_id, picked, filters, min_pct, sort, offset=0, how_many=2
         has_more = len(wanted) > offset + how_many
         page = wanted[offset:offset + how_many]
 
-        #what to offer once this tier runs out: the next band down that
-        #actually holds cards. empty bands are skipped rather than offered
-        #and then found empty, so the button never lies about what is left.
+        #the next band down that actually HOLDS cards: empty bands are skipped
+        #rather than offered and then found empty.
         #
-        #the band's percent range is deliberately NOT sent. the cutoff moves
-        #with the slider (80 at the ends, 70 in the middle), so "from 70 to
-        #79%" means a different thing depending on where the slider sits, and
-        #a skipped empty band makes the numbers jump about on top of that.
-        #step is what the caller words: 1 is the first drop below the line,
-        #2 the one after, and the wording ladder lives in the page
+        #the band's percent range is deliberately NOT sent: a skipped empty band
+        #makes the numbers jump about, which reads as a bug even when it is right.
+        #step is what the caller words, 1 being the first drop below the line
         next_band = None
         if not has_more:
             edge = min_pct if band is None else band
@@ -1480,10 +1440,8 @@ def find_similar(oracle_id, picked, filters, min_pct, sort, offset=0, how_many=2
             for row in conn.execute("SELECT " + CARD_FIELDS + " FROM cards WHERE oracle_id = ANY(%s)", (ids,)):
                 info[row["oracle_id"]] = row
 
-        #the tags each page card shares with the anchor, rarest first - the
-        #chips that explain why the concepts side ranked a card where it did.
-        #they read off the same kept vector the scoring used, so a tag the
-        #user switched off never turns up as the reason for a match
+        #read off the SAME kept vector the scoring used, so a tag the user
+        #switched off never turns up as the reason for a match
         chips = {}
         if atags and ids:
             for r in conn.execute("""
@@ -1503,9 +1461,8 @@ def find_similar(oracle_id, picked, filters, min_pct, sort, offset=0, how_many=2
             score, sim, our_line, their_line, their_face = pairs[0]
             mech_pct = mech_display(sim)
             concept_only = False
-            #the extra pairs behind the "+n more matching lines" hint. pairs that
-            #reuse a line already shown get skipped, so the count means genuinely
-            #different abilities matched, not the same ability matching twice
+            #pairs reusing a line already shown are skipped, so the count means
+            #genuinely different abilities matched
             used_ours = [our_line]
             used_theirs = [their_line]
             for p in pairs[1:]:
@@ -1522,25 +1479,19 @@ def find_similar(oracle_id, picked, filters, min_pct, sort, offset=0, how_many=2
             mech_pct = 0
             concept_only = True
         #the badge is the SAME number the ordering and the cutoff use, which is
-        #the promise that makes the list read in descending order and nothing
-        #under the gate appear above the fold. the two ingredients ride in the
-        #tooltip.
+        #what makes the list read in descending order.
         #
-        #the atags check is what keeps that promise when a keyword line is
-        #picked: there is no anchor vector, so the ranking dropped to rules text
-        #alone above, and blending a zero concept score in here would badge a
-        #perfect textual match as 50% while the gate let it through on 100.
-        #the condition has to match the one guarding the ranking exactly
+        #the atags check keeps that promise on a picked keyword line: with no
+        #anchor vector the ranking dropped to rules text above, and blending a
+        #zero in here would badge a perfect textual match 50% while the gate let
+        #it through on 100. it has to match the ranking's condition EXACTLY
         if atags:
             percent = int(round((1 - BLEND) * mech_pct + BLEND * concept_pct))
         else:
             percent = mech_pct
         price = price_label(c, currency)
-        #the four little arrows: which side of the searched card this result
-        #sits on for money, for how much the format plays it, for annoyance and
-        #for when it was printed. a comparison is the one thing these numbers
-        #honestly support on their own, and every tooltip names the card being
-        #compared against
+        #a comparison is the one thing these four numbers honestly support on
+        #their own, so every tooltip names the card being compared against
         price_vs = price_verdict(price_in(c, currency), anchor_price)
         rank_vs = rank_verdict(c["edhrec_rank"], anchor_rank)
         salt_vs = salt_verdict(c["salt"], anchor_salt)
@@ -1763,42 +1714,24 @@ def support():
     return render_template("support.html")
 
 
-#a deck is original because of its WEIRDEST cards, not its average card. the
-#mean over a whole list is dominated by the mana base and the removal suite
-#that every deck shares, and it squashes the spread between first and last
-#from 0.143 to 0.103.
+#a deck is original because of its WEIRDEST cards, not its average one: the mean
+#over a whole list is dominated by the mana base and the removal every deck
+#shares, and squashes the spread between first and last from 0.143 to 0.103.
 #
-#a FRACTION of each deck rather than a fixed count, because precons hold 53 to
-#66 nonland cards and a fixed top 20 scored a small deck on 38% of itself
-#against a big one's 30%. worse, the gap grew with the count: at top 50 a
-#53 card deck had to include nearly all its weak tail while a 66 card deck
-#dropped its worst 16, and bigger decks scored higher for it (r=+0.34 against
-#deck size, against +0.26 at top 20). a fraction is size independent by
-#construction and takes that to +0.19.
+#a FRACTION and not a fixed count, because precons hold 53 to 66 nonland cards:
+#a fixed top 20 scored a small deck on 38% of itself against a big one's 30%, and
+#the bias grew with the count (r=+0.34 against deck size at top 50, +0.26 at top
+#20). a fraction is size independent by construction, and takes that to +0.19.
 #
-#half, and fixed. exposing the depth on the url makes it another control with
-#one right answer, same as the blend slider and the similarity knob.
-#
-#half rather than a third because a third of a commander deck is about the
-#lands: 100 cards is roughly 36 of them, so reading a third means reading
-#almost nothing but the mana base's neighbours, and the handful above it are
-#the staples every deck brings. half reaches past both and into the cards that
-#actually tell one deck from another, which is the thing being measured.
-#
-#reading deeper does not make the number more accurate, and that is measured:
+#half rather than a third, because a third of a commander deck is about the
+#lands and the staples above them. reading DEEPER does not make it more accurate:
 #every step costs discrimination (spread 0.143 at a third, 0.103 using every
-#card) because the cards being added are the ones every deck shares. the
-#ranking itself barely moves either, the ends not at all. so the setting only
-#ever decided the middle of the board, which is not a decision worth handing to
-#a visitor, and half is the reading that holds
+#card), and the ranking's ends do not move at all
 PRECON_TOP_FRAC = 0.5
 
-#the eras the leaderboard can be cut down to. originality correlates with
-#release year at r=+0.46, partly because design space genuinely fills up (an
-#old card has had fifteen years of imitators, and imitated is the opposite of
-#unique). the ranking still separates decks INSIDE one era, so rather than
-#pretend the effect isn't there, the page says so and lets you rank like
-#against like. bounds are inclusive
+#originality correlates with release year at r=+0.46, partly because design space
+#genuinely fills up. the ranking still separates decks INSIDE one era, so the
+#page says so and lets you rank like against like. bounds are inclusive
 PRECON_ERAS = [
     ("all", "All precons", None, None),
     ("early", "2011-2019", 2011, 2019),
@@ -1806,40 +1739,35 @@ PRECON_ERAS = [
     ("recent", "2023 on", 2023, 9999),
 ]
 
-#BASIC lands are left out of the salt tally, and nothing else is. this is not
-#a judgement about the votes: the salt on Island is real data about how
-#players feel about Island, and it stays untouched in the database. it is that
-#a DECK-LEVEL SUM cannot use it fairly, because how many basics a deck holds
-#is a fact about its mana base, not about how annoying it is to play against.
+#BASIC lands are left out of the salt tally, and nothing else is. not a judgement
+#about the votes, which stay untouched in the database: a DECK-LEVEL SUM cannot
+#use them fairly, because how many basics a deck holds is a fact about its mana
+#base.
 #
-#measured over the 166 precons, and the giveaway is that the distortion runs
-#in OPPOSITE DIRECTIONS depending on an arbitrary choice of arithmetic:
+#the giveaway is that the distortion runs in OPPOSITE DIRECTIONS depending on an
+#arbitrary choice of arithmetic, measured over the 166 precons:
 #
 #  counting distinct cards  r = +0.29 against the number of basic land types
 #  counting every copy      r = -0.15 against the same thing
 #
-#so a five colour deck was being charged salt for being five colours, and
-#under the other rule a mono deck was charged for running thirty Islands.
-#nothing about either is a property of the deck. basics were 11% of the
-#average total distinct, 30% counting copies, all of it noise.
+#so five colour decks were charged for being five colours, and under the other
+#rule mono decks for running thirty Islands. basics were 11% of the average
+#distinct total and 30% counting copies, all of it noise.
 #
-#BASIC only, never lands in general. The Tabernacle at Pendrell Vale (2.68),
-#Gaea's Cradle (2.17), Glacial Chasm (1.99) and Strip Mine (1.48) are among
-#the saltiest cards in the game and they stay counted.
+#BASIC only, NEVER lands in general: The Tabernacle at Pendrell Vale (2.68),
+#Gaea's Cradle (2.17) and Strip Mine (1.48) stay counted.
 SALT_SKIP_BASICS = True
 
 
 def is_basic_land(type_line):
     #'Basic Land - Island' and 'Basic Snow Land - Forest', but NOT the one
-    #'Basic Creature - Shapeshifter' in the card pool, which is why this asks
-    #for both words rather than just the first
+    #'Basic Creature - Shapeshifter' in the pool, hence both words
     t = type_line or ""
     return t.startswith("Basic") and "Land" in t
 
 
-#the same rule as is_basic_land, for the queries that aggregate in postgres.
-#it and the python one have to agree or a deck's tally would disagree with the
-#board it is ranked against
+#the same rule as is_basic_land, in sql. the two HAVE to agree, or a pasted
+#deck's tally disagrees with the board it is ranked against
 SALT_BASIC_SQL = "(c.type_line LIKE 'Basic%%' AND c.type_line LIKE '%%Land%%')"
 
 #one query, both numbers. originality is the mean of the top N nonland
@@ -1939,64 +1867,45 @@ LEFT JOIN age_rolled ar ON ar.deck_slug = d.slug
 ORDER BY r.originality DESC, d.name
 """
 
-#what the board can be ranked by. FIVE numbers, TEN readings, because every one
-#of them is a number with a direction rather than two different numbers:
-#cheapest and priciest are one sum read from either end. the card search splits
-#its sorts the same way and for the same reason, so this is the control the
-#audience already has.
+#FIVE numbers, TEN readings: cheapest and priciest are one sum read from either
+#end, not two different numbers.
 #
-#"best" is which way the COLUMN runs to put the flattering reading first, and
-#it is not decoration: most played is the LOWEST median rank, because rank 1 is
-#the most played card in the format. everything else is better when bigger.
+#"best" is which way the COLUMN runs to put the flattering reading first, and it
+#is not decoration: most played is the LOWEST median rank, because rank 1 is the
+#most played card in the format. everything else is better when bigger.
 #
-#"means" is the sentence the page prints when it is showing this number, and it
-#has to say what the FIGURE means, not what the idea means. a reader who meets
-#"19.4 years" or "#1204" with no scale cannot tell a high score from a low one,
-#and a leaderboard nobody can read is a leaderboard nobody believes.
+#"means" has to say what the FIGURE means, not what the idea means: nobody
+#meeting "19.4 years" or "#1204" can tell a high score from a low one.
 #
-#the SCALE that goes with it is deliberately not written down here. it was, for
-#an afternoon, and every one of the five numbers was already drifting: age is
-#now() minus a printing date so it grows daily, prices move daily, and the ends
-#of the board move whenever mtgjson publishes a precon the daily ingest then
-#picks up. a range typed into a constant is a claim with an expiry date on it,
-#so the page reads its own top and bottom row instead. that also makes it true
-#of the ERA cut on screen rather than of the whole board
-#how long a precon counts as new, and it is not a guess: EDHREC's salt survey
-#runs ONCE A YEAR, so a card printed since the last one has had no chance to be
-#voted on. that is the longest of the settling windows the numbers here depend
-#on, so it sets the mark for all of them.
+#the SCALE is deliberately NOT written down here. it was, for an afternoon, and
+#all five were already drifting: age grows daily, prices move daily, and the ends
+#of the board move whenever the ingest picks up a new precon. the page reads its
+#own top and bottom row instead, which also makes it true of the era on screen
+#how long a precon counts as new, and NOT a guess: EDHREC's salt survey runs
+#once a year, so a card printed since the last one has had no chance to be voted
+#on. the longest settling window the five numbers depend on, so it sets the mark.
 #
-#measured 2026-07-26 over the 166 precons, and this is a real effect rather
-#than a disclaimer for its own sake:
+#measured 2026-07-26 over the 166 precons:
 #
 #  cards first printed inside a year   mean salt 0.059   (n=2568)
 #  cards older than that               mean salt 0.291   (n=28906)
 #
-#a FIFTH of the salt, on 98.5% coverage, so the votes are not missing, they
-#have not been cast. at deck level that is 18.7 salt against 23.4, and the
-#newest four precons run 11.0 to 15.4 against a board average of 23.4. play
-#rate does the same thing more gently (a median of #5216 against #4188) because
-#edhrec's rank counts decks built and that accumulates.
+#a FIFTH of the salt on 98.5% coverage, so the votes are not missing, they have
+#not been cast. at deck level 18.7 against 23.4. play rate does the same more
+#gently (#5216 against #4188), edhrec's rank counting decks built.
 #
-#prices move too, but NOT reliably in one direction: new precons average $76
-#against $88, so release hype and reprint gluts pull opposite ways and the
-#honest thing to say is that the figure is today's, not that it is high
+#prices move too but NOT reliably in one direction: new precons average $76
+#against $88, so hype and reprint gluts pull opposite ways
 PRECON_NEW_DAYS = 365
 
 PRECON_METRICS = [
     {
         "key": "original", "figure": "originality", "drivers": "drivers",
         "label": "Originality",
-        #NO swap axis on EITHER reading, deliberately, and this is the second
-        #time that call has
-        #been made. uniqueness is a contradiction as a sort (see the note in
-        #TODO) so there is nothing here to move a deck along, and the nearest
-        #honest thing, "cards fewer people play", was offered for about an hour
-        #and read as a non sequitur: a button saying "make this deck less
-        #played" under a panel about originality looks like the wrong button on
-        #the wrong panel, because it is. so the offer is absent here rather than
-        #approximated, same as everywhere else on this site where the honest
-        #answer to "can you do X" is no
+        #NO swap axis on either reading. uniqueness is a contradiction as a sort,
+        #so there is nothing here to move a deck along, and the nearest honest
+        #thing ("cards fewer people play") reads as the wrong button on the wrong
+        #panel. absent rather than approximated
         "decimals": 3, "best": "desc", "cards": "Most original cards",
         "noun": "originality",
         "settling": "A new deck reads as more original than it will look in five years, and that is half real: design space fills up, so a card printed today has had nobody to copy it yet.",
@@ -2352,52 +2261,35 @@ def precons():
                            prefix=prefix, suffix=suffix)
 
 
-#how many cards a panel names as the evidence for its number. enough to read
-#as evidence, short enough that nobody scrolls a 100 row table looking for the
-#point.
-#how many cards any list on this site reveals at a time. ONE number, because
-#every list that does this should do it identically: the standing panels, the
-#deck grid on /deck/view and on a precon page. a fix to one batching control is
-#then a fix to all of them, and a reader who has learned what the button does
-#in one place has learned it everywhere.
+#how many cards ANY list on this site reveals at a time: the standing panels,
+#the deck grid on /deck/view and on a precon page. one number, so a fix to one
+#batching control is a fix to all of them.
 #
 #16 rather than 12: four rows of four on the results grid's own column count
 DECK_SECTION = 16
 
-#and how far the pictures go when somebody opens them and keeps asking. the
-#tool is working, so there is no reason to stop them at twelve: "load more"
-#reveals another DECK_SECTION until this runs out.
-#
-#48 is about half a commander deck, which is where every one of these lists
-#stops meaning anything anyway. originality only scores the top half, salt and
-#age drop basic lands, play rate drops all lands, so by this depth the rows are
-#the cards every deck shares. the whole batch is fetched with the page and
-#revealed by the button rather than fetched on click: /deck/read is a POST
-#result with no url to ask again at, and one query that returns 48 rows costs
-#the same as one that returns 12
+#48 is about half a commander deck, which is where these lists stop meaning
+#anything: originality scores only the top half, salt and age drop basic lands,
+#play rate drops all lands, so by this depth the rows are the cards every deck
+#shares. fetched WITH the page and revealed by the button, because /deck/read is
+#a POST result with no url to ask again at
 DECK_EVIDENCE_MAX = 48
 
-#what "the cards that made this number" means, per metric, as sql. every
-#predicate here is a TRANSCRIPTION of the matching CTE in PRECON_SQL and has to
-#stay one: a card the ranking did not count must never turn up in the evidence
-#for it, or the page is showing its working and the working is wrong.
-#
+#every predicate here is a TRANSCRIPTION of the matching CTE in PRECON_SQL and
+#has to stay one: a card the ranking did not count must never turn up in the
+#evidence for it.
 #__PRICE__ is filled at query time from the day's rates, same as the board
 DECK_EVIDENCE = {
     "original": {"where": "c.uniqueness IS NOT NULL AND c.type_line NOT LIKE '%%Land%%'",
                  "order": "c.uniqueness DESC", "value": "c.uniqueness", "decimals": 2},
     "salt": {"where": "c.salt IS NOT NULL" + (" AND NOT " + SALT_BASIC_SQL if SALT_SKIP_BASICS else ""),
              "order": "c.salt DESC", "value": "c.salt", "decimals": 2},
-    #the one place the evidence deliberately does NOT match the ranking, and it
-    #is worth being explicit about. the price TOTAL counts basic lands, because
-    #a deck's cost includes the lands you have to own. the price LIST does not,
-    #because the list is read from both ends now and the cheap end of a
-    #commander deck is thirty Islands: a column of basics is not what anybody
-    #means by "the cheapest cards in this deck".
-    #
-    #an omission, never an addition. every card listed is one the total counted;
-    #it is the reverse that stops being true, which is the safe direction to
-    #break the rule in
+    #the ONE place the evidence deliberately does not match the ranking. the
+    #price TOTAL counts basic lands, a deck's cost including the lands you must
+    #own; the price LIST does not, because it reads from both ends and the cheap
+    #end of a commander deck is thirty Islands.
+    #an omission, NEVER an addition: every card listed is one the total counted,
+    #which is the safe direction to break the rule in
     "price": {"where": "__PRICE__ IS NOT NULL" + (" AND NOT " + SALT_BASIC_SQL if SALT_SKIP_BASICS else ""),
               "order": "__PRICE__ DESC", "value": "__PRICE__", "decimals": 2},
     "played": {"where": "c.edhrec_rank IS NOT NULL AND c.type_line NOT LIKE '%%Land%%'",
@@ -2409,25 +2301,18 @@ DECK_EVIDENCE = {
 
 
 def metric_cards(conn, oracle_ids, key, currency, limit=DECK_EVIDENCE_MAX):
-    #the cards that made one of the five numbers, in the order that made it,
-    #carrying everything a card frame needs. the list reads as names by default
-    #and opens into pictures, so this asks for the pictures either way rather
-    #than running a second query when someone expands it.
+    #asks for the pictures either way, rather than a second query when someone
+    #expands the list.
     #
-    #BOTH ENDS come back in ONE list, ordered from the top. the panels flip
-    #between "saltiest" and "mildest", and rendering a second list for the
-    #other end doubled a page that was already 388kb of html: the flipped
-    #reading is the same cards read backwards, so the page holds them once and
-    #the browser reorders. that is also why the cap is applied per END rather
-    #than to the query, and why a deck small enough for the two slices to
-    #overlap simply keeps everything
+    #BOTH ENDS in ONE list, ordered from the top: rendering a second list for the
+    #flipped reading doubled a page already at 388kb, and the flipped reading is
+    #the same cards backwards. hence the cap applied per END rather than to the
+    #query, and a deck small enough for the slices to overlap keeping everything
     ev = DECK_EVIDENCE[key]
     price = price_col(currency)
-    #uniqueness comes back for EVERY panel, not just the originality one. it is
-    #the badge beside the card's name wherever a card is drawn on these pages,
-    #the same slot the match percent fills on a search, and it holds still while
-    #the panels change underneath it. the four numbers under the card are the
-    #ones the world supplied; this is the one Delvefall worked out
+    #uniqueness comes back for EVERY panel, not just originality: it is the badge
+    #beside the name wherever a card is drawn, and it holds still while the panels
+    #change underneath it
     sql = """
         SELECT c.oracle_id, c.name, c.type_line, c.mana_cost, c.layout,
                c.image, c.image_back, c.scryfall_uri, c.edhrec_rank, c.salt,
@@ -2438,14 +2323,10 @@ def metric_cards(conn, oracle_ids, key, currency, limit=DECK_EVIDENCE_MAX):
         ORDER BY """ + ev["order"].replace("__PRICE__", price) + """, c.name
     """
     try:
-        #NO limit on the query, because both ends are wanted and the database
-        #can only cut one of them off. a deck is at most DECK_MAX_CARDS rows,
-        #so the whole ordered list is cheap to hold and the slice below takes
-        #the cap off each end of it.
-        #asking for twice the cap instead makes the dedupe below unreachable and
-        #reads the bottom end out of the middle of the list: a pasted pile with
-        #more than 96 qualifying cards would offer rows 49 to 96 as its mildest,
-        #cheapest and newest, none of which they are
+        #NO limit on the query: both ends are wanted and the database can only cut
+        #one off. asking for twice the cap instead reads the bottom end out of the
+        #MIDDLE of the list, so a pile with more than 96 qualifying cards offers
+        #rows 49 to 96 as its mildest and cheapest, which they are not
         rows = conn.execute(sql, ([str(o) for o in oracle_ids],)).fetchall()
     except Exception:
         return []
@@ -2524,16 +2405,12 @@ def deck_uniqueness(oracle_ids):
 
 
 def originality_of(cards, frac=PRECON_TOP_FRAC):
-    #the same number the leaderboard ranks on, so a pasted list and a precon
-    #are measured identically: the mean of the top FRACTION of nonland cards.
-    #a fraction rather than a count matters more here than on the board,
-    #because a pasted list can be any size at all
-    #an unscored card is SKIPPED, not counted as a zero. the board's query
-    #drops them the same way (uniqueness IS NOT NULL), and the two have to
-    #agree or a pasted list gets ranked against a population measured by a
-    #different rule. only a card the ingest has never scored lands here, which
-    #is a narrow window, but it is the one card that would drag a whole deck
-    #down for the crime of being new
+    #the same number the leaderboard ranks on, so a pasted list and a precon are
+    #measured identically. a fraction rather than a count matters more here,
+    #a pasted list being any size at all.
+    #an unscored card is SKIPPED, never counted as zero: the board's query drops
+    #them the same way, and the two have to agree or a pasted list is ranked
+    #against a population measured by a different rule
     vals = sorted((c["global_u"] for c in cards if c["global_u"] is not None), reverse=True)
     if not vals:
         return 0.0
@@ -2543,11 +2420,8 @@ def originality_of(cards, frac=PRECON_TOP_FRAC):
 
 
 def deck_salt(oracle_ids):
-    #the salt tally: what this pile of cards is worth on edhrec's annoyance
-    #poll. counted per DISTINCT card, not per copy. salt is how much a card
-    #annoys the table and nine Islands are not nine times the annoyance of one,
-    #and it is also the only way this can agree with the board, which counts a
-    #precon the same way
+    #counted per DISTINCT card, never per copy: nine Islands are not nine times
+    #the annoyance of one, and it is the only way this agrees with the board
     if not oracle_ids:
         return 0.0
     basic = (" AND NOT " + SALT_BASIC_SQL) if SALT_SKIP_BASICS else ""
@@ -2563,21 +2437,13 @@ def deck_salt(oracle_ids):
 
 
 def deck_panels(conn, oracle_ids, figures, board, cur, slug=None):
-    #one panel per metric, and the SAME five panels whether the deck came out
-    #of the precon table or out of somebody's paste box. that is the entire
-    #point of this being one function: /precons/<slug> and /deck/read are the
-    #same page about different decks, and two builders would slowly turn them
-    #into two different pages about the same thing.
+    #the SAME five panels whether the deck came out of the precon table or a
+    #paste box: /precons/<slug> and /deck/read are one page about different decks.
     #
-    #each panel carries BOTH readings of its number and shows one. they are the
-    #same standing counted from opposite ends, so this is not two measurements,
-    #it is one with a switch on it, which is the same shape the board's "from
-    #the" control has and the same shape /search's sorts have.
-    #
-    #the CARDS are not duplicated for the second reading. they are the same
-    #cards read backwards, the page already runs to 388kb of html, and a second
-    #copy of five card lists is the version that stops loading on a phone. one
-    #list goes out, ordered from the top, and the browser reverses it
+    #each panel carries BOTH readings and shows one, being one measurement with a
+    #switch on it. the CARDS are not duplicated for the second: they are the same
+    #cards backwards, and a second copy of five lists on a 388kb page is the
+    #version that stops loading on a phone. the browser reverses them
     panels = []
     for m in PRECON_METRICS:
         figure = figures.get(m["key"])
