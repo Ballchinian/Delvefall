@@ -1,4 +1,8 @@
-# Embedding eval / training-set seed - round 1
+# The line similarity exam
+
+v1's exam, still run against v2 as a regression guard. The list that actually
+scores is `TRIPLETS` in `bakeoff_lines.py`; this file is the readable copy and
+the place new questions get drafted, so the two are kept in step by hand.
 
 Each triplet is (anchor, should-match, should-NOT-match). "Should match" means the model ought to score it clearly closer to the anchor than the should-NOT card -> not that the negative must score 0%. Every negative here is a *hard* negative on purpose: it shares surface wording with the anchor but means something different.
 

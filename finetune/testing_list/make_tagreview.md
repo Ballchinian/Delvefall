@@ -1,84 +1,55 @@
 # Which tags are about the rules text?
 
-The hand-judged answer to the one question the AUC bar was standing in for and getting
-wrong. `finetune/make_training.py` keeps a tag if the CURRENT model already clusters it,
-which is a different question, and in the middle of the range it is mostly wrong: `ramp`,
-`rummage`, `scry-like`, `converge` and `triggered-ability` are all printed in plain words
-on the card and all excluded, because the line-to-line model being replaced does not
-cluster them. Using that model to decide what its replacement may learn is circular.
+Verdicts for every tag the AUC bar excluded, plus the ones it kept that look wrong. The
+AUC answers "already well represented by the current model", which is a different question
+and in the middle of the range mostly a wrong one: `ramp`, `rummage`, `scry-like`,
+`converge` and `triggered-ability` are all printed in plain words on the card and all
+excluded. This file answers "learnable in principle" instead.
 
-So this file decides instead. The AUC keeps its old job under a smaller name: it says a
-tag is *already well represented*, not that it is *learnable in principle*.
+**The test: can the card's own text infer the tag?** The model is shown one line of rules
+text and nothing else. Not the mana cost, not the type line, not the power and toughness,
+not the set, not even the card's name. A tag can be perfectly true and still be unlearnable
+here. Tagger's own descriptions convict several: `hatebear` is "low-cost (2 MV or less) and
+low power/toughness", `offcolor-ability` is "a mana cost outside the card's colors". Both
+real, neither visible.
 
-**The test, in Ethan's words: can the card's own text infer the tag it is assigned?** The
-model is shown ONE LINE OF RULES TEXT and nothing else. Not the mana cost, not the type
-line, not the power and toughness, not the set, not even the card's name. So a tag can be
-perfectly true, and useful, and still be unlearnable here, because what it depends on is
-not in front of the model. Tagger's own descriptions convict several outright:
-`hatebear` is "low-cost (2 MV or less) and low power/toughness", `offcolor-ability` is "a
-mana cost outside the card's colors". Both real, neither visible.
+## How to mark
 
-## How to review
-
-Every tag below carries a verdict in brackets. Change the word if it is wrong, leave it
-if it is right. Nothing else in the file matters, and rerunning `make_tagreview.py` keeps
-whatever is written here.
+Change the word in brackets if it is wrong, leave it if it is right. Nothing else in the
+file is read. Rerunning `make_tagreview.py` keeps every verdict written here and adds new
+tags as `?`.
 
 | verdict | means | what it changes |
 | --- | --- | --- |
-| `text` | the card's own text can infer it | the model trains on it, and picking a line can land it on that line |
-| `card` | true of the card, not of any one line | never trained on. Picking a line sets it aside today; whether it should instead ride every line is what `card_level` has to settle, see below |
-| `junk` | nothing to do with how the card plays | never trained on, and picking a line always sets it aside |
-| `?` | not judged yet | treated as `junk` for training, so an unreviewed tag is never learned by accident |
+| `text` | the card's own text can infer it | trained on, and picking a line can land it on that line |
+| `card` | true of the card, not of any one line | never trained on. Picking a line sets it aside |
+| `junk` | nothing to do with how the card plays | never trained on, always set aside |
+| `?` | not judged yet | treated as `junk`, so an unreviewed tag is never learned by accident |
 
-**What none of this takes away.** The chips under a card come from `card_tags` and always have,
-so every tag stays on the page whatever its verdict here. A whole-card search, which is the
-default, reads every tag exactly as it does today: `vanity-card` still shows and still scores.
-The verdict only decides what happens when you PICK A LINE, and even then the tag is not gone,
-it goes to the `aside` state, greyed with an explanation, and one click puts it back. So the
-cost of my getting one of these wrong is a tag sitting aside when it should have counted, not a
-tag vanishing.
+A verdict never takes a tag off the page. The chips under a card come from `card_tags`, and
+a whole-card search reads every tag regardless. The verdict only decides what happens when
+a line is picked, and even then the tag goes to the `aside` state, greyed with an
+explanation and one click from coming back.
 
-**Start with the `?` section**, it is the short one and the only part where I had no
-read. The `text` section is the long one but it is skimmable: I am claiming every tag in
-it is printed on the card in words, so anything that is not should jump out.
+`typal-*` and `synergy-*` are pre-answered `text` by a rule, so a new creature type next
+set arrives already judged. Of the 42 `typal-` tags with 20 or more cards, 89% of their
+cards print the thing the tag names in their own rules text, and the named creature types
+are at 100% (`typal-vampire` 82 of 82, `typal-zombie` 120 of 120). `synergy-*` is 80% the
+same way. The few reading 0% are slug wording: a card tagged `synergy-blocker` says
+"blocks", not "blocker". Disagreeing means changing the rule in `make_tagreview.py`, not
+the fifty lines below.
 
-The `typal-*` and `synergy-*` families are pre-answered as `text` by a rule rather than
-one line each, so a new creature type next set arrives already judged. The evidence: of
-the 42 `typal-` tags with 20 or more cards, 89% of their cards print the thing the tag
-names in their own rules text, and the named creature types are at 100% (`typal-vampire`
-82 of 82, `typal-zombie` 120 of 120). `synergy-*` is 80% the same way. The few reading 0%
-are slug wording rather than missing concepts: a card tagged `synergy-blocker` says
-"blocks", not "blocker". If you disagree with the family call, say so once and I will
-change the rule rather than the fifty lines.
-
-## A warning about the `card` pile
-
-TODO.md's step two says to revive `card_level` so those tags ride every line instead of
-being set aside. Worth knowing before that gets built: **it was already tried and it was
-measured as bad.** `ingest/attribute.py` says so in its own comments, and `schema.sql`'s
-description of `card_level` is stale, describing the behaviour that got reverted rather
-than the one that shipped:
-
-> a tag no line shows any evidence for is attributed to NOTHING, and that is deliberate.
-> it used to ride every line instead, on the theory that tags like invitational-card
-> describe the card rather than an ability, but that is exactly why they should be absent
-> [...] attaching them everywhere was the single largest source of false positives
-
-That was worth 58% -> 88% precision, so it is not a small thing to undo.
-
-What makes `card_level` worth a second look anyway is this review. The thing that leaked
-was attaching EVERY unexplained tag to every line, and most unexplained tags are not
-card-shaped, they are just weakly evidenced. A hand-judged `card` list is a different
-proposition: eight tags, each genuinely about the card, rather than a long tail. So the
-pile below is small on purpose. If it grows past a couple of dozen, that is a sign the
-verdict is being used as a dumping ground and the leak is coming back.
+**Keep the `card` pile small.** Attaching every unexplained tag to every line was the
+single largest source of false positives, worth 58% -> 88% precision to stop doing, and
+`ingest/attribute.py` carries the detail. A hand-judged list is a different proposition,
+but past a couple of dozen the verdict is being used as a dumping ground and the leak is
+coming back.
 
 Counts: text 156, card 20, junk 32.
 
 ## Proposed: about the rules text (rescue these) (156)
 
-These are excluded today and I think that is a mistake. Every one of them is printed on the card in words.
+Excluded today, and every one of them is printed on the card in words.
 
 - [text] `cantrip` &mdash; auc 0.750, 602 cards  
   Cards that let you draw a card as they resolve or enter the battlefield.  
@@ -787,7 +758,7 @@ These are excluded today and I think that is a mistake. Every one of them is pri
 
 ## Proposed: about the card, not a line (20)
 
-Correctly kept out of training, but they are the `card_level` candidates for step 2: picking a line should not lose them.
+Correctly kept out of training. These are the `card_level` candidates: picking a line should not lose them.
 
 - [card] `manaless-value` &mdash; auc 0.734, 195 cards  
   Cards that can provide some amount of value without untapped lands.  

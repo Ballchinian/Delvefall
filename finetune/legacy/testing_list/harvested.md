@@ -1,5 +1,8 @@
 # Harvested false positives, for review
 
+A v1 worksheet, kept as evidence. No script has ever read it: the verdicts below
+went into the training negatives and `exam_pairs.md` by hand.
+
 Mined 2026-07-19 by replaying the site's ranking over 1,190 cards sampled across the whole
 pool and keeping every pair it scored 88+. Uses the shape-counted idf, so the Overload and
 Equip collisions f3328f8 already fixes are not in here.

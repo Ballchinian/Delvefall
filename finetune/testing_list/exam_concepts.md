@@ -1,5 +1,8 @@
 # Axis 2 - the concept engine's own tests
 
+The list that actually scores is `PAIRS` and `TRIPLETS` in `exam_concepts.py`;
+this file is the readable copy, kept in step by hand.
+
 Same system as axis 1 now that the engine is real: pairs are absolute (community complaints
 once the slider ships, hand-judged seeds until then) and pass against the axis-2 calibrated
 gate; triplets are relative orderings that survive scorer swaps (idf tag overlap today,

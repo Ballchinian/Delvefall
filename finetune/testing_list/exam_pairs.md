@@ -1,5 +1,9 @@
 # Absolute tests, from user-reported gaps
 
+Axis 1 as displayed. `exam_pairs.py` parses this file at runtime and
+`make_training.py` holds every card named here out of training, so an edit
+changes both the score and what the next model may learn.
+
 Two polarities, both pasted straight from the /admin export:
 - **Should-match** ('missing' reports): the Match belongs in the anchor's results. Passes when it clears the live cutoff.
 - **Should-NOT** ('misplaced' reports): the NOT was flagged as wrong. Passes when it drops below the cutoff.
