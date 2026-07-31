@@ -16,7 +16,7 @@ The embeddings are the part that is genuinely ours. Every line is cleaned (remin
 
 ## How this folder is laid out
 
-Scripts sit at the top, named for what they do: `bakeoff_` picks a base model, `exam_` judges something already running, `make_` builds data, `train.py` trains. Every hand-marked file carries the name of the script that owns it, so `exam_pairs.py` reads `testing_list/exam_pairs.md` and there is no second thing to remember.
+Scripts sit at the top, named for what they do: `bakeoff_` picks a base model, `exam_` judges something already running, `make_` builds data, `train.py` trains, and `examfile.py` is the one reader they all share. Every hand-marked file carries the name of the script that owns it, so `exam_pairs.py` reads `testing_list/exam_pairs.md` and there is no second thing to remember.
 
 | Folder | What is in it |
 | --- | --- |
@@ -42,19 +42,19 @@ Three models have shown results on the site. Only two were trained here.
 | --- | --- | --- |
 | `train.py` | both | `--objective` picks which |
 | `make_training.py` | both | v2's files into `traindata/`, v1's into `legacy/traindata/` |
-| `bakeoff_lines.py` | v1 | the exam itself, held in `TRIPLETS` |
+| `bakeoff_lines.py` | v1 | the exam, from `testing_list/bakeoff_lines.md` |
 | `exam_tags.py` | v2 | `traindata/tag_testset.jsonl` |
 | `make_tagreview.py` | v2 | reads and rewrites `testing_list/make_tagreview.md` |
 | `legacy/bakeoff_tags.py` | v2 | ranks models on the tag objective. Waiting for a second v2 model to compare against |
 | `legacy/make_keywords.py` | v1 | writes `legacy/traindata/train_keywords.jsonl` |
 | `legacy/exam_neighbours.py` | v1 | writes `legacy/exam_neighbours.txt` |
 | `exam_pairs.py` | neither | axis 1 as displayed, from `testing_list/exam_pairs.md` |
-| `exam_concepts.py` | neither | axis 2, against `common/concept.py` |
-| `exam_attribution.py` | neither | `ingest/attribute.py`, labels held inline |
+| `exam_concepts.py` | neither | axis 2, from `testing_list/exam_concepts.md` |
+| `exam_attribution.py` | neither | `ingest/attribute.py`, from `testing_list/exam_attribution.md` |
 
 `bakeoff_lines.py` is the one whose name reads wrong. It is v1's bake-off and it still runs: `train.py` prints it as step 4 of a v2 run, a regression guard rather than a target. So `legacy/` means "no longer runs", not "v1 era".
 
-Two of the four hand-marked files are documentation rather than input. `bakeoff_lines.md` and `exam_concepts.md` mirror lists that live in Python, so editing the markdown alone changes no score. `exam_pairs.md` and `make_tagreview.md` are parsed at runtime and do.
+Every hand-marked file is parsed at runtime, so the file people edit is the file that scores and none of them can drift from the code. The four exams share one layout and one reader, `examfile.py`: an H1 saying what it scores and which script reads it, then `## Section` headings each stating what passing means, then numbered entries of `**Field:** value` lines and one italic reason. `make_tagreview.md` keeps its own shape because it is a verdict worksheet rather than an exam.
 
 ## What is published here
 

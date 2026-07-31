@@ -1,14 +1,10 @@
-# Absolute tests, from user-reported gaps
+# Absolute tests, from user reported gaps
 
-Axis 1 as displayed. `exam_pairs.py` parses this file at runtime and
-`make_training.py` holds every card named here out of training, so an edit
-changes both the score and what the next model may learn.
+Axis 1 as displayed. Read at runtime by `exam_pairs.py`, and `make_training.py` holds every card named here out of training, so an edit changes both the score and what the next model may learn.
 
-Two polarities, both pasted straight from the /admin export:
-- **Should-match** ('missing' reports): the Match belongs in the anchor's results. Passes when it clears the live cutoff.
-- **Should-NOT** ('misplaced' reports): the NOT was flagged as wrong. Passes when it drops below the cutoff.
+## Should match
 
-# Should-match (expected card scored too low)
+Passes when the pair clears the live cutoff.
 
 1.
     **Anchor:** Earth-Cult Elemental - `1—9 | Each player sacrifices a permanent of their choice.`
@@ -60,7 +56,9 @@ Two polarities, both pasted straight from the /admin export:
     **Match:** Cycle of Renewal - `Sacrifice a land. Search your library for up to two basic land cards, put them onto the battlefield tapped, then shuffle.`
     *passing at 98%. a conditional upgrade rider on an otherwise identical effect*
 
-# Should-NOT (flagged card scored too high)
+## Should not match
+
+Passes when the pair drops below the cutoff.
 
 1.
     **Anchor:** Sol Ring - `{T}: Add {C}{C}.`

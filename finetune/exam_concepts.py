@@ -12,38 +12,22 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 import psycopg
 from common.concept import raw_sim, to_display, MIN_CONCEPT
 
-#(anchor, match), must display at or above the gate. exam_concepts.md "Pairs".
-#two fail today and are kept because they are the gap: Smothering Tithe against
-#Ghostly Prison scores a raw 0.00, the two sharing no tag whatsoever, and
-#Sakura-Tribe Elder against Wood Elves lands at 75% just under the gate
-PAIRS = [
-    ("Shadrix Silverquill", "Gluntch, the Bestower"),
-    ("Rhystic Study", "Mystic Remora"),
-    ("Smothering Tithe", "Ghostly Prison"),
-    ("Grave Pact", "Dictate of Erebos"),
-    ("Sakura-Tribe Elder", "Wood Elves"),
-]
+#both invocation styles work: -m puts the repo root on the path, a direct path
+#puts only finetune/ there, and examfile has to be importable either way
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-#(name, anchor, closer, further, known_fail). exam_concepts.md "Triplets", closer must
-#beat further. B fails because the scorer overweights mechanism flavored tags
-#(removal-destroy). D is the one to watch: outlet and payoff share every sacrifice
-#tag, so tag overlap alone has little to separate them on
-TRIPLETS = [
-    ("A selective hug", "Shadrix Silverquill", "Gluntch, the Bestower", "Font of Mythos", False),
-    ("B role beats verb", "Murder", "Swords to Plowshares", "Day of Judgment", True),
-    ("C tax beats giving", "Rhystic Study", "Smothering Tithe", "Howling Mine", False),
-    ("D outlet is not payoff", "Ashnod's Altar", "Phyrexian Altar", "Blood Artist", False),
-    ("E land ramp is not artifact ramp", "Rampant Growth", "Sakura-Tribe Elder", "Sol Ring", False),
-    ("F drain payoff is not sacrifice tax", "Zulaport Cutthroat", "Blood Artist", "Grave Pact", False),
-]
+import examfile
 
-#judged non-matches, printed for eyeballing: these should sit well under the
-#gate, since the concept axis must not blur what axis 1 keeps apart
-SEPARATION = [
-    ("Sol Ring", "Ulvenwald Captive // Ulvenwald Abomination"),
-    ("Merfolk Looter", "Rummaging Goblin"),
-    ("Howling Mine", "Underworld Dreams"),
-]
+#all three lists come from testing_list/exam_concepts.md, so the file people edit
+#is the file that scores. PAIRS must display at or above the gate, TRIPLETS need
+#Closer to beat Further, and SEPARATION is printed rather than scored: each entry
+#is where it should be today and must not drift up through the gate
+_S = examfile.read("exam_concepts")
+PAIRS = [(e["fields"]["Anchor"], e["fields"]["Match"]) for e in _S["Pairs"]]
+TRIPLETS = [(e["fields"]["Test"], e["fields"]["Anchor"], e["fields"]["Closer"],
+             e["fields"]["Further"], e["note"].upper().startswith("FAILS"))
+            for e in _S["Triplets"]]
+SEPARATION = [(e["fields"]["Anchor"], e["fields"]["NOT"]) for e in _S["Separations"]]
 
 
 def main():

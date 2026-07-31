@@ -17,73 +17,28 @@ import sys
 import psycopg
 from psycopg.rows import dict_row
 
-#card name -> {line index (in id order, whole rows excluded) -> tags it is about}.
-#a line index that is absent is not scored at all
-LABELS = {
-    "Shadrix Silverquill": {
-        #line 1 is the "choose two" header, excluded: see the modal note above
-        0: {"evasion"},
-        2: {"donate-token", "selective-group-hug", "modal", "repeatable-creature-tokens", "evasion"},
-        3: {"force-draw", "opponent-loses-life", "repeatable-pure-draw", "draw-engine", "repeatable-crime"},
-        4: {"gives-pp-counters-to-all", "selective-group-hug", "repeatable-pp-counters", "gains-pp-counters"},
-    },
-    "Omnath, Locus of Creation": {
-        0: {"cantrip", "hand-neutral", "triggered-ability"},
-        1: {"times-resolved-matters", "non-mana-ability-mana", "sweeper-one-sided", "landfall",
-            "adds-multiple-mana", "group-slug", "mana-producer", "burn-planeswalker",
-            "repeatable-lifegain", "repeatable-removal", "burn-player", "triggered-ability"},
-    },
-    "Kratos, God of War": {
-        0: set(),  #"Double strike" is about none of this card's tags
-        1: {"catch-22", "burn-player-each", "keyword-anthem", "gives-haste", "symmetrical"},
-        2: {"catch-22", "burn-player-each", "symmetrical", "triggered-ability"},
-    },
-    "The One Ring": {
-        #a keyword usually printed on creatures, sitting on an artifact
-        0: {"creature-ability-noncreature"},
-        #no triggered-ability here: tagger never typed it onto this card, and a
-        #label the card does not carry is a hole in the answer key, not a miss
-        1: {"gives-player-protection", "damage-prevention-you", "fog-selective"},
-        2: {"drawback", "life-for-cards", "unique-counter"},
-        3: {"activated-ability", "burst-draw", "draw-engine", "repeatable-pure-draw",
-            "hand-positive", "quadratic", "unique-counter", "tome"},
-    },
-    "Boros Charm": {
-        #line 0 is the "Choose one" header, excluded: see the modal note above
-        1: {"burn-player", "burn-planeswalker", "single-target-instant-sorcery"},
-        2: {"gives-indestructible", "protects-all", "protects-creature"},
-        3: {"gives-double-strike", "combat-trick", "single-target-instant-sorcery"},
-    },
-    "The Great Henge": {
-        0: {"discount-self", "scales-with-power"},
-        1: {"activated-ability", "adds-multiple-mana", "mana-ability-with-extra-effect",
-            "repeatable-lifegain", "utility-mana-rock", "full-refund"},
-        2: {"creaturefall", "gives-pp-counters", "repeatable-pp-counters", "draw-engine",
-            "repeatable-pure-draw", "triggered-ability"},
-    },
-    "Goldspan Dragon": {
-        0: {"evasion"},
-        1: {"attacking-matters-self", "heroic", "hate-target", "repeatable-treasures",
-            "synergy-treasure", "triggered-ability"},
-        2: {"gives-mana-ability", "refund", "synergy-treasure"},
-    },
-    "Dauthi Voidwalker": {
-        #hatebear is the reason this card is here: it is 2 mana with small stats,
-        #which is the mana cost and the power/toughness box, so it belongs to no
-        #line and attribute.py is expected to leave it out entirely
-        0: {"evasion", "restricted-blocker"},
-        1: {"graveyard-seal", "aesthetic-counter"},
-        2: {"activated-ability", "free-cast-another", "gives-castable-from-exile",
-            "theft-cast", "martyr"},
-    },
-    "Professional Face-Breaker": {
-        0: {"evasion"},
-        1: {"combat-ramp", "repeatable-treasures", "synergy-treasure", "per-player",
-            "triggered-ability"},
-        2: {"activated-ability", "free-sacrifice-outlet", "impulsive-curiosity",
-            "repeatable-impulsive-draw", "synergy-treasure"},
-    },
-}
+#both invocation styles work: -m puts the repo root on the path, a direct path
+#puts only finetune/ there, and examfile has to be importable either way
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+import examfile
+
+
+def load_labels():
+    #card -> {line index: tags it is about}. "(none)" is an empty set, scored and
+    #expecting nothing; a line index absent from the file is not scored at all
+    labels = {}
+    for e in examfile.read("exam_attribution")["Labels"]:
+        per = {}
+        for label, body in e["fields"].items():
+            if not label.startswith("Line "):
+                continue
+            per[int(label.split()[1])] = set() if body == "(none)" else {
+                t.strip() for t in body.split(",") if t.strip()}
+        labels[e["fields"]["Card"]] = per
+    return labels
+
+LABELS = load_labels()
 
 
 def main():

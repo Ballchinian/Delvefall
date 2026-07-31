@@ -24,7 +24,13 @@ from ingest.update import MECH_CALIBRATION as SEED_CALIBRATION
 #80; one axis alone sits at 80, which is the model's real quality boundary
 GATE = 80
 
-PAIRS_MD = os.path.join(os.path.dirname(os.path.abspath(__file__)), "testing_list", "exam_pairs.md")
+#both invocation styles work: -m puts the repo root on the path, a direct path
+#puts only finetune/ there, and examfile has to be importable either way
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+import examfile
+
+PAIRS_MD = examfile.path("exam_pairs")
 
 #resolved in main the way load_calibration in web/mirror.py does it: the meta row
 #the ingest wrote wins, the seed holding for a database it has not touched yet
@@ -48,25 +54,17 @@ def mech_display(raw):
     return 100
 
 
-def parse_reports(path):
-    #entries are "**Anchor:** Card - `line`" followed by a "**Match:**" or
-    #"**NOT:**" line naming the other card. the notes are for humans
+def parse_reports(path=None):
+    #(section, anchor card, anchor line, other card) per entry, the shape
+    #make_training.py expects for its holdout. path is accepted and ignored so
+    #callers can keep passing PAIRS_MD
     entries = []
-    section = None
-    anchor = None
-    with open(path, encoding="utf-8") as f:
-        for line in f:
-            if line.startswith("# Should-match"):
-                section, anchor = "should-match", None
-            elif line.startswith("# Should-NOT"):
-                section, anchor = "should-NOT", None
-            m = re.match(r"\s*\*\*Anchor:\*\* (.+?) - `(.*)`\s*$", line)
-            if m:
-                anchor = (m.group(1), m.group(2))
-                continue
-            m = re.match(r"\s*\*\*(?:Match|NOT):\*\* (.+?) - `", line)
-            if m and anchor and section:
-                entries.append((section, anchor[0], anchor[1], m.group(1)))
+    sections = examfile.read("exam_pairs")
+    for section, key in (("Should match", "Match"), ("Should not match", "NOT")):
+        for e in sections.get(section, []):
+            anchor, lines = examfile.card_lines(e["fields"]["Anchor"])
+            other = examfile.card_only(e["fields"][key])
+            entries.append((section, anchor, lines[0] if lines else "", other))
     return entries
 
 
@@ -136,7 +134,7 @@ def main():
     section_shown = None
     for section, a_name, a_line, o_name in entries:
         if section != section_shown:
-            side = ">=" if section == "should-match" else "<"
+            side = ">=" if section == "Should match" else "<"
             print(section + " (pass: displayed " + side + " " + str(GATE) + ")")
             section_shown = section
         a_id, a_db = find_card(conn, a_name)
@@ -146,7 +144,7 @@ def main():
             print("  ???? %s vs %s: no scorable lines" % (a_name, o_name))
             continue
         shown = mech_display(raw)
-        ok = shown >= GATE if section == "should-match" else shown < GATE
+        ok = shown >= GATE if section == "Should match" else shown < GATE
         score += ok
         note = "" if pinned else "  (anchor line not in db, scored all its lines)"
         print("  %s %s vs %s: raw %.3f -> %d%%  via \"%s\"%s"
