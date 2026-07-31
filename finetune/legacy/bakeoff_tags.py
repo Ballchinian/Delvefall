@@ -1,8 +1,24 @@
-#which base model starts highest on the line -> tag objective, before any fine
-#tuning.
+#ranks models on "shown one line, does it put the right tags first".
 #
-#no database, everything comes out of traindata. same held out cards and tag pool
-#as exam_tags.py, so the numbers sit beside it.
+#IN LEGACY BECAUSE THE QUESTION IT WAS BUILT FOR IS SETTLED. it asked which
+#stock model to start the tag objective from, and EmbeddingGemma won that on
+#lines already, so the answer was never in doubt and the run only confirmed it.
+#the five stock models below are kept for the record, not because a rerun tells
+#anyone anything.
+#
+#what it is FOR now, and why it is worth keeping: point MODELS at two trained
+#models instead and it says which one is better at filing a line under the right
+#tag. that is the tag half of what bakeoff_lines.py does for the line half, and
+#it is the run to make when a second v2 model exists. there is only one today,
+#so the comparison has nothing to sit beside.
+#
+#the v1 model cannot answer it. v1 was never taught what a tag slug says, so
+#scoring it here measures a thing it was not trained for and reads as a loss
+#that means nothing. exam_tags.py has the fair version of that comparison, the
+#centroid scorer, which needs no model to know the vocabulary.
+#
+#no database, everything comes out of traindata. same held out cards and tag
+#pool as exam_tags.py, so the numbers sit beside it.
 #
 #prompts are not cosmetic, embeddinggemma and bge scoring much lower bare, so
 #each model gets the one it ships with and the prompt prints with the score
@@ -15,11 +31,14 @@ import argparse
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-DATA_DIR = os.path.join(HERE, "traindata")
-sys.path.insert(0, HERE)
+#the tag objective's data lives in the live folder, one level up from legacy/
+FINETUNE = os.path.dirname(HERE)
+DATA_DIR = os.path.join(FINETUNE, "traindata")
+sys.path.insert(0, FINETUNE)
 
-#the five from the original bake-off, plus the tuned model when it is reachable.
-#all of these were already pulled once for that bake-off, so a rerun is offline
+#the five from the original bake-off, kept as the record of that run. to use
+#this for its remaining purpose, replace them with two paths under
+#finetune/models/ and read the table as new against old
 MODELS = [
     "sentence-transformers/all-MiniLM-L6-v2",
     "BAAI/bge-small-en-v1.5",
@@ -28,6 +47,9 @@ MODELS = [
     "Qwen/Qwen3-Embedding-0.6B",
 ]
 
+#recall @1, @5 and @10: of the tags a held out card really carries, the share
+#the model puts in its top 1, top 5 and top 10 guesses. @10 is the headline,
+#because a card carries a handful of tags and the picker shows more than one
 KS = (1, 5, 10)
 
 

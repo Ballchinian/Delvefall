@@ -2,26 +2,36 @@
 #with DATABASE_URL set:
 #    python -m finetune.exam_tags
 #
-#it asks a retrieval question: shown one line and every learnable tag in the
-#game, does the model rank the right tags first?
+#THE QUESTION: hide some cards from training, then show the model one line of
+#their rules text and the list of every learnable tag in the game. does it rank
+#that line's real tags near the top? recall @10 is the headline.
 #
-#NOT the obvious harness, which would score ingest/attribute.py against the held
-#out cards. that one cannot fail: attribute.py narrows a card's own typed tags
-#onto its own lines, and a single-line card's held out set is those tags, so
-#every attribution is right by construction (100.0% precision on 4392 hits).
-#scoring unlearnable tags drops it to 76.4%, but those are holes in the answer
-#key rather than errors, and a harness whose failures are holes in its own ground
-#truth cannot show a model improving.
+#SCORING A TAG NEEDS A VECTOR FOR THE TAG, and there are two ways to make one.
+#they are not interchangeable and mixing them up makes a model look better or
+#worse than it is:
 #
-#two ways to represent a tag, and a fair comparison uses each model's own:
-#  centroid  mean vector of the training cards carrying the tag. needs no model,
-#            only the stored vectors, so it runs locally. the only fair scorer
-#            for the line-to-line model, never taught what a slug says
-#  text      cosine against the embedded "slug: description", what the retrain is
-#            taught directly. needs the model, so it wants the gpu box
+#  centroid  average the vectors of the cards already carrying the tag. the tag's
+#            meaning comes from its cards, so the model never has to have read
+#            the word "cantrip". works on any model, including one that has never
+#            seen a slug, and runs off the stored vectors with no gpu
 #
-#judge the old model by centroid, the new one by BOTH: one that cannot beat the
-#old centroid score on centroid did not work, whatever its text number says.
+#  text      embed the words "cantrip: cards that let you draw a card as they
+#            resolve" and compare the line to that. only fair on a model taught
+#            to read slugs, which is exactly what v2 was taught. needs the model
+#            loaded, so it wants the gpu box
+#
+#so: CENTROID IS THE ONE THAT COMPARES ACROSS MODELS, and the 47% -> 78% in the
+#README is centroid on both sides. a v2 model should also be run on text, but a
+#good text score cannot rescue a centroid score that went down.
+#
+#WHY NOT JUST SCORE ingest/attribute.py? because it cannot fail. attribute.py
+#hands a card's own tags to that card's own lines, and a held out single-line
+#card has exactly one line, so every tag lands right by construction: 100.0%
+#precision on 4392 hits. the number only drops (to 76.4%) when unlearnable tags
+#are counted, and those are gaps in the answer key rather than mistakes. a
+#harness that scores 100% on a working model and 100% on a broken one measures
+#nothing. exam_attribution.py is the real test of attribute.py, on hand labelled
+#multi-line cards where the split is a genuine question.
 
 import os
 import sys

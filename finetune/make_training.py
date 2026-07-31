@@ -214,11 +214,11 @@ def _auc(pos, neg):
 def learnable_tags(conn):
     #scored on the vectors already in the database. the current model is the
     #RULER here, not the product: it only picks which labels are worth training
-    #on.
+    #on, and a hand verdict overrides it. testing_list/make_tagreview.md ranks
+    #every tag and explains each call.
     #
-    #typed applications only, a tag being judged on the population it is trained
-    #on and mine_tag_pairs being typed. counting inherited rows would score each
-    #tag over its whole subtree, looser than where the pairs come from
+    #typed applications only, so a tag is judged on the population it is trained
+    #on. counting inherited rows would score it over its whole subtree
     import numpy as np
     rows = conn.execute("""
         WITH one AS (SELECT oracle_id FROM lines WHERE NOT whole GROUP BY oracle_id HAVING count(*) = 1)

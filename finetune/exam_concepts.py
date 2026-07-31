@@ -15,14 +15,19 @@ from common.concept import raw_sim, to_display, MIN_CONCEPT
 #(anchor, match), must display at or above the gate. exam_concepts.md "Pairs"
 PAIRS = [
     ("Shadrix Silverquill", "Gluntch, the Bestower"),
+    ("Rhystic Study", "Mystic Remora"),
+    ("Smothering Tithe", "Ghostly Prison"),
 ]
 
 #(name, anchor, closer, further, known_fail). exam_concepts.md "Triplets", closer must
 #beat further. B fails because the scorer overweights mechanism flavored tags
-#(removal-destroy)
+#(removal-destroy). D is the one to watch: outlet and payoff share every sacrifice
+#tag, so tag overlap alone has little to separate them on
 TRIPLETS = [
     ("A selective hug", "Shadrix Silverquill", "Gluntch, the Bestower", "Font of Mythos", False),
     ("B role beats verb", "Murder", "Swords to Plowshares", "Day of Judgment", True),
+    ("C tax beats giving", "Rhystic Study", "Smothering Tithe", "Howling Mine", False),
+    ("D outlet is not payoff", "Ashnod's Altar", "Phyrexian Altar", "Blood Artist", False),
 ]
 
 #judged non-matches, printed for eyeballing: these should sit well under the

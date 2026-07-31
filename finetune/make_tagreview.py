@@ -208,15 +208,9 @@ def trainable_tags(scores, bar):
     #builds the pairs from this and exam_tags.py scores against it, so a model is
     #never judged on a tag set it was not taught.
     #
-    #the review outranks the AUC both ways, the two answering different questions:
-    #  rescued  ramp, rummage, scry-like, converge and triggered-ability are
-    #           printed in plain words and the AUC excludes them
-    #  removed  the *-with-set-s-mechanic family scores 0.86 to 0.999 on
-    #           templating alone, and is still set-design trivia
-    #
-    #an unreviewed tag falls through to the AUC, the review covering the excluded
-    #side plus the suspicious kept ones rather than all 706. a tag left at ?
-    #counts as unlearnable: not judged is not approved
+    #a hand verdict outranks the AUC both ways, and testing_list/make_tagreview.md
+    #says why per tag. an unreviewed tag falls through to the AUC, and one left at
+    #? counts as unlearnable: not judged is not approved
     verdicts = read_verdicts()
     auc_keep = {t for t, a in scores.items() if a >= bar}
     if not verdicts:

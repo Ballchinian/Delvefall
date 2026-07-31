@@ -9,6 +9,7 @@ What no longer runs. The site ran on a "these two lines mean the same thing" mod
 | `make_keywords.py` | Mined keyword definitions out of Scryfall reminder text so the model could learn Hexproof and Shroud are cousins. Writes `traindata/train_keywords.jsonl` here beside it, which only `train.py --objective lines` ever reads |
 | `exam_neighbours.py` | Step 6 of the v1 project: embed the whole database with the tuned model AND the old one, print the top matches for 14 ordinary searches side by side. It is how the launch-day complaint was caught in the wild (the old model's top match for Merfolk Looter's ability was the rummage line, at 98.2%) |
 | `exam_neighbours.txt` | That run's printed output. Not published, since rerunning the script writes it again |
+| `bakeoff_tags.py` | Picked the base model for the tag objective, which EmbeddingGemma had already won on lines, so it only confirmed the obvious. Here rather than deleted because it is the only thing that can rank one trained model against another on tags: point `MODELS` at two folders under `../models/` and it becomes the tag half of what `bakeoff_lines.py` does for lines. That run waits on a second v2 model existing |
 
 ## The training data, and what had to change to move it here
 

@@ -43,9 +43,9 @@ Three models have shown results on the site. Only two were trained here.
 | `train.py` | both | `--objective` picks which |
 | `make_training.py` | both | v2's files into `traindata/`, v1's into `legacy/traindata/` |
 | `bakeoff_lines.py` | v1 | the exam itself, held in `TRIPLETS` |
-| `bakeoff_tags.py` | v2 | remeasures the base model on the tag objective |
 | `exam_tags.py` | v2 | `traindata/tag_testset.jsonl` |
 | `make_tagreview.py` | v2 | reads and rewrites `testing_list/make_tagreview.md` |
+| `legacy/bakeoff_tags.py` | v2 | ranks models on the tag objective. Waiting for a second v2 model to compare against |
 | `legacy/make_keywords.py` | v1 | writes `legacy/traindata/train_keywords.jsonl` |
 | `legacy/exam_neighbours.py` | v1 | writes `legacy/exam_neighbours.txt` |
 | `exam_pairs.py` | neither | axis 1 as displayed, from `testing_list/exam_pairs.md` |
@@ -118,3 +118,19 @@ So v2 trains on (line, tag) pairs instead of (line, line), using the eleven thou
 Which tags it is allowed to learn is a separate question, and not one a model can answer about its own successor. `make_tagreview.py` builds the worksheet and `testing_list/make_tagreview.md` holds the hand-judged verdicts.
 
 Results: the tag half of the site went from 47% to 78% on `exam_tags.py`, line attribution from 88% to 94% precision, and the v1 line-to-line exam held its ground, which is the one that would have caught it forgetting what it already knew.
+
+# Shipping a retrain
+
+`train.py` prints a pointer here rather than the steps, because the dangerous one needs more room than a Colab log gives it.
+
+**Leave `EMBED_MODEL` alone.** Swapping it makes the ingest overwrite `lines.embedding` in place, and the old vectors cannot be recovered without rerunning the old model over the whole corpus. The second column exists precisely so a new model can be judged without touching what the site is serving.
+
+Under `--objective tags`, in this order:
+
+1. Upload to a **new** Hugging Face repo from the same Colab session, before the runtime dies. The old repo is the rollback, so leave it alone: `m = SentenceTransformer(out_dir)` then `m.push_to_hub('you/mtg-tagtuned-embeddinggemma-300m', private=True)`.
+2. On a machine with `DATABASE_URL`, fill the second column: `python -m ingest.backfill_embeddings --model <the new repo> --index`. This leaves `lines.embedding` exactly as the site is serving it.
+3. Judge it against that column: `EMBED_COLUMN=embedding_v2 python -m finetune.exam_tags`. Compare like with like. The headline is the **centroid** recall @10, which is what the 47% and 78% above are. The `tags_cosine_recall@10` that `train.py` prints during training is text retrieval and is a different number.
+4. `python finetune/bakeoff_lines.py` as a regression guard, not a target. A drop here is the umbrella tags teaching structure over meaning.
+5. Only if all of that holds: set `EMBED_COLUMN=embedding_v2` on the web service to browse real searches. Unset it to revert instantly.
+
+Under `--objective lines`, there is no column dance: copy the saved folder into `models/`, add it to `MODELS` in `bakeoff_lines.py`, and rerun that for the per-triplet exam.

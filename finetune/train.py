@@ -290,31 +290,11 @@ def main():
         print("tags after training:", tag_ir(model))
     model.save_pretrained(out_dir)
     print("\nsaved to " + out_dir)
-    if args.objective == "lines":
-        print("next: copy that folder into finetune/models/ on your machine, then add")
-        print('  ("mtg-tuned", r"' + out_dir + '", ' + (('"' + prefix + '"') if prefix else "None") + "),")
-        print("to MODELS in bakeoff_lines.py and rerun it for the real per-triplet exam.")
-    else:
-        print("next, in this order. leave EMBED_MODEL alone: swapping it overwrites the")
-        print("live vectors in place, and they cannot be recovered without rerunning the")
-        print("old model over the whole corpus. the second column exists for this.")
-        print("")
-        print("  1. upload to a new hugging face repo, from this same colab session")
-        print("     before the runtime dies. the old repo is the rollback, so leave it:")
-        print("       m = SentenceTransformer(r'" + out_dir + "')")
-        print("       m.push_to_hub('you/mtg-tagtuned-embeddinggemma-300m', private=True)")
-        print("  2. back on a machine with DATABASE_URL, fill the second column:")
-        print("       python -m ingest.backfill_embeddings --model <the new repo> --index")
-        print("     this leaves lines.embedding exactly as the site is serving it")
-        print("  3. the real judge, against the same column:")
-        print("       EMBED_COLUMN=embedding_v2 python -m finetune.exam_tags")
-        print("     ship bar is recall @10 at 95%. the model in production sits at 47.0%,")
-        print("     which is the centroid number, so compare like with like: the")
-        print("     tags_cosine_recall@10 printed above is text retrieval and is not it")
-        print("  4. python finetune/bakeoff_lines.py as a regression guard, not a target.")
-        print("     a drop here is the umbrella tags teaching structure over meaning")
-        print("  5. only if all that holds: EMBED_COLUMN=embedding_v2 on the web service")
-        print("     to browse real searches. unset it to revert instantly")
+    #the shipping steps are in finetune/README.md rather than printed here: they
+    #are the same every run, and the one that can destroy data (swapping
+    #EMBED_MODEL overwrites the live vectors in place) needs more room to explain
+    #than a colab log gives it
+    print("next: finetune/README.md, the section for this objective")
 
 
 if __name__ == "__main__":
