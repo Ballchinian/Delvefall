@@ -1,13 +1,10 @@
 #the exam for ingest/attribute.py: hand judged answers that outlive whatever the
 #scorer does today. after an attribute run, prints precision and recall per card:
-#    python -m finetune.exam_attribution
-#with DATABASE_URL set.
+#    python -m finetune.exam_attribution.
 #
 #the rule for adding labels: list only the tags a line is GENUINELY about. a tag
 #the card carries for reasons outside its rules text (unique-mana-cost is about
-#the mana cost, invitational-card about where the card came from) belongs to no
-#line, so it goes in no set here and attribute.py is expected to leave it out.
-#whole-card searches read card_tags and still see it.
+#the mana cost, invitational-card about where the card came from).
 #
 #known and accepted: "modal" lands on the mode lines rather than the "choose two"
 #header declaring the modality, because those lines neighbour other cards' mode

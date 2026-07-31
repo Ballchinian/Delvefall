@@ -13,11 +13,7 @@ here. Tagger's own descriptions convict several: `hatebear` is "low-cost (2 MV o
 low power/toughness", `offcolor-ability` is "a mana cost outside the card's colors". Both
 real, neither visible.
 
-## How to mark
-
-Change the word in brackets if it is wrong, leave it if it is right. Nothing else in the
-file is read. Rerunning `make_tagreview.py` keeps every verdict written here and adds new
-tags as `?`.
+## Marking
 
 | verdict | means | what it changes |
 | --- | --- | --- |
@@ -26,28 +22,7 @@ tags as `?`.
 | `junk` | nothing to do with how the card plays | never trained on, always set aside |
 | `?` | not judged yet | treated as `junk`, so an unreviewed tag is never learned by accident |
 
-A verdict never takes a tag off the page. The chips under a card come from `card_tags`, and
-a whole-card search reads every tag regardless. The verdict only decides what happens when
-a line is picked, and even then the tag goes to the `aside` state, greyed with an
-explanation and one click from coming back.
-
-`typal-*` and `synergy-*` are pre-answered `text` by a rule, so a new creature type next
-set arrives already judged. Of the 42 `typal-` tags with 20 or more cards, 89% of their
-cards print the thing the tag names in their own rules text, and the named creature types
-are at 100% (`typal-vampire` 82 of 82, `typal-zombie` 120 of 120). `synergy-*` is 80% the
-same way. The few reading 0% are slug wording: a card tagged `synergy-blocker` says
-"blocks", not "blocker". Disagreeing means changing the rule in `make_tagreview.py`, not
-the fifty lines below.
-
-**Keep the `card` pile small.** Attaching every unexplained tag to every line was the
-single largest source of false positives, worth 58% -> 88% precision to stop doing, and
-`ingest/attribute.py` carries the detail. A hand-judged list is a different proposition,
-but past a couple of dozen the verdict is being used as a dumping ground and the leak is
-coming back.
-
-Counts: text 156, card 20, junk 32.
-
-## Proposed: about the rules text (rescue these) (156)
+## Proposed text list
 
 Excluded today, and every one of them is printed on the card in words.
 
@@ -756,7 +731,7 @@ Excluded today, and every one of them is printed on the card in words.
   > *Jaded Response* &mdash; Counter target spell if it shares a color with a creature you control.  
 
 
-## Proposed: about the card, not a line (20)
+## Proposed: about the card, not a line
 
 Correctly kept out of training. These are the `card_level` candidates: picking a line should not lose them.
 
@@ -859,7 +834,7 @@ Correctly kept out of training. These are the `card_level` candidates: picking a
   > *Imposing Sovereign* &mdash; Creatures your opponents control enter tapped.  
 
 
-## Proposed: nothing to do with gameplay (32)
+## Proposed: nothing to do with gameplay
 
 Correctly excluded, and they should stay excluded. This is the poison the filter exists to catch.
 

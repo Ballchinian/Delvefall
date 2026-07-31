@@ -16,6 +16,11 @@ __pycache__/
 #train.py rebuilds it from what is here
 finetune/models/
 
+#a run's printed output, regenerable by rerunning the script that wrote it. not
+#*.txt, which would also swallow the three requirements.txt the deploys read and
+#the font licence web/static/fonts/ has to ship
+finetune/legacy/exam_neighbours.txt
+
 #the bundle for the colab box
 delvefall-training.zip
 *-training.zip

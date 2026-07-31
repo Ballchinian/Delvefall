@@ -1,15 +1,8 @@
 #which base model starts highest on the line -> tag objective, before any fine
-#tuning. bakeoff_lines.py picked EmbeddingGemma for a DIFFERENT question, and
-#good at paraphrase does not mean good at "what is this line about", so the base
-#is remeasured rather than inherited.
+#tuning.
 #
-#    python finetune/bakeoff_tags.py
 #no database, everything comes out of traindata. same held out cards and tag pool
 #as exam_tags.py, so the numbers sit beside it.
-#
-#this is the TEXT scorer, ranking lines against each tag's words. not comparable
-#to exam_tags.py's centroid headline: the production model was never taught what
-#a slug says, and text retrieval would flatter a stock model against it.
 #
 #prompts are not cosmetic, embeddinggemma and bge scoring much lower bare, so
 #each model gets the one it ships with and the prompt prints with the score

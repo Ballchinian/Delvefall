@@ -1,17 +1,8 @@
 # The embedding model project
 
-The site finds similar cards by turning every line of rules text into a list of
-numbers (an "embedding") where lines that mean similar things land close
-together. That trick has one famous weakness, and people found it on launch day:
-the model reads sentences a bit like a bag of words. "Draw a card, then discard
-a card" and "Discard a card: Draw a card" use the same words, so the model called
-them 98% similar. Any Magic player knows one is card selection and the other is a
-downside.
+The site finds similar cards by turning every line of rules text into a list of numbers (an "embedding") where lines that mean similar things land close together. That trick has one famous weakness, and people found it on launch day: the model reads sentences a bit like a bag of words. "Draw a card, then discard a card" and "Discard a card: Draw a card" use the same words, so the model called them 98% similar. Any Magic player knows one is card selection and the other is a downside.
 
-This folder is the project of fixing that, twice. **v1** taught a model that two
-lines mean the same thing. **v2**, live since 2026-07-22, teaches it what a line
-is ABOUT, which is what lets you pick one ability on a card and browse outward
-from it.
+This folder is the project of fixing that, twice. **v1** taught a model that two lines mean the same thing. **v2**, live since 2026-07-22, teaches it what a line is ABOUT, which is what lets you pick one ability on a card and browse outward from it.
 
 ## Where the data comes from
 
@@ -21,19 +12,11 @@ from it.
 | [Scryfall Tagger](https://tagger.scryfall.com) | community written tags describing what cards do | the concepts axis. A card's tags become a weighted vector, and two cards score on how much of that they share |
 | this project | the embeddings, the line to tag attribution, the uniqueness scores | computed from the two above |
 
-The embeddings are the part that is genuinely ours. Every line is cleaned
-(reminder text stripped, the card's own name swapped for "this card"), then run
-through the tuned model once, at ingest time. Nothing is embedded while you
-search. The tags are Tagger's work, not ours, which is why the concepts axis
-links back to them rather than pretending it invented the vocabulary.
+The embeddings are the part that is genuinely ours. Every line is cleaned (reminder text stripped, the card's own name swapped for "this card"), then run through the tuned model once, at ingest time. Nothing is embedded while you search. The tags are Tagger's work, not ours, which is why the concepts axis links back to them rather than pretending it invented the vocabulary.
 
 ## How this folder is laid out
 
-Scripts sit at the top, named for what they do: `bakeoff_` picks a base model,
-`exam_` judges something already running, `make_` builds data, `train.py` trains.
-Every hand-marked file carries the name of the script that owns it, so
-`exam_pairs.py` reads `testing_list/exam_pairs.md` and there is no second thing
-to remember.
+Scripts sit at the top, named for what they do: `bakeoff_` picks a base model, `exam_` judges something already running, `make_` builds data, `train.py` trains. Every hand-marked file carries the name of the script that owns it, so `exam_pairs.py` reads `testing_list/exam_pairs.md` and there is no second thing to remember.
 
 | Folder | What is in it |
 | --- | --- |
@@ -43,9 +26,7 @@ to remember.
 | `models/` | trained model folders, a gigabyte each. `train.py` saves here and the bake-offs load from here |
 | `legacy/` | the same shape again, holding what no longer runs |
 
-`testing_list/` against `out/` is the split that matters. Both look like results;
-only one is regenerable. A verdict in `make_tagreview.md` took an evening and no
-script can produce it a second time.
+`testing_list/` against `out/` is the split that matters. Both look like results; only one is regenerable. A verdict in `make_tagreview.md` took an evening and no script can produce it a second time.
 
 ## Which model each file belongs to
 
@@ -71,44 +52,23 @@ Three models have shown results on the site. Only two were trained here.
 | `exam_concepts.py` | neither | axis 2, against `common/concept.py` |
 | `exam_attribution.py` | neither | `ingest/attribute.py`, labels held inline |
 
-`bakeoff_lines.py` is the one whose name reads wrong. It is v1's bake-off and it
-still runs: `train.py` prints it as step 4 of a v2 run, a regression guard rather
-than a target. So `legacy/` means "no longer runs", not "v1 era".
+`bakeoff_lines.py` is the one whose name reads wrong. It is v1's bake-off and it still runs: `train.py` prints it as step 4 of a v2 run, a regression guard rather than a target. So `legacy/` means "no longer runs", not "v1 era".
 
-Two of the four hand-marked files are documentation rather than input.
-`bakeoff_lines.md` and `exam_concepts.md` mirror lists that live in Python, so
-editing the markdown alone changes no score. `exam_pairs.md` and
-`make_tagreview.md` are parsed at runtime and do.
+Two of the four hand-marked files are documentation rather than input. `bakeoff_lines.md` and `exam_concepts.md` mirror lists that live in Python, so editing the markdown alone changes no score. `exam_pairs.md` and `make_tagreview.md` are parsed at runtime and do.
 
 ## What is published here
 
-All of it, scripts and data both. Enough to rebuild every number below against
-your own database, and enough to argue with the judgement calls, which are the
-part that took the longest. `models/` is the one exception, on size alone: a
-trained model is 1.2GB, past what GitHub takes, and `train.py` builds one from
-what is here in under an hour on a free Colab GPU.
+All of it, scripts and data both. Enough to rebuild every number below against your own database, and enough to argue with the judgement calls, which are the part that took the longest. Two exceptions, neither of them interesting: `models/` is 1.2GB, past what GitHub takes, and `legacy/exam_neighbours.txt` is a run's printed output that rerunning the script writes again.
 
 # v1: teaching a model that two lines mean the same thing
 
 ## The exam
 
-You can't pick a model on vibes, and the public leaderboards test the wrong thing
-(search engines, not "do these two abilities mean the same thing"). So the first
-artifact is an exam: hand-reviewed triplets, each an anchor line, a line that
-*should* match it, and a trap that looks nearly identical but means something
-else. Rummaging Goblin is Merfolk Looter's trap. Refocus (untap) is Pressure
-Point's (tap), and they differ by two letters.
+You can't pick a model on vibes, and the public leaderboards test the wrong thing (search engines, not "do these two abilities mean the same thing"). So the first artifact is an exam: hand-reviewed triplets, each an anchor line, a line that *should* match it, and a trap that looks nearly identical but means something else. Rummaging Goblin is Merfolk Looter's trap. Refocus (untap) is Pressure Point's (tap), and they differ by two letters.
 
-It settled the site's philosophy of similarity in writing: **same mechanism,
-flexible parameters.** Numbers, colours and riders are forgivable; a flipped
-mechanism is not, even when the deck slot matches. Lightning Bolt and Murder both
-kill a creature and are still not "similar".
+It settled the site's philosophy of similarity in writing: **same mechanism, flexible parameters.** Numbers, colours and riders are forgivable; a flipped mechanism is not, even when the deck slot matches. Lightning Bolt and Murder both kill a creature and are still not "similar".
 
-It started at 26 and grows whenever a user report catches the model out, since
-that is exactly the shape of an exam question. Five went in on 2026-07-15, so it
-stands at 31, and `bakeoff_lines.py` counts the list rather than being told how
-long it is. Every score below was measured against the original 26. The exam is
-never trained on.
+It started at 26 and grows whenever a user report catches the model out, since that is exactly the shape of an exam question. Five went in on 2026-07-15, so it stands at 31, and `bakeoff_lines.py` counts the list rather than being told how long it is. Every score below was measured against the original 26. The exam is never trained on.
 
 ## The bake-off, and the finding that shaped everything after
 
@@ -120,42 +80,22 @@ never trained on.
 | EmbeddingGemma-300m | 21/26 | only stock model to pass loot vs rummage, barely (+1.5) |
 | Qwen3-Embedding-0.6B | 21/26 | scores compress into a 75-98% band that would break the match % display |
 
-**Every model failed the same questions.** Tap vs untap and "reanimate reworded"
-went 0 for 5. They were all trained on the same internet and learned the same
-habit of treating word-swapped sentences as paraphrases.
+**Every model failed the same questions.** Tap vs untap and "reanimate reworded" went 0 for 5. They were all trained on the same internet and learned the same habit of treating word-swapped sentences as paraphrases.
 
 ## The textbook
 
-The exam is 26 questions; the textbook needs thousands, almost all generated from
-the site's own distinct rules lines. It teaches four things:
+The exam is 26 questions; the textbook needs thousands, almost all generated from the site's own distinct rules lines. It teaches four things:
 
-- **Parameters are flexible.** Lines differing only by numbers, riders or scope:
-  "Draw two cards" against "Draw three cards", Unsummon against Vapor Snag.
-- **Mechanisms are not.** Real lines with exactly one mechanism flipped: tap for
-  untap, enters for dies, gain for lose, hand for battlefield, attack for block,
-  draw-then-discard reversed. A good fraction of the flips turn out to be real
-  printed cards, which is the best kind of lesson.
-- **Function over phrasing.** Wizards renamed the same effects repeatedly over
-  thirty years, so running those renames backwards over modern text produces
-  same-meaning pairs whose authority is Wizards rather than a regex guess.
-- **A shared clause must not swamp a differing one.** Of the harvested false
-  positives where either side had a trigger condition at all, **77% shared the
-  condition and differed in the effect.** "At the beginning of your upkeep" opens
-  one card that exiles your library, one that sacrifices an Aura and one that
-  adds a time counter, and the model called them alike.
+- **Parameters are flexible.** Lines differing only by numbers, riders or scope: "Draw two cards" against "Draw three cards", Unsummon against Vapor Snag.
+- **Mechanisms are not.** Real lines with exactly one mechanism flipped: tap for untap, enters for dies, gain for lose, hand for battlefield, attack for block, draw-then-discard reversed. A good fraction of the flips turn out to be real printed cards, which is the best kind of lesson.
+- **Function over phrasing.** Wizards renamed the same effects repeatedly over thirty years, so running those renames backwards over modern text produces same-meaning pairs whose authority is Wizards rather than a regex guess.
+- **A shared clause must not swamp a differing one.** Of the harvested false positives where either side had a trigger condition at all, **77% shared the condition and differed in the effect.** "At the beginning of your upkeep" opens one card that exiles your library, one that sacrifices an Aura and one that adds a time counter, and the model called them alike.
 
-Every line in the exam is excluded from all of it, so passing can never be
-memorization.
+Every line in the exam is excluded from all of it, so passing can never be memorization.
 
 ## Training and the rematch
 
-Runs on a free Colab GPU in under an hour, on EmbeddingGemma-300m, the strongest
-small model from the bake-off. Three lessons with three matched losses: pairs
-pull together, triplets pull and push at once, and the flips go through a
-contrastive loss that explicitly pushes near-identical wordings apart, which is
-the exact ability no stock model has. Rare classes are oversampled, bloated ones
-capped. The base expects a task prompt, so the tuned model was trained with one
-and must always be used with it.
+Runs on a free Colab GPU in under an hour, on EmbeddingGemma-300m, the strongest small model from the bake-off. Three lessons with three matched losses: pairs pull together, triplets pull and push at once, and the flips go through a contrastive loss that explicitly pushes near-identical wordings apart, which is the exact ability no stock model has. Rare classes are oversampled, bloated ones capped. The base expects a task prompt, so the tuned model was trained with one and must always be used with it.
 
 | Model | Score |
 | --- | --- |
@@ -163,43 +103,18 @@ and must always be used with it.
 | EmbeddingGemma-300m / Qwen3-0.6B | 21/26 |
 | all-MiniLM-L6-v2 / bge-small | 20/26 |
 
-Both impossible questions fell: tap vs untap by +35 points, the reanimate
-rewording by +31. The margins are the real story. Stock models that passed loot
-vs rummage did it by a fragile 1-2 points; the tuned model passes by +12.5, and
-rates Blood Artist against Soul Warden (dies vs enters) as *negatively* similar,
-the model saying "opposites" rather than "close call". One question regressed, a
-fair trade for five fixes.
+Both impossible questions fell: tap vs untap by +35 points, the reanimate rewording by +31. The margins are the real story. Stock models that passed loot vs rummage did it by a fragile 1-2 points; the tuned model passes by +12.5, and rates Blood Artist against Soul Warden (dies vs enters) as *negatively* similar, the model saying "opposites" rather than "close call". One question regressed, a fair trade for five fixes.
 
 ## The sanity check
 
-25/26 could still hide a model that went weird everywhere else, so
-`legacy/exam_neighbours.py` embeds the entire database with both the tuned and
-the old model and prints the top matches for 14 ordinary searches side by side.
-The neighborhoods are sane, and the report catches the old model doing the launch
-day complaint in the wild: its #1 match for Merfolk Looter's ability is the
-rummage line, at 98.2%. The tuned model's top matches are all true looting
-variants. Same story for lifegain, reanimation and discard.
+25/26 could still hide a model that went weird everywhere else, so `legacy/exam_neighbours.py` embeds the entire database with both the tuned and the old model and prints the top matches for 14 ordinary searches side by side. The neighborhoods are sane, and the report catches the old model doing the launch day complaint in the wild: its #1 match for Merfolk Looter's ability is the rummage line, at 98.2%. The tuned model's top matches are all true looting variants. Same story for lifegain, reanimation and discard.
 
 # v2: teaching a model what a line is about
 
-v1 answered "do these two lines mean the same thing", which is the right target
-for ranking and the wrong one for browsing. "What is this line ABOUT" is what
-lets you pick one ability and search from it, the one thing neither Scryfall nor
-Tagger can do: both are card-level, so a card tagged three ways gives you no way
-to know which tag belongs to which ability.
+v1 answered "do these two lines mean the same thing", which is the right target for ranking and the wrong one for browsing. "What is this line ABOUT" is what lets you pick one ability and search from it, the one thing neither Scryfall nor Tagger can do: both are card-level, so a card tagged three ways gives you no way to know which tag belongs to which ability.
 
-So v2 trains on (line, tag) pairs instead of (line, line), using the eleven
-thousand cards whose entire rules text is a single line. On those, every tag a
-human typed belongs to that one line with no inference required, which is a large
-amount of supervision nobody had to label. The exam is the same shape as v1's:
-hold cards back, then ask whether the model ranks the right tags first for text
-it has never seen.
+So v2 trains on (line, tag) pairs instead of (line, line), using the eleven thousand cards whose entire rules text is a single line. On those, every tag a human typed belongs to that one line with no inference required, which is a large amount of supervision nobody had to label. The exam is the same shape as v1's: hold cards back, then ask whether the model ranks the right tags first for text it has never seen.
 
-Which tags it is allowed to learn is a separate question, and not one a model can
-answer about its own successor. `make_tagreview.py` builds the worksheet and
-`testing_list/make_tagreview.md` holds the hand-judged verdicts.
+Which tags it is allowed to learn is a separate question, and not one a model can answer about its own successor. `make_tagreview.py` builds the worksheet and `testing_list/make_tagreview.md` holds the hand-judged verdicts.
 
-Results: the tag half of the site went from 47% to 78% on `exam_tags.py`, line
-attribution from 88% to 94% precision, and the v1 line-to-line exam held its
-ground, which is the one that would have caught it forgetting what it already
-knew.
+Results: the tag half of the site went from 47% to 78% on `exam_tags.py`, line attribution from 88% to 94% precision, and the v1 line-to-line exam held its ground, which is the one that would have caught it forgetting what it already knew.

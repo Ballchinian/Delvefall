@@ -1,17 +1,8 @@
 # Harvested false positives, for review
 
-A v1 worksheet, kept as history. Every pair below is judged. No script has ever read it:
-the calls went into the training negatives and `exam_pairs.md` by hand.
+A v1 worksheet, kept as history.
 
-Mined 2026-07-19 by replaying the site's ranking over 1,190 cards sampled across the whole
-pool and keeping every pair it scored 88+. Uses the shape-counted idf, so the Overload and
-Equip collisions f3328f8 already fixes are not in here.
-
-The label on each pair is what the detector caught. A word flip (`gain/lose`,
-`opponent/you`) means the whole textual difference is a meaning flip. `qualifier` means both
-lines open identically and differ only in a trailing restriction and the model scored the
-pair on its opening alone, 45 sampled out of 537 found. Riders are supposed to be
-forgivable, so those are where a wrong call teaches the model something false.
+The label on each pair is what the detector caught. A word flip (`gain/lose`, `opponent/you`) means the whole textual difference is a meaning flip.
 
 ## Positives
 

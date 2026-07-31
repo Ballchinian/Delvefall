@@ -2,12 +2,6 @@
 #bakeoff_lines.md. a triplet passes when the anchor line lands closer to the
 #should-match card than to the should-not card, each candidate card's BEST
 #matching line counting, same as the real engine.
-#
-#    python finetune/bakeoff_lines.py
-#with any python that has sentence-transformers. models download into the
-#huggingface cache on first run (a few GB). one that fails to load (gated repo,
-#missing deps) is skipped with a note rather than killing the scoreboard.
-#results also land in finetune/out/bakeoff_results.csv
 
 import os
 import sys
@@ -31,7 +25,7 @@ MODELS = [
      "task: sentence similarity | query: "),
 ]
 
-#raw oracle lines straight off scryfall (verified 2026-07-08 / 2026-07-12),
+#raw oracle lines straight off scryfall,
 #cleaned below with the same clean_line the ingest pipeline uses. candidates
 #carry every line of theirs that the engine would see, best one counts.
 #format: (number, short label, (anchor card, anchor line),
@@ -141,8 +135,6 @@ TRIPLETS = [
      ("Mind Rot", "Target player discards two cards."),
      ("Hymn to Tourach", ["Target player discards two cards at random."]),
      ("Careful Study", ["Draw two cards, then discard two cards."])),
-    #from user reports, verified against the database. the hardest of the list,
-    #here to grade a training pass rather than to pass today
     (27, "flavour prefix trap",
      ("Farideh's Fireball", "1—9 | Farideh's Fireball deals 2 damage to each player."),
      ("Flame Rift", ["Flame Rift deals 4 damage to each player."]),
@@ -152,9 +144,6 @@ TRIPLETS = [
     (28, "mana colour is payload",
      ("Sol Ring", "{T}: Add {C}{C}."),
      ("Mind Stone", ["{T}: Add {C}.", "{1}, {T}, Sacrifice this artifact: Draw a card."]),
-     #the abomination back face carries a literal "{T}: Add {C}{C}.", which is
-     #what the site matched at 100% in the report. left out on purpose: this
-     #exam judges lines, and the lesson is the front face
      ("Ulvenwald Captive // Ulvenwald Abomination", ["{T}: Add {G}.", "Defender", "{5}{G}{G}: Transform this creature."])),
     (29, "protection plus haste",
      ("Swiftfoot Boots", "Equipped creature has hexproof and haste. (It can't be the target of spells or abilities your opponents control. It can attack and {T} no matter when it came under your control.)"),
