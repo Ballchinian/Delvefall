@@ -11,7 +11,11 @@
 
 {% block content %}
 <div class="guide deck-hub">
-    <h1>The deck lens</h1>
+    {# the site's own name for the page KEPT, because the header, the guide, the
+       precon board and /privacy all send people here by it, but no longer alone:
+       google rewrites titles off the h1, and "The deck lens" on its own hands it
+       the one phrase decklens.app already owns #}
+    <h1>The deck lens: a Commander deck analyzer</h1>
     <p class="deck-hub-lede">Give it a deck. It reads what the cards <em>do</em>, tells you
     how the deck stands against every Commander precon, and offers you swaps card by card.</p>
     <p class="deck-hub-promise">No accounts, nothing saved on our side, nothing to sign up for.</p>

@@ -1,7 +1,5 @@
-#the daily card data update. downloads scryfall's bulk file, embeds anything
-#new or changed and writes it into the railway database. this is also how the
-#one time initial seed happens: run it by hand from the actions tab and it
-#fills the empty database from scratch
+#the daily card data update, and the one time initial seed: run it by hand from
+#the actions tab and it fills an empty database from scratch
 
 name: update card data
 
@@ -28,9 +26,8 @@ jobs:
           path: ~/.cache/huggingface
           key: mtg-tuned-embeddinggemma-300m
 
-      #plain "pip install torch" grabs a 2gb+ cuda build we cant even use here,
-      #installing the cpu wheel first means the requirements step sees torch
-      #already satisfied and skips it
+      #plain "pip install torch" grabs a 2gb+ cuda build this runner cannot use.
+      #the cpu wheel FIRST means the requirements step sees torch satisfied
       - run: pip install torch --index-url https://download.pytorch.org/whl/cpu
       - run: pip install -r ingest/requirements.txt
 
@@ -40,34 +37,29 @@ jobs:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}  #the tuned embedding model lives in a private hugging face repo
           PYTHONUNBUFFERED: "1"  #otherwise the log messages pile up and appear all at once at the end
 
-      #the community tags for the concept axis, same gate-and-skip pattern as
-      #the card update
+      #the community tags for the concept axis
       - run: python -m ingest.tags
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           PYTHONUNBUFFERED: "1"
 
-      #edhrec's salt survey, the one opinion in the database. same gate-and-skip
-      #pattern, its own meta key so it and the deck ingest cannot skip each
-      #other. the survey runs yearly so most days this updates nothing
+      #edhrec's salt survey. its own meta key, so it and the deck ingest cannot
+      #skip each other. the survey runs yearly, so most days this changes nothing
       - run: python -m ingest.salt
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           PYTHONUNBUFFERED: "1"
 
-      #the precon decklists, the population a pasted deck's originality gets
-      #compared against. same gate-and-skip pattern again, keyed on mtgjson's
-      #version rather than scryfall's timestamp. needs the cards table filled
-      #(it foreign keys into it) which the update step above guarantees
+      #the precons a pasted deck's originality is compared against. keyed on
+      #mtgjson's version rather than scryfall's timestamp, and it FOREIGN KEYS
+      #into cards, so it needs the update step above to have filled that table
       - run: python -m ingest.decks
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           PYTHONUNBUFFERED: "1"
 
-      #which tags each line is about, so picking a line on the search page
-      #narrows the concept axis to that ability. runs last because it reads
-      #what both steps above wrote, and unconditionally because either one
-      #changing invalidates it. no model, just numpy over the stored vectors
+      #which tags each line is about. LAST because it reads what both steps above
+      #wrote, and unconditional because either one changing invalidates it
       - run: python -m ingest.attribute
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}

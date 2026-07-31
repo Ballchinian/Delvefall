@@ -2292,8 +2292,13 @@ body.home main {
 
 .home-logo { width: 90px; height: 90px; }
 
+/* both weights are written out because the hero's h1 is the TAGLINE, not the
+   brand: the title is a div and no longer picks up the h1, h2, h3 rule, and the
+   tagline is the h1 and would otherwise pick up its 600 */
 .home-title {
     margin: 8px 0 4px 0;
+    font-family: var(--serif);
+    font-weight: 600;
     font-size: 52px;
     color: #f3eedd;
 }
@@ -2302,6 +2307,7 @@ body.home main {
 .home-tag {
     font-family: var(--serif);
     font-style: italic;
+    font-weight: 400;
     font-size: 17px;
     color: #c6c0ad;
     margin: 0 auto 28px auto;

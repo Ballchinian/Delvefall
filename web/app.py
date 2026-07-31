@@ -1924,9 +1924,9 @@ PRECON_METRICS = [
                     "popular: <strong>how little the rest of Magic looks like "
                     "it</strong>. A card scores high here when nothing else in the "
                     "game does what it does.",
-            "meta": "Every preconstructed Commander deck ranked by how original its "
-                    "cards are, measured against every Magic card ever printed. See "
-                    "which precons play cards nothing else in the game resembles.",
+            "meta": "Every Commander precon ranked by how original its cards are, "
+                    "measured against every Magic card ever printed. Which precons "
+                    "play what nothing else does.",
         },
         "asc": {
             "key": "unoriginal", "label": "Least original", "first": "least original",
@@ -1937,9 +1937,9 @@ PRECON_METRICS = [
                     "almost entirely out of <strong>cards the rest of the format "
                     "also plays</strong>. Familiar is not the same as bad: these are "
                     "the decks a new player will recognise most of.",
-            "meta": "Every preconstructed Commander deck ranked from least original "
-                    "first: the decks built out of the format's usual suspects, "
-                    "measured against every Magic card ever printed.",
+            "meta": "Every Commander precon ranked from least original first: the "
+                    "decks built out of the format's usual suspects, against every "
+                    "Magic card ever printed.",
         },
     },
     {
@@ -1964,9 +1964,9 @@ PRECON_METRICS = [
                     "<strong>opinion rather than measurement</strong>: it comes from "
                     "EDHREC's salt survey, where players vote on the cards they "
                     "least enjoy facing.",
-            "meta": "Every preconstructed Commander deck ranked by how much its "
-                    "cards annoy people, from EDHREC's salt survey. See which "
-                    "precons are built on the cards players least enjoy facing.",
+            "meta": "Every Commander precon ranked by how much its cards annoy "
+                    "people, from EDHREC's salt survey. Which precons run the cards "
+                    "players least enjoy facing.",
         },
         "asc": {
             "key": "mild", "label": "Mildest", "first": "mildest",
@@ -1977,9 +1977,8 @@ PRECON_METRICS = [
                     "<strong>nobody minds losing to</strong>. Low salt is the good "
                     "news if you are handing a deck to someone at a table that has "
                     "to keep liking each other afterwards.",
-            "meta": "Every preconstructed Commander deck ranked from the least salty "
-                    "first, using EDHREC's salt survey. The precons that annoy a "
-                    "table least.",
+            "meta": "Every Commander precon ranked from the least salty first, using "
+                    "EDHREC's salt survey. The precons that annoy a table least.",
         },
     },
     {
@@ -2002,9 +2001,9 @@ PRECON_METRICS = [
             "lede": "Every preconstructed Commander deck, ranked by what its cards "
                     "are worth as singles. <strong>The cheapest paper printing of "
                     "each card, added up</strong>, refreshed from Scryfall daily.",
-            "meta": "Every preconstructed Commander deck ranked by what its cards "
-                    "cost as singles, using the cheapest paper printing of each and "
-                    "prices refreshed from Scryfall daily.",
+            "meta": "Every Commander precon ranked by what its cards cost as singles, "
+                    "using the cheapest paper printing of each, refreshed from "
+                    "Scryfall daily.",
         },
         "asc": {
             "key": "cheap", "label": "Cheapest", "first": "cheapest",
@@ -2015,9 +2014,8 @@ PRECON_METRICS = [
                     "cards are <strong>worth the least as singles</strong>. Useful "
                     "backwards: a cheap list is a cheap deck to rebuild, and a "
                     "cheap deck to borrow ideas from.",
-            "meta": "Every preconstructed Commander deck ranked from the cheapest "
-                    "first, by what its cards cost as singles at the cheapest paper "
-                    "printing of each.",
+            "meta": "Every Commander precon ranked from the cheapest first, by what "
+                    "its cards cost as singles at the cheapest paper printing of each.",
         },
     },
     {
@@ -2044,9 +2042,9 @@ PRECON_METRICS = [
                     "the format actually plays. <strong>The median EDHREC rank of "
                     "its nonland cards</strong>, so the decks at the top are the "
                     "ones built from cards everybody already runs.",
-            "meta": "Every preconstructed Commander deck ranked by how played its "
-                    "cards are, using the median EDHREC rank of its nonland cards. "
-                    "The precons built out of format staples.",
+            "meta": "Every Commander precon ranked by how played its cards are, using "
+                    "the median EDHREC rank of its nonland cards. The precons built "
+                    "out of staples.",
         },
         "asc": {
             "key": "obscure", "label": "Least played cards", "first": "least played cards",
@@ -2057,9 +2055,9 @@ PRECON_METRICS = [
                     "cards <strong>almost nobody else runs</strong>. The median "
                     "EDHREC rank of its nonland cards, read from the far end: these "
                     "decks are where the cards you have never seen live.",
-            "meta": "Every preconstructed Commander deck ranked from least played "
-                    "first, by the median EDHREC rank of its nonland cards. The "
-                    "precons full of cards nobody else runs.",
+            "meta": "Every Commander precon ranked from least played first, by the "
+                    "median EDHREC rank of its nonland cards. The precons full of "
+                    "cards nobody runs.",
         },
     },
     {
@@ -2082,9 +2080,9 @@ PRECON_METRICS = [
             "lede": "Every preconstructed Commander deck, ranked by <strong>how far "
                     "back its cards were first printed</strong>. Not when the deck "
                     "came out: when the cards in it did, averaged across the list.",
-            "meta": "Every preconstructed Commander deck ranked by how old its cards "
-                    "are, measured from each card's first printing rather than from "
-                    "the date the deck shipped.",
+            "meta": "Every Commander precon ranked by how old its cards are, measured "
+                    "from each card's first printing rather than the date the deck "
+                    "shipped.",
         },
         "asc": {
             "key": "new", "label": "Newest cards", "first": "newest",
@@ -2095,9 +2093,9 @@ PRECON_METRICS = [
                     "from <strong>cards the game printed most recently</strong>. "
                     "Measured from each card's first printing, so a pile of "
                     "reprints does not count as new.",
-            "meta": "Every preconstructed Commander deck ranked from the newest "
-                    "cards first, measured from each card's first printing rather "
-                    "than the date the deck shipped.",
+            "meta": "Every Commander precon ranked from the newest cards first, "
+                    "measured from each card's first printing rather than the date "
+                    "the deck shipped.",
         },
     },
 ]
@@ -4223,7 +4221,7 @@ def feedback():
     #the page's whole query string rides along like /more's does, so the report is
     #judged against the same anchor, lines, filters and cutoff the user saw.
     #
-    #'missing' is a future pairs.md entry, 'misplaced' a future triplets.md
+    #'missing' is a future exam_pairs.md entry, 'misplaced' a future bakeoff_lines.md
     #negative. missing reports are DIAGNOSED before anything is stored: when a
     #filter is what hides the card, the user learns that on the spot and the
     #review queue never hears about it
@@ -4413,9 +4411,9 @@ def admin_allowed():
 
 
 def report_markdown(r, line_texts, n):
-    #one accepted report in the shape pairs.md uses, ready to paste. missing
+    #one accepted report in the shape exam_pairs.md uses, ready to paste. missing
     #becomes a should-match entry, misplaced a should-NOT one; promotion into
-    #triplets.md happens by hand. the anchor quotes only the PICKED lines when
+    #bakeoff_lines.md happens by hand. the anchor quotes only the PICKED lines when
     #the report came from a line-picked search
     def q(lines):
         if not lines:
@@ -4430,7 +4428,7 @@ def report_markdown(r, line_texts, n):
 
     #the stored pcts are always MECHANICAL, and the page badged a blend, so the
     #concept half is what makes the two numbers add up. a report judged on it is
-    #often an axis2.md entry rather than a pairs.md one.
+    #often an exam_concepts.md entry rather than an exam_pairs.md one.
     #
     #absent on the oldest rows, and on any card whose anchor had no vector: the
     #ranking dropped to rules text there, so the mech percent IS what was badged
@@ -4440,9 +4438,9 @@ def report_markdown(r, line_texts, n):
     except ValueError:
         snap = {}
     if "concept_pct" in snap:
-        mode = "; concept score " + str(snap["concept_pct"]) + "% (user saw the blend) - consider axis2.md"
+        mode = "; concept score " + str(snap["concept_pct"]) + "% (user saw the blend) - consider exam_concepts.md"
 
-    #a tag report is not a pairs.md entry at all. it belongs in the LABELS dict
+    #a tag report is not an exam_pairs.md entry at all. it belongs in the LABELS dict
     #in finetune/exam_attribution.py, keyed by card name and LINE INDEX, so it
     #is emitted in that shape instead: the index the picked line actually has,
     #and which way the disagreement runs. the line index is what the eval reads,

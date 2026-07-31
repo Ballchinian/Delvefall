@@ -57,9 +57,14 @@
         {# the outline variant: the plain logo's tray is the same ink as the
            hero and the silhouette drowned in it #}
         <img class="home-logo" src="{{ static_url('DelvefallLogoOutline.png') }}" alt="Delvefall logo" width="90" height="90" fetchpriority="high">
-        <h1 class="home-title">Delvefall</h1>
-        <p class="home-tag">Type a card name and get every card that does the same thing.
-        No syntax to learn, nothing to look up.</p>
+        {# the h1 is the TAGLINE, not the brand. google rewrites titles off the
+           h1, and a one word brand h1 invites it to throw away a descriptive
+           title and print "Delvefall". only the tags swapped, the classes carry
+           the look, and style-ink.css holds the font weights that used to come
+           from the elements #}
+        <div class="home-title">Delvefall</div>
+        <h1 class="home-tag">Type a Magic card name and get every card that does the same thing.
+        No syntax to learn, nothing to look up.</h1>
 
         <form action="/search" method="get" class="search-form home-search" autocomplete="off">
             <input type="text" name="q" placeholder="Search for a card by name..." aria-label="card name" autofocus>

@@ -4,7 +4,11 @@
    the bare card name: "cards similar to X" is the search this page answers #}
 {% block title %}{% if card %}Cards similar to {{ card.name }} - Delvefall{% else %}Delvefall{% endif %}{% endblock %}
 
-{% block metadesc %}{% if card %}Cards like {{ card.name }}, found in one click: every Magic card that does the same thing, ranked by how close it is, with prices and alternatives. No search syntax needed.{% else %}{{ super() }}{% endif %}{% endblock %}
+{# 124 characters BEFORE the name, so it clears google's ~155 for every real
+   card: 27 characters of name lands on 151, and only the longest split names
+   ("Rakdos, Lord of Riots // Nothing") go a character over. the old one was 157
+   before the name and so was cut on every card #}
+{% block metadesc %}{% if card %}Cards like {{ card.name }}: every Magic card that does the same thing, ranked by how close, with prices and alternatives. No syntax needed.{% else %}{{ super() }}{% endif %}{% endblock %}
 
 {# a card page unfurls as that card, twitter:card summary keeps the portrait
    art a thumbnail instead of a letterboxed banner. no card, the site default #}

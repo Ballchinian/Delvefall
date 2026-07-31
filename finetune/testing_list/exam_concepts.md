@@ -79,7 +79,7 @@ Printed rather than scored. Each is where it should be, and must not drift up th
 2.
     **Anchor:** Merfolk Looter
     **NOT:** Rummaging Goblin
-    *the axis-1 trap, and axis 2 must not rescue it.*
+    *the axis-1 trap, and axis 2 must not rescue it*
 
 3.
     **Anchor:** Howling Mine
