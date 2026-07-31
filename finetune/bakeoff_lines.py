@@ -1,5 +1,5 @@
 #scores candidate embedding models against the hand built triplet list in
-#triplets.md. a triplet passes when the anchor line lands closer to the
+#bakeoff_lines.md. a triplet passes when the anchor line lands closer to the
 #should-match card than to the should-not card, each candidate card's BEST
 #matching line counting, same as the real engine.
 #

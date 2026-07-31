@@ -81,7 +81,7 @@ def load_learnability():
     bar = blob["threshold"]
     pool, rescued, removed = trainable_tags(blob["auc"], bar)
     if rescued or removed:
-        print("tag_review.md rescued " + str(len(rescued)) + " tags the AUC excluded and pulled "
+        print("make_tagreview.md rescued " + str(len(rescued)) + " tags the AUC excluded and pulled "
               + str(len(removed)) + " it kept")
     return pool, bar
 

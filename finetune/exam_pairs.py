@@ -1,4 +1,4 @@
-#axis 1's absolute tests: the user reports in testing_list/pairs.md, each scored
+#axis 1's absolute tests: the user reports in testing_list/exam_pairs.md, each scored
 #the way the site would. the report's anchor line as the picked line, the winning
 #pair chosen by idf-weighted similarity (best_sim in web/app.py), and the
 #calibration map the ingest wrote into meta. should-match passes at or above the
@@ -24,7 +24,7 @@ from ingest.update import MECH_CALIBRATION as SEED_CALIBRATION
 #80; one axis alone sits at 80, which is the model's real quality boundary
 GATE = 80
 
-PAIRS_MD = os.path.join(os.path.dirname(os.path.abspath(__file__)), "testing_list", "pairs.md")
+PAIRS_MD = os.path.join(os.path.dirname(os.path.abspath(__file__)), "testing_list", "exam_pairs.md")
 
 #resolved in main the way load_calibration in web/mirror.py does it: the meta row
 #the ingest wrote wins, the seed holding for a database it has not touched yet

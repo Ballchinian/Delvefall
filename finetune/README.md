@@ -45,13 +45,13 @@ sits in a folder named for what it holds.
 | Folder | What is in it |
 | --- | --- |
 | `traindata/` | the generated training data and the test set the current model learns from |
-| `testing_list/` | the hand-marked files: `pairs.md`, `axis2.md`, `triplets.md`, `tag_review.md`. Scripts read these, people write them, and **nothing can rebuild them** |
+| `testing_list/` | the hand-marked files: `exam_pairs.md`, `exam_concepts.md`, `bakeoff_lines.md`, `make_tagreview.md`. Scripts read these, people write them, and **nothing can rebuild them** |
 | `out/` | run output that is safe to delete. `bakeoff_results.csv` only |
 | `models/` | trained model folders, a gigabyte each. `train.py` saves here and the bake-offs load from here |
 | `legacy/` | the v1 era, frozen, with the same shape inside it |
 
 The split that matters is `testing_list/` against `out/`. Both look like results;
-only one of them is regenerable. A verdict in `tag_review.md` took someone an
+only one of them is regenerable. A verdict in `make_tagreview.md` took someone an
 evening and no script can produce it a second time.
 
 ## What is published here, and what is not
@@ -61,7 +61,7 @@ and these two READMEs. That is the method end to end, enough to rebuild all of
 it against your own database.
 
 Local: everything those scripts produce. `traindata/` and `testing_list/` in
-both eras, plus `out/`, `models/` and `legacy/sanity_report.txt`. The generated
+both eras, plus `out/`, `models/` and `legacy/exam_neighbours.txt`. The generated
 training data, the hand judged tag verdicts, and the trained models themselves.
 
 Not because the approach is a secret, since it is described below in enough

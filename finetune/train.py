@@ -52,7 +52,7 @@ TAG_CAP = 300
 
 
 def load_tag_pairs():
-    rows = load_jsonl("train_tags.jsonl")
+    rows = load_jsonl("train_tag_pairs.jsonl")
     by_tag = {}
     for r in rows:
         by_tag.setdefault(r["positive"], []).append(r)
@@ -145,7 +145,7 @@ def main():
         print("line -> tag pairs:")
         tag_pairs = load_tag_pairs()
         if not tag_pairs:
-            print("no train_tags.jsonl. build it with:")
+            print("no train_tag_pairs.jsonl. build it with:")
             print("  python finetune/make_training.py --tags-only")
             sys.exit(1)
         train_sets["tags"] = Dataset.from_dict({
@@ -208,7 +208,7 @@ def main():
     tag_ir = None
     if args.objective in ("tags", "both"):
         held = load_jsonl("tag_testset.jsonl")
-        tag_text = {r["positive"].split(":")[0]: r["positive"] for r in load_jsonl("train_tags.jsonl")}
+        tag_text = {r["positive"].split(":")[0]: r["positive"] for r in load_jsonl("train_tag_pairs.jsonl")}
         corpus = {slug: prefix + text for slug, text in tag_text.items()}
         queries, relevant = {}, {}
         for i, h in enumerate(held):
@@ -274,7 +274,7 @@ def main():
         #it does not catch line A batched against a row whose positive is a
         #different tag A also carries. rarer (654 tags, batches of 16 to 64) but
         #still a false negative, maskable with the (line, tag) table from
-        #train_tags.jsonl if a retrain ever plateaus on it
+        #train_tag_pairs.jsonl if a retrain ever plateaus on it
         batch_sampler=BatchSamplers.NO_DUPLICATES,
     )
     trainer = SentenceTransformerTrainer(

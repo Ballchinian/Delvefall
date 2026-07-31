@@ -1,4 +1,4 @@
-#builds finetune/testing_list/tag_review.md, the hand judged answer to "is this
+#builds finetune/testing_list/make_tagreview.md, the hand judged answer to "is this
 #tag about what the rules text says?"
 #
 #learnable_tags() in make_training.py keeps a tag if the CURRENT model puts its
@@ -11,7 +11,7 @@
 #so the AUC answers "already well represented" and this file answers "learnable
 #in principle".
 #    python finetune/make_tagreview.py
-#with DATABASE_URL set. it MERGES: verdicts already in tag_review.md win and
+#with DATABASE_URL set. it MERGES: verdicts already in make_tagreview.md win and
 #anything new arrives as ?, so rerunning after a tagger update loses no decision
 
 import os
@@ -25,7 +25,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(HERE, "traindata")
 #with the other hand-marked files, not beside the script: nothing can rebuild the
 #verdicts in it, and it is an INPUT on every run after the first
-REVIEW = os.path.join(HERE, "testing_list", "tag_review.md")
+REVIEW = os.path.join(HERE, "testing_list", "make_tagreview.md")
 
 #the four verdicts and what each means downstream:
 #  text  the rules text says this. train on it, attribute it to lines normally
@@ -37,7 +37,7 @@ REVIEW = os.path.join(HERE, "testing_list", "tag_review.md")
 #  ?     not yet judged
 VERDICTS = ("text", "card", "junk", "?")
 
-#seeds, and only for tags tag_review.md has never listed. a verdict already in
+#seeds, and only for tags make_tagreview.md has never listed. a verdict already in
 #the file wins, so revising one means editing the file rather than this dict.
 #
 #the typal-* and synergy-* families are settled by counting: of the 42 typal tags

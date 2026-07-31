@@ -40,11 +40,11 @@ KS = (1, 5, 10)
 
 def load_pool():
     #make_training.py already applied the AUC and the review before writing
-    #train_tags.jsonl, so reading it back needs neither tag_learnability.json nor
+    #train_tag_pairs.jsonl, so reading it back needs neither tag_learnability.json nor
     #make_tagreview.py. that keeps this runnable from three data files and two
     #scripts, which matters when the whole lot has to reach a colab box
     text = {}
-    for line in open(os.path.join(DATA_DIR, "train_tags.jsonl"), encoding="utf-8"):
+    for line in open(os.path.join(DATA_DIR, "train_tag_pairs.jsonl"), encoding="utf-8"):
         p = json.loads(line)["positive"]
         text[p.split(":")[0]] = p
     tags = sorted(text)

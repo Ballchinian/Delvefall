@@ -292,8 +292,8 @@ CREATE TABLE IF NOT EXISTS line_tags (
 CREATE INDEX IF NOT EXISTS line_tags_line ON line_tags (line_id);
 
 --user reports from the search page, raw material for the next round of eval
---files. 'missing' carries expected_id (a future pairs.md entry), 'misplaced'
---carries got_id plus the reason in the user's own words (a future triplets.md
+--files. 'missing' carries expected_id (a future exam_pairs.md entry), 'misplaced'
+--carries got_id plus the reason in the user's own words (a future bakeoff_lines.md
 --negative).
 --
 --names are snapshotted beside the ids and there are NO FOREIGN KEYS, both on

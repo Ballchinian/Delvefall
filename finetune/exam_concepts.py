@@ -1,4 +1,4 @@
-#the axis-2 exam: scores common/concept.py against testing_list/axis2.md plus the
+#the axis-2 exam: scores common/concept.py against testing_list/exam_concepts.md plus the
 #judged separation pairs, showing raw and displayed side by side so the
 #calibration map stays honest.
 #    python -m finetune.exam_concepts
@@ -12,12 +12,12 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 import psycopg
 from common.concept import raw_sim, to_display, MIN_CONCEPT
 
-#(anchor, match), must display at or above the gate. axis2.md "Pairs"
+#(anchor, match), must display at or above the gate. exam_concepts.md "Pairs"
 PAIRS = [
     ("Shadrix Silverquill", "Gluntch, the Bestower"),
 ]
 
-#(name, anchor, closer, further, known_fail). axis2.md "Triplets", closer must
+#(name, anchor, closer, further, known_fail). exam_concepts.md "Triplets", closer must
 #beat further. B fails because the scorer overweights mechanism flavored tags
 #(removal-destroy)
 TRIPLETS = [

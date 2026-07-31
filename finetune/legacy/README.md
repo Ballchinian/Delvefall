@@ -8,7 +8,7 @@ Nothing in here serves the model that is live now.
 | --- | --- |
 | `make_keywords.py` | Mined keyword definitions out of Scryfall reminder text so the model could learn Hexproof and Shroud are cousins. Writes `traindata/train_keywords.jsonl` here beside it, which only `train.py --objective lines` ever reads |
 | `exam_neighbours.py` | Step 6 of the v1 project: embed the whole database with the tuned model AND the old one, print the top matches for 14 ordinary searches side by side. It is how the launch-day complaint was caught in the wild (the old model's top match for Merfolk Looter's ability was the rummage line, at 98.2%) |
-| `sanity_report.txt` | That run's output, kept because it is the evidence, not a cache |
+| `exam_neighbours.txt` | That run's output, kept because it is the evidence, not a cache |
 
 ## The training data, and what had to change to move it here
 
@@ -26,7 +26,7 @@ Like the live folder's, it stays on this machine:
 
 `testing_list/harvested.md` is here too: 1,190 cards' worth of false positives
 mined on 2026-07-19 and marked up by hand. No script has ever read it. It was a
-review worksheet whose verdicts went into the training negatives and `pairs.md`,
+review worksheet whose verdicts went into the training negatives and `exam_pairs.md`,
 so it is evidence rather than input.
 
 **Moving data out of `traindata/` is not safe by default, and that is the thing
@@ -67,5 +67,5 @@ root two levels up now, `exam_neighbours` imports `make_training` out of
 `traindata/` here rather than into the live folder next door.
 
 `exam_neighbours` loads the tuned model out of `../models/`, which is where
-trained models live since the folder was tidied. It writes `sanity_report.txt`
+trained models live since the folder was tidied. It writes `exam_neighbours.txt`
 beside itself, here.

@@ -92,7 +92,7 @@ SCOPE_WORDS = ["creature", "noncreature", "artifact", "enchantment", "instant", 
                "tapped", "white", "blue", "black", "red", "green", "colorless", "another"]
 
 #subtype riders are forgivable the same way ("cast Dragon spells" is still "cast
-#spells", pairs.md should-match #3). the frequent types are enough, a pair only
+#spells", exam_pairs.md should-match #3). the frequent types are enough, a pair only
 #surviving when deleting the word lands on a real line
 SUBTYPE_WORDS = ["Dragon", "Zombie", "Goblin", "Elf", "Human", "Angel", "Demon", "Vampire",
                  "Dinosaur", "Wizard", "Warrior", "Knight", "Soldier", "Spirit", "Elemental",
@@ -742,7 +742,7 @@ def pairs_exam(db_url):
         named.add(anchor_name)
         named.add(other_name)
     if not db_url:
-        print("no database, so " + str(len(named)) + " pairs.md cards are held out by anchor line only")
+        print("no database, so " + str(len(named)) + " exam_pairs.md cards are held out by anchor line only")
         return held
     import psycopg
     conn = psycopg.connect(db_url)
@@ -755,7 +755,7 @@ def pairs_exam(db_url):
     for r in rows:
         held.add(r[0])
     print("holding out " + str(len(held)) + " lines from " + str(len(entries))
-          + " pairs.md entries across " + str(len(named)) + " cards")
+          + " exam_pairs.md entries across " + str(len(named)) + " cards")
     return held
 
 
@@ -783,8 +783,8 @@ def main():
             for l in ls:
                 exam.add(clean_line(l, card))
 
-    #pairs.md is an exam too, and its entries name lines the miners target on
-    #purpose: Toxic Deluge's "-X/-X" is a pairs.md anchor and exactly what
+    #exam_pairs.md is an exam too, and its entries name lines the miners target on
+    #purpose: Toxic Deluge's "-X/-X" is an exam_pairs.md anchor and exactly what
     #null_toughness reads, so without this the model trains on a negative built
     #from the pair it is about to be tested on
     exam |= pairs_exam(db_url)
@@ -841,7 +841,7 @@ def main():
         register_vector(tconn)
         tag_pos, tag_held, tag_scores, tag_trips = mine_tag_pairs(tconn, exam)
         tconn.close()
-        dump("train_tags.jsonl", tag_pos, ["anchor", "positive", "why"])
+        dump("train_tag_pairs.jsonl", tag_pos, ["anchor", "positive", "why"])
         dump("train_tag_triplets.jsonl", tag_trips, ["anchor", "positive", "negative", "why"])
         path = os.path.join(DATA_DIR, "tag_testset.jsonl")
         with open(path, "w", encoding="utf-8") as f:

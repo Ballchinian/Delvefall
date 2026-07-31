@@ -3,7 +3,7 @@
 #ordinary probe searches side by side. the exam is only 26 questions, this
 #is how everything else gets eyeballed before trusting a model.
 #
-#run from the repo root, writes finetune/legacy/sanity_report.txt beside itself
+#run from the repo root, writes finetune/legacy/exam_neighbours.txt beside itself
 
 import os
 import sys
@@ -89,7 +89,7 @@ def main():
                     break
 
     text = "\n".join(report)
-    out = os.path.join(HERE, "sanity_report.txt")
+    out = os.path.join(HERE, "exam_neighbours.txt")
     with open(out, "w", encoding="utf-8") as f:
         f.write(text)
     print(text)
