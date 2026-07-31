@@ -119,6 +119,8 @@ Which tags it is allowed to learn is a separate question, and not one a model ca
 
 Results: the tag half of the site went from 47% to 78% on `exam_tags.py`, line attribution from 88% to 94% precision, and the v1 line-to-line exam held its ground, which is the one that would have caught it forgetting what it already knew.
 
+That 94% was measured on `exam_attribution.py` when it held three hand-labelled cards. The exam has since grown to nine, and on all nine v2 scores **88% precision and 84% recall**. Those three still score 94%, so nothing regressed; the exam simply got harder, and the wider number is the honest one to beat.
+
 # Shipping a retrain
 
 `train.py` prints a pointer here rather than the steps, because the dangerous one needs more room than a Colab log gives it.

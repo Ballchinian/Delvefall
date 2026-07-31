@@ -38,6 +38,51 @@ LABELS = {
         1: {"catch-22", "burn-player-each", "keyword-anthem", "gives-haste", "symmetrical"},
         2: {"catch-22", "burn-player-each", "symmetrical", "triggered-ability"},
     },
+    "The One Ring": {
+        #a keyword usually printed on creatures, sitting on an artifact
+        0: {"creature-ability-noncreature"},
+        #no triggered-ability here: tagger never typed it onto this card, and a
+        #label the card does not carry is a hole in the answer key, not a miss
+        1: {"gives-player-protection", "damage-prevention-you", "fog-selective"},
+        2: {"drawback", "life-for-cards", "unique-counter"},
+        3: {"activated-ability", "burst-draw", "draw-engine", "repeatable-pure-draw",
+            "hand-positive", "quadratic", "unique-counter", "tome"},
+    },
+    "Boros Charm": {
+        #line 0 is the "Choose one" header, excluded: see the modal note above
+        1: {"burn-player", "burn-planeswalker", "single-target-instant-sorcery"},
+        2: {"gives-indestructible", "protects-all", "protects-creature"},
+        3: {"gives-double-strike", "combat-trick", "single-target-instant-sorcery"},
+    },
+    "The Great Henge": {
+        0: {"discount-self", "scales-with-power"},
+        1: {"activated-ability", "adds-multiple-mana", "mana-ability-with-extra-effect",
+            "repeatable-lifegain", "utility-mana-rock", "full-refund"},
+        2: {"creaturefall", "gives-pp-counters", "repeatable-pp-counters", "draw-engine",
+            "repeatable-pure-draw", "triggered-ability"},
+    },
+    "Goldspan Dragon": {
+        0: {"evasion"},
+        1: {"attacking-matters-self", "heroic", "hate-target", "repeatable-treasures",
+            "synergy-treasure", "triggered-ability"},
+        2: {"gives-mana-ability", "refund", "synergy-treasure"},
+    },
+    "Dauthi Voidwalker": {
+        #hatebear is the reason this card is here: it is 2 mana with small stats,
+        #which is the mana cost and the power/toughness box, so it belongs to no
+        #line and attribute.py is expected to leave it out entirely
+        0: {"evasion", "restricted-blocker"},
+        1: {"graveyard-seal", "aesthetic-counter"},
+        2: {"activated-ability", "free-cast-another", "gives-castable-from-exile",
+            "theft-cast", "martyr"},
+    },
+    "Professional Face-Breaker": {
+        0: {"evasion"},
+        1: {"combat-ramp", "repeatable-treasures", "synergy-treasure", "per-player",
+            "triggered-ability"},
+        2: {"activated-ability", "free-sacrifice-outlet", "impulsive-curiosity",
+            "repeatable-impulsive-draw", "synergy-treasure"},
+    },
 }
 
 

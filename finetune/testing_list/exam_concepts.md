@@ -19,7 +19,17 @@ Pairs are absolute and must clear the axis-2 gate. Triplets are relative orderin
 3.
     **Anchor:** Smothering Tithe
     **Match:** Ghostly Prison
-    *Both tax an opponent's action rather than stopping it. Different actions, one rhystic-style shell.*
+    *FAILS today at raw 0.00, and that zero is the point: these two share not one tag, so the concept axis has nothing at all to score. Both tax an opponent's action rather than stopping it.*
+
+4.
+    **Anchor:** Grave Pact
+    **Match:** Dictate of Erebos
+    *The same effect on a different card type. If axis 2 misses this one it is broken.*
+
+5.
+    **Anchor:** Sakura-Tribe Elder
+    **Match:** Wood Elves
+    *FAILS today at 75%, just under the gate. Both are a creature body that fetches a land onto the battlefield, so this one is close rather than blind.*
 
 # Triplets
 
@@ -54,6 +64,22 @@ Pairs are absolute and must clear the axis-2 gate. Triplets are relative orderin
     **Closer:** Phyrexian Altar
     **Further:** Blood Artist
     *The outlet and the payoff share every sacrifice tag, so this is where tag overlap alone should struggle.*
+
+## E - Land ramp is not artifact ramp
+
+1.
+    **Anchor:** Rampant Growth
+    **Closer:** Sakura-Tribe Elder
+    **Further:** Sol Ring
+    *All three make mana. Only two of them do it by fetching a land.*
+
+## F - A drain payoff is not a sacrifice tax
+
+1.
+    **Anchor:** Zulaport Cutthroat
+    **Closer:** Blood Artist
+    **Further:** Grave Pact
+    *All three are "creatures dying matter". Two drain on the death, one taxes the table with it.*
 
 # Separations
 

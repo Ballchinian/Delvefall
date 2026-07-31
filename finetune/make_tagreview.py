@@ -137,7 +137,9 @@ PROPOSED = {
     #and the same test applied to history and wording rather than to the card:
     "unique-cr-reference": "junk",  #"an entire rule in the CR just to cover this card"
     "references-keyword": "junk",   #"call back to a keyword from an older set"
-    "sneaky-self-trigger": "junk",  #"worded so it is easy to miss", a note on phrasing
+    #the phrasing IS the rules text: an ability worded so its own self-trigger is
+    #easy to miss is visible in the line and nowhere else
+    "sneaky-self-trigger": "text",
 
     #tags the AUC keeps, found by scanning the kept list for the shapes judged
     #junk or card on the excluded side. the set-mechanic family scores 0.86 to

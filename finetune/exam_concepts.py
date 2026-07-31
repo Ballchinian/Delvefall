@@ -12,11 +12,16 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 import psycopg
 from common.concept import raw_sim, to_display, MIN_CONCEPT
 
-#(anchor, match), must display at or above the gate. exam_concepts.md "Pairs"
+#(anchor, match), must display at or above the gate. exam_concepts.md "Pairs".
+#two fail today and are kept because they are the gap: Smothering Tithe against
+#Ghostly Prison scores a raw 0.00, the two sharing no tag whatsoever, and
+#Sakura-Tribe Elder against Wood Elves lands at 75% just under the gate
 PAIRS = [
     ("Shadrix Silverquill", "Gluntch, the Bestower"),
     ("Rhystic Study", "Mystic Remora"),
     ("Smothering Tithe", "Ghostly Prison"),
+    ("Grave Pact", "Dictate of Erebos"),
+    ("Sakura-Tribe Elder", "Wood Elves"),
 ]
 
 #(name, anchor, closer, further, known_fail). exam_concepts.md "Triplets", closer must
@@ -28,6 +33,8 @@ TRIPLETS = [
     ("B role beats verb", "Murder", "Swords to Plowshares", "Day of Judgment", True),
     ("C tax beats giving", "Rhystic Study", "Smothering Tithe", "Howling Mine", False),
     ("D outlet is not payoff", "Ashnod's Altar", "Phyrexian Altar", "Blood Artist", False),
+    ("E land ramp is not artifact ramp", "Rampant Growth", "Sakura-Tribe Elder", "Sol Ring", False),
+    ("F drain payoff is not sacrifice tax", "Zulaport Cutthroat", "Blood Artist", "Grave Pact", False),
 ]
 
 #judged non-matches, printed for eyeballing: these should sit well under the

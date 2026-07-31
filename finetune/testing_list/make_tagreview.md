@@ -26,6 +26,11 @@ real, neither visible.
 
 Excluded today, and every one of them is printed on the card in words.
 
+- [text] `sneaky-self-trigger` &mdash; auc 0.792, 25 cards **(the AUC keeps this one)**  
+  Cards that are worded in a way that makes it easy to miss that they trigger one of their own abilities.  
+  > *Mesmeric Sliver* &mdash; All Slivers have "When this permanent enters, you may fateseal 1."  
+  > *Ulvenwald Observer* &mdash; Whenever a creature you control with toughness 4 or greater dies, draw a card.
+
 - [text] `cantrip` &mdash; auc 0.750, 602 cards  
   Cards that let you draw a card as they resolve or enter the battlefield.  
   > *Serum Visions* &mdash; Draw a card. Scry 2.  
@@ -730,7 +735,6 @@ Excluded today, and every one of them is printed on the card in words.
   > *Earnest Fellowship* &mdash; Each creature has protection from its colors.  
   > *Jaded Response* &mdash; Counter target spell if it shares a color with a creature you control.  
 
-
 ## Proposed: about the card, not a line
 
 Correctly kept out of training. These are the `card_level` candidates: picking a line should not lose them.
@@ -832,7 +836,6 @@ Correctly kept out of training. These are the `card_level` candidates: picking a
   Creatures that are low-cost (2 MV or less) and have low-power/toughness with relevant effects that may disrupt an opponent's strategy. These are traditionally associated with white.  
   > *Yixlid Jailer* &mdash; Cards in graveyards lose all abilities.  
   > *Imposing Sovereign* &mdash; Creatures your opponents control enter tapped.  
-
 
 ## Proposed: nothing to do with gameplay
 
@@ -970,11 +973,6 @@ Correctly excluded, and they should stay excluded. This is the poison the filter
   These cards used to make a different type of token, which has since been updated. For type lines, see [Type Errata](type-errata)  
   > *Carrion Call* &mdash; Create two 1/1 green Phyrexian Insect creature tokens with infect.  
   > *Tooth and Claw* &mdash; Sacrifice two creatures: Create a 3/1 red Beast creature token named Carnivore.  
-
-- [junk] `sneaky-self-trigger` &mdash; auc 0.792, 25 cards **(the AUC keeps this one)**  
-  Cards that are worded in a way that makes it easy to miss that they trigger one of their own abilities.  
-  > *Mesmeric Sliver* &mdash; All Slivers have "When this permanent enters, you may fateseal 1."  
-  > *Ulvenwald Observer* &mdash; Whenever a creature you control with toughness 4 or greater dies, draw a card.  
 
 - [junk] `rules-nightmare` &mdash; auc 0.776, 43 cards **(the AUC keeps this one)**  
   Cards that are known for having interactions that are difficult or nearly impossible to resolve within comprehensive rules  
