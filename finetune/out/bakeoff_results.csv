@@ -1,0 +1,187 @@
+model,triplet,label,best_match_sim,best_not_sim,result
+all-MiniLM-L6-v2 (current),1,loot vs rummage,0.6534,0.9822,fail
+all-MiniLM-L6-v2 (current),2,loot vs cost-discard,0.489,0.6351,fail
+all-MiniLM-L6-v2 (current),3,tap vs untap,0.6026,0.6564,fail
+all-MiniLM-L6-v2 (current),4,dies vs enters,0.8936,0.835,pass
+all-MiniLM-L6-v2 (current),5,yours vs theirs,0.9237,0.7757,pass
+all-MiniLM-L6-v2 (current),6,hand vs battlefield,0.8703,0.9219,fail
+all-MiniLM-L6-v2 (current),7,reanimate reworded,0.6635,0.9219,fail
+all-MiniLM-L6-v2 (current),8,bounce vs blink,0.7533,0.609,pass
+all-MiniLM-L6-v2 (current),9,ramp vs tutor,0.8431,0.7696,pass
+all-MiniLM-L6-v2 (current),10,spell vs ability counter,0.7423,0.7305,pass
+all-MiniLM-L6-v2 (current),11,narrow counter,0.9215,0.7305,pass
+all-MiniLM-L6-v2 (current),12,rhystic punisher,0.8572,0.6124,pass
+all-MiniLM-L6-v2 (current),13,numbers vs verbs,0.8382,0.5574,pass
+all-MiniLM-L6-v2 (current),14,one vs all,0.8502,0.7737,pass
+all-MiniLM-L6-v2 (current),15,counter polarity,0.5953,0.783,fail
+all-MiniLM-L6-v2 (current),16,hug vs punish,0.6921,0.4786,pass
+all-MiniLM-L6-v2 (current),17,mill vs draw,0.8936,0.4409,pass
+all-MiniLM-L6-v2 (current),18,sac payload (freebie),1.0,0.2276,pass
+all-MiniLM-L6-v2 (current),19,block vs attack,0.7233,0.7121,pass
+all-MiniLM-L6-v2 (current),20,hexproof vs shroud (domain),0.2889,0.101,pass
+all-MiniLM-L6-v2 (current),21,doubling domains,0.8037,0.3687,pass
+all-MiniLM-L6-v2 (current),22,extra vs end turn,0.6152,0.4387,pass
+all-MiniLM-L6-v2 (current),23,retrieve vs grave hate,0.7865,0.7762,pass
+all-MiniLM-L6-v2 (current),24,counter vs uncounterable,0.9129,0.746,pass
+all-MiniLM-L6-v2 (current),25,fog vs anti-fog,0.8173,0.5665,pass
+all-MiniLM-L6-v2 (current),26,enemy vs self discard,0.9437,0.6486,pass
+all-MiniLM-L6-v2 (current),27,flavour prefix trap,0.9618,0.7878,pass
+all-MiniLM-L6-v2 (current),28,mana colour is payload,0.9801,0.7549,pass
+all-MiniLM-L6-v2 (current),29,protection plus haste,0.7864,0.8232,fail
+all-MiniLM-L6-v2 (current),30,all your spells vs this spell,0.8332,0.7702,pass
+all-MiniLM-L6-v2 (current),31,may vs can't,0.8332,0.736,pass
+bge-small-en-v1.5,1,loot vs rummage,0.9348,0.9823,fail
+bge-small-en-v1.5,2,loot vs cost-discard,0.8776,0.8489,pass
+bge-small-en-v1.5,3,tap vs untap,0.8362,0.8528,fail
+bge-small-en-v1.5,4,dies vs enters,0.9292,0.8657,pass
+bge-small-en-v1.5,5,yours vs theirs,0.9522,0.8353,pass
+bge-small-en-v1.5,6,hand vs battlefield,0.9408,0.9637,fail
+bge-small-en-v1.5,7,reanimate reworded,0.8615,0.9637,fail
+bge-small-en-v1.5,8,bounce vs blink,0.9037,0.794,pass
+bge-small-en-v1.5,9,ramp vs tutor,0.9152,0.8458,pass
+bge-small-en-v1.5,10,spell vs ability counter,0.9019,0.8837,pass
+bge-small-en-v1.5,11,narrow counter,0.9695,0.8837,pass
+bge-small-en-v1.5,12,rhystic punisher,0.9362,0.7979,pass
+bge-small-en-v1.5,13,numbers vs verbs,0.8956,0.7396,pass
+bge-small-en-v1.5,14,one vs all,0.9411,0.8538,pass
+bge-small-en-v1.5,15,counter polarity,0.9,0.9093,fail
+bge-small-en-v1.5,16,hug vs punish,0.9232,0.758,pass
+bge-small-en-v1.5,17,mill vs draw,0.9101,0.6704,pass
+bge-small-en-v1.5,18,sac payload (freebie),1.0,0.5826,pass
+bge-small-en-v1.5,19,block vs attack,0.9001,0.9516,fail
+bge-small-en-v1.5,20,hexproof vs shroud (domain),0.584,0.5449,pass
+bge-small-en-v1.5,21,doubling domains,0.9467,0.7136,pass
+bge-small-en-v1.5,22,extra vs end turn,0.8192,0.7249,pass
+bge-small-en-v1.5,23,retrieve vs grave hate,0.9181,0.8951,pass
+bge-small-en-v1.5,24,counter vs uncounterable,0.9348,0.8103,pass
+bge-small-en-v1.5,25,fog vs anti-fog,0.9283,0.6937,pass
+bge-small-en-v1.5,26,enemy vs self discard,0.9676,0.8051,pass
+bge-small-en-v1.5,27,flavour prefix trap,0.9231,0.8767,pass
+bge-small-en-v1.5,28,mana colour is payload,0.994,0.8369,pass
+bge-small-en-v1.5,29,protection plus haste,0.9101,0.925,fail
+bge-small-en-v1.5,30,all your spells vs this spell,0.9231,0.8984,pass
+bge-small-en-v1.5,31,may vs can't,0.9231,0.8073,pass
+gte-modernbert-base,1,loot vs rummage,0.8544,0.9363,fail
+gte-modernbert-base,2,loot vs cost-discard,0.7881,0.8224,fail
+gte-modernbert-base,3,tap vs untap,0.8226,0.8366,fail
+gte-modernbert-base,4,dies vs enters,0.9393,0.8442,pass
+gte-modernbert-base,5,yours vs theirs,0.9413,0.8687,pass
+gte-modernbert-base,6,hand vs battlefield,0.9172,0.9633,fail
+gte-modernbert-base,7,reanimate reworded,0.862,0.9633,fail
+gte-modernbert-base,8,bounce vs blink,0.9436,0.778,pass
+gte-modernbert-base,9,ramp vs tutor,0.8815,0.8922,fail
+gte-modernbert-base,10,spell vs ability counter,0.8669,0.8161,pass
+gte-modernbert-base,11,narrow counter,0.9366,0.8161,pass
+gte-modernbert-base,12,rhystic punisher,0.9228,0.8404,pass
+gte-modernbert-base,13,numbers vs verbs,0.8162,0.7521,pass
+gte-modernbert-base,14,one vs all,0.8817,0.8007,pass
+gte-modernbert-base,15,counter polarity,0.8392,0.8337,pass
+gte-modernbert-base,16,hug vs punish,0.8276,0.7215,pass
+gte-modernbert-base,17,mill vs draw,0.9486,0.6831,pass
+gte-modernbert-base,18,sac payload (freebie),1.0,0.4606,pass
+gte-modernbert-base,19,block vs attack,0.8552,0.9169,fail
+gte-modernbert-base,20,hexproof vs shroud (domain),0.5864,0.5733,pass
+gte-modernbert-base,21,doubling domains,0.9267,0.7015,pass
+gte-modernbert-base,22,extra vs end turn,0.8828,0.7467,pass
+gte-modernbert-base,23,retrieve vs grave hate,0.9104,0.7727,pass
+gte-modernbert-base,24,counter vs uncounterable,0.9231,0.7559,pass
+gte-modernbert-base,25,fog vs anti-fog,0.925,0.7161,pass
+gte-modernbert-base,26,enemy vs self discard,0.9406,0.8082,pass
+gte-modernbert-base,27,flavour prefix trap,0.9298,0.8368,pass
+gte-modernbert-base,28,mana colour is payload,0.9577,0.8229,pass
+gte-modernbert-base,29,protection plus haste,0.8903,0.8934,fail
+gte-modernbert-base,30,all your spells vs this spell,0.883,0.8824,pass
+gte-modernbert-base,31,may vs can't,0.883,0.827,pass
+EmbeddingGemma-300m,1,loot vs rummage,0.9257,0.9106,pass
+EmbeddingGemma-300m,2,loot vs cost-discard,0.8349,0.8306,pass
+EmbeddingGemma-300m,3,tap vs untap,0.7425,0.8286,fail
+EmbeddingGemma-300m,4,dies vs enters,0.9515,0.8343,pass
+EmbeddingGemma-300m,5,yours vs theirs,0.9479,0.8337,pass
+EmbeddingGemma-300m,6,hand vs battlefield,0.9317,0.9208,pass
+EmbeddingGemma-300m,7,reanimate reworded,0.8351,0.9208,fail
+EmbeddingGemma-300m,8,bounce vs blink,0.8679,0.7878,pass
+EmbeddingGemma-300m,9,ramp vs tutor,0.9081,0.8687,pass
+EmbeddingGemma-300m,10,spell vs ability counter,0.8708,0.8958,fail
+EmbeddingGemma-300m,11,narrow counter,0.9703,0.8958,pass
+EmbeddingGemma-300m,12,rhystic punisher,0.8944,0.7331,pass
+EmbeddingGemma-300m,13,numbers vs verbs,0.8518,0.7543,pass
+EmbeddingGemma-300m,14,one vs all,0.9228,0.8542,pass
+EmbeddingGemma-300m,15,counter polarity,0.8223,0.8779,fail
+EmbeddingGemma-300m,16,hug vs punish,0.8523,0.6429,pass
+EmbeddingGemma-300m,17,mill vs draw,0.8557,0.6421,pass
+EmbeddingGemma-300m,18,sac payload (freebie),1.0,0.5229,pass
+EmbeddingGemma-300m,19,block vs attack,0.8529,0.8588,fail
+EmbeddingGemma-300m,20,hexproof vs shroud (domain),0.6878,0.617,pass
+EmbeddingGemma-300m,21,doubling domains,0.9539,0.7198,pass
+EmbeddingGemma-300m,22,extra vs end turn,0.8278,0.6986,pass
+EmbeddingGemma-300m,23,retrieve vs grave hate,0.9027,0.7895,pass
+EmbeddingGemma-300m,24,counter vs uncounterable,0.9209,0.7278,pass
+EmbeddingGemma-300m,25,fog vs anti-fog,0.9356,0.6739,pass
+EmbeddingGemma-300m,26,enemy vs self discard,0.9423,0.8333,pass
+EmbeddingGemma-300m,27,flavour prefix trap,0.7994,0.7502,pass
+EmbeddingGemma-300m,28,mana colour is payload,0.9744,0.8522,pass
+EmbeddingGemma-300m,29,protection plus haste,0.8977,0.8808,pass
+EmbeddingGemma-300m,30,all your spells vs this spell,0.8787,0.8544,pass
+EmbeddingGemma-300m,31,may vs can't,0.8787,0.7287,pass
+Qwen3-Embedding-0.6B,1,loot vs rummage,0.9544,0.9714,fail
+Qwen3-Embedding-0.6B,2,loot vs cost-discard,0.9353,0.8989,pass
+Qwen3-Embedding-0.6B,3,tap vs untap,0.8764,0.9306,fail
+Qwen3-Embedding-0.6B,4,dies vs enters,0.9802,0.8986,pass
+Qwen3-Embedding-0.6B,5,yours vs theirs,0.9727,0.8828,pass
+Qwen3-Embedding-0.6B,6,hand vs battlefield,0.9589,0.9857,fail
+Qwen3-Embedding-0.6B,7,reanimate reworded,0.9292,0.9857,fail
+Qwen3-Embedding-0.6B,8,bounce vs blink,0.9387,0.9026,pass
+Qwen3-Embedding-0.6B,9,ramp vs tutor,0.9515,0.9497,pass
+Qwen3-Embedding-0.6B,10,spell vs ability counter,0.8882,0.9087,fail
+Qwen3-Embedding-0.6B,11,narrow counter,0.9824,0.9087,pass
+Qwen3-Embedding-0.6B,12,rhystic punisher,0.9584,0.8966,pass
+Qwen3-Embedding-0.6B,13,numbers vs verbs,0.8975,0.8743,pass
+Qwen3-Embedding-0.6B,14,one vs all,0.9797,0.9461,pass
+Qwen3-Embedding-0.6B,15,counter polarity,0.9339,0.9226,pass
+Qwen3-Embedding-0.6B,16,hug vs punish,0.9269,0.8548,pass
+Qwen3-Embedding-0.6B,17,mill vs draw,0.9522,0.83,pass
+Qwen3-Embedding-0.6B,18,sac payload (freebie),1.0,0.7533,pass
+Qwen3-Embedding-0.6B,19,block vs attack,0.9034,0.884,pass
+Qwen3-Embedding-0.6B,20,hexproof vs shroud (domain),0.8229,0.8148,pass
+Qwen3-Embedding-0.6B,21,doubling domains,0.9601,0.8404,pass
+Qwen3-Embedding-0.6B,22,extra vs end turn,0.9141,0.8265,pass
+Qwen3-Embedding-0.6B,23,retrieve vs grave hate,0.9464,0.9209,pass
+Qwen3-Embedding-0.6B,24,counter vs uncounterable,0.9772,0.8847,pass
+Qwen3-Embedding-0.6B,25,fog vs anti-fog,0.9577,0.8292,pass
+Qwen3-Embedding-0.6B,26,enemy vs self discard,0.983,0.9111,pass
+Qwen3-Embedding-0.6B,27,flavour prefix trap,0.9124,0.8802,pass
+Qwen3-Embedding-0.6B,28,mana colour is payload,0.9877,0.8976,pass
+Qwen3-Embedding-0.6B,29,protection plus haste,0.9503,0.9631,fail
+Qwen3-Embedding-0.6B,30,all your spells vs this spell,0.9554,0.9349,pass
+Qwen3-Embedding-0.6B,31,may vs can't,0.9554,0.8323,pass
+mtg-tuned EmbeddingGemma,1,loot vs rummage,0.6329,0.5076,pass
+mtg-tuned EmbeddingGemma,2,loot vs cost-discard,0.6258,0.5104,pass
+mtg-tuned EmbeddingGemma,3,tap vs untap,0.6867,0.3338,pass
+mtg-tuned EmbeddingGemma,4,dies vs enters,0.9263,-0.212,pass
+mtg-tuned EmbeddingGemma,5,yours vs theirs,0.733,-0.1679,pass
+mtg-tuned EmbeddingGemma,6,hand vs battlefield,0.7226,0.2409,pass
+mtg-tuned EmbeddingGemma,7,reanimate reworded,0.5509,0.2409,pass
+mtg-tuned EmbeddingGemma,8,bounce vs blink,0.7576,-0.1074,pass
+mtg-tuned EmbeddingGemma,9,ramp vs tutor,0.7045,0.5654,pass
+mtg-tuned EmbeddingGemma,10,spell vs ability counter,0.7643,0.4233,pass
+mtg-tuned EmbeddingGemma,11,narrow counter,0.9022,0.4233,pass
+mtg-tuned EmbeddingGemma,12,rhystic punisher,0.9702,0.583,pass
+mtg-tuned EmbeddingGemma,13,numbers vs verbs,0.9651,0.1604,pass
+mtg-tuned EmbeddingGemma,14,one vs all,0.4964,0.4738,pass
+mtg-tuned EmbeddingGemma,15,counter polarity,0.7342,0.2527,pass
+mtg-tuned EmbeddingGemma,16,hug vs punish,0.6069,0.6415,fail
+mtg-tuned EmbeddingGemma,17,mill vs draw,0.9496,0.2942,pass
+mtg-tuned EmbeddingGemma,18,sac payload (freebie),1.0,0.0059,pass
+mtg-tuned EmbeddingGemma,19,block vs attack,0.8051,0.4326,pass
+mtg-tuned EmbeddingGemma,20,hexproof vs shroud (domain),0.8058,0.7546,pass
+mtg-tuned EmbeddingGemma,21,doubling domains,0.9413,0.8112,pass
+mtg-tuned EmbeddingGemma,22,extra vs end turn,0.7272,0.6494,pass
+mtg-tuned EmbeddingGemma,23,retrieve vs grave hate,0.6776,0.4442,pass
+mtg-tuned EmbeddingGemma,24,counter vs uncounterable,0.9385,0.5126,pass
+mtg-tuned EmbeddingGemma,25,fog vs anti-fog,0.8588,0.5006,pass
+mtg-tuned EmbeddingGemma,26,enemy vs self discard,0.9161,0.296,pass
+mtg-tuned EmbeddingGemma,27,flavour prefix trap,0.8479,0.6724,pass
+mtg-tuned EmbeddingGemma,28,mana colour is payload,0.7828,0.4206,pass
+mtg-tuned EmbeddingGemma,29,protection plus haste,0.7966,0.8952,fail
+mtg-tuned EmbeddingGemma,30,all your spells vs this spell,0.8599,0.8982,fail
+mtg-tuned EmbeddingGemma,31,may vs can't,0.8599,0.9201,fail

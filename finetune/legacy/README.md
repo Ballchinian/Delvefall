@@ -1,8 +1,12 @@
 # legacy
 
-The v1 model's own tools. The site ran on a "these two lines mean the same
-thing" model until 2026-07-22, when it retrained on (line, tag) pairs instead.
-Nothing in here serves the model that is live now.
+What no longer runs. The site ran on a "these two lines mean the same thing"
+model until 2026-07-22, when it retrained on (line, tag) pairs instead. Nothing
+in here serves the model that is live now.
+
+The rule is "no longer runs" rather than "v1 era", which is why `bakeoff_lines.py`
+is next door rather than in here: it is v1's bake-off and `train.py` still prints
+it as step 4 of a v2 run, a regression guard rather than a target.
 
 | File | What it did |
 | --- | --- |
@@ -13,7 +17,7 @@ Nothing in here serves the model that is live now.
 ## The training data, and what had to change to move it here
 
 `traindata/` here holds the six files only `train.py --objective lines` reads.
-Like the live folder's, it stays on this machine:
+Like the live folder's, it is published:
 
 | File | Rows | Where it came from |
 | --- | --- | --- |

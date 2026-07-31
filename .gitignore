@@ -11,24 +11,10 @@ __pycache__/
 .env
 .claude/
 
-#finetune/ publishes its blueprints and nothing they produce. traindata and
-#testing_list are the engine itself, so handing them over is handing over the
-#thing rather than the recipe for it, and the rest is weight github does not
-#need. the scripts and the docs are named, not the data, so a new output file
-#is private without anyone having to remember to say so.
-#
-#two passes, because a file inside an excluded directory cannot be allowed back
-#one at a time: the first covers finetune/, the second covers legacy/ after it
-#has been let through
-finetune/*
-!finetune/*.py
-!finetune/README.md
-!finetune/requirements.txt
-
-!finetune/legacy/
-finetune/legacy/*
-!finetune/legacy/*.py
-!finetune/legacy/README.md
+#finetune/ publishes in full, scripts and data both. models/ is the exception
+#and only on size: a trained model is 1.2GB, past what github takes, and
+#train.py rebuilds it from what is here
+finetune/models/
 
 #the bundle for the colab box
 delvefall-training.zip
