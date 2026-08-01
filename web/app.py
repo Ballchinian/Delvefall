@@ -4635,6 +4635,24 @@ def suggest():
     return {"names": names}
 
 
+#---- error pages ----
+#these catch abort() and unmatched paths. a view returning its own (page, 404)
+#does NOT come through here, which is how /search keeps its own miss page
+
+
+@app.errorhandler(404)
+def page_missing(e):
+    return render_template("error.html", heading="That page isn't here",
+                           message="The link may be wrong, or the page may have moved."), 404
+
+
+@app.errorhandler(500)
+def page_broke(e):
+    #safe while the database is the thing that broke: base.html queries nothing
+    return render_template("error.html", heading="Something went wrong",
+                           message="That one is our fault. Try it again in a moment."), 500
+
+
 #---- wiring ----
 #down here rather than beside the imports, because both of these reach back
 #into names this module defines: the visit counter's PAGE_ENDPOINTS are this

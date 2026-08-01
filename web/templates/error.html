@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+
+{% block title %}{{ heading }} - Delvefall{% endblock %}
+
+{# noindex and no metadesc: an error is never a page worth a search result #}
+{% block head_extra %}<meta name="robots" content="noindex">{% endblock %}
+
+{% block content %}
+<div class="guide">
+    <h1>{{ heading }}</h1>
+    <p>{{ message }}</p>
+    <p>The search box above takes any card name. Otherwise there are
+    <a href="/unique">the most unique cards in the game</a>, the
+    <a href="/deck">deck lens</a>, the
+    <a href="/precons">precon rankings</a>, or
+    <a href="/guide">how all of it works</a>.</p>
+</div>
+{% endblock %}
