@@ -2834,7 +2834,10 @@ def deck_standing(board, key, best, figure, slug=None):
         window = []
         for i in range(max(0, at - DECK_WINDOW), min(len(rows), at + DECK_WINDOW + 1)):
             r = rows[i]
+            #source rides along for the ctrl-click, these being precon links
+            #like the board's
             window.append({"place": i + 1, "name": r["name"], "slug": r["slug"],
+                           "source": r.get("source"),
                            "figure": float(r[key]), "you": i == at})
         return {"place": at + 1, "beaten": len(rows) - at - 1,
                 "of": len(rows), "window": window}

@@ -74,7 +74,8 @@
             <li class="deck-neighbour{{ ' is-you' if n.you }}">
                 <span class="deck-neighbour-place">{{ n.place }}</span>
                 <span class="deck-neighbour-name">
-                    {%- if n.slug and not n.you %}<a href="/precons/{{ n.slug }}?sort={{ r.sort_key }}">{{ n.name }}</a>
+                    {%- if n.slug and not n.you %}<a href="/precons/{{ n.slug }}?sort={{ r.sort_key }}"
+                        {%- if n.source %} data-source="{{ n.source }}" title="this deck's page here. ctrl-click for the official decklist"{% endif %}>{{ n.name }}</a>
                     {%- else %}{{ n.name }}{% endif -%}
                 </span>
                 <span class="deck-neighbour-figure">{{ p.prefix }}{{ ('%.' ~ p.decimals ~ 'f')|format(n.figure) }}{{ p.suffix }}</span>

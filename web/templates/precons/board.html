@@ -189,7 +189,11 @@
             <div class="precon-main">
                 {# carries the ranking you clicked from, so the deck's page
                    opens on the standing that made you click #}
-                <div class="precon-name"><a href="/precons/{{ r.slug }}{% if sort.key != 'original' %}?sort={{ sort.key }}{% endif %}">{{ r.name }}</a></div>
+                {# data-source is the ctrl-click, same rule card links follow.
+                   the visible "official decklist" below stays: the modifier is
+                   a shortcut, never the only way to reach it #}
+                <div class="precon-name"><a href="/precons/{{ r.slug }}{% if sort.key != 'original' %}?sort={{ sort.key }}{% endif %}"
+                    {%- if r.source %} data-source="{{ r.source }}" title="this deck's page here. ctrl-click for the official decklist"{% endif %}>{{ r.name }}</a></div>
                 <div class="precon-sub">
                     {% if r.leaders %}
                         {# the commander identifies a precon to a player better

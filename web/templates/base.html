@@ -256,8 +256,10 @@
         });
 
         /*
-            one rule for every card link on the site: a plain click goes
-            further INTO delvefall, ctrl (cmd on a mac) opens it on scryfall.
+            one rule for every card and precon link on the site: a plain click
+            goes further INTO delvefall, ctrl (cmd on a mac) opens where the
+            thing came from. scryfall for a card, the official decklist for a
+            precon.
 
             it used to run the other way round, which spent every page's
             ranking signal on scryfall instead of on this site's own card
@@ -277,13 +279,14 @@
             if (!e.ctrlKey && !e.metaKey) {
                 return;
             }
-            var link = e.target.closest("a[data-card]");
+            var link = e.target.closest("a[data-card], a[data-source]");
             if (!link) {
                 return;
             }
             e.preventDefault();
             //noopener because this is someone else's page in a tab we opened
-            window.open(link.dataset.scryfall || scryfallSearch(link.dataset.card),
+            window.open(link.dataset.source || link.dataset.scryfall
+                            || scryfallSearch(link.dataset.card),
                         "_blank", "noopener");
         });
         </script>
