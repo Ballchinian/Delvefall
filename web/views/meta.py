@@ -1,6 +1,5 @@
 #---- crawler plumbing: robots.txt and the sitemap ----
 
-import re
 import time
 from urllib.parse import quote
 
@@ -28,42 +27,34 @@ def sitemap():
             _sitemap_names["names"] = [r["name"] for r in conn.execute("SELECT name FROM cards ORDER BY name")]
         _sitemap_names["made"] = now
     root = request.url_root
-    #the day the INGEST last finished, never today: a sitemap swearing all 31k
-    #pages changed this morning is one google stops believing, and a card page
-    #only moves when its scores are recomputed.
-    #checked into shape rather than escaped, because escape() hands back Markup
-    #and "<lastmod>" + Markup escapes the LEFT side, putting &lt;lastmod&gt; in
-    #the file. a yyyy-mm-dd matching this pattern has no xml specials by
-    #definition
-    stamp = ""
-    try:
-        with pool.connection() as conn:
-            row = conn.execute("SELECT value FROM meta WHERE key = 'scryfall_updated_at'").fetchone()
-        day = (row["value"] or "")[:10] if row else ""
-        if re.fullmatch(r"\d{4}-\d{2}-\d{2}", day):
-            stamp = "<lastmod>" + day + "</lastmod>"
-    except Exception:
-        pass
+    #NO lastmod, deliberately. it was the ingest's own day stamped onto all 31k
+    #urls at once, and google treats the field as all-or-nothing: dates that are
+    #identical everywhere are the signal it uses to decide a site's are made up,
+    #and it then discounts them sitewide. a card page moves when its scores are
+    #recomputed, which is not the day the ingest ran, so nothing here could say
+    #it honestly. cards.updated_at cannot stand in either: it is rewritten every
+    #run because prices move daily. a per-card column that only turns on a
+    #text_hash change would be a real one
     out = ['<?xml version="1.0" encoding="UTF-8"?>',
            '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
     for page in ("", "unique", "deck", "precons", "guide", "privacy", "support"):
-        out.append("<url><loc>" + root + page + "</loc>" + stamp + "</url>")
+        out.append("<url><loc>" + root + page + "</loc></url>")
     #every ranking is its own page answering its own question, so all ten are
     #worth crawling. the DEFAULT sort is /precons above and is not repeated, or
     #google meets the same board at two addresses. the era cuts are absent, being
     #a filter on one ranking and canonicalising back to it
     for s in PRECON_SORTS:
         if s["key"] != PRECON_DEFAULT["key"]:
-            out.append("<url><loc>" + root + "precons?sort=" + quote(s["key"]) + "</loc>" + stamp + "</url>")
+            out.append("<url><loc>" + root + "precons?sort=" + quote(s["key"]) + "</loc></url>")
     #the slugs are mtgjson filenames (letters, digits, underscores) so nothing
     #here needs escaping, but quote() runs anyway rather than trusting that
     for r in precon_board():
-        out.append("<url><loc>" + root + "precons/" + quote(r["slug"]) + "</loc>" + stamp + "</url>")
+        out.append("<url><loc>" + root + "precons/" + quote(r["slug"]) + "</loc></url>")
     for name in _sitemap_names["names"]:
         #quote()'s defaults mirror the urlencode filter building the canonicals
         #in search.html, so these ARE the urls the pages declare. it also
         #percent-encodes every xml special, & included, so no xml escaping
-        out.append("<url><loc>" + root + "search?q=" + quote(name) + "</loc>" + stamp + "</url>")
+        out.append("<url><loc>" + root + "search?q=" + quote(name) + "</loc></url>")
     out.append("</urlset>")
     #text/xml and NOT application/xml, so flask-compress gzips it. the protocol
     #caps one sitemap at 50k urls, the card pool sits well under
