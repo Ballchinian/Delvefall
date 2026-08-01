@@ -42,17 +42,15 @@
        opens into its own pictures, so a second one said "view every card image"
        six times #}
     {% if cards %}
-    {# both post the deck's own list to the same front doors a paste goes
-       through, so a precon lands on the shelf as a deck like any other #}
+    {# posts the deck's own list to the same front door a paste goes through, so
+       a precon lands on the shelf as a deck like any other. the one way on:
+       /deck/open offers view, compare and change on arrival, so a second row
+       here was the same destination one click early #}
     <div class="deck-modes-pick deck-modes-after">
         {{ ways.way("/deck/open", "Run it through the deck lens", "Open it as a deck",
                     decklist,
                     body="Saves it to this browser as your own deck, so you can compare it,
                           change it card by card, and keep what you change.",
-                    name=deck.name,
-                    commander=(deck.leaders[0] if deck.leaders else '')) }}
-        {{ ways.way("/deck/view", "View it", "See the cards", decklist,
-                    body="Every card in the deck, as cards, with the list to copy.",
                     name=deck.name,
                     commander=(deck.leaders[0] if deck.leaders else '')) }}
     </div>
