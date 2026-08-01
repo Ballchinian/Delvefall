@@ -186,7 +186,7 @@ import { find, patch } from "decks";
         }
         enhanceCardFrames(out);
 
-        var got = cache[key];
+        var got = offerable(cache[key]);
         if (Array.isArray(got)) {
             render(got, held[key]);
         } else {
@@ -308,6 +308,16 @@ import { find, patch } from "decks";
             + ": what a card does is not what it costs, and the slot has a curve.";
     }
 
+    /* the cache is filled by the LOOK-AHEAD, up to three cards before you get
+       there, so an answer can predate a swap made since: the server excluded
+       the deck as it stood when it was asked. filtered on the way out rather
+       than by refetching, or every swap costs three round trips. a reverted
+       card leaves `deck` and becomes offerable again, which is right */
+    function offerable(cards) {
+        if (!Array.isArray(cards)) return cards;
+        return cards.filter(function (c) { return deck.indexOf(c.oracle_id) === -1; });
+    }
+
     function render(cards, h) {
         options.innerHTML = "";
         if (!cards.length) {
@@ -327,7 +337,7 @@ import { find, patch } from "decks";
     }
 
     if (moreBtn) moreBtn.addEventListener("click", function () {
-        var got = cache[keyFor(D.queue[at])];
+        var got = offerable(cache[keyFor(D.queue[at])]);
         if (!Array.isArray(got)) return;
         shown = Math.min(shown + D.offer, got.length);
         paintOptions(got);
