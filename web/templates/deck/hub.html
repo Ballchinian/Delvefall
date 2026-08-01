@@ -3,11 +3,14 @@
 {# "The deck lens" was 25 characters of which none are a word anybody types,
    and it loses the two that are to decklens.app, which owns the phrase and is
    a deck analyzer too. the query is "commander deck analyzer", and salt leads
-   the metrics because it is EDHREC's word and every rival tool advertises it #}
-{% block title %}Commander deck analyzer: salt, price, originality - Delvefall{% endblock %}
+   the metrics because it is EDHREC's word and every rival tool advertises it.
+   57 characters: originality gave way to age so MTG could go in front without
+   passing the 60 google prints #}
+{% block title %}MTG Commander deck analyzer: salt, price, age - Delvefall{% endblock %}
 
-{# about 155, cut down from 226 #}
-{% block metadesc %}Paste a Commander decklist or import from Moxfield or Archidekt: see how original, salty, expensive, played and old it is against every precon, and swap cards.{% endblock %}
+{# 144, under the ~155 google prints. this page named neither MTG nor Magic
+   anywhere, the only one that did not #}
+{% block metadesc %}Paste an MTG Commander decklist or import from Moxfield or Archidekt: how original, salty, expensive, played and old it is against every precon.{% endblock %}
 
 {% block content %}
 <div class="guide deck-hub">

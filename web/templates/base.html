@@ -21,8 +21,16 @@
         {# self.metadesc() rather than the variable above: a block cannot see
            the enclosing scope unless it is declared scoped #}
         {% if self.metadesc() | trim %}<meta property="og:description" content="{{ self.metadesc() | trim }}">{% endif %}
-        <meta property="og:image" content="{{ request.url_root.rstrip('/') ~ static_url('DelvefallLogo.png') }}">
-        <meta name="twitter:card" content="summary">
+        {# 1200x630, the size every unfurl wants. the logo sits inside the middle
+           630 square so the small square crop keeps all of it #}
+        <meta property="og:image" content="{{ request.url_root.rstrip('/') ~ static_url('DelvefallShare.png') }}">
+        <meta property="og:image:width" content="1200">
+        <meta property="og:image:height" content="630">
+        {# summary_large_image is the tag that decides this, not the file: discord
+           draws an 80px square without it whatever size the image is. the card
+           pages override it back to summary, portrait art being the one shape a
+           banner letterboxes #}
+        <meta name="twitter:card" content="summary_large_image">
         {% endblock %}
         {# search console ownership, one tag per verified property #}
         <meta name="google-site-verification" content="oWhTi5fndKHhGtea_eqlff2CttnTOc6FSFMMsxTmYV8">
