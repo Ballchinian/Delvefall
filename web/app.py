@@ -1676,7 +1676,7 @@ def unique_top():
     try:
         with pool.connection() as conn:
             rows = [dict(r) for r in conn.execute("""
-                SELECT name, uniqueness, unique_line
+                SELECT name, uniqueness, unique_line, image
                 FROM cards
                 WHERE uniqueness IS NOT NULL AND coalesce(unique_line, '') <> ''
                 ORDER BY uniqueness DESC, name

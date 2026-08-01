@@ -2931,6 +2931,15 @@ body.home main {
     color: var(--muted);
 }
 
+/* centred rather than on the row's baseline, which an image has none of */
+.unique-thumb {
+    flex: none;
+    width: 42px;
+    height: auto;
+    align-self: center;
+    border-radius: 3px;
+}
+
 .unique-body {
     flex: 1;
     min-width: 0;

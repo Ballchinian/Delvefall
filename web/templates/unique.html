@@ -70,6 +70,12 @@
             {% for c in top %}
             <li class="unique-row">
                 <span class="unique-rank">{{ loop.index }}</span>
+                {# scryfall's small size, 146px wide against normal's 488, because
+                   this is a hundred of them. every stored url is a /normal/ one,
+                   and a miss leaves the normal image rather than a broken one.
+                   the page is a list of unique CARDS and had no card art on it #}
+                {% if c.image %}<img class="unique-thumb" src="{{ c.image | replace('/normal/', '/small/') }}"
+                     alt="{{ c.name }}" width="146" height="204" loading="lazy">{% endif %}
                 <span class="unique-body">
                     <a class="unique-name" href="/search?q={{ c.name | urlencode }}" data-card="{{ c.name }}">{{ c.name }}</a>
                     {% if c.unique_line %}<span class="unique-line-text">{{ c.unique_line }}</span>{% endif %}
