@@ -51,8 +51,26 @@
 
 {% block content %}
     <div class="home-hero">
-        {# filled by the script at the foot #}
-        <div id="recent-floats"></div>
+        {# REAL anchors, not built by the script: this page is the front door and
+           the chips are the only thing on it that links to a card, so a crawler
+           that runs no javascript met a landing page pointing at nothing. the
+           script at the foot relabels them, it never creates them.
+           the slots live here rather than in the script for the same reason #}
+        <div id="recent-floats">
+            {% for slot in [
+                {"top": "12%", "left": "6%"},
+                {"top": "18%", "right": "6%"},
+                {"top": "30%", "left": "12%"},
+                {"top": "9%", "right": "26%"},
+                {"top": "72%", "left": "9%"},
+                {"top": "76%", "right": "9%"},
+                {"top": "88%", "left": "28%"},
+                {"top": "85%", "right": "30%"}
+            ] %}{% if loop.index0 < seeds | length %}{% set name = seeds[loop.index0] %}
+            <a class="float-chip" href="/search?q={{ name | urlencode }}" title="try {{ name }}"
+               style="top: {{ slot.top }}; {% if slot.left %}left: {{ slot.left }}{% else %}right: {{ slot.right }}{% endif %}">{{ name }}</a>
+            {% endif %}{% endfor %}
+        </div>
 
         {# the outline variant: the plain logo's tray is the same ink as the
            hero and the silhouette drowned in it #}
@@ -78,6 +96,7 @@
         <div class="home-buttons">
             <a href="/unique">Unique Cards</a>
             <a href="/deck">Deck lens</a>
+            <a href="/precons">Precons</a>
             <a href="/guide">How it works</a>
             <a href="https://discord.gg/kfjYbRYKbg" target="_blank" rel="noopener" aria-label="Discord (opens in a new tab)">Discord</a>
         </div>
@@ -88,8 +107,8 @@
 <script>
 /*
     /search writes recent_searches, this reads it back as clickable ghosts.
-    slots real history hasn't claimed get much-played cards from the server,
-    so a first visit isn't an empty room
+    the chips are already in the html carrying much-played cards, so this
+    overwrites the ones history claims and leaves the rest standing
 */
 var recent = [];
 try {
@@ -103,34 +122,17 @@ for (var i = seeds.length - 1; i > 0; i--) {
     var t = seeds[i]; seeds[i] = seeds[j]; seeds[j] = t;
 }
 
-var slots = [
-    {top: "12%", left: "6%"},
-    {top: "18%", right: "6%"},
-    {top: "30%", left: "12%"},
-    {top: "9%", right: "26%"},
-    {top: "72%", left: "9%"},
-    {top: "76%", right: "9%"},
-    {top: "88%", left: "28%"},
-    {top: "85%", right: "30%"}
-];
-
-var layer = document.getElementById("recent-floats");
-var shown = recent.slice(0, slots.length);
+var chips = document.querySelectorAll("#recent-floats .float-chip");
+var shown = recent.slice(0, chips.length);
 var fromHistory = shown.length;
-while (shown.length < slots.length && seeds.length) {
+while (shown.length < chips.length && seeds.length) {
     shown.push(seeds.pop());
 }
 shown.forEach(function(name, i) {
-    var a = document.createElement("a");
-    a.className = "float-chip";
+    var a = chips[i];
     a.textContent = name;
     a.href = "/search?q=" + encodeURIComponent(name);
     a.title = i < fromHistory ? "search " + name + " again" : "try " + name;
-    var slot = slots[i];
-    a.style.top = slot.top;
-    if (slot.left) { a.style.left = slot.left; }
-    if (slot.right) { a.style.right = slot.right; }
-    layer.appendChild(a);
 });
 </script>
 {% endblock %}

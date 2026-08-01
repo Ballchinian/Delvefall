@@ -81,8 +81,11 @@
                    meet one nav and a new link lands in both #}
                 {% set nav_items %}
                     <a href="/unique">Unique cards</a>
-                    {# one nav item for the lens, /precons is reached from it #}
                     <a href="/deck">Deck lens</a>
+                    {# its own item rather than reached from the lens: the ten
+                       rankings are what the search traffic lands on, and two
+                       clicks deep is the one place a crawler weights least #}
+                    <a href="/precons">Precons</a>
                     <a href="/guide">How it works</a>
                     {# the css hangs the box-and-arrow off target=_blank. the
                        icon is decorative to screen readers, hence the label #}
