@@ -114,7 +114,11 @@ function wireCopy(btnId, boxId, said) {
     has a queue and a trail to unwind too, /deck/view has only the shelf.
 
     opts.note is the sentence over the list, and only /deck/view has one worth
-    printing
+    printing. opts.addedNote is the one over the new cards, which /deck/swap
+    reworded because its box holds one session rather than the whole deck
+
+    state.added is NOT always the shelf's copy: /deck/swap passes this session's
+    slice, /deck/view the lot
 */
 export function paintChanges(state, opts) {
     opts = opts || {};
@@ -160,6 +164,9 @@ export function paintChanges(state, opts) {
     if (addedBox) {
         $("deck-added").value = added;
         addedBox.hidden = !added;
+        //left alone without one, so the markup's own sentence stands
+        var addedNote = $("deck-added-note");
+        if (addedNote && opts.addedNote) addedNote.textContent = opts.addedNote;
         fitText($("deck-added"));
     }
 

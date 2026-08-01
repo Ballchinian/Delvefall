@@ -38,6 +38,12 @@ import { find, patch } from "decks";
        for */
     var swaps = (entry && entry.swaps ? entry.swaps.slice() : []);
 
+    /* where this session started in that list. "Just the new cards" is a
+       shopping list, so it holds THIS visit's swaps: carried ones were copied
+       and bought a visit ago. everything ever swapped is /deck/view's job.
+       never trim `swaps` itself to get this, rebuild() replays all of them */
+    var carried = swaps.length;
+
     /* the deck as IMPORTED, which is what a rebuild starts from. the list this
        page holds already has the carried swaps in it, so replaying them onto it
        would look for cards that left long ago */
@@ -370,6 +376,9 @@ import { find, patch } from "decks";
         var at_in = deck.indexOf(s["in"].oracle_id);
         if (at_in > -1) deck.splice(at_in, 1);
         swaps.splice(i, 1);
+        //putting a CARRIED one back shortens the block this session starts
+        //after, and without this the new list loses its first card
+        if (i < carried) carried--;
         /* the step has to go too, or going back afterwards unwinds a swap that
            is no longer there. matched on the CARD, never on position: the
            review's order and the trail's agree today and nothing enforces it.
@@ -495,9 +504,10 @@ import { find, patch } from "decks";
            rebuilt from the deck as IMPORTED, because the list this page holds
            would apply the carried swaps twice */
         var built = rebuild(baseList, swaps);
-        paintChanges({swaps: swaps, added: addedList(swaps),
+        paintChanges({swaps: swaps, added: addedList(swaps.slice(carried)),
                       newList: built, text: D.text, goal: D.goal},
-                     {draw: build, onRevert: revert});
+                     {draw: build, onRevert: revert,
+                      addedNote: "The cards this session added, on their own."});
 
         /* the fold is server rendered from the deck that ARRIVED, so every swap
            has left a tile showing a card no longer in it */
