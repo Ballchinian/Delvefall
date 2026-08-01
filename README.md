@@ -31,7 +31,7 @@ A web app that finds Magic: The Gathering cards similar to the card you search f
 - Unique cards, the counterpart to a random card page: it deals one card nothing else in the game resembles, with the same filters as search and a per-device memory so you are never dealt the same card twice. Each deal draws at random from a small band near the top of what is left, so two people with the same filters get different runs. The dealt cards form a trail with back and forward arrows
 - Every card picture gets hover buttons where the physical card needs them: sideways cards (battles, split cards) stay vertical with a rotate button, Kamigawa flip cards flip 180, double faced cards transform. Invasion of Zendikar does all of it at once
 - An ink and paper skin, the filter widgets drawn by hand, Scryfall's real mana symbols self hosted, and every card image linking back to Scryfall
-- Links unfurl: Open Graph tags on every page, one canonical URL per card, plus a sitemap and breadcrumbs
+- Links unfurl: Open Graph tags on every page, one canonical URL per card, plus breadcrumbs and a sitemap. The sitemap is an index over four parts, the cards split into three bands by how played they are, because Search Console reports coverage per file: split, it says where indexing stops rather than only how much of it there is
 
 **Upkeep**
 
