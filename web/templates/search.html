@@ -28,10 +28,11 @@
    filter and sort combination in the url, and google should fold them all
    into this one address. the only page on the site whose query string is the
    content rather than a control, so the only one that overrides the base
-   template's path-only default #}
+   template's path-only default.
+   no card means a 404, which gets NONE: the base default is /search, which
+   redirects, and a canonical must never point at a redirect #}
 {% block canonical %}
-    {% if card %}<link rel="canonical" href="{{ request.url_root ~ 'search?q=' ~ (card.name | urlencode) }}">
-    {% else %}{{ super() }}{% endif %}
+    {% if card %}<link rel="canonical" href="{{ request.url_root ~ 'search?q=' ~ (card.name | urlencode) }}">{% endif %}
 {% endblock %}
 
 {% block head_extra %}
@@ -48,6 +49,7 @@
         ]
     }
     </script>
+    {% else %}<meta name="robots" content="noindex">
     {% endif %}
 {% endblock %}
 

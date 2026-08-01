@@ -1582,7 +1582,9 @@ def search():
 
     card = find_card(query)
     if card is None:
-        return render_template("search.html", query=query, not_found=True)
+        #404, not 200, or every typo is an indexable url. the tuple keeps this
+        #page: the errorhandler only catches abort() and unmatched paths
+        return render_template("search.html", query=query, not_found=True), 404
 
     #the searched card's picture gets the same rotate/flip/transform frame
     #as everything else, the template just needs the two flags
