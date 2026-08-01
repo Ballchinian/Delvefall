@@ -1,9 +1,10 @@
 {% extends "base.html" %}
 
-{# under 60 characters, where google truncates: the first version ran to 82 and
-   lost everything past "MTG one of a". both names of the game, MTG and Magic:
-   The Gathering are typed about equally #}
-{% block title %}The most unique cards in Magic: The Gathering - Delvefall{% endblock %}
+{# 37 characters, under the 60 where google truncates: an early version ran to
+   82 and lost everything past "MTG one of a". MTG rather than the full name,
+   which is what gets typed. the superlative stays because the page is a
+   RANKING and the h1 makes the same claim #}
+{% block title %}The most unique MTG cards - Delvefall{% endblock %}
 
 {# about 155, the whole snippet google prints. the first was 266 #}
 {% block metadesc %}The weirdest, most unusual Magic cards, dealt one at a time: MTG cards whose abilities nothing else in the game comes close to.{% endblock %}

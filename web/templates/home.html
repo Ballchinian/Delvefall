@@ -1,9 +1,11 @@
 {% extends "base.html" %}
 
-{# under 60 characters, where google truncates, and the tail it cuts is the
-   brand. both names of the game once each, MTG and Magic: The Gathering are
-   typed about equally. nothing about decks, that is the lens's own page #}
-{% block title %}Find similar MTG cards, and Magic's most unique - Delvefall{% endblock %}
+{# 44 characters, under the 60 where google truncates and the tail it cuts is
+   the brand. MTG rather than the full name, which is what gets typed: the
+   metadesc and the h1 below both still say Magic. the two features read in
+   parallel because they are two searches, similar cards and unique ones.
+   nothing about decks, that is the lens's own page #}
+{% block title %}Find similar or unique MTG cards - Delvefall{% endblock %}
 
 {# about 155 characters, the whole snippet google prints. the previous one ran
    to 220 and was cut mid-sentence #}
