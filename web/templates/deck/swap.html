@@ -27,8 +27,34 @@
        position can jump by more than one #}
     <p class="deck-detail-sub">
         Card <span id="swap-at">1</span> of <span id="swap-checked">{{ batch }}</span>,
-        worst first. Nothing is saved, and nothing changes until you copy the list out
-        at the end.</p>
+        worst first. Nothing is sent anywhere: your swaps are kept in this browser and
+        your own list only changes when you paste the new cards back.
+        {# both resets, and the only two. filled and revealed by swap.js, which
+           is the half that knows whether there is a place to lose #}
+        <span id="swap-resumed" hidden></span>
+        <button type="button" class="swap-restart" id="swap-restart" hidden>Start again from
+        the worst card</button></p>
+
+    {# the second reset: a new metric is a new walk, so this posts the deck back
+       to /deck/swap rather than trying to reorder the queue in place. the list
+       is rewritten by swap.js on every decision, or this would hand back the
+       deck as it was before the session #}
+    <form class="deck-swap-axis" method="post" action="/deck/swap">
+        <input type="hidden" name="list" value="{{ pasted }}">
+        <input type="hidden" name="did" value="{{ did }}">
+        <input type="hidden" name="name" value="{{ deck_name }}">
+        <input type="hidden" name="commander" value="{{ commander }}">
+        <input type="hidden" name="seen" value="1">
+        <label for="swap-axis-pick">Make it</label>
+        <select name="goal" id="swap-axis-pick">
+            {% for pair, spec in swap_axes.items() %}
+            <option value="{{ pair[0] }}:{{ pair[1] }}"
+                {%- if pair == (axis, direction) %} selected{% endif %}>{{ spec.goal }}</option>
+            {% endfor %}
+        </select>
+        {# no-js fallback, hidden once the script can submit on change #}
+        <button type="submit" id="swap-axis-go">Walk it again</button>
+    </form>
 
     {# up here with the count it is about, so finishing a batch does not mean
        scrolling back past everything decided so far #}

@@ -3494,6 +3494,55 @@ body.home main {
     padding: 2px 4px;
 }
 
+/* the swap page's own copy of the picker: same control, but a metric change
+   here is a RESTART rather than a way in, so it sits under the counter */
+.deck-swap-axis {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--muted);
+    margin: 0 0 16px;
+}
+
+.deck-swap-axis select {
+    font: inherit;
+    color: var(--ink);
+    background: var(--panel);
+    border: 1px solid var(--line-strong);
+    border-radius: 3px;
+    padding: 2px 4px;
+}
+
+.deck-swap-axis button {
+    font: inherit;
+    color: var(--teal);
+    background: none;
+    border: 1px solid var(--line-strong);
+    border-radius: 3px;
+    padding: 2px 8px;
+    cursor: pointer;
+}
+
+.deck-swap-axis button:hover { background: var(--wash); }
+
+/* quiet: it throws away a walk, so it must not read as the next step */
+.swap-restart {
+    font: inherit;
+    font-size: 13px;
+    color: var(--muted);
+    background: none;
+    border: none;
+    border-bottom: 1px dotted var(--line-strong);
+    padding: 0;
+    margin-left: 6px;
+    cursor: pointer;
+}
+
+.swap-restart:hover { color: var(--teal); }
+
+#swap-resumed { color: var(--ink); }
+
 /* spans both cards, being about the pair */
 .swap-pair .swap-undo { grid-column: 1 / -1; justify-self: start; }
 

@@ -16,6 +16,17 @@ import { find, patch } from "decks";
     var dataEl = document.getElementById("swap-data");
     if (!dataEl) return;
     var D = JSON.parse(dataEl.textContent);
+
+    /* wired before the empty-queue bail below, so a deck with nothing to move
+       can still pick another metric. the submit button is the no-js fallback */
+    var axisForm = document.querySelector(".deck-swap-axis");
+    if (axisForm) {
+        var axisGo = document.getElementById("swap-axis-go");
+        if (axisGo) axisGo.hidden = true;
+        document.getElementById("swap-axis-pick").addEventListener("change", function () {
+            axisForm.requestSubmit();
+        });
+    }
     if (!D.queue.length) return;
 
     /*
@@ -49,9 +60,25 @@ import { find, patch } from "decks";
        would look for cards that left long ago */
     var baseList = (entry && entry.text) || D.text;
 
+    /*
+        where the walk got to last time. kept per AXIS: a different metric is a
+        different queue, so arriving on one is a fresh walk, which is one of the
+        only two things that clears this. the other is the button.
+
+        held as IDS and never as a position: the queue is rebuilt from the deck
+        as it now stands, so last visit's index points at another card
+    */
+    var session = (entry && entry.session && entry.session.axis === D.axis &&
+                   entry.session.dir === D.dir) ? entry.session : null;
+    var done = {};
+    (session && session.seen || []).forEach(function (id) { done[id] = true; });
+    var resumed = Object.keys(done).length;
+
     /* the queue is deep and the SESSION is the batch: reaching the end offers
-       the next batch rather than finishing */
-    var limit = Math.min(D.batch, D.queue.length);
+       the next batch rather than finishing. a resumed walk keeps the depth it
+       was left at, or a batch already checked would be offered again */
+    var limit = Math.min(Math.max((session && session.limit) || 0, D.batch),
+                         D.queue.length);
 
     /*
         every card's replacements once asked for. undefined means not asked,
@@ -156,10 +183,11 @@ import { find, patch } from "decks";
     }
 
     function show() {
-        /* walk past anything known to have nowhere to go. silent, because those
-           cards are named together at the end. judged on the PLAIN answer,
-           since that is what the queue moves on */
+        /* walk past anything already decided, and anything known to have
+           nowhere to go. silent, because those cards are named together at the
+           end. judged on the PLAIN answer, since that is what the queue moves on */
         while (at < limit) {
+            if (done[D.queue[at].oracle_id]) { at++; continue; }
             var known = cache[D.queue[at].oracle_id + "|||"];
             if (Array.isArray(known) && !known.length) { at++; continue; }
             break;
@@ -343,6 +371,35 @@ import { find, patch } from "decks";
         paintOptions(got);
     });
 
+    /*
+        the card being decided, brought back only when it is NOT on screen.
+
+        no breakpoint decides this, the viewport does: on a wide screen the card
+        and its options fit together, nothing is off screen and nothing moves,
+        which is what keeps the cursor over the button it just pressed. on a
+        phone the card is a screen above the option that was taken, so it comes
+        up. never called from revert(), whose button is inside the block it
+        would scroll away from
+    */
+    var SMOOTH = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    function bringUp() {
+        var live = $("swap-live");
+        var node = live.hidden ? $("swap-done") : live;
+        if (!node) return;
+        var top = node.getBoundingClientRect().top;
+        if (top >= 0 && top <= window.innerHeight) return;
+        window.scrollTo({top: Math.max(0, window.scrollY + top - 12),
+                         behavior: SMOOTH ? "smooth" : "auto"});
+    }
+
+    /* a decision, so the walk can be left and picked up. the id and not the
+       position, see `done` above */
+    function decided(card, yes) {
+        if (yes) done[card.oracle_id] = true; else delete done[card.oracle_id];
+        remember();
+    }
+
     function take(c) {
         /* the WHOLE card on both sides, not the names: the review draws them as
            pictures and there is no url to ask about the outgoing one again */
@@ -351,10 +408,11 @@ import { find, patch } from "decks";
         trail.push({at: at, took: true});
         /* on the decision, not at the end of the batch: this tool is built to be
            walked a card at a time and left */
-        remember();
+        decided(D.queue[at], true);
         at++;
         clearPicks();
         show();
+        bringUp();
     }
 
     /* a swap is unwound the same way revert() does it below, or one decision
@@ -367,16 +425,17 @@ import { find, patch } from "decks";
             var s = swaps.pop();
             var at_in = deck.indexOf(s["in"].oracle_id);
             if (at_in > -1) deck.splice(at_in, 1);
-            /* undoing a swap is a decision too, and the shelf has to lose it */
-            remember();
         }
         at = step.at;
+        /* the decision is unmade either way, so the card is offered again */
+        decided(D.queue[at], false);
         clearPicks();
         /* going back means the walk is live again */
         $("swap-done").hidden = true;
         $("swap-batch-note").hidden = true;
         $("swap-live").hidden = false;
         show();
+        bringUp();
     }
 
     /* the card that went out is NOT requeued: rewinding the queue would reorder
@@ -386,6 +445,9 @@ import { find, patch } from "decks";
         var at_in = deck.indexOf(s["in"].oracle_id);
         if (at_in > -1) deck.splice(at_in, 1);
         swaps.splice(i, 1);
+        /* the decision is gone with it, so a later walk offers the card again.
+           this walk is already past it, the queue is never rewound */
+        delete done[s.out.oracle_id];
         //putting a CARRIED one back shortens the block this session starts
         //after, and without this the new list loses its first card
         if (i < carried) carried--;
@@ -405,11 +467,51 @@ import { find, patch } from "decks";
 
     skipBtn.addEventListener("click", function () {
         trail.push({at: at, took: false});
+        decided(D.queue[at], true);
         at++;
         clearPicks();
         show();
+        bringUp();
     });
     if (backBtn) backBtn.addEventListener("click", back);
+
+    /*
+        the second of the two ways to clear a walk, and the guarded one. the
+        other is picking a different metric, which arrives as a new page.
+
+        it forgets the PLACE and not the swaps: those are the deck's now, and
+        putting one back is its own control on every pair above
+    */
+    var restartBtn = $("swap-restart");
+
+    function markPlace() {
+        var n = Object.keys(done).length;
+        if (restartBtn) restartBtn.hidden = !n;
+    }
+
+    if (restartBtn) restartBtn.addEventListener("click", function () {
+        if (!window.confirm("Start again from the worst card?\n\nEvery swap you have "
+                            + "already made stays in the deck. What is forgotten is your "
+                            + "place in the walk, so the cards you kept get offered "
+                            + "again.")) return;
+        done = {};
+        trail = [];
+        nothing = [];
+        at = 0;
+        limit = Math.min(D.batch, D.queue.length);
+        $("swap-checked").textContent = limit;
+        var said = $("swap-resumed");
+        if (said) said.hidden = true;
+        $("swap-done").hidden = true;
+        $("swap-batch-note").hidden = true;
+        $("swap-nothing").hidden = true;
+        $("swap-more").hidden = true;
+        $("swap-live").hidden = false;
+        clearPicks();
+        remember();
+        show();
+        bringUp();
+    });
 
     /* where the next batch starts and what was decided by then. finish()
        compares against these to tell "that did nothing" apart from "that checked
@@ -574,17 +676,26 @@ import { find, patch } from "decks";
         last batch's answer or nothing
     */
     function remember() {
+        var built = rebuild(baseList, swaps);
+        /* every form on the page carries the deck AS IT STANDS, mid session as
+           well: without this, "back to this deck" and the metric picker hand
+           back the list the session opened on and the swaps are walked again */
+        carryList(built);
+        markPlace();
         /* no entry means this deck is not on the shelf: reached from a precon, or
            deleted from the hub in another tab. the session still works, it just
-           has nowhere to be written */
+           has nowhere to be written, which is also why the whole list stays on
+           screen for it, see finish() */
         if (!entry) return;
         patch(D.did, {
             swaps: swaps.map(function (s) {
                 return {out: keep(s.out), "in": keep(s["in"])};
             }),
             goal: D.goal,
-            newList: rebuild(baseList, swaps),
-            added: addedList(swaps)
+            newList: built,
+            added: addedList(swaps),
+            session: {axis: D.axis, dir: D.dir, limit: limit,
+                      seen: Object.keys(done)}
         });
     }
 
@@ -637,5 +748,18 @@ import { find, patch } from "decks";
 
     /* the copy buttons are wired by paintChanges, with the rest of the partial */
 
+    /* read once at load and never recounted: after three skips today `done` is
+       no longer news, it is this visit */
+    if (resumed) {
+        var saidEl = $("swap-resumed");
+        if (saidEl) {
+            saidEl.textContent = "Picking up where you left off, " + resumed + " card"
+                + (resumed === 1 ? "" : "s") + " already decided. ";
+            saidEl.hidden = false;
+        }
+    }
+    //a resumed walk can open deeper than one batch
+    $("swap-checked").textContent = limit;
+    markPlace();
     show();
 })();
