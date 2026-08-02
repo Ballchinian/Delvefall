@@ -5,7 +5,7 @@
 //content hashed url. node has no importmap, so without this every one of them
 //is an unresolvable specifier and none can be imported by a test.
 //
-//the four names here are THE FOUR IN THAT MAP and have to stay in step with it.
+//the names here are THE ONES IN THAT MAP and have to stay in step with it.
 //a new bare name added to base.html and not added here is a module the tests
 //cannot load, which shows up as a loud failure rather than a silent gap.
 
@@ -20,6 +20,7 @@ const MAP = {
     decks: "decks.js",
     report: "report.js",
     changes: "changes.js",
+    place: "place.js",
 };
 
 //format is not optional here. these are .js files in a tree with no

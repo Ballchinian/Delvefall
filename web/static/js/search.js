@@ -4,6 +4,10 @@
 
 import { el, resultCard } from "dom";
 import { wireReports } from "report";
+import { hold, keep } from "place";
+
+//before anything below can change the page height under it
+keep();
 
 //the searched card's figures, so results added by load more can name what their
 //arrows are measured against
@@ -78,6 +82,11 @@ function checkRanges() {
 
 filterForm.addEventListener("input", checkRanges);
 checkRanges();
+
+/* covers Apply, the narrow box and both sorts: they all reload through here */
+filterForm.addEventListener("submit", function () {
+    hold(".filter-bar");
+});
 
 /* a box inside a shut panel cannot be focused, so the browser refuses to submit
    and shows nothing at all. covers the native min and max messages too */
@@ -204,6 +213,8 @@ document.querySelectorAll(".oracle-line").forEach(function(el) {
         } else {
             params.delete("lines");
         }
+        //the block, not the line: a pick adds the hint under it and shifts the rest
+        hold(".oracle");
         window.location.search = params.toString();
     };
 });
@@ -235,6 +246,8 @@ document.querySelectorAll(".tag-chip").forEach(function(el) {
         } else {
             params.delete(key);
         }
+        //the picker, not the chip: a chip changing state can reflow to another row
+        hold(".tag-picker");
         window.location.search = params.toString();
     };
 });

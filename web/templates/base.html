@@ -63,11 +63,16 @@
             "dom": "{{ static_url('js/dom.js') }}",
             "decks": "{{ static_url('js/decks.js') }}",
             "report": "{{ static_url('js/report.js') }}",
-            "changes": "{{ static_url('js/changes.js') }}"
+            "changes": "{{ static_url('js/changes.js') }}",
+            "place": "{{ static_url('js/place.js') }}"
         }}
         </script>
     </head>
     <body class="{% block bodyclass %}{% endblock %}">
+
+        {# off screen until tabbed to. the header carries a nav and a search box,
+           so without it every page starts with the same six stops #}
+        <a class="skip-link" href="#main">Skip to the content</a>
 
         {# the home page swaps this whole strip out for its big centered search #}
         {% block header %}
