@@ -113,7 +113,7 @@
         </header>
         {% endblock %}
 
-        <main>
+        <main id="main" tabindex="-1">
             {% block content %}{% endblock %}
         </main>
 
@@ -142,20 +142,44 @@
             request takes a number and stale answers get dropped instead of
             painting over fresh ones
         */
+        //only for a box with no id of its own: aria-controls needs one to point at
+        var suggestBoxes = 0;
+
         function wireSuggest(input, box, pick) {
             var timer;
             var seq = 0;      //stale answers carry an old number and get ignored
             var active = -1;  //which suggestion the arrow keys are on
 
+            //the listbox half of a combobox. without these the dropdown is a div
+            //nobody is told about and the arrow keys move an invisible highlight
+            if (!box.id) {
+                box.id = "suggest-" + (++suggestBoxes);
+            }
+            box.setAttribute("role", "listbox");
+            input.setAttribute("role", "combobox");
+            input.setAttribute("aria-autocomplete", "list");
+            input.setAttribute("aria-expanded", "false");
+            input.setAttribute("aria-controls", box.id);
+
             function hide() {
                 box.style.display = "none";
+                input.setAttribute("aria-expanded", "false");
+                input.removeAttribute("aria-activedescendant");
                 active = -1;
             }
 
             function mark() {
                 box.querySelectorAll(".suggestion").forEach(function(el, i) {
                     el.classList.toggle("active", i == active);
+                    el.setAttribute("aria-selected", i == active ? "true" : "false");
                 });
+                //the highlight is a class, so this is what says it out loud
+                if (active < 0) {
+                    input.removeAttribute("aria-activedescendant");
+                } else {
+                    input.setAttribute("aria-activedescendant",
+                        box.querySelectorAll(".suggestion")[active].id);
+                }
             }
 
             input.addEventListener("input", function() {
@@ -180,9 +204,13 @@
                                 hide();
                                 return;
                             }
-                            data.names.forEach(function(name) {
+                            data.names.forEach(function(name, i) {
                                 var div = document.createElement("div");
                                 div.className = "suggestion";
+                                //aria-activedescendant points at an id, so each row needs one
+                                div.id = box.id + "-" + i;
+                                div.setAttribute("role", "option");
+                                div.setAttribute("aria-selected", "false");
                                 div.textContent = name;
                                 div.onclick = function() {
                                     hide();
@@ -191,6 +219,7 @@
                                 box.appendChild(div);
                             });
                             box.style.display = "block";
+                            input.setAttribute("aria-expanded", "true");
                         })
                         .catch(hide);
                 }, 150);
@@ -222,6 +251,22 @@
                 }
             });
         }
+
+        /* a div carrying role="button" gets a mouse click for free and nothing
+           else, so the keyboard half is supplied once, here. Space is
+           preventDefault'd or the page scrolls under the press.
+           real <button>s never reach this: they are not [role=button] */
+        document.addEventListener("keydown", function(e) {
+            if (e.key != "Enter" && e.key != " ") {
+                return;
+            }
+            var el = e.target.closest('[role="button"][tabindex]');
+            if (!el) {
+                return;
+            }
+            e.preventDefault();
+            el.click();
+        });
 
         //closes on escape or a click elsewhere. the home page has no header,
         //hence the guard

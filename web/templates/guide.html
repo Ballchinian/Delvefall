@@ -26,7 +26,8 @@
         <div class="result">
             <div class="card-frame">
                 <img src="{{ demo.image }}" alt="{{ demo.name }}" width="488" height="680">
-                <button class="report-flag guide-static">?</button>
+                {# a picture of the control, not the control: nothing wires it #}
+                <button type="button" class="report-flag guide-static" tabindex="-1" aria-hidden="true">?</button>
                 <button class="guide-info guide-info-flag" aria-label="what the flag does"
                     data-title="The report flag"
                     data-body="Hover a card, click the flag, say why in your own words. You don't have to name a better card. Reports become test cases the matcher has to pass before the next update ships.">i</button>

@@ -55,6 +55,26 @@
 
 * { box-sizing: border-box; }
 
+/* off screen until it takes focus, then over everything */
+.skip-link {
+    position: absolute;
+    left: -9999px;
+    top: 0;
+    z-index: 20;
+    background: var(--panel);
+    color: var(--teal);
+    border: 1px solid var(--teal);
+    border-radius: 0 0 3px 0;
+    padding: 8px 14px;
+    text-decoration: none;
+}
+
+.skip-link:focus { left: 0; }
+
+/* the main landmark takes focus from the skip link and must not draw a ring
+   for it: the ring belongs to controls */
+main:focus { outline: none; }
+
 body {
     margin: 0;
     font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -3588,6 +3608,26 @@ body.home main {
         font-size: 26px;
         color: var(--text);
     }
+}
+
+/* ---- the keyboard's focus ring ----
+
+   DOWN HERE on purpose: several controls above kill the outline on :focus and
+   replace it with a border colour, which ties on specificity, so these have to
+   come after to win. :focus-visible and never :focus, or clicking a control
+   leaves a ring sitting behind the pointer */
+.oracle-line:focus-visible,
+.tag-chip:focus-visible,
+.deck-end:focus-visible,
+.precon-era:focus-visible,
+.swap-restart:focus-visible,
+.search-form input:focus-visible,
+.deck-recent-name:focus-visible,
+.filter-query:focus-visible,
+.filter-bar select:focus-visible,
+.filter-bar input[type="number"]:focus-visible {
+    outline: 2px solid var(--teal);
+    outline-offset: 2px;
 }
 
 /* ---- hidden means hidden ----

@@ -67,7 +67,7 @@
 
     {# without this, a batch where every card had nowhere to go ended on the
        same screen with the same number, indistinguishable from a dead button #}
-    <p class="deck-section-note" id="swap-batch-note" hidden></p>
+    <p class="deck-section-note" id="swap-batch-note" role="status" aria-live="polite" hidden></p>
 
     {% if not queue %}
     <p class="deck-section-note deck-unranked">Nothing in this list can be moved that way.
@@ -94,7 +94,10 @@
             <button type="button" class="swap-back" id="swap-back" hidden>&larr; Back a card</button>
         </div>
 
-        <p class="deck-section-note" id="swap-note">Looking for replacements&hellip;</p>
+        {# the only thing on screen that says an answer arrived, a card was
+           stepped over, or the pickers narrowed it to nothing #}
+        <p class="deck-section-note" id="swap-note" role="status" aria-live="polite">Looking for
+        replacements&hellip;</p>
 
         {# proposing a card for somebody's deck is a stronger claim than
            listing similar ones. "missing" is not offered here, the partial

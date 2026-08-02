@@ -312,6 +312,10 @@ import { find, patch } from "decks";
                would fight the card link inside it */
             var take_btn = el("button", "swap-take", card, "Swap this in");
             take_btn.type = "button";
+            /* twelve buttons reading "Swap this in" are twelve identical stops
+               in a tab order. the visible words stay inside the label */
+            take_btn.setAttribute("aria-label", "Swap this in, " + c.name + ", replacing "
+                                  + outName);
             take_btn.addEventListener("click", (function (pick) {
                 return function () { take(pick); };
             })(c));

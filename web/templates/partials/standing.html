@@ -23,8 +23,10 @@
     <nav class="precon-eras deck-ends" aria-label="which end">
         <span class="precon-depth-label">From the:</span>
         {% for d in ['desc', 'asc'] %}
+        {# .on is a colour, so pressed is the only reading of it that carries.
+           standing.js keeps the two in step #}
         <button type="button" class="precon-era deck-end{{ ' on' if d == 'desc' }}"
-                data-end="{{ d }}">{{ p.readings[d].label }}</button>
+                data-end="{{ d }}" aria-pressed="{{ 'true' if d == 'desc' else 'false' }}">{{ p.readings[d].label }}</button>
         {% endfor %}
     </nav>
 

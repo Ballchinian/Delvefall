@@ -61,6 +61,8 @@ export function resultCard(c, against, opts) {
     if (opts.flag && c.oracle_id) {
         var flag = el("button", "report-flag", frame, "?");
         flag.title = "shouldn't be here? report this as a bad match";
+        //a grid of buttons all named "?" otherwise
+        flag.setAttribute("aria-label", "report " + c.name + " as a bad match");
         flag.dataset.id = c.oracle_id;
         flag.dataset.name = c.name;
     }

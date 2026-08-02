@@ -50,7 +50,13 @@
         <div class="oracle">
             {% for line in card_lines %}
             {% if line.searchable %}
-            <div class="oracle-line{% if line.selected %} picked{% endif %}" data-idx="{{ line.idx }}">{{ line.text | mana }}</div>
+            {# a div and not a button: the text carries inline mana images and a
+               button's own font and line-height fight the rules text around it.
+               role and tabindex are what make it a control anyway, base.html
+               turns Enter and Space into the click #}
+            <div class="oracle-line{% if line.selected %} picked{% endif %}" data-idx="{{ line.idx }}"
+                 role="button" tabindex="0" aria-pressed="{{ 'true' if line.selected else 'false' }}"
+                 aria-label="{% if mode == 'swap' %}replace{% else %}search{% endif %} this line only: {{ line.text }}">{{ line.text | mana }}</div>
             {% else %}
             <div class="oracle-plain">{{ line.text | mana }}</div>
             {% endif %}
@@ -69,8 +75,12 @@
         {% if tag_chips %}
         <div class="tag-picker">
             {% for chip in tag_chips %}
+            {# pressed is "counting towards the score": on and kept are in, off
+               and aside are out. the four states are colour AND strikethrough,
+               so this is the only reading of them a screen reader gets #}
             <button type="button" class="tag-chip{% if chip.state != 'on' %} {{ chip.state }}{% endif %}" data-tag="{{ chip.tag }}"
-                    data-state="{{ chip.state }}" title="{{ chip.description or chip.tag }}">{{ chip.tag }}</button>
+                    data-state="{{ chip.state }}" title="{{ chip.description or chip.tag }}"
+                    aria-pressed="{{ 'true' if chip.state in ('on', 'kept') else 'false' }}">{{ chip.tag }}</button>
             {% endfor %}
         </div>
         {# speaks only when the picker is in a state worth explaining #}

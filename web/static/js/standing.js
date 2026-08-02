@@ -65,6 +65,7 @@
         });
         panel.querySelectorAll(".deck-end").forEach(function (b) {
             b.classList.toggle("on", b.dataset.end === end);
+            b.setAttribute("aria-pressed", b.dataset.end === end ? "true" : "false");
         });
         /* the heading follows the end: the cheapest cards in a deck are not "the
            priciest cards" read upside down */

@@ -58,20 +58,55 @@ import { create, find, patch } from "decks";
         draw();
     }
 
+    /* the combobox half, same shape as base.html's card suggest: the list is a
+       listbox the input owns, and the highlight is announced through
+       aria-activedescendant rather than living in a class nobody can see */
+    input.setAttribute("role", "combobox");
+    input.setAttribute("aria-autocomplete", "list");
+    input.setAttribute("aria-expanded", "false");
+    input.setAttribute("aria-controls", hits.id);
+    hits.setAttribute("role", "listbox");
+    var active = -1;
+
+    function rows() {
+        return Array.prototype.slice.call(hits.querySelectorAll(".suggestion"));
+    }
+
+    function mark() {
+        rows().forEach(function (row, i) {
+            row.classList.toggle("active", i === active);
+            row.setAttribute("aria-selected", i === active ? "true" : "false");
+        });
+        if (active < 0) input.removeAttribute("aria-activedescendant");
+        else input.setAttribute("aria-activedescendant", rows()[active].id);
+    }
+
+    function close() {
+        hits.style.display = "none";
+        input.setAttribute("aria-expanded", "false");
+        input.removeAttribute("aria-activedescendant");
+        active = -1;
+    }
+
     /* .suggestion so the header's card search css styles these too */
     function draw() {
         var q = input.value.trim().toLowerCase();
         hits.innerHTML = "";
+        active = -1;
         /* the whole list when the box is empty, so a deck with one legend shows
            it rather than nothing until somebody guesses what to type */
         var show = names.filter(function (n) { return !q || loose(n, q); }).slice(0, 8);
         if (show.length === 1 && show[0].toLowerCase() === q) {
-            hits.style.display = "none";
+            close();
             return;
         }
-        show.forEach(function (n) {
+        show.forEach(function (n, i) {
             var row = document.createElement("div");
             row.className = "suggestion";
+            //aria-activedescendant points at an id, so every row needs one
+            row.id = hits.id + "-" + i;
+            row.setAttribute("role", "option");
+            row.setAttribute("aria-selected", "false");
             row.textContent = n;
             row.addEventListener("mousedown", function (e) {
                 /* mousedown, NOT click: otherwise the blur below closes the list
@@ -81,8 +116,26 @@ import { create, find, patch } from "decks";
             });
             hits.appendChild(row);
         });
-        hits.style.display = show.length ? "block" : "none";
+        if (!show.length) return close();
+        hits.style.display = "block";
+        input.setAttribute("aria-expanded", "true");
     }
+
+    input.addEventListener("keydown", function (e) {
+        if (hits.style.display !== "block") return;
+        var n = rows().length;
+        if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+            e.preventDefault();
+            active = e.key === "ArrowDown" ? (active + 1) % n : (active - 1 + n) % n;
+            mark();
+        } else if (e.key === "Enter" && active >= 0) {
+            //only with a row picked, or Enter still submits the form as it should
+            e.preventDefault();
+            pick(rows()[active].textContent);
+        } else if (e.key === "Escape") {
+            close();
+        }
+    });
 
     input.addEventListener("input", function () {
         /* a typed name still counts: the picker is a shortcut, not a gate */
@@ -92,7 +145,7 @@ import { create, find, patch } from "decks";
     input.addEventListener("focus", draw);
     input.addEventListener("blur", function () {
         /* after the mousedown above has had its turn */
-        setTimeout(function () { hits.style.display = "none"; }, 120);
+        setTimeout(close, 120);
     });
     if (nameInput) nameInput.addEventListener("input", sync);
 
