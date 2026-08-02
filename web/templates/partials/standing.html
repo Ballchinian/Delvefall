@@ -5,11 +5,66 @@
    crawler meets all five readings rather than one #}
 
 {% if panels %}
-<nav class="deck-pager" id="deck-pager" hidden aria-label="which standing">
-    <button type="button" class="deck-pager-arrow" id="deck-prev" aria-label="previous standing">&larr;</button>
-    <span class="deck-pager-now" id="deck-pager-now">{{ panels[0].readings.desc.label }}</span>
-    <button type="button" class="deck-pager-arrow" id="deck-next" aria-label="next standing">&rarr;</button>
+{# the same four rows /precons carries, in the same order, drawn as the same
+   pills. these are BUTTONS rather than links because both pages holding this
+   partial have every panel in the page already: /deck/read is a POST result
+   with no url, and a precon page's five readings are one page.
+
+   a sticky arrow pager was here until 2026-08-02. it worked, and it was the one
+   place on the site where picking a measurement read differently than it does
+   on /precons, where the same five are pills #}
+<nav class="precon-eras deck-sorts" id="deck-sorts" hidden aria-label="rank by">
+    <span class="precon-depth-label">Rank by:</span>
+    {% for p in panels %}
+    <button type="button" class="precon-era deck-sort" data-panel="metric-{{ p.key }}"
+            aria-pressed="false">{{ p.label }}</button>
+    {% endfor %}
 </nav>
+
+{# ONE row for every panel, relabelled as they are paged: the two ends are the
+   metric's own words ("Saltiest" against "Most expensive"), so the labels move
+   but the control does not. each panel keeps its own end while it is off
+   screen, see standing.js.
+
+   hidden until the script fills it: without one there is nothing to label it
+   with, and every panel is stacked and readable anyway #}
+<nav class="precon-eras deck-ends" id="deck-ends" hidden aria-label="which end">
+    <span class="precon-depth-label">From the:</span>
+    {% for d in ['desc', 'asc'] %}
+    <button type="button" class="precon-era deck-end" data-end="{{ d }}"
+            aria-pressed="{{ 'true' if d == 'desc' else 'false' }}"></button>
+    {% endfor %}
+</nav>
+
+{# the page level controls, together and above the panels they narrow, the way
+   /precons carries its own #}
+{% if eras %}
+{# /deck/read only, see the route. the cut rides each button's name and value,
+   so one form serves four of them #}
+<form class="precon-eras deck-cut" method="post" action="/deck/read"
+      aria-label="which precons to rank against">
+    <input type="hidden" name="list" value="{{ pasted }}">
+    <input type="hidden" name="name" value="{{ deck_name }}">
+    <input type="hidden" name="commander" value="{{ commander }}">
+    {# without this the repost comes back with did empty, and the Change it form
+       under it hands the swap tool a deck missing from the shelf #}
+    <input type="hidden" name="did" value="{{ did }}">
+    <span class="precon-depth-label">Era:</span>
+    {% for key, label, lo, hi in eras %}
+        {% if key == era %}
+        <span class="precon-era on" aria-current="true">{{ label }}</span>
+        {% else %}
+        <button class="precon-era" type="submit" name="era" value="{{ key }}">{{ label }}</button>
+        {% endif %}
+    {% endfor %}
+</form>
+{% endif %}
+
+{# money only, same rule /precons keeps: the other four readings do not change
+   with it. VISIBLE in the markup and hidden by standing.js when the panel on
+   screen is not the price one, so with no script running every panel is on the
+   page and so is the control #}
+<div class="deck-money" id="deck-money">{% include "partials/currency.html" %}</div>
 
 {% for p in panels %}
 {# the focus class rides the SECTION, not the card grid inside it, so the
@@ -18,24 +73,14 @@
 <section class="deck-metric {{ p.focus }}" id="metric-{{ p.key }}"
          data-label="{{ p.readings.desc.label }}"
          data-label-asc="{{ p.readings.asc.label }}">
-    {# one measurement with a switch on it, not two: the same figure counted
-       from the other end of the board #}
-    <nav class="precon-eras deck-ends" aria-label="which end">
-        <span class="precon-depth-label">From the:</span>
-        {% for d in ['desc', 'asc'] %}
-        {# .on is a colour, so pressed is the only reading of it that carries.
-           standing.js keeps the two in step #}
-        <button type="button" class="precon-era deck-end{{ ' on' if d == 'desc' }}"
-                data-end="{{ d }}" aria-pressed="{{ 'true' if d == 'desc' else 'false' }}">{{ p.readings[d].label }}</button>
-        {% endfor %}
-    </nav>
-
     {% for d in ['desc', 'asc'] %}
     {% set r = p.readings[d] %}
     <div class="deck-reading" data-end="{{ d }}" {{ 'hidden' if d == 'asc' }}>
         {# names the population, or "the whole board" next to a page about YOUR
            deck reads as though your deck is on it #}
-        <p class="deck-section-note deck-board-link"><a href="/precons?sort={{ r.sort_key }}">See all
+        {# the era rides the link, or the board opens on all 167 after the page
+           beside it just placed the deck against forty #}
+        <p class="deck-section-note deck-board-link"><a href="/precons?sort={{ r.sort_key }}{% if era and era != 'all' %}&amp;era={{ era }}{% endif %}">See all
         {{ total }} Commander precons ranked by {{ r.reading }} &rarr;</a></p>
 
         <div class="deck-standing">
@@ -52,7 +97,10 @@
                 {% elif r.beaten == 0 %}
                     The far end of all {{ r.of }} Commander precons for {{ p.noun }}.
                 {% else %}
-                    {{ r.more|capitalize }} than {{ r.beaten }} of the {{ r.of }} Commander
+                    {# the percentage LEADS: "saltier than 26 of the 167" reads as
+                       26th to about half the people who see it #}
+                    <strong>In the {{ r.band_end }} {{ r.band_pct }}%</strong>,
+                    {{ r.more }} than {{ r.beaten }} of the {{ r.of }} Commander
                     precons.
                 {% endif %}
                 {% if p.total_years %}
@@ -87,8 +135,6 @@
     </div>
     {% endfor %}
 
-    {# the money panel only #}
-    {% if p.key == 'price' %}{% include "partials/currency.html" %}{% endif %}
 
     {% if p.cards %}
     {# held ONCE and read from either end: the flipped reading is these same

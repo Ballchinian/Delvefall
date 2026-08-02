@@ -3,14 +3,16 @@
 //so this stayed a move out of partials/standing_js.html rather than a rewrite
 (function () {
     /*
-        two independent controls: the arrows pick WHICH number, the "from the"
-        buttons pick WHICH END of it.
+        two independent controls: "rank by" picks WHICH number, "from the" picks
+        WHICH END of it. both are pills, the same ones /precons draws as links,
+        so the two pages pick a measurement the same way.
 
         everything is already in the page and NOTHING is fetched, which is what
         keeps it readable with no script at all. /deck/read has no url to fetch
         from anyway
     */
-    var pager = document.getElementById("deck-pager");
+    var sorts = document.getElementById("deck-sorts");
+    var endsNav = document.getElementById("deck-ends");
     var panels = Array.prototype.slice.call(document.querySelectorAll(".deck-metric"));
     if (!panels.length) return;
 
@@ -58,15 +60,26 @@
         }
     }
 
+    /* ONE row for all five panels, so its labels are whichever panel is on
+       screen. .on is a colour, so pressed is the only reading of it that carries */
+    function markEnds(panel) {
+        if (!endsNav || panel !== panels[at]) return;
+        var end = ends[panel.id] || "desc";
+        endsNav.querySelectorAll(".deck-end").forEach(function (b) {
+            var mine = b.dataset.end === end;
+            b.textContent = b.dataset.end === "asc" ? panel.dataset.labelAsc
+                                                    : panel.dataset.label;
+            b.classList.toggle("on", mine);
+            b.setAttribute("aria-pressed", mine ? "true" : "false");
+        });
+    }
+
     function setEnd(panel, end) {
         ends[panel.id] = end;
         panel.querySelectorAll(".deck-reading").forEach(function (r) {
             r.hidden = r.dataset.end !== end;
         });
-        panel.querySelectorAll(".deck-end").forEach(function (b) {
-            b.classList.toggle("on", b.dataset.end === end);
-            b.setAttribute("aria-pressed", b.dataset.end === end ? "true" : "false");
-        });
+        markEnds(panel);
         /* the heading follows the end: the cheapest cards in a deck are not "the
            priciest cards" read upside down */
         var head = panel.querySelector(".deck-cards-head");
@@ -100,15 +113,25 @@
     var opened = host ? host.dataset.opened : "";
     panels.forEach(function (s, i) { if (s.id === "metric-" + opened) at = i; });
 
+    /* up with the other controls, but money only: the other four readings do not
+       change with it. it renders VISIBLE, so a page with no script running keeps
+       it alongside the price panel it belongs to */
+    var money = document.getElementById("deck-money");
+
     function go(i) {
-        /* wraps: a dead arrow at either end reads as a broken control */
+        /* wraps: the arrow keys still walk them, and a dead key at either end
+           reads as a broken control */
         at = (i + panels.length) % panels.length;
         panels.forEach(function (s, n) { s.hidden = n !== at; });
-        var end = ends[panels[at].id] || "desc";
-        document.getElementById("deck-pager-now").textContent =
-            end === "asc" ? panels[at].dataset.labelAsc : panels[at].dataset.label;
-        /* NOTHING here scrolls: pulling the pager to the top moved the page out
-           from under the cursor, so pressing the same arrow twice needed the
+        if (money) money.hidden = panels[at].id !== "metric-price";
+        if (sorts) sorts.querySelectorAll(".deck-sort").forEach(function (b) {
+            var mine = b.dataset.panel === panels[at].id;
+            b.classList.toggle("on", mine);
+            b.setAttribute("aria-pressed", mine ? "true" : "false");
+        });
+        markEnds(panels[at]);
+        /* NOTHING here scrolls: pulling the controls to the top moved the page
+           out from under the cursor, so pressing the same chip twice needed the
            mouse moved in between */
         offer();
     }
@@ -119,21 +142,9 @@
         var namesBox = panel.querySelector(".deck-cards");
         var step = (namesBox && parseInt(namesBox.dataset.step, 10)) || 12;
         shown[panel.id] = step;
+        //the steps differ per panel, so the ends row asks the panel on screen
+        panel.dataset.step = step;
         setEnd(panel, "desc");
-
-        panel.querySelectorAll(".deck-end").forEach(function (btn) {
-            btn.addEventListener("click", function () {
-                /* twelve cards into the priciest end is not twelve into the
-                   cheapest */
-                shown[panel.id] = step;
-                setEnd(panel, btn.dataset.end);
-                if (panel === panels[at]) {
-                    var end = ends[panel.id];
-                    document.getElementById("deck-pager-now").textContent =
-                        end === "asc" ? panel.dataset.labelAsc : panel.dataset.label;
-                }
-            });
-        });
 
         var more = panel.querySelector(".deck-card-more-btn");
         if (more) more.addEventListener("click", function () {
@@ -157,9 +168,28 @@
         });
     });
 
-    if (pager && panels.length > 1) {
-        document.getElementById("deck-prev").addEventListener("click", function () { go(at - 1); });
-        document.getElementById("deck-next").addEventListener("click", function () { go(at + 1); });
+    /* the ends row is ONE row for five panels, so it is wired once and reads the
+       panel on screen rather than being wired per panel */
+    if (endsNav) {
+        endsNav.querySelectorAll(".deck-end").forEach(function (btn) {
+            btn.addEventListener("click", function () {
+                var panel = panels[at];
+                /* twelve cards into the priciest end is not twelve into the
+                   cheapest */
+                shown[panel.id] = parseInt(panel.dataset.step, 10) || 12;
+                setEnd(panel, btn.dataset.end);
+            });
+        });
+        endsNav.hidden = false;
+    }
+
+    if (sorts && panels.length > 1) {
+        sorts.querySelectorAll(".deck-sort").forEach(function (btn) {
+            btn.addEventListener("click", function () {
+                var to = panels.findIndex(function (p) { return p.id === btn.dataset.panel; });
+                if (to > -1) go(to);
+            });
+        });
 
         /* the arrow keys walk them too, but never while somebody is typing */
         document.addEventListener("keydown", function (e) {
@@ -171,7 +201,7 @@
             else return;
             e.preventDefault();
         });
-        pager.hidden = false;
+        sorts.hidden = false;
     }
     go(at);
 })();

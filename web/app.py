@@ -2483,6 +2483,10 @@ def deck_panels(conn, oracle_ids, figures, board, cur, slug=None):
             continue
         prefix, suffix = figure_units(m["key"], cur)
         panels.append({"key": m["key"], "readings": readings,
+                       #the metric's own name, for the "rank by" chips. NOT a
+                       #reading's label: "Salt" is the measurement, "Saltiest"
+                       #is one end of it and the row beside it picks that
+                       "label": m["label"],
                        #which of the five figures this panel puts in ink. the
                        #cards below it carry all five either way, exactly as
                        #they do on a search: the panel changes which one the
@@ -2847,6 +2851,27 @@ def deck_metrics(conn, oracle_ids, currency):
     return dict(row) if row else {}
 
 
+def standing_band(stand):
+    #"saltier than 26 of the 167" reads as 26th to about half the people who see
+    #it, which is the opposite of what it says. a percentage of the board fixes
+    #that, and it is read FROM THE NEARER END: "top 84%" is a true and useless
+    #way to say 141st of 167.
+    #
+    #the two readings of a panel each sort from their own end, so a deck that is
+    #bottom 16% of the saltiest is top 16% of the mildest. the same fact twice,
+    #and it agrees with itself either way round
+    place, of = stand["place"], stand["of"]
+    if place * 2 <= of:
+        stand["band_end"] = "top"
+        share = place / of
+    else:
+        stand["band_end"] = "bottom"
+        share = (of - place + 1) / of
+    #never 0%: first of 167 is 0.6% and "the top 0%" is not a place
+    stand["band_pct"] = max(1, int(round(share * 100)))
+    return stand
+
+
 def deck_standing(board, key, best, figure, slug=None):
     #"better" is the metric's OWN direction, never bigger-is-better: on play rate
     #a smaller median is more played, and getting that backwards tells someone
@@ -2872,8 +2897,8 @@ def deck_standing(board, key, best, figure, slug=None):
             window.append({"place": i + 1, "name": r["name"], "slug": r["slug"],
                            "source": r.get("source"),
                            "figure": float(r[key]), "you": i == at})
-        return {"place": at + 1, "beaten": len(rows) - at - 1,
-                "of": len(rows), "window": window}
+        return standing_band({"place": at + 1, "beaten": len(rows) - at - 1,
+                              "of": len(rows), "window": window})
 
     better = 0
     for r in rows:
@@ -2900,8 +2925,8 @@ def deck_standing(board, key, best, figure, slug=None):
                        "figure": float(r[key]), "you": False})
     #"of" counts the deck itself in, so the sentence reads 12th of 167 whether
     #the deck was already on the board or has just been dropped onto it
-    return {"place": better + 1, "beaten": len(rows) - better,
-            "of": len(rows) + 1, "window": window}
+    return standing_band({"place": better + 1, "beaten": len(rows) - better,
+                          "of": len(rows) + 1, "window": window})
 
 
 def deck_hub(error=None, pasted="", url="", missing=None):
@@ -3103,6 +3128,13 @@ def deck_view():
                            did=deck_did())
 
 
+def read_deck_era():
+    #request.values, not request.args: /deck/read is a POST result with no url of
+    #its own, so the cut rides a submit button's own name and value
+    want = request.values.get("era", "all")
+    return next((e for e in PRECON_ERAS if e[0] == want), PRECON_ERAS[0])
+
+
 @app.route("/deck/read", methods=["POST"])
 def deck_read():
     #the pasted list, read and thrown away. nothing is stored and there is no
@@ -3124,6 +3156,15 @@ def deck_read():
     #ranking at all, rather than a placing that quietly comes from averaging
     #six cards against a hundred
     board = precon_board(cur)
+    #the same cut /precons offers, and for the same reason: originality
+    #correlates with release year at r=+0.46, so a 2013 deck ranked against 2024
+    #precons is partly being told what year it is. every figure on the page
+    #follows it, `total` included
+    era = read_deck_era()
+    _, _, era_lo, era_hi = era
+    if era_lo is not None:
+        board = [r for r in board
+                 if r["release_date"] and era_lo <= r["release_date"].year <= era_hi]
     ranked = len(scored) >= DECK_MIN_FOR_RANK
 
     panels = []
@@ -3166,6 +3207,11 @@ def deck_read():
                            #the currency control here is a form rather than
                            #links: this page has no url of its own to flip
                            cur_post=True, cur_labels=CURRENCY_LABELS,
+                           #the era cut is /deck/read's alone. a precon page
+                           #cannot take one: cutting the board can remove the
+                           #very deck the page is about, and it has no placing
+                           #left to draw
+                           eras=PRECON_ERAS, era=era[0],
                            #handed straight back so the swap tool can be reached
                            #from a reading without pasting twice. it rides the
                            #page rather than a session for the same reason as

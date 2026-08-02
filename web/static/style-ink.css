@@ -1385,47 +1385,22 @@ footer a { color: var(--teal); }
 
 /* ---- comparison mode: the deck against the board, one metric at a time ---- */
 
-/* sticky, so it is never a control you scroll back up to reach */
-.deck-pager {
-    position: sticky;
-    top: 0;
-    z-index: 5;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 14px;
-    margin: 16px 0 4px;
-    padding: 8px 12px;
-    background: var(--panel);
-    border: 1px solid var(--line);
-    border-radius: 3px;
-}
-
-.deck-pager-now {
-    font-family: var(--serif);
-    font-weight: 600;
-    font-size: 15px;
-    min-width: 9em;
-    text-align: center;
-}
-
-.deck-pager-arrow {
-    background: none;
-    border: 1px solid var(--line-strong);
-    border-radius: 2px;
-    padding: 2px 10px;
+/* the same pills /precons draws as links, so picking a measurement looks the
+   same on both. a sticky arrow pager was here until 2026-08-02, see
+   web/history.md. submit and plain buttons, drawn identically to the links */
+.deck-sorts button.precon-era,
+.deck-ends button.precon-era {
     font: inherit;
-    font-size: 15px;
-    color: var(--teal);
+    font-size: 13px;
     cursor: pointer;
 }
 
-.deck-pager-arrow:hover { background: var(--wash); }
+/* the four control rows read as one block, tighter between themselves than the
+   gap that separates them from the reading below */
+.deck-sorts { margin: 16px 0 0; }
+.deck-ends { margin: 8px 0 0; }
 
-/* scroll-margin, or a section landed on by the pager hides its own heading
-   behind the sticky header */
 .deck-metric {
-    scroll-margin-top: 54px;
     padding-top: 10px;
     margin-bottom: 26px;
 }
@@ -3287,12 +3262,21 @@ body.home main {
 .precon-cur { margin-bottom: 10px; }
 
 /* submit buttons, because a pasted list has no url to flip. drawn identically to
-   the link version, or one control looks like two things on two pages */
-.precon-cur button.precon-era {
+   the link version, or one control looks like two things on two pages.
+   .deck-cut is the era row on /deck/read, which is submit buttons for the same
+   reason */
+.precon-cur button.precon-era,
+.deck-cut button.precon-era {
     font: inherit;
     font-size: 13px;
     cursor: pointer;
 }
+
+/* the page level controls sit together under the pager, so the gap between them
+   is smaller than the one that separates them from the reading below */
+.deck-cut { margin: 10px 0 0; }
+
+.deck-detail .deck-money .precon-cur { margin: 6px 0 4px; }
 
 /* folded: the same three sentences every time a panel comes round */
 .deck-standing-what {
@@ -3372,15 +3356,6 @@ body.home main {
 
 /* the row labels on the board's four rows of controls */
 .precon-sorts .precon-depth-label { margin-right: 2px; }
-
-/* drawn like the board's own "from the" row, being the same control */
-.deck-ends { margin: 0 0 10px; }
-
-.deck-ends .deck-end {
-    font: inherit;
-    font-size: 13px;
-    cursor: pointer;
-}
 
 /* the reorder is done in the DOM and not with css order, because the names list
    is a multi-column layout and order does nothing inside one. see standing.js */

@@ -25,6 +25,9 @@
        under it handed the swap tool a deck missing from the shelf, and every
        swap in that session had nowhere to be written #}
     <input type="hidden" name="did" value="{{ did }}">
+    {# the era cut has to survive a currency flip, and the other way round: this
+       form reposts the whole page, so anything it does not carry is reset #}
+    <input type="hidden" name="era" value="{{ era or 'all' }}">
     <span class="precon-depth-label">Prices in:</span>
     {% for code, label in cur_labels %}
         {% if code == cur %}
