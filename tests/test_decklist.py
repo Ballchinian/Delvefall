@@ -60,6 +60,10 @@ def missing(text):
     return parse_decklist(text)[1]
 
 
+def copies(text):
+    return parse_decklist(text)[2]
+
+
 class TestDeckNorm:
 
     def test_case_stops_mattering(self):
@@ -179,6 +183,36 @@ class TestMisses:
 
     def test_misses_do_not_stop_the_matches(self):
         assert found("1 Not A Real Card\n1 Sol Ring") == ["Sol Ring"]
+
+
+class TestCopies:
+    #the ids drop the counts on purpose, the lens reading a deck as a set of
+    #ideas. the TALLY must not, or "64 cards read in" is what a whole hundred
+    #card deck looks like and the line meant to prove the list arrived whole
+    #says the opposite
+
+    def test_a_count_is_counted(self):
+        assert copies("10 Lightning Bolt") == 10
+
+    def test_the_same_card_on_two_lines_adds_up(self):
+        #the ids fold it to one, the tally must not
+        text = "4 Lightning Bolt\n6 Lightning Bolt"
+        assert found(text) == ["Lightning Bolt"]
+        assert copies(text) == 10
+
+    def test_an_uncounted_line_is_one(self):
+        assert copies("Sol Ring\nLightning Bolt") == 2
+
+    def test_the_x_form_counts(self):
+        assert copies("4x Sol Ring") == 4
+
+    def test_a_card_whose_name_starts_with_digits_is_one_copy(self):
+        #the leading 1996 is the NAME, not a count, and reading it as one would
+        #report a two card deck as holding 1997
+        assert copies("1996 World Champion\n1 Sol Ring") == 2
+
+    def test_a_miss_is_not_counted(self):
+        assert copies("9 Not A Real Card\n1 Sol Ring") == 1
 
 
 class TestCaps:

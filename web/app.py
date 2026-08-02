@@ -2365,21 +2365,28 @@ def metric_cards(conn, oracle_ids, key, currency, limit=DECK_EVIDENCE_MAX):
 _deck_ids_cache = {}
 
 
-def precon_ids(slug):
-    #which cards a precon holds, cached for an hour like everything else about
-    #the board: it only moves when the ingest reruns, and five metric queries
-    #per page view should not each start by asking the same question
+def precon_deck(slug):
+    #which cards a precon holds AND how many of each, cached for an hour like
+    #everything else about the board: it only moves when the ingest reruns, and
+    #five metric queries per page view should not each ask the same question
     hit = _deck_ids_cache.get(slug)
     if hit and time.time() - hit["at"] < 3600:
-        return hit["ids"]
+        return hit
     try:
         with pool.connection() as conn:
-            ids = [r["oracle_id"] for r in
-                   conn.execute("SELECT oracle_id FROM deck_cards WHERE deck_slug = %s", (slug,)).fetchall()]
+            rows = conn.execute("SELECT oracle_id, count FROM deck_cards WHERE deck_slug = %s",
+                                (slug,)).fetchall()
     except Exception:
-        return hit["ids"] if hit else []
-    _deck_ids_cache[slug] = {"at": time.time(), "ids": ids}
-    return ids
+        return hit or {"at": 0, "ids": [], "counts": {}}
+    hit = {"at": time.time(), "ids": [r["oracle_id"] for r in rows],
+           "counts": {str(r["oracle_id"]): r["count"] for r in rows}}
+    _deck_ids_cache[slug] = hit
+    return hit
+
+
+def precon_ids(slug):
+    #the lens reads a deck as a set of ideas, so the copies never reach it
+    return precon_deck(slug)["ids"]
 
 
 def deck_uniqueness(oracle_ids):
@@ -2532,22 +2539,28 @@ def precon(slug):
         #the deck's cards, for the plain list the "run it through the lens" and
         #"view it" buttons post. NOT for a grid: this page draws no whole-deck
         #fold, because every standing panel above already opens into its own
-        #pictures. the list is built from the names rather than stored, since it
-        #only has to be something parse_decklist can read back, and one name per
-        #line is exactly that. the template also reads `cards` as the guard on
-        #that block, so a deck with none offers no way on rather than an empty one
+        #pictures. the template also reads `cards` as the guard on that block,
+        #so a deck with none offers no way on rather than an empty one
         cards = deck_cards(conn, ids, cur)
     year = deck_row["release_date"].year if deck_row["release_date"] else 0
     #a deck still inside the settling window carries the note on every panel
     #whose number is affected, rather than a blanket disclaimer nobody reads
     is_new = bool(deck_row["release_date"] and deck_row["release_date"] >
                   datetime.date.today() - datetime.timedelta(days=PRECON_NEW_DAYS))
-    decklist = "\n".join("1 " + c["name"] for c in cards)
+    #WITH THE COPIES. deck_cards is distinct cards, so a list written at one
+    #apiece hands back 96 of a 100 card precon: the four missing are always basic
+    #lands, and what comes back is not a legal deck, let alone theirs
+    counts = precon_deck(slug)["counts"]
+    decklist = "\n".join("%d %s" % (counts.get(str(c["oracle_id"]), 1), c["name"])
+                         for c in cards)
     return render_template("precons/deck.html", deck=deck_row, year=year, panels=panels,
                            opened=opened, back=arrived["key"], cur=cur, is_new=is_new,
                            cur_urls=currency_urls(), cur_labels=CURRENCY_LABELS,
                            cards=cards, decklist=decklist,
-                           counted=len(ids), total=len(board))
+                           #the deck's real size, copies and all: a precon is
+                           #100 cards and 96 of them are different
+                           counted=sum(counts.values()) or len(ids),
+                           total=len(board))
 
 
 #----- the paste box: someone else's decklist, read through the same lens -----
@@ -2713,8 +2726,8 @@ def dek_to_lines(text):
 
 
 def parse_decklist(text):
-    #returns (matched oracle ids, names we could not find). blind to WHICH board
-    #a card is in: the lens reads the whole pile.
+    #returns (matched oracle ids, names we could not find, copies of the matched).
+    #blind to WHICH board a card is in: the lens reads the whole pile.
     #
     #matching is EXACT on the normalised name, NEVER fuzzy. find_card guesses
     #because a human is watching one result and can retype; a wrong guess here
@@ -2722,6 +2735,7 @@ def parse_decklist(text):
     idx = name_index()
     found, missing = [], []
     seen = set()
+    copies = 0
     text = text[:DECK_MAX_CHARS]
     #the file exports become lines before anything else looks at them, so there
     #is exactly ONE line parser and it is the tested one
@@ -2752,9 +2766,14 @@ def parse_decklist(text):
         if not tries:
             continue
         oid = None
+        #WHICH of the two won, because only the counted one had a count taken
+        #off it. reading m.group(1) regardless would charge a line naming a card
+        #that starts with a digit 1996 copies of itself
+        via = None
         for t in tries:
             oid = idx.get(deck_norm(t))
             if oid is not None:
+                via = t
                 break
         if oid is None:
             #only now as a name with a collector number stuck on the end, so
@@ -2765,6 +2784,7 @@ def parse_decklist(text):
                 if trimmed and trimmed != t:
                     oid = idx.get(deck_norm(trimmed))
                     if oid is not None:
+                        via = t
                         break
         if oid is None:
             if len(missing) < 40:
@@ -2772,15 +2792,25 @@ def parse_decklist(text):
                 #the line was asking for
                 missing.append(tries[-1])
             continue
-        #counts are dropped on purpose: nine Islands say nothing about a
-        #deck's ideas that one Island does not, and the lens is about ideas
+        #the copies are tallied even though the ids drop them, and both lines of
+        #that are load bearing. nine Islands say nothing about a deck's IDEAS
+        #that one Island does not, so the lens reads a set. but the page still
+        #has to answer "did all of it arrive", and "64 cards read in" is what a
+        #whole hundred card deck looked like while this was not counted
+        if m and via is not whole:
+            try:
+                copies += max(1, int(m.group(1)))
+            except ValueError:
+                copies += 1
+        else:
+            copies += 1
         if oid in seen:
             continue
         seen.add(oid)
         found.append(oid)
         if len(found) >= DECK_MAX_CARDS:
             break
-    return found, missing
+    return found, missing, copies
 
 
 #how many precons sit either side of the deck in each standing. enough to see
@@ -3011,7 +3041,7 @@ def deck_open():
     if not text.strip():
         return deck_hub(error="Paste a decklist, or give an Archidekt or Moxfield link.")
 
-    ids, missing = parse_decklist(text)
+    ids, missing, copies = parse_decklist(text)
     if not ids:
         return deck_hub(error="None of those lines matched a card.",
                         pasted=text[:DECK_MAX_CHARS], url=url, missing=missing)
@@ -3034,7 +3064,9 @@ def deck_open():
     #failure nobody notices until the numbers look wrong
     return render_template("deck/modes.html", pasted=text[:DECK_MAX_CHARS],
                            did=deck_did(),
-                           matched=len(ids), missing=missing,
+                           #COPIES, not distinct cards: this number's whole job
+                           #is answering "did all of it arrive"
+                           matched=copies, missing=missing,
                            deck_name=name, commander=commander,
                            leaders=leaders, picker=picker)
 
@@ -3048,7 +3080,7 @@ def deck_view():
     #the server, so the page carries the deck's id and the script fills those
     #blocks from the browser's own shelf
     text = request.form.get("list", "")
-    ids, missing = parse_decklist(text)
+    ids, missing, copies = parse_decklist(text)
     if not ids:
         return deck_hub(error=("None of those lines matched a card." if text.strip()
                                else "Paste a decklist first."),
@@ -3077,7 +3109,7 @@ def deck_read():
     #url to come back to, which is the product decision from the start: a lens
     #over someone else's list, not a deck builder with accounts and saves
     text = request.form.get("list", "")
-    ids, missing = parse_decklist(text)
+    ids, missing, copies = parse_decklist(text)
     if not ids:
         return deck_hub(error=("None of those lines matched a card." if text.strip()
                                else "Paste a decklist first."),
@@ -3122,7 +3154,9 @@ def deck_read():
             if r["swap"]:
                 swaps[r["sort_key"]] = r["swap"]
     return render_template("deck/read.html", panels=panels, opened=PRECON_METRICS[0]["key"],
-                           counted=len(scored), matched=len(ids), missing=missing,
+                           #copies, same as the page before it. `counted` below
+                           #is the distinct nonland slice the reading is made of
+                           counted=len(scored), matched=copies, missing=missing,
                            total=len(board), ranked=ranked, min_cards=DECK_MIN_FOR_RANK,
                            cur=cur, deck_name=name, commander=commander, swaps=swaps,
                            section=DECK_SECTION,
@@ -3869,7 +3903,7 @@ def deck_swap():
     #and it is the reason this can stay a lens rather than becoming a builder
     text = request.form.get("list", "")
     field, direction = read_axis()
-    ids, missing = parse_decklist(text)
+    ids, missing, copies = parse_decklist(text)
     if not ids:
         #through deck_hub like the other two, rather than rendering hub.html
         #here. building the front door inline instead means a second board
@@ -3903,7 +3937,10 @@ def deck_swap():
                            #the gate it cleared, not the thing being improved
                            focus=focus_class(field),
                            goal=SWAP_AXES[(field, direction)]["goal"],
-                           matched=len(ids), missing=missing, cur=cur,
+                           #neither count nor the unmatched lines are drawn here:
+                           #this page walks cards, and both were settled on the
+                           #page before it
+                           cur=cur,
                            deck_name=name, commander=commander, batch=SWAP_QUEUE,
                            offer=SWAP_OFFER,
                            pasted=text[:DECK_MAX_CHARS],
