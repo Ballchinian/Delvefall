@@ -27,11 +27,9 @@
        position can jump by more than one #}
     <p class="deck-detail-sub">
         Card <span id="swap-at">1</span> of <span id="swap-checked">{{ batch }}</span>,
-        worst first. Nothing is sent anywhere: your swaps are kept in this browser and
-        your own list only changes when you paste the new cards back.
-        {# both resets, and the only two. filled and revealed by swap.js, which
-           is the half that knows whether there is a place to lose #}
-        <span id="swap-resumed" hidden></span>
+        worst first.
+        {# revealed by swap.js, which is the half that knows whether there is a
+           place to lose #}
         <button type="button" class="swap-restart" id="swap-restart" hidden>Start again from
         the worst card</button></p>
 
@@ -61,13 +59,7 @@
     <div class="swap-actions swap-more" id="swap-more" hidden>
         <button type="button" class="swap-keep-going" id="swap-keep-going">Check
         <span id="swap-more-left"></span> more cards</button>
-        <span class="deck-section-note">Further down the queue, so each one is a smaller
-        improvement than the last.</span>
     </div>
-
-    {# without this, a batch where every card had nowhere to go ended on the
-       same screen with the same number, indistinguishable from a dead button #}
-    <p class="deck-section-note" id="swap-batch-note" role="status" aria-live="polite" hidden></p>
 
     {% if not queue %}
     <p class="deck-section-note deck-unranked">Nothing in this list can be moved that way.
@@ -75,8 +67,15 @@
     match on.</p>
     {% else %}
 
-    {# one card at a time, the queue is walked and not dumped #}
-    <div id="swap-live">
+    {# the page opens on this and swap.js clears it. finding your place is the
+       first thing that happens here, and a page resolving a card at a time in
+       front of you looks like it is malfunctioning rather than deciding #}
+    <p class="swap-loading" id="swap-loading" role="status" aria-label="finding your place">
+        <span class="swap-loading-mark" aria-hidden="true"></span></p>
+
+    {# one card at a time, the queue is walked and not dumped. hidden until the
+       script knows which card that is #}
+    <div id="swap-live" hidden>
         {# no label repeating the figure that queued this card: the card below
            prints all four already, so it would read "salt 1.32" above a card
            saying salt 1.32 #}
@@ -141,9 +140,9 @@
            shelf could not take, which has nowhere else for the list to live #}
         {% with whole_list = false %}{% include "partials/deckchanges.html" %}{% endwith %}
 
-        {# the script rewrites the swapped tiles, so this is the new deck and
-           not the one that arrived #}
-        {% include "partials/deckcards.html" %}
+        {# no whole-deck fold here either, for the same reason as the list: the
+           deck is what /deck/view is for, and 96 card images under a review of
+           two swaps buries the two swaps #}
 
         {# not in the partial: /deck/view has mode rows here, this page has
            finishing #}
@@ -192,6 +191,4 @@
 window.MANA_URLS = {{ mana_urls() | tojson }};
 </script>
 <script type="module" src="{{ static_url('js/swap.js') }}"></script>
-{# same picture batching as /deck/view's fold #}
-<script src="{{ static_url('js/cardfold.js') }}" defer></script>
 {% endblock %}

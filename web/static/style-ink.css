@@ -3514,6 +3514,30 @@ body.home main {
     padding: 2px 4px;
 }
 
+/* holds the page still while the walk works out where it left off */
+.swap-loading {
+    display: flex;
+    justify-content: center;
+    padding: 60px 0;
+}
+
+.swap-loading-mark {
+    width: 26px;
+    height: 26px;
+    border: 2px solid var(--line-strong);
+    border-top-color: var(--teal);
+    border-radius: 50%;
+    animation: swap-spin .7s linear infinite;
+}
+
+@keyframes swap-spin { to { transform: rotate(360deg); } }
+
+/* a spinner is decoration to anyone who cannot see it move, and the note below
+   the card says the same thing in words */
+@media (prefers-reduced-motion: reduce) {
+    .swap-loading-mark { animation-duration: 2.4s; }
+}
+
 /* the swap page's own copy of the picker: same control, but a metric change
    here is a RESTART rather than a way in, so it sits under the counter */
 .deck-swap-axis {

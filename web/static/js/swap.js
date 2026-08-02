@@ -4,7 +4,7 @@
 
 //bare specifiers, resolved by base.html's import map, so these arrive
 //content-hashed rather than frozen unstamped in the year-long static cache
-import { el, cardLink, resultCard, pairCard } from "dom";
+import { el, cardLink, resultCard } from "dom";
 import { wireReports } from "report";
 //the end of a session is /deck/view's change blocks, so /deck/view's painter
 //draws them. rebuild goes the other way, /deck/view needs it to put a card back
@@ -36,7 +36,6 @@ import { find, patch } from "decks";
         thing just taken out. one list does both jobs
     */
     var deck = D.deck.slice();
-    var at = 0;
 
     /* which saved deck this is, carried in a hidden field. it used to be found
        by matching the decklist against every entry two ways, because the key
@@ -49,36 +48,55 @@ import { find, patch } from "decks";
        for */
     var swaps = (entry && entry.swaps ? entry.swaps.slice() : []);
 
-    /* where this session started in that list. "Just the new cards" is a
-       shopping list, so it holds THIS visit's swaps: carried ones were copied
-       and bought a visit ago. everything ever swapped is /deck/view's job.
-       never trim `swaps` itself to get this, rebuild() replays all of them */
-    var carried = swaps.length;
-
     /* the deck as IMPORTED, which is what a rebuild starts from. the list this
        page holds already has the carried swaps in it, so replaying them onto it
        would look for cards that left long ago */
     var baseList = (entry && entry.text) || D.text;
 
-    /*
-        where the walk got to last time. kept per AXIS: a different metric is a
-        different queue, so arriving on one is a fresh walk, which is one of the
-        only two things that clears this. the other is the button.
-
-        held as IDS and never as a position: the queue is rebuilt from the deck
-        as it now stands, so last visit's index points at another card
-    */
+    /* the saved walk, kept per AXIS: a different metric is a different queue, so
+       arriving on one starts a new one. the only other reset is the button */
     var session = (entry && entry.session && entry.session.axis === D.axis &&
                    entry.session.dir === D.dir) ? entry.session : null;
-    var done = {};
-    (session && session.seen || []).forEach(function (id) { done[id] = true; });
-    var resumed = Object.keys(done).length;
 
-    /* the queue is deep and the SESSION is the batch: reaching the end offers
-       the next batch rather than finishing. a resumed walk keeps the depth it
-       was left at, or a batch already checked would be offered again */
-    var limit = Math.min(Math.max((session && session.limit) || 0, D.batch),
-                         D.queue.length);
+    /*
+        THE WALK IS A FIXED LIST, settled when it started.
+
+        the server sorts the deck as it stands now, so rebuilding the queue every
+        visit reordered it under the trail: the position, the count and every step
+        back pointed at a different card than the visit before, and a walk twelve
+        cards in reopened at "card 34 of 36".
+
+        the cards swapped OUT during the walk are put back in their places off the
+        shelf. they have left the deck, so the server cannot send them, and
+        without them a step back lands on the wrong card or nowhere
+    */
+    var queue = D.queue;
+    if (session && session.order) {
+        var byId = {};
+        D.queue.forEach(function (c) { byId[c.oracle_id] = c; });
+        //the shelf's own objects, so revert() can still match a swap on identity
+        swaps.forEach(function (s) {
+            if (!byId[s.out.oracle_id]) byId[s.out.oracle_id] = s.out;
+        });
+        queue = session.order.map(function (id) { return byId[id]; }).filter(Boolean);
+    }
+    if (!queue.length) return;
+
+    /* everything saved is a CARD ID, so a queue that lost a card (the list edited
+       elsewhere) shifts nothing: the ids that survive still resolve */
+    var index = {};
+    queue.forEach(function (c, i) { index[c.oracle_id] = i; });
+
+    var at = 0;
+
+    /* where this WALK started in the swap list, not where this page load did:
+       "your swaps" is the walk's, so reopening a finished one still shows what it
+       did. never trim `swaps` itself to get it, rebuild() replays all of them */
+    var carried = swaps.length;
+
+    /* the queue is deep and the BATCH is what a sitting offers: reaching the end
+       offers the next batch rather than finishing */
+    var limit = Math.min(D.batch, queue.length);
 
     /*
         every card's replacements once asked for. undefined means not asked,
@@ -98,13 +116,33 @@ import { find, patch } from "decks";
     var skipBtn = $("swap-skip"), backBtn = $("swap-back");
 
     /*
-        every decision this session has made, so the walk runs backwards too.
+        every decision the walk has made, so it runs backwards too, across visits
+        as well as within one.
 
         each entry is the index it was made AT, which is NOT at-1 when it lands:
         show() steps silently over cards nothing could replace, so walking back
         by subtraction would stop on dead ends the forward walk hid
     */
     var trail = [];
+
+    /*
+        the saved walk, put back. everything comes off ids and is resolved against
+        the queue built above, so an id that no longer resolves drops out instead
+        of shifting the ones that do.
+
+        an empty `at` is a walk that reached the end of its batch, which lands on
+        the review rather than on a card
+    */
+    if (session) {
+        if (session.carried !== undefined) carried = session.carried;
+        limit = Math.min(Math.max(session.limit || 0, D.batch), queue.length);
+        at = index[session.at] !== undefined ? index[session.at] : limit;
+        trail = (session.trail || []).map(function (t) {
+            return {at: index[t.id], took: t.took};
+        }).filter(function (t) { return t.at !== undefined; });
+        nothing = (session.nothing || []).map(function (id) { return queue[index[id]]; })
+                                         .filter(Boolean);
+    }
 
     /* what the pickers were told about the card ON SCREEN only, cleared when
        the queue moves. the same three names /search puts in its url, because
@@ -141,7 +179,7 @@ import { find, patch } from "decks";
     /* cached whichever way it comes back, so the walk and the look-ahead never
        ask twice and an empty answer is not retried forever */
     function load(i, force) {
-        var card = D.queue[i];
+        var card = queue[i];
         if (!card) return Promise.resolve();
         var key = i === at ? keyFor(card) : card.oracle_id + "|||";
         if (!force && cache[key] !== undefined) return Promise.resolve();
@@ -165,6 +203,8 @@ import { find, patch } from "decks";
                nothing is the user's filter, not a fact about the card */
             if (!cards.length && key === card.oracle_id + "|||" && nothing.indexOf(card) === -1) {
                 nothing.push(card);
+                //a dead end is part of the walk, so it has to survive leaving
+                remember();
             }
             /* the page may have been waiting on exactly this */
             if (i === at) show();
@@ -178,17 +218,16 @@ import { find, patch } from "decks";
     function prefetch() {
         var n = 0;
         for (var i = at + 1; i < limit && n < LOOKAHEAD; i++) {
-            if (cache[D.queue[i].oracle_id + "|||"] === undefined) { load(i); n++; }
+            if (cache[queue[i].oracle_id + "|||"] === undefined) { load(i); n++; }
         }
     }
 
     function show() {
-        /* walk past anything already decided, and anything known to have
-           nowhere to go. silent, because those cards are named together at the
-           end. judged on the PLAIN answer, since that is what the queue moves on */
+        /* walk past anything known to have nowhere to go. silent, because those
+           cards are named together at the end. judged on the PLAIN answer,
+           since that is what the queue moves on */
         while (at < limit) {
-            if (done[D.queue[at].oracle_id]) { at++; continue; }
-            var known = cache[D.queue[at].oracle_id + "|||"];
+            var known = cache[queue[at].oracle_id + "|||"];
             if (Array.isArray(known) && !known.length) { at++; continue; }
             break;
         }
@@ -196,9 +235,13 @@ import { find, patch } from "decks";
         /* after the loop above, so this is the card on screen and not the one
            the walk started from */
         $("swap-at").textContent = at + 1;
+        $("swap-live").hidden = false;
         if (backBtn) backBtn.hidden = !trail.length;
+        /* the loop above can have moved the place without a decision being made,
+           so the save has to follow the render and not only the button */
+        remember();
 
-        var card = D.queue[at];
+        var card = queue[at];
         var key = keyFor(card);
         var out = $("swap-out-card");
         options.innerHTML = "";
@@ -286,7 +329,7 @@ import { find, patch } from "decks";
         grid: options,
         query: function () {
             var p = new URLSearchParams();
-            p.set("q", D.queue[at].name);
+            p.set("q", queue[at].name);
             if (picks.lines.length) p.set("lines", picks.lines.join(","));
             if (picks.notags.length) p.set("notags", picks.notags.join(","));
             if (picks.yestags.length) p.set("yestags", picks.yestags.join(","));
@@ -304,7 +347,7 @@ import { find, patch } from "decks";
     var moreBtn = $("swap-options-more");
 
     function paintOptions(cards) {
-        var outName = D.queue[at].name;
+        var outName = queue[at].name;
         for (var i = options.children.length; i < Math.min(shown, cards.length); i++) {
             var c = cards[i];
             var card = build(c, outName);
@@ -369,7 +412,7 @@ import { find, patch } from "decks";
     }
 
     if (moreBtn) moreBtn.addEventListener("click", function () {
-        var got = offerable(cache[keyFor(D.queue[at])]);
+        var got = offerable(cache[keyFor(queue[at])]);
         if (!Array.isArray(got)) return;
         shown = Math.min(shown + D.offer, got.length);
         paintOptions(got);
@@ -397,46 +440,40 @@ import { find, patch } from "decks";
                          behavior: SMOOTH ? "smooth" : "auto"});
     }
 
-    /* a decision, so the walk can be left and picked up. the id and not the
-       position, see `done` above */
-    function decided(card, yes) {
-        if (yes) done[card.oracle_id] = true; else delete done[card.oracle_id];
-        remember();
-    }
-
     function take(c) {
         /* the WHOLE card on both sides, not the names: the review draws them as
            pictures and there is no url to ask about the outgoing one again */
-        swaps.push({out: D.queue[at], in: c, match: c.match});
+        swaps.push({out: queue[at], in: c, match: c.match});
         deck.push(c.oracle_id);
         trail.push({at: at, took: true});
-        /* on the decision, not at the end of the batch: this tool is built to be
-           walked a card at a time and left */
-        decided(D.queue[at], true);
         at++;
         clearPicks();
         show();
         bringUp();
     }
 
-    /* a swap is unwound the same way revert() does it below, or one decision
-       could be undone two ways with two results. the card that went OUT is not
-       requeued: it never left the queue, and the trail holds its index */
+    /*
+        a swap is unwound the same way revert() does it below, or one decision
+        could be undone two ways with two results.
+
+        the card that went OUT is not requeued: it never left the QUEUE, which is
+        fixed for the walk, and the trail holds its index. that is what lets this
+        step back into a decision made a visit ago
+    */
     function back() {
         if (!trail.length) return;
         var step = trail.pop();
         if (step.took) {
+            /* the trail and the swap list are both in decision order, so the
+               swap being unwound is the last one this walk made */
             var s = swaps.pop();
             var at_in = deck.indexOf(s["in"].oracle_id);
             if (at_in > -1) deck.splice(at_in, 1);
         }
         at = step.at;
-        /* the decision is unmade either way, so the card is offered again */
-        decided(D.queue[at], false);
         clearPicks();
         /* going back means the walk is live again */
         $("swap-done").hidden = true;
-        $("swap-batch-note").hidden = true;
         $("swap-live").hidden = false;
         show();
         bringUp();
@@ -449,9 +486,6 @@ import { find, patch } from "decks";
         var at_in = deck.indexOf(s["in"].oracle_id);
         if (at_in > -1) deck.splice(at_in, 1);
         swaps.splice(i, 1);
-        /* the decision is gone with it, so a later walk offers the card again.
-           this walk is already past it, the queue is never rewound */
-        delete done[s.out.oracle_id];
         //putting a CARRIED one back shortens the block this session starts
         //after, and without this the new list loses its first card
         if (i < carried) carried--;
@@ -461,7 +495,7 @@ import { find, patch } from "decks";
            a swap carried in from an earlier session has no step here, and the
            loop finding nothing is right */
         for (var t = 0; t < trail.length; t++) {
-            if (trail[t].took && D.queue[trail[t].at] === s.out) {
+            if (trail[t].took && queue[trail[t].at] === s.out) {
                 trail[t].took = false;
                 break;
             }
@@ -471,7 +505,6 @@ import { find, patch } from "decks";
 
     skipBtn.addEventListener("click", function () {
         trail.push({at: at, took: false});
-        decided(D.queue[at], true);
         at++;
         clearPicks();
         show();
@@ -489,8 +522,7 @@ import { find, patch } from "decks";
     var restartBtn = $("swap-restart");
 
     function markPlace() {
-        var n = Object.keys(done).length;
-        if (restartBtn) restartBtn.hidden = !n;
+        if (restartBtn) restartBtn.hidden = !(at || trail.length);
     }
 
     if (restartBtn) restartBtn.addEventListener("click", function () {
@@ -498,16 +530,19 @@ import { find, patch } from "decks";
                             + "already made stays in the deck. What is forgotten is your "
                             + "place in the walk, so the cards you kept get offered "
                             + "again.")) return;
-        done = {};
+        /* the queue itself is resettled here: a walk started again is started
+           against the deck AS IT NOW STANDS, swaps and all */
+        queue = D.queue;
+        index = {};
+        queue.forEach(function (c, i) { index[c.oracle_id] = i; });
         trail = [];
         nothing = [];
+        cache = {};
         at = 0;
-        limit = Math.min(D.batch, D.queue.length);
+        carried = swaps.length;
+        limit = Math.min(D.batch, queue.length);
         $("swap-checked").textContent = limit;
-        var said = $("swap-resumed");
-        if (said) said.hidden = true;
         $("swap-done").hidden = true;
-        $("swap-batch-note").hidden = true;
         $("swap-nothing").hidden = true;
         $("swap-more").hidden = true;
         $("swap-live").hidden = false;
@@ -517,20 +552,11 @@ import { find, patch } from "decks";
         bringUp();
     });
 
-    /* where the next batch starts and what was decided by then. finish()
-       compares against these to tell "that did nothing" apart from "that checked
-       twelve cards and none had anywhere to go" */
-    var batchFrom = null;
-    var batchSwaps = 0;
-
     $("swap-keep-going").addEventListener("click", function () {
-        batchFrom = limit;
-        batchSwaps = swaps.length;
-        limit = Math.min(limit + D.batch, D.queue.length);
+        limit = Math.min(limit + D.batch, queue.length);
         $("swap-checked").textContent = limit;
         $("swap-more").hidden = true;
         $("swap-done").hidden = true;
-        $("swap-batch-note").hidden = true;
         /* finish() rebuilds it from the full list, so leaving it up during the
            batch shows a stale answer next to live cards */
         $("swap-nothing").hidden = true;
@@ -546,7 +572,7 @@ import { find, patch } from "decks";
 
     function finish() {
         /* the end of a BATCH, not necessarily of the queue */
-        var more_left = D.queue.length - limit;
+        var more_left = queue.length - limit;
         if (more_left > 0) {
             $("swap-more-left").textContent = Math.min(D.batch, more_left);
             $("swap-more").hidden = false;
@@ -557,31 +583,6 @@ import { find, patch } from "decks";
         }
         /* the walk stopped on the last card, which is the whole batch */
         $("swap-at").textContent = Math.min(at, limit);
-
-        /* a batch that found nothing puts the page back exactly where it was, so
-           without a word here the button reads as broken */
-        var say = "";
-        if (batchFrom !== null) {
-            var walked = limit - batchFrom;
-            var got = swaps.length - batchSwaps;
-            say = got
-                ? "Checked " + walked + " more card" + (walked === 1 ? "" : "s")
-                  + " and found " + got + " swap" + (got === 1 ? "" : "s") + "."
-                : "Checked " + walked + " more card" + (walked === 1 ? "" : "s")
-                  + ". Nothing in the game does what any of them do and moves the deck "
-                  + D.goal + ", so there was nothing to offer. They are listed below.";
-            batchFrom = null;
-        }
-        /* on EVERY finish and not only after a press: "there is nothing more to
-           load" is the fact the vanishing button failed to communicate */
-        if (more_left <= 0) {
-            say += (say ? " " : "") + "That is every card in this deck worth checking, all "
-                + D.queue.length + " of them. There are no more to load.";
-        }
-        if (say) {
-            $("swap-batch-note").textContent = say;
-            $("swap-batch-note").hidden = false;
-        }
         $("swap-live").hidden = true;
         var done = $("swap-done");
         done.hidden = false;
@@ -620,20 +621,15 @@ import { find, patch } from "decks";
            rebuilt from the deck as IMPORTED, because the list this page holds
            would apply the carried swaps twice */
         var built = rebuild(baseList, swaps);
-        /* THIS VISIT on both blocks, matching the new cards box beside it. the
-           whole history is /deck/view's, and the note below points at it */
+        /* THIS WALK on both blocks, matching the new cards box beside it, and
+           the walk rather than the page load so reopening a finished one still
+           shows what it did. everything the deck has ever had is /deck/view's */
         var mine = swaps.slice(carried);
         paintChanges({swaps: mine, added: addedList(mine),
                       newList: built, text: D.text, goal: D.goal},
                      {draw: build,
                       //offset back into the full list, which is what a revert acts on
-                      onRevert: function (i) { revert(i + carried); },
-                      addedNote: "The cards this session added, on their own.",
-                      note: carried
-                          ? carried + " earlier change" + (carried === 1 ? "" : "s")
-                            + " to this deck " + (carried === 1 ? "is" : "are")
-                            + " not listed here. View it has every one."
-                          : ""});
+                      onRevert: function (i) { revert(i + carried); }});
 
         /* a deck the shelf could not take (full, or private browsing) has no
            /deck/view holding its list, so this is the only copy there is */
@@ -641,10 +637,6 @@ import { find, patch } from "decks";
             var listBox = $("deck-list-box");
             if (listBox) listBox.hidden = false;
         }
-
-        /* the fold is server rendered from the deck that ARRIVED, so every swap
-           has left a tile showing a card no longer in it */
-        repaintDeck();
 
         /* jinja rendered every way on with the list the session opened on,
            because at build time that is the only list there is. this is the
@@ -698,72 +690,34 @@ import { find, patch } from "decks";
             goal: D.goal,
             newList: built,
             added: addedList(swaps),
-            session: {axis: D.axis, dir: D.dir, limit: limit,
-                      seen: Object.keys(done)}
-        });
-    }
+            /*
+                the walk as a save file: the list itself, where in it you are,
+                every decision and every dead end, all keyed by card id.
 
-    /* walks from the ORIGINAL tile every time rather than patching the last
-       paint, which is what makes a revert work: putting a card back is this
-       running again with one fewer swap in the list */
-    var bornTiles = null;
-
-    function repaintDeck() {
-        var grid = document.querySelector(".deck-card-fold .deck-card-grid");
-        if (!grid) return;
-        /* kept as MARKUP, captured before anything is rewritten, so a revert
-           puts the server's own tile back rather than a redrawing of it */
-        if (!bornTiles) {
-            bornTiles = {};
-            Array.prototype.slice.call(grid.children).forEach(function (t) {
-                t.dataset.born = t.dataset.oid;
-                bornTiles[t.dataset.oid] = t.outerHTML;
-            });
-        }
-        var byOut = {};
-        swaps.forEach(function (s) { byOut[s.out.oracle_id] = s; });
-
-        Array.prototype.slice.call(grid.children).forEach(function (tile) {
-            var born = tile.dataset.born;
-            var swap = byOut[born];
-            var showing = tile.dataset.oid;
-            /* already right, either way round */
-            if (swap ? showing === swap["in"].oracle_id : showing === born) return;
-
-            var fresh;
-            if (swap) {
-                fresh = pairCard(swap["in"]);
-                fresh.dataset.oid = swap["in"].oracle_id || "";
-                el("span", "deck-card-swapped", fresh.querySelector(".result-name"), "*")
-                    .title = "swapped in for " + swap.out.name;
-            } else {
-                var holder = document.createElement("div");
-                holder.innerHTML = bornTiles[born] || "";
-                fresh = holder.firstElementChild;
-                if (!fresh) return;
+                NOT indexes: they only mean anything against the order they were
+                taken in, which is exactly what `order` is here to pin
+            */
+            session: {
+                axis: D.axis, dir: D.dir, limit: limit, carried: carried,
+                order: queue.map(function (c) { return c.oracle_id; }),
+                //empty means the walk reached the end of its batch
+                at: queue[at] ? queue[at].oracle_id : "",
+                trail: trail.map(function (t) {
+                    return {id: queue[t.at].oracle_id, took: t.took};
+                }),
+                nothing: nothing.map(function (c) { return c.oracle_id; })
             }
-            fresh.dataset.born = born;
-            /* is-over is a fact about POSITION, and a swap does not move a tile */
-            if (tile.classList.contains("is-over")) fresh.classList.add("is-over");
-            tile.replaceWith(fresh);
         });
-        enhanceCardFrames(grid);
     }
 
     /* the copy buttons are wired by paintChanges, with the rest of the partial */
 
-    /* read once at load and never recounted: after three skips today `done` is
-       no longer news, it is this visit */
-    if (resumed) {
-        var saidEl = $("swap-resumed");
-        if (saidEl) {
-            saidEl.textContent = "Picking up where you left off, " + resumed + " card"
-                + (resumed === 1 ? "" : "s") + " already decided. ";
-            saidEl.hidden = false;
-        }
-    }
     //a resumed walk can open deeper than one batch
     $("swap-checked").textContent = limit;
     markPlace();
     show();
+    /* only now is the page worth looking at: it opens on the loader, because
+       working out where you are is the first thing this does and the page
+       resolving a card at a time in front of you reads as a fault */
+    $("swap-loading").hidden = true;
 })();
