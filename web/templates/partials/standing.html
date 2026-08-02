@@ -97,11 +97,12 @@
                 {% elif r.beaten == 0 %}
                     The far end of all {{ r.of }} Commander precons for {{ p.noun }}.
                 {% else %}
-                    {# the percentage LEADS: "saltier than 26 of the 167" reads as
-                       26th to about half the people who see it #}
-                    <strong>In the {{ r.band_end }} {{ r.band_pct }}%</strong>,
-                    {{ r.more }} than {{ r.beaten }} of the {{ r.of }} Commander
-                    precons.
+                    {# the percentage and nothing else. "saltier than 26 of the
+                       167" read as 26th to about half the people who saw it, and
+                       the count it was making that mistake with is already on
+                       screen twice: the place figure beside this, and the board
+                       link above it #}
+                    In the {{ r.band_end }} {{ r.band_pct }}%.
                 {% endif %}
                 {% if p.total_years %}
                 <span class="deck-standing-extra">{{ '%.0f'|format(p.total_years) }} years all
