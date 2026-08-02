@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% import "partials/deckways.html" as ways %}
+{% import "partials/deckways.html" as ways with context %}
 
 {% block title %}{{ deck_name or 'Your deck' }}, card by card - Delvefall{% endblock %}
 
@@ -32,7 +32,8 @@
                     body="How original it is, how salty, what it costs, how played its
                           cards are and how old, against every Commander precon.",
                     name=deck_name, commander=commander, did=did) }}
-        {{ ways.way("/deck/swap", "Change it", "Walk it card by card", pasted,
+        {# the go line and the axis picker come off the macro, see deckways #}
+        {{ ways.way("/deck/swap", "Change it", "", pasted,
                     body="Walk the deck a card at a time, worst first, and swap what you
                           want to.",
                     name=deck_name, commander=commander, did=did) }}
@@ -54,4 +55,5 @@ window.MANA_URLS = {{ mana_urls() | tojson }};
 </script>
 <script type="module" src="{{ static_url('js/deckview.js') }}"></script>
 <script src="{{ static_url('js/cardfold.js') }}" defer></script>
+<script src="{{ static_url('js/ways.js') }}" defer></script>
 {% endblock %}

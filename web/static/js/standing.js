@@ -16,9 +16,7 @@
 
     var swapEl = document.getElementById("deck-swap-axes");
     var swaps = swapEl ? JSON.parse(swapEl.textContent) : null;
-    /* one ROW among the ways on, so the form itself is what hides */
-    var swapForm = document.getElementById("deck-swap-start");
-    var swapGoal = document.getElementById("deck-swap-goal");
+    var swapAxis = document.querySelector('#deck-swap-start select[name="goal"]');
 
     /* here rather than in the dom, so a panel keeps its state while hidden
        behind another one */
@@ -77,24 +75,21 @@
     }
 
     /* points AWAY from the end on screen: "saltiest" offers to make the deck
-       milder. a reading with no axis (either end of originality) hides the row
-       rather than approximating one */
+       milder. a reading with no axis (either end of originality) leaves the
+       picker alone rather than approximating one, so the row is never missing
+       and a hand-picked axis is never overwritten by paging past it */
     function offer() {
-        if (!swaps || !swapForm) return;
+        if (!swaps || !swapAxis) return;
         var panel = panels[at];
         var end = ends[panel.id] || "desc";
         var reading = panel.querySelector('.deck-reading[data-end="' + end + '"]');
         var link = reading ? reading.querySelector(".deck-board-link a") : null;
         var sortKey = link ? (link.getAttribute("href").split("sort=")[1] || "") : "";
         var s = swaps[sortKey];
-        swapForm.hidden = !s;
-        if (s) {
-            swapForm.elements.axis.value = s.axis;
-            swapForm.elements.dir.value = s.dir;
-            /* the GO LINE only: rewriting the button's textContent would take
-               the title and description spans out with it */
-            if (swapGoal) swapGoal.textContent = "Make this deck " + s.goal + " →";
-        }
+        if (!s) return;
+        swapAxis.value = s.axis + ":" + s.dir;
+        //js/ways.js writes the go line off this, so the sentence has one author
+        swapAxis.dispatchEvent(new Event("change", {bubbles: true}));
     }
 
     var at = 0;

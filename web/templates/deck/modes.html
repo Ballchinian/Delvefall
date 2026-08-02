@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% import "partials/deckways.html" as ways %}
+{% import "partials/deckways.html" as ways with context %}
 
 {% block title %}{{ deck_name or 'What next' }} - Delvefall{% endblock %}
 
@@ -74,23 +74,11 @@
                           precon.",
                     name=deck_name, commander=commander, did=did, seen='') }}
 
-        {# one control and not two: "cheaper" names a field and a direction
-           together, and a pair of dropdowns would allow price sorted newest.
-           called rather than rendered so the select can sit under the button,
-           since opening it inside one would submit the form #}
-        {% call ways.way("/deck/swap", "Change it", "Walk it card by card", pasted,
-                         body="Walk the deck a card at a time, worst first, and swap what
-                               you want to. Ends with a list you can paste back.",
-                         name=deck_name, commander=commander, did=did, seen='') %}
-        <label class="deck-mode-axis">Make it
-            <select name="goal" aria-label="which way to change the deck">
-                {% for pair, spec in swap_axes.items() %}
-                <option value="{{ pair[0] }}:{{ pair[1] }}"
-                    {% if pair == swap_default %}selected{% endif %}>{{ spec.goal }}</option>
-                {% endfor %}
-            </select>
-        </label>
-        {% endcall %}
+        {# the axis picker comes with the row, see partials/deckways.html #}
+        {{ ways.way("/deck/swap", "Change it", "Walk it card by card", pasted,
+                    body="Walk the deck a card at a time, worst first, and swap what you
+                          want to. What you change is kept in this browser.",
+                    name=deck_name, commander=commander, did=did, seen='') }}
     </div>
 </div>
 
@@ -107,4 +95,5 @@
 {% block scripts %}
 <script type="module" src="{{ static_url('js/missing.js') }}"></script>
 <script type="module" src="{{ static_url('js/modes.js') }}"></script>
+<script src="{{ static_url('js/ways.js') }}" defer></script>
 {% endblock %}

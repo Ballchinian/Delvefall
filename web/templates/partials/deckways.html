@@ -1,20 +1,22 @@
 {# where you can go from here, one row per destination, used by /deck/open,
-   /deck/view, /deck/read and /precons/<slug>. every row is a POST carrying the
-   same five fields, because a deck has no url and travels in the form.
+   /deck/view, /deck/read, /deck/swap and /precons/<slug>. every row is a POST
+   carrying the same five fields, because a deck has no url and travels in the
+   form.
 
-   the macro owns the shape, the caller owns the wording.
+   the macro owns the shape, the caller owns the wording. IMPORTED WITH CONTEXT
+   everywhere: the axis picker below reads swap_axes off the context processor #}
 
-   {% call %} it to hang a control off the row, which the swap axis picker
-   needs: a select cannot live inside the submit button, opening it would
-   submit the form #}
-
-{# the mark is keyed by WHERE IT GOES rather than passed in, so no call site
-   can forget one or pass the wrong one. /deck/open is the door to all three
-   and takes none, the css holds its column open so the row still lines up #}
+{# keyed by WHERE IT GOES rather than passed in, so no call site can forget one
+   or pass the wrong one. /deck/open is the door to all three and takes none,
+   the css holds its column open so the row still lines up #}
 {% set marks = {'/deck/view': 'view', '/deck/read': 'compare',
                 '/deck/swap': 'change'} %}
 
-{% macro way(action, title, go, pasted, body='', name='', commander='', did='', seen='1') %}
+{% macro way(action, title, go, pasted, body='', name='', commander='', did='', seen='1', goal='') %}
+{% set to_swap = action == '/deck/swap' %}
+{# the pair as one field: "cheaper" is a direction AND a column, and two
+   dropdowns would allow price sorted newest. read_axis() splits it #}
+{% set chosen = goal if goal else swap_default[0] ~ ':' ~ swap_default[1] %}
 <form action="{{ action }}" method="post" class="deck-mode">
     <input type="hidden" name="list" value="{{ pasted }}">
     {# empty until the deck has been saved, which is every deck the first time
@@ -27,8 +29,23 @@
         {% if marks.get(action) %}<i class="mode-mark mode-{{ marks[action] }}" aria-hidden="true"></i>{% endif %}
         <span class="deck-mode-title">{{ title }}</span>
         {% if body %}<span class="deck-mode-body">{{ body }}</span>{% endif %}
-        <span class="deck-mode-go">{{ go }} &rarr;</span>
+        {# the swap row's go line is the picker's answer, not the caller's
+           sentence, and js/ways.js rewrites it when the select moves #}
+        <span class="deck-mode-go">{% if to_swap %}Make this deck
+            {{ swap_axes[(chosen.split(':')[0], chosen.split(':')[1])].goal }}{% else %}{{ go }}{% endif %} &rarr;</span>
     </button>
+    {# OUTSIDE the button: opening a select inside one submits the form.
+       every row into the tool draws it, so no way in is stuck on one axis #}
+    {% if to_swap %}
+    <label class="deck-mode-axis">Make it
+        <select name="goal" aria-label="which way to change the deck">
+            {% for pair, spec in swap_axes.items() %}
+            <option value="{{ pair[0] }}:{{ pair[1] }}"
+                {%- if pair[0] ~ ':' ~ pair[1] == chosen %} selected{% endif %}>{{ spec.goal }}</option>
+            {% endfor %}
+        </select>
+    </label>
+    {% endif %}
     {% if caller %}{{ caller() }}{% endif %}
 </form>
 {% endmacro %}

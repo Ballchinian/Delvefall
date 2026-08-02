@@ -280,8 +280,11 @@ def feature_flags():
     #deck_min rides along because the paste box and the reading both quote the
     #floor, and the hub renders from two places with different arguments: passed
     #by hand, one of them eventually says a stale number
+    #the axes ride along for the same reason: every deckways row pointing at
+    #/deck/swap draws the picker, and a caller passing them by hand can forget
     return {"line_tags_on": LINE_TAGS, "kofi_url": KOFI_URL, "running_cost": RUNNING_COST,
-            "deck_min": DECK_MIN_FOR_RANK}
+            "deck_min": DECK_MIN_FOR_RANK, "swap_axes": SWAP_AXES,
+            "swap_default": SWAP_DEFAULT}
 
 
 def card_has_attribution(conn, oracle_id):
@@ -3033,8 +3036,7 @@ def deck_open():
                            did=deck_did(),
                            matched=len(ids), missing=missing,
                            deck_name=name, commander=commander,
-                           leaders=leaders, picker=picker,
-                           swap_axes=SWAP_AXES, swap_default=SWAP_DEFAULT)
+                           leaders=leaders, picker=picker)
 
 
 @app.route("/deck/view", methods=["POST"])
@@ -3134,8 +3136,7 @@ def deck_read():
                            #from a reading without pasting twice. it rides the
                            #page rather than a session for the same reason as
                            #everything else here: there is nothing to store
-                           pasted=text[:DECK_MAX_CHARS], swap_axes=SWAP_AXES,
-                           swap_default=SWAP_DEFAULT)
+                           pasted=text[:DECK_MAX_CHARS])
 
 
 @app.route("/deck/found", methods=["POST"])
@@ -3372,13 +3373,10 @@ def archidekt_deck(deck_id):
 
 #----- the swap tool: the lens with a hand on it -----
 
-#the axis the page opens on, and for now the only one it offers. the machinery
-#below is generic over all eight (four fields, two directions each, the same
-#four the search sort has), because it is one code path and writing it for one
-#axis would have meant writing it twice. what is deliberately NOT generic yet
-#is the interface: the loop is the risky part of this feature, not the axes,
-#so it gets proven on one before the other seven go on a control
-SWAP_DEFAULT = ("salt", "asc")
+#where every row into the tool starts unless it was told otherwise. cheaper,
+#because a budget alternative is the ask that holds up whatever the page before
+#it was about. all eight are on the control, see partials/deckways.html
+SWAP_DEFAULT = ("price", "asc")
 
 
 def deck_swappable(conn, oracle_ids, currency):

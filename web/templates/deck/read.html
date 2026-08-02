@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% import "partials/deckways.html" as ways %}
+{% import "partials/deckways.html" as ways with context %}
 
 {% block title %}{{ deck_name or 'Your deck' }} through the lens - Delvefall{% endblock %}
 
@@ -45,39 +45,15 @@
                           whatever has been changed since it was imported.",
                     name=deck_name, commander=commander, did=did) }}
 
-        {# this row FOLLOWS the standing on screen, and is absent on
-           originality, which has no swap axis. the pager fills the axis in and
-           rewrites the go line.
-
-           the `if swaps` is load-bearing, not tidiness: the fields read
-           swaps.salt, and a deck under min_cards reached them with an empty
-           dict and 500'd the whole page, losing the paste #}
-        {% if swaps %}
-        <form class="deck-mode" id="deck-swap-start" method="post" action="/deck/swap" hidden>
-            <input type="hidden" name="list" value="{{ pasted }}">
-            {# carried on so every swap made over there writes itself onto the
-               right saved deck. see deck_did() #}
-            <input type="hidden" name="did" value="{{ did }}">
-            <input type="hidden" name="name" value="{{ deck_name }}">
-            <input type="hidden" name="commander" value="{{ commander }}">
-            <input type="hidden" name="seen" value="1">
-            {# the pager rewrites these: the axis depends on which standing is
-               on screen and which end of it is being read #}
-            <input type="hidden" name="axis" value="{{ swaps.salt.axis }}">
-            <input type="hidden" name="dir" value="{{ swaps.salt.dir }}">
-            <button type="submit">
-                {# hand written rather than off the macro, because the pager
-                   rewrites its axis, so it carries the mark itself #}
-                <i class="mode-mark mode-change" aria-hidden="true"></i>
-                <span class="deck-mode-title">Change it</span>
-                <span class="deck-mode-body">Walk the deck one card at a time, worst first,
-                and swap what you want to. Nothing changes until you copy the new list out
-                at the end.</span>
-                <span class="deck-mode-go" id="deck-swap-goal">Make this deck
-                {{ swaps.salt.goal }} &rarr;</span>
-            </button>
-        </form>
-        {% endif %}
+        {# ALWAYS drawn, whatever panel is on screen: the pager moves the picker
+           to whichever axis the reading suggests, and originality, which
+           suggests none, leaves it wherever it was #}
+        <div id="deck-swap-start">
+            {{ ways.way("/deck/swap", "Change it", "", pasted,
+                        body="Walk the deck one card at a time, worst first, and swap what
+                              you want to. What you change is kept in this browser.",
+                        name=deck_name, commander=commander, did=did) }}
+        </div>
     </div>
     {% if swaps %}
     <script id="deck-swap-axes" type="application/json">{{ swaps | tojson }}</script>
@@ -97,4 +73,5 @@
 
 {% block scripts %}
 <script src="{{ static_url('js/standing.js') }}" defer></script>
+<script src="{{ static_url('js/ways.js') }}" defer></script>
 {% endblock %}
