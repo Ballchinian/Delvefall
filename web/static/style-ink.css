@@ -3387,6 +3387,10 @@ body.home main {
 .deck-cards .deck-card.is-over,
 .deck-card-grid .result.is-over { display: none; }
 
+/* the swap review folds the same way and off the same count, see changes.js */
+.swap-made .swap-made-row.is-over,
+.swap-pairs .swap-pair.is-over { display: none; }
+
 /* quiet until the row is hovered: the row's job is to open the deck */
 .deck-recent-tools {
     display: flex;

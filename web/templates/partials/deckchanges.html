@@ -14,11 +14,19 @@
     <p class="deck-section-note" id="deck-changes-note"></p>
     <ul class="swap-made" id="deck-changes-list"></ul>
 
-    {# the same swaps as pictures, folded #}
+    {# the same swaps as pictures, folded. the count below governs BOTH, so the
+       pictures never disagree with the names about which twelve these are #}
     <details class="deck-card-open swap-pairs-box" id="deck-changes-pics">
         <summary>View the swapped card images</summary>
         <div class="swap-pairs" id="deck-changes-pairs"></div>
     </details>
+
+    {# under the pictures, or a deck with thirty swaps pushes the fold off the
+       screen with a button that looks like it belongs to the list above it #}
+    <div class="deck-card-more" id="deck-changes-more" hidden>
+        <button type="button" class="deck-card-more-btn" id="deck-changes-more-btn"></button>
+        <span class="deck-card-more-left" id="deck-changes-left"></span>
+    </div>
 </div>
 
 {# the cards that came IN, on their own: replacing a list wholesale loses the

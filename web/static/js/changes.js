@@ -9,6 +9,18 @@ import { el, cardLink, pairCard, swapPair, fitText } from "dom";
 
 var $ = function (id) { return document.getElementById(id); };
 
+//a batch at a time, same as every other card list on the site. a deck walked a
+//few times carries thirty pairs, and the block is about the ones you just made
+var SHOW = 12;
+
+//kept across repaints: a revert redraws the whole list, and snapping back to the
+//first twelve would lose the place of whoever pressed the button three times.
+//one block per page, so one count is the whole state
+var shown = SHOW;
+
+//what the last paint was given, so the button can repaint without the caller
+var lastState = null, lastOpts = null;
+
 /* the same shapes parse_decklist strips server side, so a line reads here as
    the card it names and nothing else */
 var LINE_SB = /^\s*SB:\s*/i;
@@ -83,6 +95,31 @@ export function carryList(text) {
         .forEach(function (f) { f.value = text; });
 }
 
+/* the reveal button, wired once and relabelled on every paint. it repaints
+   through paintChanges rather than moving classes itself, so a revealed row is
+   built by the same code as the first twelve, "put it back" and all */
+function paintMore(total) {
+    var more = $("deck-changes-more");
+    if (!more) return;
+    var left = total - shown;
+    more.hidden = left <= 0;
+    var label = $("deck-changes-left");
+    if (label) label.textContent = left > 0 ? left + " more" : "";
+    var btn = $("deck-changes-more-btn");
+    if (!btn) return;
+    //clamped, or the label counts down through zero
+    btn.textContent = left >= SHOW ? "Show " + SHOW + " more" : "Show the last " + left;
+    if (btn.dataset.wired) return;
+    btn.dataset.wired = "1";
+    btn.addEventListener("click", function () {
+        shown = shown + SHOW;
+        paintChanges(lastState, lastOpts);
+        //the pairs revealed with them are new frames, and only if they are open
+        var pics = $("deck-changes-pics");
+        if (pics && pics.open) enhanceCardFrames(pics);
+    });
+}
+
 //a "put it back" hung off whatever row it belongs to
 function undo(parent, label, i, fn) {
     var b = el("button", "swap-undo", parent, label);
@@ -122,7 +159,11 @@ function wireCopy(btnId, boxId, said) {
 */
 export function paintChanges(state, opts) {
     opts = opts || {};
+    lastState = state;
+    lastOpts = opts;
     var swaps = state.swaps || [];
+    //reverts can take the list below what was revealed
+    shown = Math.max(SHOW, Math.min(shown, swaps.length));
 
     var box = $("deck-changes");
     if (box) {
@@ -140,6 +181,12 @@ export function paintChanges(state, opts) {
             li.appendChild(cardLink(s["in"].name, "swap-made-in"));
 
             var row = swapPair(pairs, s, opts.draw || pairCard);
+            /* BUILT and then hidden, not skipped: a revert works off the index
+               of a row, and the pictures fold has to hold the same twelve */
+            if (i >= shown) {
+                li.classList.add("is-over");
+                row.classList.add("is-over");
+            }
             /* on the name row AND on the picture. the pair's names the card,
                since by then two of them are on screen */
             if (opts.onRevert) {
@@ -148,6 +195,7 @@ export function paintChanges(state, opts) {
             }
         });
         box.hidden = !swaps.length;
+        paintMore(swaps.length);
         //enhanceCardFrames marks what it has done, so reopening is safe
         var pics = $("deck-changes-pics");
         if (pics && !pics.dataset.wired) {
