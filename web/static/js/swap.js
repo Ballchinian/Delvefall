@@ -514,10 +514,27 @@ import { find, patch } from "decks";
            rebuilt from the deck as IMPORTED, because the list this page holds
            would apply the carried swaps twice */
         var built = rebuild(baseList, swaps);
-        paintChanges({swaps: swaps, added: addedList(swaps.slice(carried)),
+        /* THIS VISIT on both blocks, matching the new cards box beside it. the
+           whole history is /deck/view's, and the note below points at it */
+        var mine = swaps.slice(carried);
+        paintChanges({swaps: mine, added: addedList(mine),
                       newList: built, text: D.text, goal: D.goal},
-                     {draw: build, onRevert: revert,
-                      addedNote: "The cards this session added, on their own."});
+                     {draw: build,
+                      //offset back into the full list, which is what a revert acts on
+                      onRevert: function (i) { revert(i + carried); },
+                      addedNote: "The cards this session added, on their own.",
+                      note: carried
+                          ? carried + " earlier change" + (carried === 1 ? "" : "s")
+                            + " to this deck " + (carried === 1 ? "is" : "are")
+                            + " not listed here. View it has every one."
+                          : ""});
+
+        /* a deck the shelf could not take (full, or private browsing) has no
+           /deck/view holding its list, so this is the only copy there is */
+        if (!entry) {
+            var listBox = $("deck-list-box");
+            if (listBox) listBox.hidden = false;
+        }
 
         /* the fold is server rendered from the deck that ARRIVED, so every swap
            has left a tile showing a card no longer in it */

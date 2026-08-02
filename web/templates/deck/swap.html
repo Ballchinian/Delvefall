@@ -105,8 +105,12 @@
     <div id="swap-done" hidden>
         {# was a second copy here with its own ids, which is how this page and
            /deck/view came to disagree about the heading and about whether a
-           card could be put back #}
-        {% include "partials/deckchanges.html" %}
+           card could be put back.
+
+           whole_list off: this page is THIS VISIT, /deck/view is the deck. the
+           partial still renders the box, and swap.js reveals it for a deck the
+           shelf could not take, which has nowhere else for the list to live #}
+        {% with whole_list = false %}{% include "partials/deckchanges.html" %}{% endwith %}
 
         {# the script rewrites the swapped tiles, so this is the new deck and
            not the one that arrived #}
@@ -116,11 +120,17 @@
            finishing #}
         <p class="swap-again-line"><a class="swap-again" href="/deck">Read another deck</a></p>
 
-        {# carries the SWAPPED list. the field renders with the original,
+        {# carries the SWAPPED list. the fields render with the original,
            because that is all jinja knows at build time, and the script
-           overwrites it when the session finishes, the only moment the new
-           list exists #}
+           overwrites them as the session goes.
+
+           view first: the whole list and everything this deck has ever had
+           lives there now, so it is where the finished session hands off to #}
         <div class="deck-modes-pick deck-modes-after">
+            {{ ways.way("/deck/view", "View it", "See the cards", pasted,
+                        body="The deck as it now stands, as cards, with the whole list to
+                              copy and every change it has had, not only this visit's.",
+                        name=deck_name, commander=commander, did=did) }}
             {{ ways.way("/deck/read", "Compare it", "See the reading", pasted,
                         body="How original it is, how salty, what it costs, how played its
                               cards are and how old, with your swaps applied, against every

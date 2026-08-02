@@ -30,19 +30,26 @@
     <p class="deck-section-note"><span id="deck-added-note">The cards this deck has
     gained, on their own.</span> Paste these in if you would rather not reimport the whole
     deck and lose the categories you have set up.</p>
-    <textarea class="swap-output swap-output-short" id="deck-added" rows="6" readonly></textarea>
+    {# the h2 above is not a label as far as a form control is concerned #}
+    <textarea class="swap-output swap-output-short" id="deck-added" rows="6" readonly
+              aria-label="the cards this deck has gained, one per line"></textarea>
     <div class="swap-actions">
         <button type="button" class="swap-copy" id="deck-copy-added">Copy the new cards</button>
     </div>
 </div>
 
 {# open and not folded: the box is a fixed ten rows either way, so it costs the
-   same height whether the deck is 40 lines or 400 #}
-<div class="deck-list-box">
+   same height whether the deck is 40 lines or 400.
+
+   whole_list=false hides it for /deck/swap, whose job is this visit. still
+   RENDERED, because swap.js reveals it when the deck never reached the shelf
+   and /deck/view would therefore have nothing to show #}
+<div class="deck-list-box" id="deck-list-box"{% if whole_list is defined and not whole_list %} hidden{% endif %}>
     <h2>The whole list</h2>
     <p class="deck-section-note" id="deck-list-note">Every line this deck was read from,
     ready to paste back wherever it came from.</p>
-    <textarea class="swap-output" id="deck-list" rows="10" readonly>{{ list_text }}</textarea>
+    <textarea class="swap-output" id="deck-list" rows="10" readonly
+              aria-label="the whole decklist, ready to copy">{{ list_text }}</textarea>
     <div class="swap-actions">
         <button type="button" class="swap-copy" id="deck-copy-list">Copy the list</button>
     </div>
