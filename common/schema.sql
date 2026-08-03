@@ -71,6 +71,18 @@ ALTER TABLE cards ADD COLUMN IF NOT EXISTS salt real;
 ALTER TABLE cards ADD COLUMN IF NOT EXISTS layout text NOT NULL DEFAULT 'normal';
 ALTER TABLE cards ADD COLUMN IF NOT EXISTS image_back text NOT NULL DEFAULT '';
 
+--who can lead a deck, which "legendary creature" has not answered since 2025:
+--a legendary Vehicle or Spacecraft with a PRINTED POWER can, and so can the
+--planeswalkers whose text says so. computed by common/cards.can_command from
+--scryfall's own fields, because the printed power is not in this table and the
+--type line alone cannot tell The Eternity Elevator from the seven spacecraft
+--that are commanders.
+--
+--DEFAULT false is safe to land ahead of the ingest that fills it: every query
+--reading this ORs it with the old legendary-creature test, so an unfilled
+--column behaves exactly as the site did before the column existed
+ALTER TABLE cards ADD COLUMN IF NOT EXISTS can_command boolean NOT NULL DEFAULT false;
+
 --trigram index so the name searches (prefix, substring, fuzzy) stay quick
 CREATE INDEX IF NOT EXISTS cards_name_trgm ON cards USING gin (name gin_trgm_ops);
 

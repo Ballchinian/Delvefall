@@ -21,7 +21,7 @@ import psycopg
 from pgvector.psycopg import register_vector
 
 from common.cards import (HEADERS, keep_card, split_lines, get_text, get_image, get_back_image,
-                          bulk_uri, bulk_size, read_bulk)
+                          bulk_uri, bulk_size, read_bulk, can_command)
 from common.concept import CALIBRATION as CONCEPT_CALIBRATION
 
 BULK_URL = "https://api.scryfall.com/bulk-data"
@@ -344,7 +344,10 @@ def main():
                           "".join(c.get("color_identity", [])), usd, eur,
                           c.get("cmc", 0), c.get("game_changer", False),
                           c.get("legalities", {}).get("commander") == "legal",
-                          c.get("layout", "normal"), get_back_image(c), c.get("edhrec_rank"), rel))
+                          c.get("layout", "normal"), get_back_image(c), c.get("edhrec_rank"), rel,
+                          #the printed power it reads is not stored anywhere, so
+                          #this is the one chance to ask
+                          can_command(c)))
         old = have.get(c["oracle_id"])
         if old is None:
             new_cards.append((c, h))
@@ -378,8 +381,8 @@ def main():
         cur.executemany("""
             INSERT INTO cards (oracle_id, name, mana_cost, type_line, oracle_text, image, scryfall_uri, text_hash,
                                color_identity, price_usd, price_eur, cmc, game_changer, legal_commander,
-                               layout, image_back, edhrec_rank, released_at, updated_at)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, now())
+                               layout, image_back, edhrec_rank, released_at, can_command, updated_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, now())
             ON CONFLICT (oracle_id) DO UPDATE SET
                 name = EXCLUDED.name,
                 mana_cost = EXCLUDED.mana_cost,
@@ -398,16 +401,19 @@ def main():
                 image_back = EXCLUDED.image_back,
                 edhrec_rank = EXCLUDED.edhrec_rank,
                 released_at = EXCLUDED.released_at,
+                can_command = EXCLUDED.can_command,
                 updated_at = now()
             WHERE (cards.name, cards.mana_cost, cards.type_line, cards.oracle_text, cards.image,
                    cards.scryfall_uri, cards.text_hash, cards.color_identity, cards.price_usd,
                    cards.price_eur, cards.cmc, cards.game_changer, cards.legal_commander,
-                   cards.layout, cards.image_back, cards.edhrec_rank, cards.released_at)
+                   cards.layout, cards.image_back, cards.edhrec_rank, cards.released_at,
+                   cards.can_command)
                   IS DISTINCT FROM
                   (EXCLUDED.name, EXCLUDED.mana_cost, EXCLUDED.type_line, EXCLUDED.oracle_text, EXCLUDED.image,
                    EXCLUDED.scryfall_uri, EXCLUDED.text_hash, EXCLUDED.color_identity, EXCLUDED.price_usd,
                    EXCLUDED.price_eur, EXCLUDED.cmc, EXCLUDED.game_changer, EXCLUDED.legal_commander,
-                   EXCLUDED.layout, EXCLUDED.image_back, EXCLUDED.edhrec_rank, EXCLUDED.released_at)
+                   EXCLUDED.layout, EXCLUDED.image_back, EXCLUDED.edhrec_rank, EXCLUDED.released_at,
+                   EXCLUDED.can_command)
         """, card_rows)
 
     work = new_cards + changed_cards

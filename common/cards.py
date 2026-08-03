@@ -49,6 +49,41 @@ def get_text(card):
     return ""
 
 
+def can_command(card):
+    """Can this card be somebody's commander?
+
+    Four ways in, checked against scryfall's own is:commander over the whole
+    pool: it agrees on all 3609 of them bar Grist, the Hunger Tide, which is a
+    creature in every zone except the battlefield and says so in words no
+    predicate should try to read.
+
+    THE FRONT FACE decides, always. a transform card's type_line carries both
+    faces joined by //, and the back being legendary is nothing to do with who
+    can lead a deck: Akki Lavarunner // Tok-Tok, Volcano Born is not a commander.
+
+    the PRINTED POWER is what makes a legendary Vehicle or Spacecraft eligible,
+    and it is not optional to check: of the 36 legendary vehicles and spacecraft
+    in the pool, the 33 with a printed power are commanders and the 3 without
+    (The Eternity Elevator among them) are not. a type line alone cannot tell
+    them apart.
+    """
+    faces = card.get("card_faces") or []
+    front = faces[0] if faces else card
+    #the type line is the CARD's on most layouts and the face's on split ones
+    types = (front.get("type_line") or card.get("type_line") or "")
+    front_types = types.split("//")[0]
+    if "Legendary" not in front_types:
+        return False
+    if "Creature" in front_types:
+        return True
+    #a Background is only ever half of a pair, and is still a commander
+    if "Background" in front_types:
+        return True
+    if front.get("power") is not None or (not faces and card.get("power") is not None):
+        return True
+    return "can be your commander" in (get_text(card) or "").lower()
+
+
 def get_image(card):
     if "image_uris" in card:
         return card["image_uris"].get("normal", "")

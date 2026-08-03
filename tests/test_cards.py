@@ -7,7 +7,79 @@
 #the em dashes in the data are real: scryfall prints them, and reading them is
 #the cleaner's job
 
-from common.cards import REMINDER_KEYWORDS, clean_line, reminder_is_the_rule
+from common.cards import REMINDER_KEYWORDS, can_command, clean_line, reminder_is_the_rule
+
+
+class TestCanCommand:
+    #who can lead a deck, which stopped being "legendary creature" in 2025. every
+    #shape below is a real card, and the whole rule was checked against scryfall's
+    #own is:commander over all 4226 legendary cards: it agrees bar Grist, below.
+    #
+    #the ingest is the only side that can answer this, the printed power not being
+    #a column on the cards table
+
+    def legend(self, types, **kw):
+        return dict({"type_line": types, "oracle_text": ""}, **kw)
+
+    def test_a_legendary_creature_still_leads(self):
+        assert can_command(self.legend("Legendary Creature — Elf Warrior", power="1"))
+
+    def test_a_plain_legend_with_no_body_cannot(self):
+        #Legendary Artifact, no printed power, says nothing: The Eternity Elevator
+        assert not can_command(self.legend("Legendary Artifact — Spacecraft"))
+
+    def test_a_spacecraft_with_a_printed_power_can(self):
+        #the user visible bug: 7 of the 8 legendary spacecraft are commanders,
+        #and only the printed power tells them from the one that is not
+        assert can_command(self.legend("Legendary Artifact — Spacecraft",
+                                       power="4", toughness="5"))
+
+    def test_a_legendary_vehicle_can(self):
+        assert can_command(self.legend("Legendary Artifact — Vehicle",
+                                       power="4", toughness="4"))
+
+    def test_a_planeswalker_that_says_so_can(self):
+        assert can_command(self.legend(
+            "Legendary Planeswalker — Freyalise",
+            oracle_text="Freyalise, Llanowar's Fury can be your commander."))
+
+    def test_a_planeswalker_that_does_not_say_so_cannot(self):
+        assert not can_command(self.legend("Legendary Planeswalker — Jace"))
+
+    def test_a_background_can(self):
+        #only ever half of a pair, and still a commander
+        assert can_command(self.legend("Legendary Enchantment — Background"))
+
+    def test_a_nonlegendary_card_never_can(self):
+        assert not can_command(self.legend("Creature — Elf Warrior", power="1"))
+        assert not can_command(self.legend("Artifact — Vehicle", power="4"))
+
+    def test_the_front_face_decides(self):
+        #Akki Lavarunner // Tok-Tok, Volcano Born. the back being legendary is
+        #nothing to do with who can lead a deck, and a rule reading the whole
+        #type line makes 44 cards commanders that are not
+        card = {"type_line": "Creature — Goblin Warrior // Legendary Creature — Goblin Spirit",
+                "card_faces": [{"type_line": "Creature — Goblin Warrior", "power": "1",
+                                "oracle_text": "Haste"},
+                               {"type_line": "Legendary Creature — Goblin Spirit",
+                                "power": "2", "oracle_text": "Protection from red"}]}
+        assert not can_command(card)
+
+    def test_a_legendary_front_face_still_leads(self):
+        card = {"type_line": "Legendary Creature — Human // Legendary Planeswalker",
+                "card_faces": [{"type_line": "Legendary Creature — Human", "power": "2",
+                                "oracle_text": ""},
+                               {"type_line": "Legendary Planeswalker", "oracle_text": ""}]}
+        assert can_command(card)
+
+    def test_grist_is_the_known_miss(self):
+        #a creature in every zone except the battlefield, said in words no
+        #predicate should try to read. one card in the whole pool, and the deck
+        #picker is a shortcut rather than a gate, so it is typed by hand instead
+        assert not can_command(self.legend(
+            "Legendary Planeswalker — Grist",
+            oracle_text="As long as Grist, the Hunger Tide isn't on the "
+                        "battlefield, it's a 1/1 Insect creature."))
 
 
 class TestReminderIsTheRule:

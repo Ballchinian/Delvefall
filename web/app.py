@@ -1007,6 +1007,26 @@ def build_lines(card, picked_idx):
     return shown, picked
 
 
+#who can lead a deck, in one place, because two pages ask and a rule enforced in
+#one of them is not a rule: the "commanders only" filter and the deck lens's
+#"who's the commander?" picker.
+#
+#`can_command` is computed at ingest by common/cards.can_command, which is the
+#only side that can see a card's PRINTED POWER: since 2025 a legendary Vehicle or
+#Spacecraft with one can be a commander, and the type line alone cannot tell The
+#Eternity Elevator apart from the seven spacecraft that can.
+#
+#the OR is a safety net and stays: a database whose ingest has not run since the
+#column landed reads false everywhere, and this keeps the old answer rather than
+#emptying the picker. front face only, always, because a transform card's type
+#line carries both and only the front decides.
+#
+#%% like SALT_BASIC_SQL, and for the same reason: this is spliced into queries
+#that carry parameters, so psycopg reads a lone % as a placeholder
+COMMANDER_SQL = ("(c.can_command OR (split_part(c.type_line, '//', 1) ILIKE '%%Legendary%%'"
+                 " AND split_part(c.type_line, '//', 1) ILIKE '%%Creature%%'))")
+
+
 def filter_sql(filters):
     #turns the filters into conditions on the cards table. returns a snippet
     #starting with AND so it glues straight onto the candidate query, plus
@@ -1064,15 +1084,7 @@ def filter_sql(filters):
         where += " AND c.type_line ILIKE ANY(%s)"
         params.append(["%" + t + "%" for t in filters["types"]])
     if filters["cmdr"]:
-        #commander targets. both words have to be in the FRONT face's type
-        #line ("Legendary Creature - Elf Warrior"), matching them separately
-        #also catches things like "Legendary Enchantment Creature". front
-        #face only: a double-faced type line carries both faces joined by //
-        #and only the front decides who can lead a deck (Invasion of Theros
-        #is a Battle whose back face is a Legendary Enchantment Creature)
-        where += " AND split_part(c.type_line, '//', 1) ILIKE %s AND split_part(c.type_line, '//', 1) ILIKE %s"
-        params.append("%Legendary%")
-        params.append("%Creature%")
+        where += " AND " + COMMANDER_SQL
     if filters["gc"]:
         where += " AND NOT c.game_changer"
     if not filters["illegal"]:
@@ -2963,16 +2975,15 @@ def deck_did():
 
 
 def deck_leaders(conn, oracle_ids):
-    #front face legendary creatures, the same test the search's "commanders only"
-    #filter uses. the picker falls back to the whole list when a pile has none
+    #whoever in this pile could lead it, through COMMANDER_SQL, the same test the
+    #search's "commanders only" filter uses. the picker falls back to the whole
+    #list when a pile has none
     try:
         return [r["name"] for r in conn.execute("""
-            SELECT name FROM cards
-            WHERE oracle_id = ANY(%s::uuid[])
-              AND split_part(type_line, '//', 1) ILIKE %s
-              AND split_part(type_line, '//', 1) ILIKE %s
+            SELECT name FROM cards c
+            WHERE oracle_id = ANY(%s::uuid[]) AND """ + COMMANDER_SQL + """
             ORDER BY name
-        """, ([str(o) for o in oracle_ids], "%Legendary%", "%Creature%")).fetchall()]
+        """, ([str(o) for o in oracle_ids],)).fetchall()]
     except Exception:
         return []
 
