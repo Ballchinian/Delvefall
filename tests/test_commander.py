@@ -5,7 +5,7 @@
 #the pairing is used to NAME a pasted deck, so a wrong pair is a deck called
 #after a card in its 99. it returns nothing rather than guess.
 
-from app import commander_pair, partner_kind
+from app import commander_pair, header_pair, parse_commanders, partner_kind
 
 
 def card(name, text="", types="Legendary Creature — Human"):
@@ -51,6 +51,59 @@ class TestPartnerKind:
         #the half that auto-matches the next mechanic of this family
         assert partner_kind(card("Future", "Crewmate (You can have two commanders "
                                            "if both have crewmate.)")) == "second commander"
+
+
+class TestParseCommanders:
+    #the export's own Commander board. parse_decklist stays blind to boards, so
+    #this is the only thing that reads one
+
+    def test_moxfield(self):
+        assert parse_commanders(
+            "Commander\n1 Tymna the Weaver\n1 Thrasios, Triton Hero\n\n"
+            "Deck\n1 Sol Ring\n") == ["Tymna the Weaver", "Thrasios, Triton Hero"]
+
+    def test_archidekt_counts_the_board_and_stamps_the_set(self):
+        assert parse_commanders(
+            "Commander (2)\n1x Okaun, Eye of Chaos (BBD) 1\n"
+            "1x Zndrsplt, Eye of Wisdom (BBD) 2\n\nCreatures (1)\n1x Krenko\n"
+        ) == ["Okaun, Eye of Chaos 1", "Zndrsplt, Eye of Wisdom 2"]
+
+    def test_no_header_says_nothing(self):
+        assert parse_commanders("1 Sol Ring\n1 Forest\n") == []
+
+    def test_the_next_board_ends_it_without_a_blank_line(self):
+        assert parse_commanders(
+            "Commander\n1 Tymna the Weaver\nDeck\n1 Sol Ring\n") == ["Tymna the Weaver"]
+
+    def test_a_header_further_down_still_reads(self):
+        assert parse_commanders(
+            "Creatures (2)\n1 Krenko\n1 Goblin Piker\n\nCommander\n1 Tymna the Weaver\n"
+        ) == ["Tymna the Weaver"]
+
+    def test_capped_at_the_two_the_rules_allow(self):
+        assert parse_commanders("Commander\n1 A\n1 B\n1 C\n") == ["A", "B"]
+
+
+class TestHeaderPair:
+    #the header names them, we resolve them: our spelling, our order
+
+    def rows(self, *names):
+        return [{"name": n, "oracle_text": "", "type_line": "Legendary Creature"} for n in names]
+
+    def test_resolves_to_our_own_spelling(self):
+        got = header_pair(["tymna the weaver"], self.rows("Tymna the Weaver", "Krenko"))
+        assert got == ["Tymna the Weaver"]
+
+    def test_a_stranded_collector_number_still_matches(self):
+        #archidekt leaves it behind once the set code is stripped
+        got = header_pair(["Okaun, Eye of Chaos 1"], self.rows("Okaun, Eye of Chaos"))
+        assert got == ["Okaun, Eye of Chaos"]
+
+    def test_a_name_not_in_the_deck_is_dropped(self):
+        assert header_pair(["Someone Else"], self.rows("Krenko")) == []
+
+    def test_it_beats_no_guessing_at_all(self):
+        assert header_pair([], self.rows("Krenko")) == []
 
 
 class TestCommanderPair:

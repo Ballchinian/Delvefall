@@ -2741,6 +2741,45 @@ def dek_to_lines(text):
     return "\n".join(lines) if lines else None
 
 
+#DECK_HEADERS matches this too, so try this one FIRST
+DECK_COMMANDER_HEAD = re.compile(r"^commanders?\b[:\s]*$", re.I)
+
+
+def parse_commanders(text):
+    #names under a Commander header, max 2. the one thing the pile cannot say and
+    #the export can. returns them AS WRITTEN, the caller resolves them
+    out = []
+    inside = False
+    text = csv_to_lines(text) or dek_to_lines(text) or text
+    for raw in (text or "")[:DECK_MAX_CHARS].splitlines():
+        line = raw.strip()
+        if not line:
+            #a blank line ends the board
+            if inside:
+                break
+            continue
+        if line.startswith("//") or line.startswith("#"):
+            continue
+        line = DECK_HASH_TAIL.sub("", DECK_SIDEBOARD.sub("", line)).strip()
+        whole = DECK_TRAILERS.sub(" ", line).strip()
+        if DECK_COMMANDER_HEAD.match(whole):
+            inside = True
+            continue
+        if DECK_HEADERS.match(whole):
+            if inside:
+                break
+            continue
+        if not inside:
+            continue
+        m = DECK_COUNT.match(line)
+        name = DECK_TRAILERS.sub(" ", line[m.end():]).strip() if m else whole
+        if name:
+            out.append(name)
+        if len(out) == 2:
+            break
+    return out
+
+
 def parse_decklist(text):
     #returns (matched oracle ids, names we could not find, copies of the matched).
     #blind to WHICH board a card is in: the lens reads the whole pile.
@@ -3057,6 +3096,35 @@ def commander_pair(cards):
     return []
 
 
+def header_pair(said, rows):
+    #the export named them, so no guessing: resolve to our own spelling and keep
+    #the header's order, which is the one the deck is written under
+    if not said:
+        return []
+    by_norm = {deck_norm(r["name"]): r["name"] for r in rows}
+    out = []
+    for name in said:
+        #whole name first, THEN with a stranded collector number off: twelve real
+        #cards end in a digit. same order parse_decklist uses
+        got = by_norm.get(deck_norm(name))
+        if got is None:
+            trimmed = DECK_TRAILING_NUM.sub("", name).strip()
+            got = by_norm.get(deck_norm(trimmed)) if trimmed and trimmed != name else None
+        if got and got not in out:
+            out.append(got)
+    return out[:2]
+
+
+def leader_picker(rows):
+    #every candidate with the ones it may sit beside, worked out HERE so the rule
+    #lives in python only. the browser reads mates and never reasons about them
+    return [{"name": a["name"],
+             "mates": [b["name"] for b in rows
+                       if b["name"] != a["name"]
+                       and (pairs_with(a, b) or pairs_with(b, a))]}
+            for a in rows]
+
+
 def deck_leaders(conn, oracle_ids):
     #whoever in this pile could lead it, through COMMANDER_SQL, the same test the
     #search's "commanders only" filter uses. the picker falls back to the whole
@@ -3179,16 +3247,15 @@ def deck_open():
         missing = []
     with pool.connection() as conn:
         rows = deck_leaders(conn, ids)
-        #one legend has already answered the question, and so has a pair the
-        #rules allow: a partner deck holds TWO, so "exactly one" never fired for
-        #one and it fell back to being called "100 cards"
+        #the export's own Commander board beats any guess off the pile
         if not commander:
-            pair = commander_pair(rows)
+            pair = header_pair(parse_commanders(text), rows) or commander_pair(rows)
             if pair:
                 commander = pair[0]
                 if len(pair) == 2:
                     name = name or " + ".join(pair)
-        picker = [r["name"] for r in rows] or deck_names(conn, ids)
+        picker = leader_picker(rows) or [{"name": n, "mates": []}
+                                         for n in deck_names(conn, ids)]
     name = name or commander
     #the modes offered rather than assumed: it costs a click and buys proof the
     #list arrived whole, an import that read 40 of your 100 cards being the

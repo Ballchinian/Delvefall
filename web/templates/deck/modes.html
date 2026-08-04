@@ -46,6 +46,19 @@
         <span class="deck-hub-note">Names the deck unless you give it one below, and only
         in this browser. Nothing is sent anywhere or saved on our side.</span>
 
+        {# revealed by modes.js only when the card above can HAVE one, and filled
+           on its own when the deck holds exactly one card it may sit beside.
+           its options are that card's mates, worked out server side #}
+        <div class="deck-lead-pair" id="deck-lead-pair" hidden>
+            <label for="deck-lead-two">And their partner?</label>
+            <div class="deck-lead-search">
+                <input id="deck-lead-two" type="text" spellcheck="false"
+                       autocomplete="off" placeholder="Two letters is usually enough">
+                <button type="button" class="deck-lead-clear" id="deck-lead-two-clear">Clear</button>
+                <div class="deck-lead-hits" id="deck-lead-two-hits"></div>
+            </div>
+        </div>
+
         {# the escape hatch for the person running three Krenko decks #}
         <label for="deck-name-input" class="deck-lead-second">Call it something else</label>
         <div class="deck-lead-search">

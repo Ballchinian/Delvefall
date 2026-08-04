@@ -11,11 +11,19 @@ import { create, find, patch } from "decks";
 (function () {
     var input = document.getElementById("deck-lead-input");
     var hits = document.getElementById("deck-lead-hits");
+    var two = document.getElementById("deck-lead-two");
+    var twoHits = document.getElementById("deck-lead-two-hits");
+    var pairBox = document.getElementById("deck-lead-pair");
     var nameInput = document.getElementById("deck-name-input");
     var title = document.getElementById("deck-title");
     var dataEl = document.getElementById("deck-lead-data");
     if (!input || !hits || !dataEl) return;
-    var names = JSON.parse(dataEl.textContent) || [];
+
+    //[{name, mates}]. mates is who that card may sit beside, worked out SERVER
+    //side, so the partner rule is written in python and nowhere else
+    var cards = JSON.parse(dataEl.textContent) || [];
+    var matesOf = {};
+    cards.forEach(function (c) { matesOf[c.name.toLowerCase()] = c.mates || []; });
 
     function fields(cls) {
         return Array.prototype.slice.call(document.querySelectorAll(cls));
@@ -25,15 +33,35 @@ import { create, find, patch } from "decks";
        never disagree about the name */
     function label() {
         var typed = nameInput ? nameInput.value.trim() : "";
-        return typed || input.value.trim();
+        if (typed) return typed;
+        var lead = input.value.trim();
+        var mate = (pairBox && !pairBox.hidden && two) ? two.value.trim() : "";
+        return mate ? lead + " + " + mate : lead;
+    }
+
+    /* the partner slot exists only when the card above can HAVE one, and fills
+       itself when the deck holds exactly one card it may sit beside */
+    var lastLead = null;
+
+    function syncPair() {
+        if (!pairBox || !two) return;
+        var lead = input.value.trim().toLowerCase();
+        var mates = matesOf[lead] || [];
+        pairBox.hidden = !mates.length;
+        twoPick.setList(mates);
+        //only when the FIRST answer moved, or this wipes what is being typed
+        if (lead === lastLead) return;
+        lastLead = lead;
+        two.value = mates.length === 1 ? mates[0] : "";
     }
 
     function sync() {
+        syncPair();
         var lead = input.value.trim();
         fields(".deck-commander-field").forEach(function (f) { f.value = lead; });
         fields(".deck-name-field").forEach(function (f) { f.value = label(); });
         if (title) title.textContent = label() || "Your deck";
-        if (nameInput) nameInput.placeholder = lead || "Named after the commander";
+        if (nameInput) nameInput.placeholder = label() || "Named after the commander";
         /* EVERY way of changing the name comes through here, so the other half
            of this file listens for the event rather than the boxes */
         document.dispatchEvent(new CustomEvent("deck-named"));
@@ -52,109 +80,118 @@ import { create, find, patch } from "decks";
         return true;
     }
 
-    function pick(name) {
-        input.value = name;
-        sync();
-        draw();
-    }
+    /* both slots are the same control, so it is written once. combobox shape,
+       same as base.html's card suggest: a listbox the input owns, the highlight
+       announced through aria-activedescendant rather than a class nobody hears */
+    function combo(box, list, clearBtn, seed) {
+        var names = seed || [];
+        var active = -1;
+        box.setAttribute("role", "combobox");
+        box.setAttribute("aria-autocomplete", "list");
+        box.setAttribute("aria-expanded", "false");
+        box.setAttribute("aria-controls", list.id);
+        list.setAttribute("role", "listbox");
 
-    /* the combobox half, same shape as base.html's card suggest: the list is a
-       listbox the input owns, and the highlight is announced through
-       aria-activedescendant rather than living in a class nobody can see */
-    input.setAttribute("role", "combobox");
-    input.setAttribute("aria-autocomplete", "list");
-    input.setAttribute("aria-expanded", "false");
-    input.setAttribute("aria-controls", hits.id);
-    hits.setAttribute("role", "listbox");
-    var active = -1;
-
-    function rows() {
-        return Array.prototype.slice.call(hits.querySelectorAll(".suggestion"));
-    }
-
-    function mark() {
-        rows().forEach(function (row, i) {
-            row.classList.toggle("active", i === active);
-            row.setAttribute("aria-selected", i === active ? "true" : "false");
-        });
-        if (active < 0) input.removeAttribute("aria-activedescendant");
-        else input.setAttribute("aria-activedescendant", rows()[active].id);
-    }
-
-    function close() {
-        hits.style.display = "none";
-        input.setAttribute("aria-expanded", "false");
-        input.removeAttribute("aria-activedescendant");
-        active = -1;
-    }
-
-    /* .suggestion so the header's card search css styles these too */
-    function draw() {
-        var q = input.value.trim().toLowerCase();
-        hits.innerHTML = "";
-        active = -1;
-        /* the whole list when the box is empty, so a deck with one legend shows
-           it rather than nothing until somebody guesses what to type */
-        var show = names.filter(function (n) { return !q || loose(n, q); }).slice(0, 8);
-        if (show.length === 1 && show[0].toLowerCase() === q) {
-            close();
-            return;
+        function rows() {
+            return Array.prototype.slice.call(list.querySelectorAll(".suggestion"));
         }
-        show.forEach(function (n, i) {
-            var row = document.createElement("div");
-            row.className = "suggestion";
-            //aria-activedescendant points at an id, so every row needs one
-            row.id = hits.id + "-" + i;
-            row.setAttribute("role", "option");
-            row.setAttribute("aria-selected", "false");
-            row.textContent = n;
-            row.addEventListener("mousedown", function (e) {
-                /* mousedown, NOT click: otherwise the blur below closes the list
-                   out from under the pointer */
-                e.preventDefault();
-                pick(n);
+
+        function mark() {
+            rows().forEach(function (row, i) {
+                row.classList.toggle("active", i === active);
+                row.setAttribute("aria-selected", i === active ? "true" : "false");
             });
-            hits.appendChild(row);
+            if (active < 0) box.removeAttribute("aria-activedescendant");
+            else box.setAttribute("aria-activedescendant", rows()[active].id);
+        }
+
+        function close() {
+            list.style.display = "none";
+            box.setAttribute("aria-expanded", "false");
+            box.removeAttribute("aria-activedescendant");
+            active = -1;
+        }
+
+        function pick(name) {
+            box.value = name;
+            sync();
+            draw();
+        }
+
+        /* .suggestion so the header's card search css styles these too */
+        function draw() {
+            var q = box.value.trim().toLowerCase();
+            list.innerHTML = "";
+            active = -1;
+            /* the whole list when the box is empty, so a deck with one legend
+               shows it rather than nothing until somebody guesses what to type */
+            var show = names.filter(function (n) { return !q || loose(n, q); }).slice(0, 8);
+            if (show.length === 1 && show[0].toLowerCase() === q) return close();
+            show.forEach(function (n, i) {
+                var row = document.createElement("div");
+                row.className = "suggestion";
+                //aria-activedescendant points at an id, so every row needs one
+                row.id = list.id + "-" + i;
+                row.setAttribute("role", "option");
+                row.setAttribute("aria-selected", "false");
+                row.textContent = n;
+                row.addEventListener("mousedown", function (e) {
+                    /* mousedown, NOT click: otherwise the blur below closes the
+                       list out from under the pointer */
+                    e.preventDefault();
+                    pick(n);
+                });
+                list.appendChild(row);
+            });
+            if (!show.length) return close();
+            list.style.display = "block";
+            box.setAttribute("aria-expanded", "true");
+        }
+
+        box.addEventListener("keydown", function (e) {
+            if (list.style.display !== "block") return;
+            var n = rows().length;
+            if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+                e.preventDefault();
+                active = e.key === "ArrowDown" ? (active + 1) % n : (active - 1 + n) % n;
+                mark();
+            } else if (e.key === "Enter" && active >= 0) {
+                //only with a row picked, or Enter still submits the form as it should
+                e.preventDefault();
+                pick(rows()[active].textContent);
+            } else if (e.key === "Escape") {
+                close();
+            }
         });
-        if (!show.length) return close();
-        hits.style.display = "block";
-        input.setAttribute("aria-expanded", "true");
+
+        box.addEventListener("input", function () {
+            /* a typed name still counts: the picker is a shortcut, not a gate */
+            sync();
+            draw();
+        });
+        box.addEventListener("focus", draw);
+        box.addEventListener("blur", function () {
+            /* after the mousedown above has had its turn */
+            setTimeout(close, 120);
+        });
+        if (clearBtn) clearBtn.addEventListener("click", function () {
+            box.value = "";
+            sync();
+            draw();
+            box.focus();
+        });
+
+        return {setList: function (l) { names = l; }};
     }
 
-    input.addEventListener("keydown", function (e) {
-        if (hits.style.display !== "block") return;
-        var n = rows().length;
-        if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-            e.preventDefault();
-            active = e.key === "ArrowDown" ? (active + 1) % n : (active - 1 + n) % n;
-            mark();
-        } else if (e.key === "Enter" && active >= 0) {
-            //only with a row picked, or Enter still submits the form as it should
-            e.preventDefault();
-            pick(rows()[active].textContent);
-        } else if (e.key === "Escape") {
-            close();
-        }
-    });
+    //the partner slot is built FIRST: syncPair reaches for it on the first sync
+    var twoPick = (two && twoHits)
+        ? combo(two, twoHits, document.getElementById("deck-lead-two-clear"), [])
+        : {setList: function () {}};
+    combo(input, hits, document.getElementById("deck-lead-clear"),
+          cards.map(function (c) { return c.name; }));
 
-    input.addEventListener("input", function () {
-        /* a typed name still counts: the picker is a shortcut, not a gate */
-        sync();
-        draw();
-    });
-    input.addEventListener("focus", draw);
-    input.addEventListener("blur", function () {
-        /* after the mousedown above has had its turn */
-        setTimeout(close, 120);
-    });
     if (nameInput) nameInput.addEventListener("input", sync);
-
-    document.getElementById("deck-lead-clear").addEventListener("click", function () {
-        input.value = "";
-        sync();
-        draw();
-        input.focus();
-    });
     sync();
 })();
 
