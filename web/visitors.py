@@ -52,9 +52,12 @@ def todays_salt():
         conn.execute("INSERT INTO visit_salt (day, salt) VALUES (%s, %s) ON CONFLICT (day) DO NOTHING",
                      (day, secrets.token_hex(16)))
         salt = conn.execute("SELECT salt FROM visit_salt WHERE day = %s", (day,)).fetchone()["salt"]
-        conn.execute("""INSERT INTO visit_daily (day, uniques)
-                        SELECT day, count(*) FROM visit_seen WHERE day < %s GROUP BY day
-                        ON CONFLICT (day) DO UPDATE SET uniques = EXCLUDED.uniques""", (day,))
+        conn.execute("""INSERT INTO visit_daily (day, uniques, bots)
+                        SELECT day, count(*) FILTER (WHERE NOT bot),
+                                    count(*) FILTER (WHERE bot)
+                        FROM visit_seen WHERE day < %s GROUP BY day
+                        ON CONFLICT (day) DO UPDATE SET uniques = EXCLUDED.uniques,
+                                                        bots = EXCLUDED.bots""", (day,))
         conn.execute("DELETE FROM visit_seen WHERE day < %s", (day,))
         conn.execute("DELETE FROM visit_salt WHERE day < %s", (day,))
     _visit["day"] = day
@@ -77,6 +80,22 @@ def visitor_token(ip):
 #that page while the numbers keep arriving, only smaller
 PAGE_ENDPOINTS = {"home", "search", "unique", "precons", "precon", "deck", "guide",
                   "privacy", "support"}
+
+
+#substrings of a lowercased User-Agent. the crawlers carrying real volume name
+#themselves, since being recognised is how they stay unblocked, so a substring
+#reaches the ones that move the number.
+#
+#a COUNT and not a gate: the header is client supplied, so headless chrome on a
+#stock string passes as a person. the rate limit stays on the visitor token
+BOT_AGENTS = ("bot", "crawler", "spider", "slurp", "scrapy", "curl", "wget",
+              "python-requests", "httpx", "facebookexternalhit")
+
+
+def is_bot():
+    #an absent header is a script often enough to sit with them
+    ua = request.headers.get("User-Agent", "").lower()
+    return not ua or any(s in ua for s in BOT_AGENTS)
 
 
 #the tokens this worker already wrote today, so a second page view costs nothing.
@@ -107,8 +126,10 @@ def count_visit():
         if token in _visit_memo["seen"]:
             return
         with pool.connection() as conn:
-            conn.execute("INSERT INTO visit_seen (day, token) VALUES (%s, %s) ON CONFLICT DO NOTHING",
-                         (day, token))
+            #the flag rides the row rather than skipping it, so the day splits
+            #into people and bots instead of losing the second number
+            conn.execute("INSERT INTO visit_seen (day, token, bot) VALUES (%s, %s, %s) ON CONFLICT DO NOTHING",
+                         (day, token, is_bot()))
         #memoised only AFTER the insert lands, so a failed one is retried on the
         #next page view rather than remembered as done
         if len(_visit_memo["seen"]) < VISIT_MEMO_MAX:

@@ -183,7 +183,7 @@ CREATE TABLE IF NOT EXISTS meta (
 --
 --the salt is deleted once its day is over, which is what makes the stored tokens
 --permanently unresolvable; the raw ip is never written at all. visit_seen is
---cleared with it, and visit_daily is all that survives: one integer per day
+--cleared with it, and visit_daily is all that survives: two integers per day
 CREATE TABLE IF NOT EXISTS visit_salt (
     day  date PRIMARY KEY,
     salt text NOT NULL
@@ -192,12 +192,16 @@ CREATE TABLE IF NOT EXISTS visit_salt (
 CREATE TABLE IF NOT EXISTS visit_seen (
     day   date NOT NULL,
     token text NOT NULL,
+    bot   boolean NOT NULL DEFAULT false,
     PRIMARY KEY (day, token)
 );
 
+--uniques counts people and bots counts the rest, split on the flag above. rows
+--predating the column take the default, so their days read as all human
 CREATE TABLE IF NOT EXISTS visit_daily (
     day     date PRIMARY KEY,
-    uniques int NOT NULL
+    uniques int NOT NULL,
+    bots    int NOT NULL DEFAULT 0
 );
 
 --community tags from scryfall tagger, via the oracle_tags bulk file.

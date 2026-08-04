@@ -195,9 +195,18 @@ with pool.connection() as _conn:
     _conn.execute("""CREATE TABLE IF NOT EXISTS visit_seen (
         day   date NOT NULL,
         token text NOT NULL,
+        bot   boolean NOT NULL DEFAULT false,
         PRIMARY KEY (day, token)
     )""")
-    _conn.execute("CREATE TABLE IF NOT EXISTS visit_daily (day date PRIMARY KEY, uniques int NOT NULL)")
+    _conn.execute("""CREATE TABLE IF NOT EXISTS visit_daily (
+        day     date PRIMARY KEY,
+        uniques int NOT NULL,
+        bots    int NOT NULL DEFAULT 0
+    )""")
+    #the CREATEs reach a virgin database only, so a table that already exists
+    #needs the column added the way feedback.tag is above
+    _conn.execute("ALTER TABLE visit_seen ADD COLUMN IF NOT EXISTS bot boolean NOT NULL DEFAULT false")
+    _conn.execute("ALTER TABLE visit_daily ADD COLUMN IF NOT EXISTS bots int NOT NULL DEFAULT 0")
     #/privacy says an ip address is never stored, so any row still holding one has
     #to go. LENGTH tells them apart with nothing left over: a token is a sha256
     #hex digest, exactly 64 characters, and no address of either family reaches
