@@ -2974,13 +2974,98 @@ def deck_did():
                    if c.isalnum())
 
 
+#----- the decks that get to have two -----
+
+#the keyword at the head of a rules line, with or WITHOUT its reminder text: the
+#ability often prints bare, Jeska, Thrice Reborn being a lone "Partner" and Volo,
+#Itinerant Scholar a lone "Choose a Background", so reading the reminder alone
+#missed six cards
+PARTNER_KEYWORDS = ("Partner", "Choose a Background", "Doctor's companion",
+                    "Friends forever")
+PARTNER_LINE = re.compile(r"(?:^|\n)(?:" + "|".join(PARTNER_KEYWORDS) +
+                          r")(?=[ ,.:—-]|$)", re.I)
+
+#wizards' own templating for this whole family, and the half that catches the
+#NEXT mechanic of the shape without anyone editing the list above
+PARTNER_SAID = re.compile(r"you can have two commanders|as a second commander", re.I)
+
+#"Partner with Haldan, Avid Arcanist (When this creature enters...)". the name
+#runs to the reminder text or to the end of the line
+PARTNER_WITH = re.compile(r"(?:^|\n)Partner with ([^(\n]+)", re.I)
+
+
+def partner_kind(card):
+    #WHICH second-commander ability, not just whether: friends forever pairs with
+    #friends forever and never with partner, and "partner with X" pairs with the
+    #one card it names. checked against scryfall's four keyword searches over the
+    #whole pool, 187 cards and no misses
+    text = card.get("oracle_text") or ""
+    named = PARTNER_WITH.search(text)
+    if named:
+        return "with:" + " ".join(named.group(1).split()).rstrip(".").lower()
+    low = text.lower()
+    #before the bare-keyword check below, which "Partner—Friends forever" also matches
+    for word in ("friends forever", "doctor's companion", "choose a background"):
+        if word in low:
+            return word
+    hit = PARTNER_LINE.search(text)
+    if hit:
+        #"Partner—Character select" pairs only with the same variant
+        return text[hit.start():].lstrip("\n").split("(")[0].split("\n")[0].strip().lower()
+    #a shape nobody has printed yet, saying so in wizards' own words
+    return "second commander" if PARTNER_SAID.search(text) else ""
+
+
+#which type line the other half of these two carries, they being the only pairs
+#where one side holds the keyword and the other is identified by type
+PARTNER_HALVES = {"choose a background": "Background", "doctor's companion": "Doctor"}
+
+
+def pairs_with(a, b):
+    #could a sit beside b? asked one way round, so callers ask twice: a Background
+    #holds no keyword and it is the other half that names it
+    kind = partner_kind(a)
+    if not kind:
+        return False
+    if kind.startswith("with:"):
+        return kind[5:] == b["name"].lower()
+    if kind in PARTNER_HALVES:
+        return PARTNER_HALVES[kind] in (b.get("type_line") or "")
+    #the same ability on both, so friends forever never pairs with plain partner
+    return kind == partner_kind(b)
+
+
+def commander_pair(cards):
+    #the deck's commander, or its two, out of everything in the list that could
+    #lead it. 0, 1 or 2 names.
+    #
+    #EXACTLY TWO CANDIDATES IN THE WHOLE DECK, or nothing. a pasted list does not
+    #say who the commander is, and searching a longer list for a pair reads the
+    #wrong one: of the 166 precons, 15 hold a partner pair down in the 99 (Abzan
+    #Armor is led by Felothar and plays Ikra Shidiqi beside Sidar Kondo), and the
+    #Doctor Who decks hold several companions and several Doctors.
+    #
+    #this names the deck, so a wrong pair is a deck called after two cards it
+    #merely contains. ambiguity comes back empty and the picker asks
+    if len(cards) == 1:
+        return [cards[0]["name"]]
+    if len(cards) != 2:
+        return []
+    a, b = cards
+    if pairs_with(a, b) or pairs_with(b, a):
+        return sorted([a["name"], b["name"]])
+    return []
+
+
 def deck_leaders(conn, oracle_ids):
     #whoever in this pile could lead it, through COMMANDER_SQL, the same test the
     #search's "commanders only" filter uses. the picker falls back to the whole
-    #list when a pile has none
+    #list when a pile has none.
+    #
+    #the ROWS and not the names: commander_pair reads the text and the type line
     try:
-        return [r["name"] for r in conn.execute("""
-            SELECT name FROM cards c
+        return [dict(r) for r in conn.execute("""
+            SELECT name, type_line, oracle_text FROM cards c
             WHERE oracle_id = ANY(%s::uuid[]) AND """ + COMMANDER_SQL + """
             ORDER BY name
         """, ([str(o) for o in oracle_ids],)).fetchall()]
@@ -3070,9 +3155,13 @@ def deck_open():
             return deck_hub(error="Couldn't fetch that deck from " + site["name"] + ". It "
                                   "may be private, or they may be having a moment. "
                                   "Pasting the list below always works.", url=url)
-        #the one thing a pasted list cannot say. it only PRESELECTS the picker,
-        #so a wrong guess is one click to fix rather than a title nobody can change
+        #the one thing a pasted list cannot say, and the importers CAN: both sites
+        #keep the commanders in a board of their own, so a partner deck arrives
+        #naming both. it only PRESELECTS the picker, so a wrong guess is one click
+        #to fix rather than a title nobody can change
         commander = commander or (found[0] if found else "")
+        if not name and len(found) == 2:
+            name = " + ".join(found)
         name = name or commander or deck_name
     if not text.strip():
         return deck_hub(error="Paste a decklist, or give an Archidekt or Moxfield link.")
@@ -3089,11 +3178,17 @@ def deck_open():
     if request.form.get("seen"):
         missing = []
     with pool.connection() as conn:
-        leaders = deck_leaders(conn, ids)
-        #one legend has already answered the question, so it is filled in
-        if not commander and len(leaders) == 1:
-            commander = leaders[0]
-        picker = leaders or deck_names(conn, ids)
+        rows = deck_leaders(conn, ids)
+        #one legend has already answered the question, and so has a pair the
+        #rules allow: a partner deck holds TWO, so "exactly one" never fired for
+        #one and it fell back to being called "100 cards"
+        if not commander:
+            pair = commander_pair(rows)
+            if pair:
+                commander = pair[0]
+                if len(pair) == 2:
+                    name = name or " + ".join(pair)
+        picker = [r["name"] for r in rows] or deck_names(conn, ids)
     name = name or commander
     #the modes offered rather than assumed: it costs a click and buys proof the
     #list arrived whole, an import that read 40 of your 100 cards being the
@@ -3103,8 +3198,7 @@ def deck_open():
                            #COPIES, not distinct cards: this number's whole job
                            #is answering "did all of it arrive"
                            matched=copies, missing=missing,
-                           deck_name=name, commander=commander,
-                           leaders=leaders, picker=picker)
+                           deck_name=name, commander=commander, picker=picker)
 
 
 @app.route("/deck/view", methods=["POST"])
