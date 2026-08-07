@@ -15,8 +15,11 @@ bp = Blueprint("meta", __name__)
 #a top tier that indexes over a tail that does not is a crawl budget answer, all
 #three stalling together is a site authority one.
 #
-#2000 is about where "cards like X" stops being a thing anyone types, so the top
-#tier is the pages with real search demand behind them
+#2000 is a crawl priority order and NOT a demand cliff, which this used to say it
+#was. of the 21 cards search console had recorded a "cards like X" query for by
+#2026-08, 11 sit in the top tier, 6 in played and 4 down in the tail (Tolarian
+#Terror, Goblin Charbelcher, Balance, Moat). half the demand is outside the top
+#tier, so dropping a sitemap to save crawl budget drops earning pages with it
 CARD_TIERS = [
     {"key": "cards-top", "lo": 1, "hi": 2000},
     {"key": "cards-played", "lo": 2001, "hi": 10000},

@@ -1,11 +1,14 @@
 {% extends "base.html" %}
 
 {# "How it works" alone names no subject, so it only ever matched a query that
-   already had the brand in it #}
-{% block title %}How it works: finding similar MTG cards - Delvefall{% endblock %}
+   already had the brand in it. it now names scryfall too: a quarter of search
+   console's impressions are scryfall-shaped queries, and the handful of those
+   that this page can honestly answer are the ones about its SYNTAX. 58
+   characters, inside the ~60 google prints #}
+{% block title %}Find similar MTG cards without Scryfall syntax - Delvefall{% endblock %}
 
-{# 145, down from 166. google prints about 155 and cut the old one mid-clause #}
-{% block metadesc %}How Delvefall works: type a Magic card name and get the cards that do the same thing. What every number on a result means, and the filter syntax.{% endblock %}
+{# 153, google prints about 155 #}
+{% block metadesc %}How Delvefall works: type a Magic card name and get the cards that do the same thing. No Scryfall syntax needed, and what every number on a result means.{% endblock %}
 
 {% block content %}
 <div class="guide">
@@ -87,6 +90,23 @@
     honest: one band sorted by price answers "the cheapest card that matches this well",
     where everything at once would just hand you the cheapest card in the game with a faint
     resemblance.</p>
+
+    {# the scryfall queries that land here are people who already know that tool
+       and are stuck on writing a query, so this answers them in their own words
+       instead of claiming the two sites do the same job. it sits above Filters
+       on purpose: "no syntax needed" reads better right before the small
+       vocabulary there IS #}
+    <h2 id="scryfall">If you came here from Scryfall</h2>
+    <p>Scryfall is a search engine: you describe the cards you want in its syntax and it
+    finds them. For "every blue instant under two mana" that is the right tool, and this
+    site doesn't try to be it.</p>
+    <p>The question that's awkward to write as a query is "what else does what
+    <em>this</em> card does?" You'd have to read the card, decide which of its lines carry
+    the effect, guess the wording every other card uses for the same thing, and write the
+    search anyway. Here you type the name. So it's less an alternative to Scryfall than a
+    different question asked of the same cards: the card data and images are Scryfall's,
+    the concept tags are <a href="https://tagger.scryfall.com" target="_blank" rel="noopener">Scryfall
+    Tagger's</a>, and every result links back.</p>
 
     <h2 id="filters">Filters</h2>
     <p>The whole vocabulary:</p>
