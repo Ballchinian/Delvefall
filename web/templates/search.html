@@ -1,8 +1,15 @@
 {% extends "base.html" %}
 
-{# the title leads with the phrase people actually type into google, not
-   the bare card name: "cards similar to X" is the search this page answers #}
-{% block title %}{% if card %}Cards similar to {{ card.name }} - Delvefall{% else %}Delvefall{% endif %}{% endblock %}
+{# the title leads with the phrase people actually type, not the bare card
+   name. that phrase is "cards like X" and not "cards similar to X": search
+   console has 20 queries of the first form and zero of the second, and
+   google's autocomplete offers "cards like X" to someone halfway through
+   typing "cards similar to X" but never the other way round. the h2 below
+   keeps the "similar" wording so the page still answers both.
+   it is also 23 characters around the name against 29, so the longest split
+   names ("Rakdos, Lord of Riots // Nothing") now land inside the ~60 google
+   prints instead of a character over #}
+{% block title %}{% if card %}Cards like {{ card.name }} - Delvefall{% else %}Delvefall{% endif %}{% endblock %}
 
 {# 124 characters BEFORE the name, so it clears google's ~155 for every real
    card: 27 characters of name lands on 151, and only the longest split names
@@ -16,7 +23,10 @@
     {% if card %}
     <meta property="og:site_name" content="Delvefall">
     <meta property="og:type" content="website">
-    <meta property="og:title" content="Cards similar to {{ card.name }}">
+    {# the same wording as the title block: google will sometimes print
+       og:title as the search result instead, and the two disagreeing is how
+       the phrase nobody types gets shown anyway #}
+    <meta property="og:title" content="Cards like {{ card.name }}">
     <meta property="og:description" content="{{ self.metadesc() }}">
     <meta property="og:image" content="{{ card.image }}">
     <meta property="og:url" content="{{ request.url_root ~ 'search?q=' ~ (card.name | urlencode) }}">
@@ -107,8 +117,10 @@
         <p class="message">{{ e }}</p>
         {% endfor %}
 
-        {# "cards similar to Sol Ring" is the phrase people search, so the
-           heading is it verbatim #}
+        {# deliberately the wording the title does NOT use. "cards like X" is
+           the far commoner search and it has the title, but "cards similar to
+           X" is a real one too, so the page carries both rather than spending
+           every slot on the same phrase #}
         <h2>Cards similar to {{ card.name }}
             <a href="#" id="report-missing" class="report-open">expected a card that isn't here?</a></h2>
 
