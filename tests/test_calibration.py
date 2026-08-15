@@ -16,6 +16,8 @@ import pytest
 
 from common import concept
 import mirror
+#conftest's stub stands in for the pool, so this import costs no database
+import app
 
 
 ANCHORS = concept.CALIBRATION
@@ -132,3 +134,35 @@ class TestLineWeight:
             assert got < last
             last = got
         assert last > 0
+
+
+class TestAnchorSparsevec:
+    #the anchor half of the concept axis, as pgvector wants to read it. the
+    #candidate half is baked by ingest/tags.py and the two are compared to the
+    #bit, so a literal that rounds or reorders scores a different pair than the
+    #one the page is showing
+
+    def rows(self, *pairs):
+        return [{"dim": d, "weight": w} for d, w in pairs]
+
+    def test_pairs_come_out_in_ascending_dim_order(self):
+        got = app.anchor_sparsevec(self.rows((90, 1.5), (2, 2.0), (40, 0.5)))
+        assert got.startswith("{2:2.0,40:0.5,90:1.5}/")
+
+    def test_it_declares_the_width_the_column_does(self):
+        #pgvector refuses to compare two sparsevecs of different widths, so this
+        #is the number that decides whether a search runs or 500s
+        got = app.anchor_sparsevec(self.rows((1, 1.0)))
+        assert got.endswith("/" + str(app.TAG_VEC_WIDTH))
+
+    def test_weights_survive_the_round_trip_exactly(self):
+        #repr, not str: a float4 weight printed short comes back as a different
+        #float4, and then the anchor and the stored vector disagree
+        w = 1.1936421394348145
+        got = app.anchor_sparsevec(self.rows((7, w)))
+        assert float(got.split(":")[1].split("}")[0]) == w
+
+    def test_an_empty_anchor_is_still_a_legal_literal(self):
+        #find_similar guards this case rather than querying with it (cosine
+        #against a zero vector is NaN), but it must not raise on the way out
+        assert app.anchor_sparsevec([]) == "{}/" + str(app.TAG_VEC_WIDTH)

@@ -207,6 +207,17 @@ with pool.connection() as _conn:
     #needs the column added the way feedback.tag is above
     _conn.execute("ALTER TABLE visit_seen ADD COLUMN IF NOT EXISTS bot boolean NOT NULL DEFAULT false")
     _conn.execute("ALTER TABLE visit_daily ADD COLUMN IF NOT EXISTS bots int NOT NULL DEFAULT 0")
+    #the width card_tag_vecs.vec declares. pgvector refuses to compare two
+    #sparsevecs of different widths, so every anchor this app builds has to say
+    #the same number the stored vectors do. read rather than repeated, because a
+    #copy here would be a second source of truth that nothing checks, and the
+    #failure it produces is a 500 on every search. the fallback matches
+    #schema.sql and only ever applies to the test stub, which answers nothing
+    _row = _conn.execute("""
+        SELECT atttypmod FROM pg_attribute
+        WHERE attrelid = to_regclass('card_tag_vecs') AND attname = 'vec'
+    """).fetchone()
+    TAG_VEC_WIDTH = _row["atttypmod"] if _row else 8192
     #/privacy says an ip address is never stored, so any row still holding one has
     #to go. LENGTH tells them apart with nothing left over: a token is a sha256
     #hex digest, exactly 64 characters, and no address of either family reaches
@@ -275,10 +286,9 @@ BLEND = 0.5
 #so the kept set is rebuilt the way ingest/tags.py built it: the tags a human
 #typed, minus the dropped ones, then climb the tree.
 #
-#the NORM is recomputed over whatever survived. reusing the baked
-#card_tag_norms row puts a shrunken numerator over a full-card denominator and
-#deflates every score, moving the cutoff without moving the calibration. with
-#nothing dropped it returns the baked norm to the digit
+#the NORM is whatever survived, cosine taking it from the literal the kept tags
+#build. a full-card denominator over a shrunken numerator deflates every score,
+#moving the cutoff without moving the calibration
 #the line -> tag attribution, at 94% precision / 82% recall.
 #
 #ON by default rather than switched on by an env var, which disappears the first
@@ -345,8 +355,9 @@ def anchor_vector(conn, oracle_id, dropped, picked=(), forced=()):
             JOIN tags t ON t.tag = kept.tag
             CROSS JOIN LATERAL unnest(t.parents) AS p(tag)
         )
-        SELECT ct.tag, ct.weight FROM card_tags ct
+        SELECT ct.tag, ct.weight, d.dim FROM card_tags ct
         JOIN kept ON kept.tag = ct.tag
+        JOIN tag_dims d ON d.tag = ct.tag
         WHERE ct.oracle_id = %s
     """, params).fetchall()
     #an empty result means one of TWO things, and card_has_attribution is what
@@ -362,7 +373,23 @@ def anchor_vector(conn, oracle_id, dropped, picked=(), forced=()):
     tags = [r["tag"] for r in rows]
     weights = [r["weight"] for r in rows]
     norm = math.sqrt(sum(w * w for w in weights))
-    return tags, weights, norm
+    return tags, weights, norm, anchor_sparsevec(rows)
+
+
+def anchor_sparsevec(rows):
+    #the kept tags as a sparsevec literal, the shape card_tag_vecs is stored in,
+    #so pgvector scores the candidates in one pass instead of aggregating the
+    #45k card_tags postings one anchor reaches.
+    #
+    #ASCENDING dim order and repr() for the weights: postgres reorders the pairs
+    #itself, but a float printed short would land a different float4 in the
+    #vector than card_tags holds, and the two sides have to agree to the bit or
+    #the badge and the tooltip disagree about the same pair.
+    #
+    #the anchor is built per request and never stored, which is the point: the
+    #tag picker switches tags off, so only the CANDIDATE side can be baked
+    pairs = sorted((r["dim"], float(r["weight"])) for r in rows)
+    return "{" + ",".join(str(d) + ":" + repr(w) for d, w in pairs) + "}/" + str(TAG_VEC_WIDTH)
 
 
 def anchor_chips(conn, oracle_id, dropped, picked=(), forced=()):
@@ -414,18 +441,17 @@ def concept_between(conn, oracle_a, oracle_b, dropped=(), picked=(), forced=()):
     #find_similar badges on rules text alone in that case: blending a zero in
     #would answer 50% about a card the page badged 100%. 0 means the axis is in
     #play and this card shares none of the anchor's concepts
-    tags, weights, norm = anchor_vector(conn, oracle_a, dropped, picked, forced)
+    tags, weights, norm, avec = anchor_vector(conn, oracle_a, dropped, picked, forced)
     if not tags:
         return None
-    other = conn.execute("SELECT norm FROM card_tag_norms WHERE oracle_id = %s", (oracle_b,)).fetchone()
-    if other is None:
+    #the same vector the results page scored this pair with, so the tooltip and
+    #the badge cannot disagree. a card with no row has no tags at all
+    row = conn.execute("""
+        SELECT 1 - (vec <=> %s::sparsevec) AS raw FROM card_tag_vecs WHERE oracle_id = %s
+    """, (avec, oracle_b)).fetchone()
+    if row is None:
         return 0
-    shared = conn.execute("""
-        SELECT coalesce(sum(a.weight * cb.weight), 0) AS s
-        FROM unnest(%s::text[], %s::real[]) AS a(tag, weight)
-        JOIN card_tags cb ON cb.tag = a.tag AND cb.oracle_id = %s
-    """, (tags, weights, oracle_b)).fetchone()["s"]
-    return concept_display(shared / (norm * other["norm"]))
+    return concept_display(row["raw"])
 
 
 def find_card(query):
@@ -1309,10 +1335,10 @@ def find_similar(oracle_id, picked, filters, min_pct, sort, offset=0, how_many=2
         #that SAME number, so nothing under it shows above the fold whichever
         #axis a card leaned on
         concept_raw = {}
-        #two arrays rather than a subquery over card_tags, because the user can
-        #switch tags off: anchor_vector decides the kept set and its norm, and
-        #both queries just read them
-        atags, aweights, anorm = anchor_vector(conn, oracle_id, dropped, picked, forced)
+        #a literal rather than a subquery over card_tags, because the user can
+        #switch tags off: anchor_vector decides the kept set, and both queries
+        #below just score against it
+        atags, aweights, anorm, avec = anchor_vector(conn, oracle_id, dropped, picked, forced)
         #no anchor vector means the concept axis SITS OUT entirely, rather than
         #scoring every candidate at zero and dragging the blend down with it.
         #picking a keyword line is how that happens: the line owns no tags, so
@@ -1323,22 +1349,39 @@ def find_similar(oracle_id, picked, filters, min_pct, sort, offset=0, how_many=2
             #cards the lines never found, injected as candidates when their
             #concept score alone is worth considering at the current cutoff,
             #through the same filters as everything else
+            #cosine over the stored vectors IS sum(a.weight * b.weight) /
+            #(|a| * |b|), the same arithmetic the card_tags GROUP BY spelled out
+            #by hand, so no score moves. 8-10ms against 65-181ms.
+            #
+            #the DISTANCE IS COMPUTED ONCE, in the subquery, with the gate left
+            #outside it: written beside the ORDER BY it evaluates twice a row and
+            #costs 25-38ms. cutting to 300 first is the same 300 rows, a gate
+            #only ever removing.
+            #
+            #the cards join rides INSIDE the cut only so the filters bite before
+            #the LIMIT. with none to apply it is 31k pointless lookups, and
+            #leaving it out is 8ms against 25ms on the path a crawler takes.
+            #NO INDEX here, and this query is what decided that: see schema.sql
+            #
+            #the outer ORDER BY looks redundant, the rows only filling dicts, but
+            #concept_raw's INSERTION ORDER decides how equal blended scores fall
+            #out of the stable sort further down. descending score, then id, so
+            #two cards on the same badge land in the same order every time
+            inner = " JOIN cards c ON c.oracle_id = v.oracle_id" if where else ""
             rows = conn.execute("""
-                WITH anchor AS (
-                    SELECT * FROM unnest(%s::text[], %s::real[]) AS a(tag, weight)
-                )
-                SELECT ct.oracle_id, """ + pcol + """ AS price, c.edhrec_rank, c.released_at, c.salt,
-                       sum(a.weight * ct.weight) / (%s * nc.norm) AS raw
-                FROM card_tags ct
-                JOIN anchor a ON a.tag = ct.tag
-                JOIN cards c ON c.oracle_id = ct.oracle_id
-                JOIN card_tag_norms nc ON nc.oracle_id = ct.oracle_id
-                WHERE ct.oracle_id <> %s""" + where + """
-                GROUP BY ct.oracle_id, """ + pcol + """, c.edhrec_rank, c.released_at, c.salt, nc.norm
-                HAVING sum(a.weight * ct.weight) / (%s * nc.norm) >= %s
-                ORDER BY raw DESC
-                LIMIT 300
-            """, [atags, aweights, anorm, oracle_id] + fparams + [anorm, concept_raw_gate(min_pct)]).fetchall()
+                SELECT s.oracle_id, """ + pcol + """ AS price, c.edhrec_rank, c.released_at, c.salt,
+                       1 - s.dist AS raw
+                FROM (
+                    SELECT v.oracle_id, v.vec <=> %s::sparsevec AS dist
+                    FROM card_tag_vecs v""" + inner + """
+                    WHERE v.oracle_id <> %s""" + where + """
+                    ORDER BY 2, 1
+                    LIMIT 300
+                ) s
+                JOIN cards c ON c.oracle_id = s.oracle_id
+                WHERE 1 - s.dist >= %s
+                ORDER BY s.dist, s.oracle_id
+            """, [avec, oracle_id] + fparams + [concept_raw_gate(min_pct)]).fetchall()
             for r in rows:
                 concept_raw[r["oracle_id"]] = r["raw"]
                 prices.setdefault(r["oracle_id"], r["price"])
@@ -1350,18 +1393,13 @@ def find_similar(oracle_id, picked, filters, min_pct, sort, offset=0, how_many=2
             #blend weighs both axes for everyone
             ids = [oid for oid in have if oid not in concept_raw]
             if ids:
+                #primary key lookups and one distance each, no scan and no
+                #ordering: 0.3ms against the 22ms the aggregate cost
                 for r in conn.execute("""
-                    WITH anchor AS (
-                        SELECT * FROM unnest(%s::text[], %s::real[]) AS a(tag, weight)
-                    )
-                    SELECT ct.oracle_id,
-                           sum(a.weight * ct.weight) / (%s * nc.norm) AS raw
-                    FROM card_tags ct
-                    JOIN anchor a ON a.tag = ct.tag
-                    JOIN card_tag_norms nc ON nc.oracle_id = ct.oracle_id
-                    WHERE ct.oracle_id = ANY(%s)
-                    GROUP BY ct.oracle_id, nc.norm
-                """, (atags, aweights, anorm, ids)).fetchall():
+                    SELECT v.oracle_id, 1 - (v.vec <=> %s::sparsevec) AS raw
+                    FROM card_tag_vecs v
+                    WHERE v.oracle_id = ANY(%s)
+                """, (avec, ids)).fetchall():
                     concept_raw[r["oracle_id"]] = r["raw"]
 
             #pure concept finds carry no line pairs, their badge is w * concept
@@ -4086,20 +4124,13 @@ def swap_candidates(conn, card, deck_ids, colors, field, direction, currency="us
     ids = list(pairs_by_card)
     atags, anorm = [], 0.0
     if ids:
-        atags, aweights, anorm = anchor_vector(conn, card["oracle_id"], dropped, picked, forced)
+        atags, aweights, anorm, avec = anchor_vector(conn, card["oracle_id"], dropped, picked, forced)
         if atags and anorm:
             for r in conn.execute("""
-                WITH anchor AS (
-                    SELECT * FROM unnest(%s::text[], %s::real[]) AS a(tag, weight)
-                )
-                SELECT ct.oracle_id,
-                       sum(a.weight * ct.weight) / (%s * nc.norm) AS raw
-                FROM card_tags ct
-                JOIN anchor a ON a.tag = ct.tag
-                JOIN card_tag_norms nc ON nc.oracle_id = ct.oracle_id
-                WHERE ct.oracle_id = ANY(%s::uuid[])
-                GROUP BY ct.oracle_id, nc.norm
-            """, (atags, aweights, anorm, ids)).fetchall():
+                SELECT v.oracle_id, 1 - (v.vec <=> %s::sparsevec) AS raw
+                FROM card_tag_vecs v
+                WHERE v.oracle_id = ANY(%s::uuid[])
+            """, (avec, ids)).fetchall():
                 concept_raw[r["oracle_id"]] = r["raw"]
             #same query and ordering the results page uses
             for r in conn.execute("""

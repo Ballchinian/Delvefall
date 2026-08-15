@@ -73,11 +73,13 @@ TEST_DATABASE_URL=postgresql://... python -m pytest tests -q
 
 ### The database
 
-Fourteen tables, in four groups.
+Sixteen tables, in four groups.
 
 **The search needs five.** `cards` has one row per unique card, keyed by Scryfall's `oracle_id` (stable across every printing), including the filter columns: colour identity, USD and EUR prices, mana value, the official Commander game changer flag, commander legality, EDHREC rank, EDHREC salt score and first printing date. `lines` has one row per line of rules text with its embedding. `line_stats` counts how many cards share each line, for the ranking weights. `meta` remembers which Scryfall bulk file was processed last and which model made the vectors. `feedback` holds user reports.
 
-**Four carry the concepts axis.** `tags` is Scryfall Tagger's tag tree with an IDF weight derived from how many cards carry each one, `card_tags` links cards to tags (rolled up the tree, inherited links damped), `card_tag_norms` bakes each card's vector length so the scoring queries stay cheap, and `line_tags` is the inferred answer to which of a card's tags belongs to which of its lines.
+**Six carry the concepts axis.** `tags` is Scryfall Tagger's tag tree with an IDF weight derived from how many cards carry each one, `card_tags` links cards to tags (rolled up the tree, inherited links damped), and `line_tags` is the inferred answer to which of a card's tags belongs to which of its lines. `card_tag_vecs` holds the same weights again as one `sparsevec` per card, which is what the scoring queries actually read: the arithmetic the axis wants is a cosine, so handing it to pgvector answers in 8-10ms what a `GROUP BY` over the 45,322 tag postings a single anchor reaches took 65-181ms to answer. `tag_dims` is the tag to dimension map behind it, append only so that a stored vector never quietly changes meaning. `card_tag_norms` bakes each card's vector length, now only for the pair-at-a-time scoring the finetune scripts do.
+
+That table carries **no index**, which is measured rather than skipped. The obvious move is HNSW, the way the rules text side works, but the concept query cuts at a similarity gate that only 9-212 cards clear against a `LIMIT 300`, so an ordered graph walk never fills its quota, never gets to stop early, and ran 32-45ms where scanning the whole table runs 29ms. Scanning everything is cheap here because the table is narrow: 31k rows at ~96 bytes is 4.4MB, against 42MB for `card_tags`. So the concepts axis is exact, where the rules text axis trades a little recall for its index.
 
 **Two** hold the population the deck lens ranks a pasted list against: `decks` and `deck_cards`, the preconstructed Commander decks from MTGJSON.
 
