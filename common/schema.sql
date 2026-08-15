@@ -83,6 +83,12 @@ ALTER TABLE cards ADD COLUMN IF NOT EXISTS image_back text NOT NULL DEFAULT '';
 --column behaves exactly as the site did before the column existed
 ALTER TABLE cards ADD COLUMN IF NOT EXISTS can_command boolean NOT NULL DEFAULT false;
 
+--when the RULES TEXT last changed, which is the only honest lastmod the sitemap
+--has: updated_at moves on every run because prices do. NULL is "never seen to
+--change", and those urls emit no lastmod at all rather than an invented one.
+--update.py sets it off the stored text_hash, so it fills in as cards are errata'd
+ALTER TABLE cards ADD COLUMN IF NOT EXISTS text_changed_at timestamptz;
+
 --trigram index so the name searches (prefix, substring, fuzzy) stay quick
 CREATE INDEX IF NOT EXISTS cards_name_trgm ON cards USING gin (name gin_trgm_ops);
 

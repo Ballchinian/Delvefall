@@ -381,8 +381,9 @@ def main():
         cur.executemany("""
             INSERT INTO cards (oracle_id, name, mana_cost, type_line, oracle_text, image, scryfall_uri, text_hash,
                                color_identity, price_usd, price_eur, cmc, game_changer, legal_commander,
-                               layout, image_back, edhrec_rank, released_at, can_command, updated_at)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, now())
+                               layout, image_back, edhrec_rank, released_at, can_command, updated_at,
+                               text_changed_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, now(), now())
             ON CONFLICT (oracle_id) DO UPDATE SET
                 name = EXCLUDED.name,
                 mana_cost = EXCLUDED.mana_cost,
@@ -391,6 +392,13 @@ def main():
                 image = EXCLUDED.image,
                 scryfall_uri = EXCLUDED.scryfall_uri,
                 text_hash = EXCLUDED.text_hash,
+                --the sitemap's lastmod, off the STORED hash rather than the
+                --python comparison above: a model swap empties `have` so every
+                --card counts as changed there, and this would stamp all ~31k
+                --with one date, which is the invented lastmod google discounts a
+                --whole file for
+                text_changed_at = CASE WHEN cards.text_hash IS DISTINCT FROM EXCLUDED.text_hash
+                                       THEN now() ELSE cards.text_changed_at END,
                 color_identity = EXCLUDED.color_identity,
                 price_usd = EXCLUDED.price_usd,
                 price_eur = EXCLUDED.price_eur,

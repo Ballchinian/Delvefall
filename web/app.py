@@ -214,6 +214,12 @@ with pool.connection() as _conn:
     #here as well as in schema.sql, so it lands on the next deploy rather than
     #waiting for an ingest. after the first run it matches no rows
     _conn.execute("UPDATE feedback SET ip = '' WHERE ip <> '' AND length(ip) <> 64")
+    #the sitemap's lastmod reads this column, and web deploys on push while the
+    #ingest waits for 9am: without it here every sitemap-cards part 500s in
+    #between. it only makes the column EXIST, update.py is what fills it.
+    #IF EXISTS on the table because cards belongs to the ingest, and a database it
+    #has never touched has no such table to alter
+    _conn.execute("ALTER TABLE IF EXISTS cards ADD COLUMN IF NOT EXISTS text_changed_at timestamptz")
 
 #the review page at /admin only exists when this is set in the environment
 ADMIN_KEY = os.environ.get("ADMIN_KEY", "")

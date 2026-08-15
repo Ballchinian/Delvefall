@@ -30,28 +30,32 @@ CARD_TIERS = [
 CARD_TIER_BY_KEY = {t["key"]: t for t in CARD_TIERS}
 SITEMAP_KEYS = ["pages"] + [t["key"] for t in CARD_TIERS]
 
-#the NAMES are cached per tier for a day, changing on the ingest's schedule
+#the rows are cached per tier for a day, changing on the ingest's schedule
 #rather than the request's. the XML is rebuilt per request, embedding whichever
 #host the request arrived on
-_names = {}
+_rows = {}
 
 
-def tier_names(tier):
-    hit = _names.get(tier["key"])
+def tier_rows(tier):
+    #(name, lastmod) per card. a DATE and not a timestamp: the ingest runs once a
+    #day, so the clock time would be noise dressed up as precision
+    hit = _rows.get(tier["key"])
     now = time.time()
     if hit and now - hit["made"] < 60 * 60 * 24:
-        return hit["names"]
+        return hit["rows"]
     if tier["hi"] is None:
-        sql = ("SELECT name FROM cards WHERE edhrec_rank >= %s OR edhrec_rank IS NULL"
+        sql = ("SELECT name, text_changed_at FROM cards WHERE edhrec_rank >= %s OR edhrec_rank IS NULL"
                " ORDER BY edhrec_rank NULLS LAST, name")
         args = (tier["lo"],)
     else:
-        sql = "SELECT name FROM cards WHERE edhrec_rank BETWEEN %s AND %s ORDER BY edhrec_rank, name"
+        sql = ("SELECT name, text_changed_at FROM cards WHERE edhrec_rank BETWEEN %s AND %s"
+               " ORDER BY edhrec_rank, name")
         args = (tier["lo"], tier["hi"])
     with pool.connection() as conn:
-        names = [r["name"] for r in conn.execute(sql, args)]
-    _names[tier["key"]] = {"names": names, "made": now}
-    return names
+        rows = [(r["name"], r["text_changed_at"].date().isoformat() if r["text_changed_at"] else None)
+                for r in conn.execute(sql, args)]
+    _rows[tier["key"]] = {"rows": rows, "made": now}
+    return rows
 
 
 def xml(lines):
@@ -59,17 +63,17 @@ def xml(lines):
     return Response("\n".join(lines), mimetype="text/xml")
 
 
-def urlset(locs):
-    #NO lastmod anywhere, deliberately. it was the ingest's own day stamped onto
-    #all 31k urls at once, and google treats the field as all or nothing:
-    #identical dates everywhere are the signal it uses to decide a site's are
-    #invented, and it discounts them sitewide after that. nothing here knows when
-    #a card page really moved. cards.updated_at cannot stand in either, it is
-    #rewritten every run because prices move daily. a column that only turned on
-    #a text_hash change would be a real one
+def urlset(rows):
+    #(loc, lastmod) pairs, and a None lastmod emits NOTHING rather than a stand
+    #in. google treats the field as all or nothing: identical dates across a file
+    #are the signal it uses to decide a site's are invented, and it discounts
+    #them sitewide after that. cards.text_changed_at is the one date here that is
+    #real, so a card that has never been seen to change keeps its silence
     return (['<?xml version="1.0" encoding="UTF-8"?>',
              '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
-            + ["<url><loc>" + loc + "</loc></url>" for loc in locs]
+            + ["<url><loc>" + loc + "</loc>"
+               + ("<lastmod>" + lastmod + "</lastmod>" if lastmod else "")
+               + "</url>" for loc, lastmod in rows]
             + ['</urlset>'])
 
 
@@ -97,7 +101,7 @@ def card_locs(tier):
     #quote()'s defaults mirror the urlencode filter building the canonicals in
     #search.html, so these ARE the urls the pages declare. it also percent-encodes
     #every xml special, & included, so no xml escaping
-    return [root + "search?q=" + quote(name) for name in tier_names(tier)]
+    return [(root + "search?q=" + quote(name), lastmod) for name, lastmod in tier_rows(tier)]
 
 
 @bp.route("/sitemap.xml")
@@ -116,7 +120,9 @@ def sitemap():
 @bp.route("/sitemap-<key>.xml")
 def sitemap_part(key):
     if key == "pages":
-        return xml(urlset(page_locs()))
+        #hand written pages and the precon boards, none of which has a date of
+        #its own worth trusting: the boards move whenever a card's price does
+        return xml(urlset((loc, None) for loc in page_locs()))
     tier = CARD_TIER_BY_KEY.get(key)
     if tier is None:
         abort(404)

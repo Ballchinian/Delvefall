@@ -7,7 +7,7 @@
 #so these lock the arithmetic rather than the xml. no database: the tiers are
 #constants and the sql that reads them is exercised against a live pool
 
-from views.meta import CARD_TIERS, CARD_TIER_BY_KEY, SITEMAP_KEYS
+from views.meta import CARD_TIERS, CARD_TIER_BY_KEY, SITEMAP_KEYS, urlset
 
 
 class TestTheBands:
@@ -43,3 +43,25 @@ class TestTheIndex:
         #"/sitemap-pages.xml" is answered before the bands are consulted, so a
         #band called pages would be unreachable
         assert "pages" not in CARD_TIER_BY_KEY
+
+
+class TestTheLastmod:
+    #the field's trust is binary: a stand-in date on a url nothing knows about
+    #gets every date in the file discounted, so silence has to survive refactors
+
+    def test_a_dated_url_carries_its_lastmod(self):
+        out = "".join(urlset([("https://delvefall.com/search?q=Bolt", "2026-08-15")]))
+        assert "<lastmod>2026-08-15</lastmod>" in out
+
+    def test_an_undated_url_carries_nothing(self):
+        out = "".join(urlset([("https://delvefall.com/guide", None)]))
+        assert "lastmod" not in out
+        assert "<url><loc>https://delvefall.com/guide</loc></url>" in out
+
+    def test_one_missing_date_does_not_borrow_its_neighbour(self):
+        #the failure that matters: a loop carrying the last date forward would
+        #stamp the whole tail with one day
+        out = "".join(urlset([("https://delvefall.com/a", "2026-08-15"),
+                              ("https://delvefall.com/b", None)]))
+        assert out.count("<lastmod>") == 1
+        assert "<url><loc>https://delvefall.com/b</loc></url>" in out
