@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "partials/jsonld.html" as jsonld %}
 
 {% block title %}{{ sort.h1 }} - Delvefall{% endblock %}
 
@@ -14,6 +15,20 @@
    same board, narrowed. four eras times ten sorts is forty near-identical
    pages competing with each other, which is the state this was fixed out of #}
 {% block canonical %}<link rel="canonical" href="{{ request.url_root.rstrip('/') ~ '/precons' }}{% if sort.key != 'original' %}?sort={{ sort.key }}{% endif %}">{% endblock %}
+
+{% block head_extra %}
+{# the crumb names the RANKING, matching the h1 and the canonical above: each
+   reading is its own page, so each names itself #}
+{{ jsonld.crumbs([("Delvefall", request.url_root), (sort.h1, None)]) }}
+{# only where this page is its own canonical. under an era cut or with the new
+   decks hidden these are not the rows the canonical url serves, and structured
+   data describing a page google folds elsewhere is json nobody reads #}
+{% if rows and era == 'all' and not hide_new %}
+{% set urls = [] %}
+{% for r in rows %}{% set _ = urls.append(request.url_root ~ 'precons/' ~ r.slug) %}{% endfor %}
+{{ jsonld.ranked(sort.h1, urls) }}
+{% endif %}
+{% endblock %}
 
 {% block content %}
 <div class="guide precons">

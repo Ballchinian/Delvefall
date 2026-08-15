@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "partials/jsonld.html" as jsonld %}
 
 {# 37 characters, under the 60 where google truncates: an early version ran to
    82 and lost everything past "MTG one of a". MTG rather than the full name,
@@ -8,6 +9,19 @@
 
 {# about 155, the whole snippet google prints. the first was 266 #}
 {% block metadesc %}The weirdest, most unusual Magic cards, dealt one at a time: MTG cards whose abilities nothing else in the game comes close to.{% endblock %}
+
+{# the ranking IS this page, so it is the one list on the site worth declaring.
+   the standing list below carries the same urls as real links, which is what
+   makes this a description rather than a claim: it is behind a fold, and google
+   weights folded content fully as long as it is in the html, which it is #}
+{% block head_extra %}
+{{ jsonld.crumbs([("Delvefall", request.url_root), ("The most unique Magic cards", None)]) }}
+{% if top %}
+{% set urls = [] %}
+{% for c in top %}{% set _ = urls.append(request.url_root ~ 'search?q=' ~ (c.name | urlencode)) %}{% endfor %}
+{{ jsonld.ranked("The " ~ top_n ~ " most unique Magic cards", urls) }}
+{% endif %}
+{% endblock %}
 
 {% block content %}
     {# the h1 carries the query, not the nav label. both names of the game

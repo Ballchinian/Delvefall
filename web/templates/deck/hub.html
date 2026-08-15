@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "partials/jsonld.html" as jsonld %}
 
 {# "The deck lens" was 25 characters of which none are a word anybody types,
    and it loses the two that are to decklens.app, which owns the phrase and is
@@ -11,6 +12,10 @@
 {# 144, under the ~155 google prints. this page named neither MTG nor Magic
    anywhere, the only one that did not #}
 {% block metadesc %}Paste an MTG Commander decklist or import from Moxfield or Archidekt: how original, salty, expensive, played and old it is against every precon.{% endblock %}
+
+{# the crumb says where the page sits, so it takes the nav's wording rather than
+   the title's, which is written to win a query instead #}
+{% block head_extra %}{{ jsonld.crumbs([("Delvefall", request.url_root), ("Deck lens", None)]) }}{% endblock %}
 
 {% block content %}
 <div class="guide deck-hub">

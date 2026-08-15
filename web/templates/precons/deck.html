@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% import "partials/deckways.html" as ways with context %}
+{% import "partials/jsonld.html" as jsonld %}
 
 {# the deck's name is the query, so nothing gets in front of it. "through the
    deck lens" was the site's own vocabulary; "precon" is in the real query
@@ -7,6 +8,14 @@
 {% block title %}{{ deck.name }} precon: salt, price and age - Delvefall{% endblock %}
 
 {% block metadesc %}{{ deck.name }}{% if deck.leaders %}, the {{ deck.leaders|join(' / ') }} precon{% endif %}: how original its cards are, how salty, what it costs and how played, against all {{ total }} Commander precons.{% endblock %}
+
+{# three deep, the only page on the site that is. no ItemList: this page ranks
+   nothing, it places ONE deck against the board that does.
+   the middle crumb drops the arrival sort, unlike the back link above it: the
+   trail says where the page lives, and it lives under the default board #}
+{% block head_extra %}{{ jsonld.crumbs([("Delvefall", request.url_root),
+                                        ("Commander precons", request.url_root ~ "precons"),
+                                        (deck.name, None)]) }}{% endblock %}
 
 {% block content %}
 {# data-opened is which standing the arrows should open on: the sort the

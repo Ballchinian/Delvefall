@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "partials/jsonld.html" as jsonld %}
 
 {# "How it works" alone names no subject, so it only ever matched a query that
    already had the brand in it. it now names scryfall too: a quarter of search
@@ -9,6 +10,10 @@
 
 {# 153, google prints about 155 #}
 {% block metadesc %}How Delvefall works: type a Magic card name and get the cards that do the same thing. No Scryfall syntax needed, and what every number on a result means.{% endblock %}
+
+{# the crumb names the page the way the NAV does, not the way the title does:
+   the title sells the page into a query, the trail says where you are #}
+{% block head_extra %}{{ jsonld.crumbs([("Delvefall", request.url_root), ("How it works", None)]) }}{% endblock %}
 
 {% block content %}
 <div class="guide">

@@ -1,0 +1,47 @@
+{# the structured data every page shapes the same way. one definition, because
+   five pages emitting this json by hand is five chances for one of them to
+   drift, and google validates each page on its own so drift is silent #}
+
+{# the trail google prints under a result in place of the raw url. search
+   console already reports 780 of these valid, so this is the shape that works,
+   handed to the pages that had none.
+
+   the LAST crumb carries NO item: it is the page itself, the canonical above it
+   already says where that is, and naming it twice is how the two come to
+   disagree. `trail` is (name, url) pairs, url None on that last one #}
+{% macro crumbs(trail) -%}
+<script type="application/ld+json">
+{
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "itemListElement": [
+        {%- for name, url in trail %}
+        {"@type": "ListItem", "position": {{ loop.index }}, "name": {{ name | tojson }}{% if url %}, "item": {{ url | tojson }}{% endif %}}{{ "," if not loop.last }}
+        {%- endfor %}
+    ]
+}
+</script>
+{%- endmacro %}
+
+{# a page whose CONTENT is a ranking, in the summary form: positions and urls,
+   no names, so a hundred rows cost about 7kb rather than restating the page.
+   only for a list already rendered in the html, never one fetched on open.
+
+   NO itemListOrder. it names which way the VALUES run, /precons reads its
+   metrics from either end, and a claim nothing checks is a claim that goes
+   wrong quietly. the positions carry the order by themselves #}
+{% macro ranked(name, urls) -%}
+<script type="application/ld+json">
+{
+    "@context": "https://schema.org",
+    "@type": "ItemList",
+    "name": {{ name | tojson }},
+    "numberOfItems": {{ urls | length }},
+    "itemListElement": [
+        {%- for url in urls %}
+        {"@type": "ListItem", "position": {{ loop.index }}, "url": {{ url | tojson }}}{{ "," if not loop.last }}
+        {%- endfor %}
+    ]
+}
+</script>
+{%- endmacro %}

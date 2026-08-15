@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "partials/jsonld.html" as jsonld %}
 
 {# the title leads with the phrase people actually type, not the bare card
    name. that phrase is "cards like X" and not "cards similar to X": search
@@ -47,18 +48,10 @@
 
 {% block head_extra %}
     {% if card %}
-    {# the one rich result a card page honestly claims. the last crumb is this
-       page, so it names itself and leaves the url to the canonical above #}
-    <script type="application/ld+json">
-    {
-        "@context": "https://schema.org",
-        "@type": "BreadcrumbList",
-        "itemListElement": [
-            {"@type": "ListItem", "position": 1, "name": "Delvefall", "item": {{ request.url_root | tojson }}},
-            {"@type": "ListItem", "position": 2, "name": {{ card.name | tojson }}}
-        ]
-    }
-    </script>
+    {# the one rich result a card page honestly claims. no ItemList over the
+       results grid: it is a different twenty cards per query, per filter and per
+       sort, so it would be json nothing else on the page promises, 31k times #}
+    {{ jsonld.crumbs([("Delvefall", request.url_root), (card.name, None)]) }}
     {% else %}<meta name="robots" content="noindex">
     {% endif %}
 {% endblock %}
