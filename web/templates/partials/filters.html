@@ -9,7 +9,7 @@
    name until somebody types, and then it is gone #}
 <input class="filter-query" type="text" name="fq" aria-label="narrow these results"
     placeholder='Narrow these results, e.g. o:draw -t:creature usd&lt;=5'
-    title="scryfall syntax, applied to the results: o: rules text, t: type, id: colour identity, otag: community tags, usd/eur/gbp and mv bounds. minus negates anything, or/and and parentheses work. the full syntax is on the guide"
+    title="scryfall syntax, applied to the results: o: rules text, t: type, id: color identity, otag: community tags, usd/eur/gbp and mv bounds. minus negates anything, or/and and parentheses work. the full syntax is on the guide"
     value="{{ request.args.get('fq', '') }}">
 {# under the box it explains, not inside the fold #}
 <p class="adv-help"><a href="/guide#filters">what syntax from scryfall do we use</a></p>
@@ -56,7 +56,7 @@
         {# the script at the bottom disables a hidden slot's inputs, so nothing
            can filter from off screen #}
         <div class="adv-slot" data-filter="colors" {% if not on_colors %}hidden{% endif %}>
-            <span class="slot-head"><button type="button" class="slot-off" title="remove this filter" aria-label="remove the colours filter">&times;</button><span class="slot-name">Colours</span></span>
+            <span class="slot-head"><button type="button" class="slot-off" title="remove this filter" aria-label="remove the colors filter">&times;</button><span class="slot-name">Colors</span></span>
             <span class="filter-colors">
                 {# unpicked ones are drained to grey: a colour symbol at most of
                    its own colour read as "on" to everybody #}
@@ -68,8 +68,8 @@
             </span>
             {# at most is first and the default, it is the deckbuilding
                question: what can this deck run #}
-            <select name="cmode" aria-label="how the picked colours apply"
-                title="at most: fits inside the picked colours, like deckbuilding (colourless always fits). exactly: this identity and no other. including: these colours at least, more welcome">
+            <select name="cmode" aria-label="how the picked colors apply"
+                title="at most: fits inside the picked colors, like deckbuilding (colorless always fits). exactly: this identity and no other. including: these colors at least, more welcome">
                 <option value="atmost">at most these</option>
                 <option value="exact" {% if request.args.get('cmode') == 'exact' %}selected{% endif %}>exactly these</option>
                 <option value="include" {% if request.args.get('cmode') == 'include' %}selected{% endif %}>including these</option>
@@ -117,7 +117,7 @@
         </div>
         <p class="adv-add">
             <span>Add a filter:</span>
-            <button type="button" class="slot-on" data-add="colors" {% if on_colors %}hidden{% endif %}>colours</button>
+            <button type="button" class="slot-on" data-add="colors" {% if on_colors %}hidden{% endif %}>colors</button>
             <button type="button" class="slot-on" data-add="price" {% if on_price %}hidden{% endif %}>price</button>
             <button type="button" class="slot-on" data-add="mv" {% if on_mv %}hidden{% endif %}>mana value</button>
             <button type="button" class="slot-on" data-add="salt" {% if on_salt %}hidden{% endif %}>salt</button>
