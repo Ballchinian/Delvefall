@@ -158,6 +158,31 @@ def build(conn):
         norm = sum(w * w for w in ws) ** 0.5
         conn.execute("INSERT INTO card_tag_norms (oracle_id, norm) VALUES (%s, %s)", (oid, norm))
 
+    #the same two tables ingest/tags.py fills, built the same way, because the
+    #concept axis reads card_tag_vecs and a fixture without them would score
+    #every pair at zero while every test still passed its assertions about
+    #rules text. the width is read off the column so this cannot drift from
+    #common/schema.sql
+    width = conn.execute("""
+        SELECT atttypmod FROM pg_attribute
+        WHERE attrelid = 'card_tag_vecs'::regclass AND attname = 'vec'
+    """).fetchone()[0]
+    conn.execute("""
+        INSERT INTO tag_dims (tag, dim)
+        SELECT t.tag, (SELECT coalesce(max(dim), 0) FROM tag_dims)
+                      + row_number() OVER (ORDER BY t.tag)
+        FROM tags t WHERE NOT EXISTS (SELECT 1 FROM tag_dims d WHERE d.tag = t.tag)
+    """)
+    conn.execute("""
+        INSERT INTO card_tag_vecs (oracle_id, vec)
+        SELECT ct.oracle_id,
+               ('{' || string_agg(d.dim || ':' || ct.weight::float8, ',' ORDER BY d.dim)
+                    || '}/' || %s)::sparsevec
+        FROM card_tags ct JOIN tag_dims d ON d.tag = ct.tag
+        WHERE ct.oracle_id::text LIKE '00000000-0000-4000-8000-%%'
+        GROUP BY ct.oracle_id
+    """, (width,))
+
     #the filler deck. salt descends with the index so the true mildest card is
     #the last one, which is the thing the both-ends slice has to reach
     for i in range(DECK_FILLER):
@@ -174,6 +199,7 @@ def build(conn):
 
 
 def wipe(conn):
+    conn.execute("DELETE FROM card_tag_vecs WHERE oracle_id::text LIKE '00000000-0000-4000-8000-%'")
     conn.execute("DELETE FROM card_tag_norms WHERE oracle_id::text LIKE '00000000-0000-4000-8000-%'")
     conn.execute("DELETE FROM card_tags WHERE oracle_id::text LIKE '00000000-0000-4000-8000-%'")
     conn.execute("DELETE FROM lines WHERE oracle_id::text LIKE '00000000-0000-4000-8000-%'")

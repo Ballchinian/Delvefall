@@ -255,11 +255,48 @@ CREATE TABLE IF NOT EXISTS tags (
 
 ALTER TABLE tags ADD COLUMN IF NOT EXISTS idf real NOT NULL DEFAULT 0;
 
---each card's tag vector length, baked so the concept query never recomputes 31k
---norms per search
+--each card's tag vector length. the scoring queries read card_tag_vecs below
+--instead, so this is left for common/concept.py, which the finetune scripts run
+--a pair at a time
 CREATE TABLE IF NOT EXISTS card_tag_norms (
     oracle_id uuid PRIMARY KEY REFERENCES cards(oracle_id) ON DELETE CASCADE,
     norm      real NOT NULL
+);
+
+--which dimension each tag occupies in card_tag_vecs. APPEND ONLY: a dim is
+--handed out once and never reused, not even after a tag is retired.
+--
+--it needs its own table because ingest/tags.py rebuilds `tags` from scratch
+--whenever scryfall publishes, so a dim column there would be reassigned the day
+--a tag disappears and every stored vector would quietly mean something else.
+--nothing raises on that, which is why the guarantee is structural here rather
+--than a rule someone has to remember
+CREATE TABLE IF NOT EXISTS tag_dims (
+    tag text PRIMARY KEY,
+    dim int NOT NULL UNIQUE
+);
+
+--the concept axis's candidate side: the same weights card_tags holds, laid out
+--so pgvector computes sum(a.weight * b.weight) / (|a| * |b|) in one pass.
+--
+--that IS the cosine the axis was already computing, so the number does not move
+--and concept_calibration is untouched. what moves is the cost: one anchor
+--reaches 45,322 postings over 22,232 cards through card_tags and aggregates
+--every one of them, 65-181ms. this answers the same question in 8-10ms.
+--
+--NO HNSW INDEX, and that is measured rather than skipped. the injection query
+--cuts at concept_raw_gate(TIER_CUT), which only 9-212 cards clear against a
+--LIMIT 300, so an ordered graph walk never fills its quota, never short
+--circuits, and ran 32-45ms where the plain scan runs 29ms. an index here would
+--cost speed AND exactness. what makes scanning all of it cheap is the width:
+--31,392 rows at ~96 bytes is 4.4mb, against 42mb of card_tags and 49mb of cards.
+--
+--8192 is headroom over the 2,794 tags that exist, a sparsevec declaring its
+--dimension and a new tag otherwise rewriting the column. tags.py reads that
+--number back out of this declaration rather than keeping a second copy of it
+CREATE TABLE IF NOT EXISTS card_tag_vecs (
+    oracle_id uuid PRIMARY KEY REFERENCES cards(oracle_id) ON DELETE CASCADE,
+    vec       sparsevec(8192) NOT NULL
 );
 
 --precons from mtgjson, the calibration set for deck originality: "0.24" is not a

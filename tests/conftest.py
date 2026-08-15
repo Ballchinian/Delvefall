@@ -79,6 +79,18 @@ def _load_schema(url):
     with psycopg.connect(url) as conn:
         with open(os.path.join(ROOT, "common", "schema.sql"), encoding="utf-8") as f:
             sql = f.read()
+        #card_tag_vecs is a sparsevec, which arrived in pgvector 0.7. pgserver
+        #still ships 0.6.2, so without this the schema load dies on "type
+        #sparsevec does not exist" thirty lines from anything that explains it.
+        #not strippable the way the trigram lines below are: the concept axis
+        #reads that table on every search
+        conn.execute("CREATE EXTENSION IF NOT EXISTS vector")
+        if not conn.execute("SELECT 1 FROM pg_type WHERE typname = 'sparsevec'").fetchone():
+            ver = conn.execute(
+                "SELECT extversion FROM pg_extension WHERE extname = 'vector'").fetchone()
+            raise RuntimeError("pgvector " + (ver[0] if ver else "?") + " has no sparsevec type, "
+                               "which common/schema.sql needs. 0.7 or newer, the way the "
+                               "pgvector/pgvector docker image ships it")
         have_trgm = conn.execute(
             "SELECT 1 FROM pg_available_extensions WHERE name = 'pg_trgm'").fetchone()
         if not have_trgm:

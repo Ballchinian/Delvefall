@@ -1,6 +1,7 @@
-#scryfall tagger's community tags into card_tags + tags, for the concept axis.
-#taggings are rolled up the tag tree BEFORE anything is counted, so a card tagged
-#gives-nimble is gives-evasion too and the counts, idf and norms all agree.
+#scryfall tagger's community tags into card_tags + tags + card_tag_vecs, for the
+#concept axis. taggings are rolled up the tag tree BEFORE anything is counted, so
+#a card tagged gives-nimble is gives-evasion too and the counts, idf, norms and
+#vectors all agree.
 #    python -m ingest.tags
 #with DATABASE_URL set. reruns are free, the meta gate skipping the work unless
 #scryfall published a newer file.
@@ -12,6 +13,7 @@
 import os
 import sys
 import json
+import math
 
 import psycopg
 
@@ -67,10 +69,22 @@ def main():
     #the column, skipping here would leave the concept axis scoring every pair at
     #zero until scryfall happened to publish a new tag file
     row = conn.execute("SELECT value FROM meta WHERE key = 'tagger_updated_at'").fetchone()
+    width = conn.execute("SELECT value FROM meta WHERE key = 'tag_vec_width'").fetchone()
     if (row and row[0] == updated_at
             and conn.execute("SELECT 1 FROM card_tags LIMIT 1").fetchone()
             and conn.execute("SELECT 1 FROM card_tag_norms LIMIT 1").fetchone()
             and not conn.execute("SELECT 1 FROM card_tags WHERE weight = 0 LIMIT 1").fetchone()
+            #an empty card_tag_vecs counts as unfilled for the same reason a
+            #weight of 0 does: schema.sql has just added the table, and skipping
+            #here would leave the concept axis with nothing to score against
+            #until scryfall happened to publish a new tag file
+            and conn.execute("SELECT 1 FROM card_tag_vecs LIMIT 1").fetchone()
+            #and so does a column that has been widened since the vectors were
+            #built, every stored vector declaring the old width
+            and width and width[0] == str(conn.execute("""
+                SELECT atttypmod FROM pg_attribute
+                WHERE attrelid = 'card_tag_vecs'::regclass AND attname = 'vec'
+            """).fetchone()[0])
             and conn.execute("SELECT 1 FROM cards WHERE concept_uniqueness IS NOT NULL LIMIT 1").fetchone()):
         print("already processed the tag file from " + updated_at + ", nothing to do")
         conn.close()
@@ -143,43 +157,101 @@ def main():
     for oid, slug in rolled:
         count_of[slug] = count_of.get(slug, 0) + 1
 
+    #idf and the per-tagging weight are worked out HERE rather than by the two
+    #UPDATEs this replaced. those rewrote all 323k card_tags rows from inside the
+    #rebuild's transaction, and TRUNCATE holds ACCESS EXCLUSIVE, so every search
+    #on the site queued behind them: 3.6 seconds of the 3.8 the whole swap took
+    n_cards = len(ours)
+    idf = {t["slug"]: math.log(n_cards / max(count_of.get(t["slug"], 0), 1)) for t in kept}
+
     tag_rows = []
     for t in kept:
-        tag_rows.append((t["slug"], parent_of[t["slug"]], count_of.get(t["slug"], 0), t.get("description") or ""))
+        tag_rows.append((t["slug"], parent_of[t["slug"]], count_of.get(t["slug"], 0),
+                         idf[t["slug"]], t.get("description") or ""))
 
-    #full rebuild in one transaction, so a crash leaves the old data standing
+    #STAGED FIRST, in temp tables, because none of this needs a lock on anything
+    #the site reads. only the swap below does
     with conn.cursor() as cur:
-        cur.execute("TRUNCATE card_tags, tags, card_tag_norms")
-        with cur.copy("COPY card_tags (oracle_id, tag, inherited) FROM STDIN") as copy:
+        cur.execute("CREATE TEMP TABLE new_card_tags (LIKE card_tags)")
+        cur.execute("CREATE TEMP TABLE new_tags (LIKE tags)")
+        with cur.copy("COPY new_card_tags (oracle_id, tag, inherited, weight) FROM STDIN") as copy:
             for oid, slug in rolled:
-                copy.write_row((oid, slug, (oid, slug) not in links))
-        with cur.copy("COPY tags (tag, parents, card_count, description) FROM STDIN") as copy:
+                typed = (oid, slug) in links
+                copy.write_row((oid, slug, not typed, idf[slug] * (1.0 if typed else INHERITED_WEIGHT)))
+        with cur.copy("COPY new_tags (tag, parents, card_count, idf, description) FROM STDIN") as copy:
             for r in tag_rows:
                 copy.write_row(r)
-        #baked here so every query agrees on them and none recomputes 31k norms
-        cur.execute("UPDATE tags SET idf = ln((SELECT count(*) FROM cards)::float / greatest(card_count, 1))")
-        cur.execute("UPDATE card_tags ct SET weight = t.idf * CASE WHEN ct.inherited THEN %s ELSE 1 END "
-                    "FROM tags t WHERE t.tag = ct.tag", (INHERITED_WEIGHT,))
+
+        #a dim for every tag that has not got one. append only, so the numbers
+        #already in card_tag_vecs keep meaning what they meant
         cur.execute("""
-            INSERT INTO card_tag_norms
-            SELECT oracle_id, sqrt(sum(weight * weight))
-            FROM card_tags
-            GROUP BY oracle_id
+            INSERT INTO tag_dims (tag, dim)
+            SELECT n.tag, (SELECT coalesce(max(dim), 0) FROM tag_dims)
+                          + row_number() OVER (ORDER BY n.tag)
+            FROM new_tags n
+            WHERE NOT EXISTS (SELECT 1 FROM tag_dims d WHERE d.tag = n.tag)
         """)
+        #the declared width of card_tag_vecs.vec, read back rather than repeated
+        #here, so schema.sql stays the only place it is written down
+        width = cur.execute("""
+            SELECT atttypmod FROM pg_attribute
+            WHERE attrelid = 'card_tag_vecs'::regclass AND attname = 'vec'
+        """).fetchone()[0]
+        highest = cur.execute("SELECT max(dim) FROM tag_dims").fetchone()[0]
+        if highest > width:
+            #a sparsevec cannot hold a dim past its declared width, so this would
+            #fail on the INSERT below anyway. saying it in words beats a cast
+            #error. nothing is committed yet, so the old data is still standing
+            print("the tag vocabulary outgrew card_tag_vecs: dim " + str(highest)
+                  + " against a declared " + str(width) + ". widen the column in "
+                  "common/schema.sql (it rewrites the table) and rerun")
+            sys.exit(1)
+
+        cur.execute("CREATE TEMP TABLE new_vecs (LIKE card_tag_vecs)")
+        cur.execute("""
+            INSERT INTO new_vecs (oracle_id, vec)
+            SELECT ct.oracle_id,
+                   ('{' || string_agg(d.dim || ':' || ct.weight::float8, ',' ORDER BY d.dim)
+                        || '}/' || %s)::sparsevec
+            FROM new_card_tags ct
+            JOIN tag_dims d ON d.tag = ct.tag
+            GROUP BY ct.oracle_id
+        """, (width,))
+        cur.execute("""
+            CREATE TEMP TABLE new_norms AS
+            SELECT oracle_id, sqrt(sum(weight * weight))::real AS norm
+            FROM new_card_tags GROUP BY oracle_id
+        """)
+    conn.commit()
+
+    #THE SWAP, one transaction so a crash leaves the old data standing and no
+    #reader ever sees half of it. everything here is a straight copy between
+    #tables already sitting on the server, which is what keeps the lock short
+    with conn.cursor() as cur:
+        cur.execute("TRUNCATE card_tags, tags, card_tag_norms, card_tag_vecs")
+        cur.execute("INSERT INTO card_tags (oracle_id, tag, inherited, weight) "
+                    "SELECT oracle_id, tag, inherited, weight FROM new_card_tags")
+        cur.execute("INSERT INTO tags (tag, parents, card_count, idf, description) "
+                    "SELECT tag, parents, card_count, idf, description FROM new_tags")
+        cur.execute("INSERT INTO card_tag_norms SELECT oracle_id, norm FROM new_norms")
+        cur.execute("INSERT INTO card_tag_vecs SELECT oracle_id, vec FROM new_vecs")
         cur.execute("""
             INSERT INTO meta (key, value) VALUES ('tagger_updated_at', %s)
             ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
         """, (updated_at,))
+        #which width the stored vectors were built for. widening the column has to
+        #rebuild every one of them, and this is what the gate above compares
+        cur.execute("""
+            INSERT INTO meta (key, value) VALUES ('tag_vec_width', %s)
+            ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
+        """, (str(width),))
     conn.commit()
 
     #the tag-space counterpart of lines.nn_sim, same all-pairs-in-blocks trick as
     #the uniqueness pass. untagged cards stay NULL: unknown is not unique
     print("computing concept uniqueness...")
-    import math
     import numpy as np
 
-    n_cards = len(ours)
-    idf = {slug: math.log(n_cards / max(count_of.get(slug, 1), 1)) for slug, _, _, _ in tag_rows}
     tag_col = {slug: i for i, slug in enumerate(sorted(idf))}
     card_row = {}
     for oid, slug in rolled:
@@ -210,9 +282,11 @@ def main():
 
     covered = conn.execute("SELECT count(DISTINCT oracle_id) FROM card_tags").fetchone()[0]
     total = conn.execute("SELECT count(*) FROM cards").fetchone()[0]
+    vecs = conn.execute("SELECT count(*) FROM card_tag_vecs").fetchone()[0]
     conn.close()
     print("done! " + str(len(links)) + " card-tag links across " + str(len(tag_rows)) + " tags, "
-          + str(covered) + "/" + str(total) + " cards have at least one tag")
+          + str(covered) + "/" + str(total) + " cards have at least one tag, "
+          + str(vecs) + " vectors over " + str(highest) + " dimensions")
 
 
 if __name__ == "__main__":
