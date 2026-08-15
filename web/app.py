@@ -1604,11 +1604,57 @@ def home():
     return render_template("home.html", seeds=chip_seeds())
 
 
+#the rendered card page, kept an hour like the precon board and the unique list,
+#and for the same reason: it only moves when the ingest reruns. ONLY the bare
+#shape is stored, q spelled exactly as the sitemap and every internal link spell
+#it with nothing else in the url but the currency, because the search box prints
+#the query back and a filtered page is a different page.
+#
+#the cap is the memory ceiling, ~80kb of html an entry, and it has to be one: a
+#crawler walking 31k sitemap urls inside the hour would otherwise store all of
+#them. past it the oldest go, which is the trail behind the crawler rather than
+#the cards people are reading
+CARD_PAGE_TTL = 3600
+CARD_PAGE_MAX = 200
+
+_card_pages = {}
+_card_page_lock = threading.Lock()
+
+
+def card_page(html):
+    #an hour of not asking for a visitor, and an etag so a recrawl answers 304
+    #rather than 80kb. google sets its crawl rate off how long this server holds
+    #connections open, and 31k urls is the whole backlog.
+    #
+    #Vary because the currency is a COOKIE: without it a shared cache could hand
+    #a pound page to a dollar reader
+    resp = make_response(html)
+    resp.headers["Cache-Control"] = "public, max-age=" + str(CARD_PAGE_TTL)
+    resp.headers.add("Vary", "Cookie")
+    resp.add_etag()
+    #the slider's cookie, actively DELETED rather than left alone, or anyone who
+    #moved it before 2026-07-22 keeps a stale preference forever, doing nothing
+    if request.cookies.get("blend") is not None:
+        resp.delete_cookie("blend", samesite="Lax")
+    #answered HERE and not left to flask-compress, which does the same thing but
+    #only on responses it actually compressed: a client sending no Accept-Encoding
+    #would otherwise carry an etag it could never spend
+    return resp.make_conditional(request)
+
+
 @app.route("/search")
 def search():
     query = request.args.get("q", "")
     if not query:
         return redirect("/")
+
+    #read before anything touches the database, so a hit costs no query at all
+    bare = not (set(request.args) - {"q", "cur"})
+    key = (query, read_currency())
+    if bare:
+        hit = _card_pages.get(key)
+        if hit and time.time() - hit["at"] < CARD_PAGE_TTL:
+            return card_page(hit["html"])
 
     card = find_card(query)
     if card is None:
@@ -1654,25 +1700,29 @@ def search():
                                                 anchor_rank=card["edhrec_rank"],
                                                 anchor_salt=card["salt"],
                                                 anchor_released=card["released_at"])
-    resp = make_response(render_template("search.html", query=query, card=card, card_lines=card_lines,
-                                         picked_count=len(picked), results=results, has_more=has_more,
-                                         next_band=next_band, min_pct=TIER_CUT, errors=filters["errors"],
-                                         cur=filters["cur"], types=CARD_TYPES,
-                                         tag_chips=chips, dropped_count=sum(1 for c in chips if c["state"] == "off"),
-                                         aside_count=sum(1 for c in chips if c["state"] == "aside"),
-                                         line_tags_on=LINE_TAGS,
-                                         sort_fields=SORT_FIELDS, sort_field=sort_field,
-                                         sort_dir=sort_dir,
-                                         #off the RESOLVED field, so ?sort=salty
-                                         #from an old bookmark and the control's
-                                         #own ?sort=salt&dir=desc focus the same
-                                         #figure
-                                         focus=focus_class(sort_field)))
-    #the slider's cookie, actively DELETED rather than left alone, or anyone who
-    #moved it before 2026-07-22 keeps a stale preference forever, doing nothing
-    if request.cookies.get("blend") is not None:
-        resp.delete_cookie("blend", samesite="Lax")
-    return resp
+    html = render_template("search.html", query=query, card=card, card_lines=card_lines,
+                           picked_count=len(picked), results=results, has_more=has_more,
+                           next_band=next_band, min_pct=TIER_CUT, errors=filters["errors"],
+                           cur=filters["cur"], types=CARD_TYPES,
+                           tag_chips=chips, dropped_count=sum(1 for c in chips if c["state"] == "off"),
+                           aside_count=sum(1 for c in chips if c["state"] == "aside"),
+                           line_tags_on=LINE_TAGS,
+                           sort_fields=SORT_FIELDS, sort_field=sort_field,
+                           sort_dir=sort_dir,
+                           #off the RESOLVED field, so ?sort=salty
+                           #from an old bookmark and the control's
+                           #own ?sort=salt&dir=desc focus the same
+                           #figure
+                           focus=focus_class(sort_field))
+    #stored under the name the sitemap uses and never the spelling that reached
+    #it: the search box prints the query back, so "lightning bolt" would be
+    #served to whoever asked for Lightning Bolt next
+    if bare and query == card["name"]:
+        with _card_page_lock:
+            while len(_card_pages) >= CARD_PAGE_MAX:
+                _card_pages.pop(next(iter(_card_pages)), None)
+            _card_pages[key] = {"at": time.time(), "html": html}
+    return card_page(html)
 
 
 @app.route("/guide")
