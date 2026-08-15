@@ -119,9 +119,16 @@ CREATE TABLE IF NOT EXISTS lines (
 --an empty one back on the next ingest. backfill_embeddings.py adds it itself.
 --ALTER TABLE lines ADD COLUMN IF NOT EXISTS embedding_v2 vector(768);
 
---the previous model's vectors: reverting is renaming the two columns back. drop
---it once the live model is trusted and take back ~330mb with it
-ALTER TABLE lines ADD COLUMN IF NOT EXISTS embedding_v1 vector(768);
+--embedding_v1 was here and is GONE as of 2026-08-15, column and hnsw index both.
+--it held nothing: the model swap's TRUNCATE rebuilt every row and only ever
+--writes `embedding`, so the column read 0 of 79,991 populated while its index
+--cost 182mb to index an empty column. rolling back to the v1 model was already
+--not a column rename by then, whatever the note here used to say. that model is
+--BallchinianMan/mtg-tuned-embeddinggemma-300m on HF and the repo is tagged
+--v1-rules-text at the last commit before the swap.
+--
+--DO NOT re-add the ALTER. this file runs at the top of every ingest, so a line
+--here puts the empty column back every morning
 
 ALTER TABLE lines ADD COLUMN IF NOT EXISTS nn_sim real;
 

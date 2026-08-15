@@ -35,7 +35,8 @@ PRICES_FILE = "default-cards.jsonl.gz"
 #
 #pointing EMBED_MODEL anywhere else makes the next run rebuild every vector.
 #78% recall @10 on the tag exam, 26/31 on the line-to-line regression guard, 94%
-#precision on attribution. embedding_v1 still holds the previous model's vectors
+#precision on attribution. there is no second copy to fall back to: see schema.sql
+#where embedding_v1 used to be
 EMBED_MODEL = "BallchinianMan/mtg-tagtuned-embeddinggemma-300m"
 EMBED_PROMPT = "task: sentence similarity | query: "
 EMBED_DIMS = 768
