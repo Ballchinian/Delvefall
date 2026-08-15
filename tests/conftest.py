@@ -103,7 +103,7 @@ def _real_pool(url):
         conn.commit()
 
     return ConnectionPool(url, min_size=1, max_size=4, kwargs={"row_factory": dict_row},
-                          configure=setup, open=True)
+                          configure=setup, check=ConnectionPool.check_connection, open=True)
 
 
 if "db" not in sys.modules:

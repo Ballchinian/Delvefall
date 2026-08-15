@@ -31,11 +31,25 @@ def setup(conn):
 #instant being the worst case rather than the common one. the pool only opens
 #past min_size when asked, so this costs nothing at rest. at 2 workers it is 20
 #against the 97 connections this server leaves usable
+#a dead connection looks live until something is sent down it, so without a check
+#the pool hands out whatever it is holding, one 500 per held connection. measured
+#by dropping the server end under a pool: 4 of 8 requests failed, exactly
+#min_size, before it healed itself.
+#
+#WHAT CAUSES IT IN PRODUCTION IS UNMEASURED. a dropped link is what triggered it
+#here, and a database restart or a proxy closing an idle client does the same
+#thing. worth the guard either way: the requests it eats are the first after a
+#quiet spell, which on this site is usually a crawler, and 5xx is what google
+#reduces crawl rate on.
+#
+#one empty round trip per CHECKOUT, not per request. the card page and precon
+#caches mean most hits never borrow a connection at all
 pool = ConnectionPool(
     os.environ["DATABASE_URL"],
     min_size=4,
     max_size=10,
     kwargs={"row_factory": dict_row},
     configure=setup,
+    check=ConnectionPool.check_connection,
     open=True,
 )
