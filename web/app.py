@@ -1255,6 +1255,12 @@ def find_similar(oracle_id, picked, filters, min_pct, sort, offset=0, how_many=2
         #off the index and back onto the full scan. the 400 cut is deterministic
         #anyway, since only the ingest changes the graph
         with pool.connection() as c:
+            #and neither does parallelism, which pushed it off the same way:
+            #a parallel seq scan of lines costs the planner 6,965 against this
+            #index's 12,475, because nothing in that estimate counts detoasting
+            #a 3kb vector 60,363 times. 124ms measured that way against 9ms
+            #through the index. LOCAL, so the connection goes back as it came
+            c.execute("SET LOCAL max_parallel_workers_per_gather = 0")
             return c.execute("""
                 SELECT l.oracle_id, l.line_text, l.face, 1 - (l.""" + EMBED_COL + """ <=> %s) AS sim, """ + pcol + """ AS price, c.edhrec_rank, c.released_at, c.salt
                 FROM lines l JOIN cards c ON c.oracle_id = l.oracle_id
@@ -3960,6 +3966,9 @@ def swap_candidates(conn, card, deck_ids, colors, field, direction, currency="us
     #EVERY pair per card, so a suggestion can say "+2 more matching lines". the
     #best one still decides the ranking and the badge
     pairs_by_card, meta = {}, {}
+    #the same planner trap find_similar's hunt() sets this against, and the last
+    #thing this connection does, so LOCAL covers exactly these walks
+    conn.execute("SET LOCAL max_parallel_workers_per_gather = 0")
     for ql in qlines:
         w = line_weight(ql["count"])
         rows = conn.execute("""
