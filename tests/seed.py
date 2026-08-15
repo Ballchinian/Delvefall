@@ -163,10 +163,13 @@ def build(conn):
     #every pair at zero while every test still passed its assertions about
     #rules text. the width is read off the column so this cannot drift from
     #common/schema.sql
+    #BY NAME, not by index: this connection comes from the test pool, which sets
+    #row_factory=dict_row the way web/db.py does, so a row subscripts like a dict.
+    #ingest/tags.py runs the same query on a plain connection and reads [0]
     width = conn.execute("""
         SELECT atttypmod FROM pg_attribute
         WHERE attrelid = 'card_tag_vecs'::regclass AND attname = 'vec'
-    """).fetchone()[0]
+    """).fetchone()["atttypmod"]
     conn.execute("""
         INSERT INTO tag_dims (tag, dim)
         SELECT t.tag, (SELECT coalesce(max(dim), 0) FROM tag_dims)
