@@ -1863,43 +1863,64 @@ SALT_BASIC_SQL = "(c.type_line LIKE 'Basic%%' AND c.type_line LIKE '%%Land%%')"
 #leaves in. each carries its own top 3 cards, because whichever column the
 #board is sorted by, the row should show what MADE that number
 PRECON_SQL = """
-WITH scored AS (
-    SELECT dc.deck_slug, c.name, c.uniqueness,
-           row_number() OVER (PARTITION BY dc.deck_slug ORDER BY c.uniqueness DESC) AS n,
-           count(*) OVER (PARTITION BY dc.deck_slug) AS held
+--every reading below used to open with its own `deck_cards JOIN cards`, five
+--scans of the same 13,887 rows to read a different column off each. ONE scan
+--here, MATERIALIZED so the five readings walk the result instead of the tables.
+--the two type line tests come along as flags for the same reason: they were
+--being recomputed per scan
+WITH base AS MATERIALIZED (
+    SELECT dc.deck_slug, dc.is_commander, c.name, c.uniqueness, c.salt,
+           __PRICE__ AS price, c.edhrec_rank, c.released_at,
+           c.type_line NOT LIKE '%%Land%%' AS nonland,
+           NOT """ + SALT_BASIC_SQL + """ AS notbasic
     FROM deck_cards dc
     JOIN cards c ON c.oracle_id = dc.oracle_id
-    WHERE c.uniqueness IS NOT NULL
-      AND c.type_line NOT LIKE '%%Land%%'
+),
+scored AS (
+    SELECT deck_slug, name, uniqueness,
+           row_number() OVER (PARTITION BY deck_slug ORDER BY uniqueness DESC) AS n,
+           count(*) OVER (PARTITION BY deck_slug) AS held
+    FROM base
+    WHERE uniqueness IS NOT NULL
+      AND nonland
 ),
 rolled AS (
     --the fraction becomes a per-deck count here, so every deck is scored on
     --the same share of itself. greatest(1, ...) so a deck of one card still
-    --gets a score rather than dividing by nothing
-    SELECT deck_slug, avg(uniqueness) AS originality
-    FROM scored WHERE n <= greatest(1, round(held * %s)) GROUP BY deck_slug
+    --gets a score rather than dividing by nothing.
+    --
+    --the top 3 come out of this SAME grouping pass. they used to be a correlated
+    --subquery in the final select, which is a full scan of this CTE once per
+    --deck: 166 scans each, and the five of them were 399ms of a 561ms query
+    SELECT deck_slug,
+           avg(uniqueness) FILTER (WHERE n <= greatest(1, round(held * %s))) AS originality,
+           array_agg(name ORDER BY n) FILTER (WHERE n <= 3) AS drivers
+    FROM scored GROUP BY deck_slug
 ),
 salted AS (
-    SELECT dc.deck_slug, c.name, c.salt,
-           row_number() OVER (PARTITION BY dc.deck_slug ORDER BY c.salt DESC) AS sn
-    FROM deck_cards dc
-    JOIN cards c ON c.oracle_id = dc.oracle_id
-    WHERE c.salt IS NOT NULL""" + (" AND NOT " + SALT_BASIC_SQL if SALT_SKIP_BASICS else "") + """
+    SELECT deck_slug, name, salt,
+           row_number() OVER (PARTITION BY deck_slug ORDER BY salt DESC) AS sn
+    FROM base
+    WHERE salt IS NOT NULL""" + (" AND notbasic" if SALT_SKIP_BASICS else "") + """
 ),
 salt_rolled AS (
-    SELECT deck_slug, sum(salt) AS salt FROM salted GROUP BY deck_slug
+    SELECT deck_slug, sum(salt) AS salt,
+           array_agg(name ORDER BY sn) FILTER (WHERE sn <= 3) AS salt_drivers
+    FROM salted GROUP BY deck_slug
 ),
 --money counts EVERYTHING, basics included, unlike salt. the two are different
 --kinds of number: salt is an opinion about a card and nine Islands are not
 --nine times the annoyance, where price is an amount of money and a deck's
 --cost genuinely includes the lands you have to own to play it
 priced AS (
-    SELECT dc.deck_slug, c.name, __PRICE__ AS price,
-           row_number() OVER (PARTITION BY dc.deck_slug ORDER BY __PRICE__ DESC NULLS LAST) AS pn
-    FROM deck_cards dc JOIN cards c ON c.oracle_id = dc.oracle_id
+    SELECT deck_slug, name, price,
+           row_number() OVER (PARTITION BY deck_slug ORDER BY price DESC NULLS LAST) AS pn
+    FROM base
 ),
 price_rolled AS (
-    SELECT deck_slug, sum(price) AS price FROM priced GROUP BY deck_slug
+    SELECT deck_slug, sum(price) AS price,
+           array_agg(name ORDER BY pn) FILTER (WHERE pn <= 3) AS price_drivers
+    FROM priced GROUP BY deck_slug
 ),
 --how staple-heavy a deck is. the MEDIAN rather than the mean, because
 --edhrec_rank is ordinal over the whole format and one card at rank 31000
@@ -1907,42 +1928,38 @@ price_rolled AS (
 --the originality convention: every deck runs Command Tower and it says
 --nothing about which deck this is
 plays AS (
-    SELECT dc.deck_slug, c.name, c.edhrec_rank,
-           row_number() OVER (PARTITION BY dc.deck_slug ORDER BY c.edhrec_rank) AS rn
-    FROM deck_cards dc JOIN cards c ON c.oracle_id = dc.oracle_id
-    WHERE c.edhrec_rank IS NOT NULL AND c.type_line NOT LIKE '%%Land%%'
+    SELECT deck_slug, name, edhrec_rank,
+           row_number() OVER (PARTITION BY deck_slug ORDER BY edhrec_rank) AS rn
+    FROM base
+    WHERE edhrec_rank IS NOT NULL AND nonland
 ),
 play_rolled AS (
-    SELECT deck_slug, percentile_cont(0.5) WITHIN GROUP (ORDER BY edhrec_rank) AS play_median
+    SELECT deck_slug, percentile_cont(0.5) WITHIN GROUP (ORDER BY edhrec_rank) AS play_median,
+           array_agg(name ORDER BY rn) FILTER (WHERE rn <= 3) AS play_drivers
     FROM plays GROUP BY deck_slug
 ),
 --age off the FIRST printing date, so a reprint does not make an old card new.
 --basics are out for the same reason they are out of the salt tally: thirty
 --Islands at three decades each is ~900 years that say nothing about a deck
 aged AS (
-    SELECT dc.deck_slug, c.name, c.released_at,
-           extract(epoch FROM (now() - c.released_at)) / 31557600.0 AS years,
-           row_number() OVER (PARTITION BY dc.deck_slug ORDER BY c.released_at) AS an
-    FROM deck_cards dc JOIN cards c ON c.oracle_id = dc.oracle_id
-    WHERE c.released_at IS NOT NULL""" + (" AND NOT " + SALT_BASIC_SQL if SALT_SKIP_BASICS else "") + """
+    SELECT deck_slug, name, released_at,
+           extract(epoch FROM (now() - released_at)) / 31557600.0 AS years,
+           row_number() OVER (PARTITION BY deck_slug ORDER BY released_at) AS an
+    FROM base
+    WHERE released_at IS NOT NULL""" + (" AND notbasic" if SALT_SKIP_BASICS else "") + """
 ),
 age_rolled AS (
-    SELECT deck_slug, sum(years) AS age_total, avg(years) AS age_mean, count(*) AS age_cards
+    SELECT deck_slug, sum(years) AS age_total, avg(years) AS age_mean, count(*) AS age_cards,
+           array_agg(name ORDER BY an) FILTER (WHERE an <= 3) AS age_drivers
     FROM aged GROUP BY deck_slug
 )
 SELECT d.slug, d.name, d.code, d.release_date, d.source, r.originality,
        sr.salt, pr.price, plr.play_median,
        ar.age_total, ar.age_mean, ar.age_cards,
-       (SELECT array_agg(s.name ORDER BY s.n) FROM scored s
-         WHERE s.deck_slug = d.slug AND s.n <= 3) AS drivers,
-       (SELECT array_agg(s2.name ORDER BY s2.sn) FROM salted s2
-         WHERE s2.deck_slug = d.slug AND s2.sn <= 3) AS salt_drivers,
-       (SELECT array_agg(p.name ORDER BY p.pn) FROM priced p
-         WHERE p.deck_slug = d.slug AND p.pn <= 3) AS price_drivers,
-       (SELECT array_agg(pl.name ORDER BY pl.rn) FROM plays pl
-         WHERE pl.deck_slug = d.slug AND pl.rn <= 3) AS play_drivers,
-       (SELECT array_agg(a.name ORDER BY a.an) FROM aged a
-         WHERE a.deck_slug = d.slug AND a.an <= 3) AS age_drivers,
+       r.drivers, sr.salt_drivers, pr.price_drivers, plr.play_drivers, ar.age_drivers,
+       --NOT off base: this one wants the (deck_slug, oracle_id) primary key, and
+       --a CTE carries no index, so reading it from base cost a 13,887 row scan
+       --per deck to find the one or two commanders
        (SELECT array_agg(c2.name ORDER BY c2.name) FROM deck_cards dc2
           JOIN cards c2 ON c2.oracle_id = dc2.oracle_id
          WHERE dc2.deck_slug = d.slug AND dc2.is_commander) AS leaders
