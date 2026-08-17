@@ -6,16 +6,22 @@
     <h1>Feedback review</h1>
 
     <h2>Daily unique visitors</h2>
-    {# distinct people per day, from the one-way daily token. today is still
-       counting; every earlier day is frozen and its tokens are long gone #}
+    {# distinct visitors per day, from the one-way daily token. today is still
+       counting; every earlier day is frozen and its tokens are long gone.
+       a dash is a day that predates the split, not a day without bots #}
     <table class="fb-usage">
-        <tr><th>day</th><th>unique visitors</th></tr>
+        <tr><th>day</th><th>people</th><th>bots</th><th>bot share</th></tr>
         {% for u in usage %}
         <tr><td>{{ u.day }}</td>
-            <td>{{ u.uniques }}</td></tr>
+            <td>{{ u.uniques }}</td>
+            {% if u.split %}
+            <td>{{ u.bots }}</td><td>{{ u.share }}%</td>
+            {% else %}
+            <td class="fb-quiet">-</td><td class="fb-quiet">-</td>
+            {% endif %}</tr>
         {% endfor %}
-        {% if usage|length == 1 and usage[0].uniques == 0 %}
-        <tr><td colspan="2" class="fb-quiet">nothing counted yet</td></tr>
+        {% if usage[0].uniques == 0 and usage[0].bots == 0 and usage|length == 1 %}
+        <tr><td colspan="4" class="fb-quiet">nothing counted yet</td></tr>
         {% endif %}
     </table>
 

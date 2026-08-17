@@ -4876,14 +4876,33 @@ def admin():
             for l in conn.execute("SELECT oracle_id, line_text FROM lines WHERE oracle_id = ANY(%s) AND NOT whole", (list(ids),)):
                 line_texts.setdefault(l["oracle_id"], []).append(l["line_text"])
 
-        #daily unique visitors. today is still accumulating in visit_seen, past
-        #days are the frozen integer counts, so the two are read separately and
-        #stitched newest-first
+        #daily visitors, split the same way count_visit files them. today is
+        #still accumulating in visit_seen, past days are the frozen integer
+        #counts, so the two are read separately and stitched newest-first.
+        #
+        #today's half counts FILTERED, not count(*): counting the whole table
+        #here while visit_daily.uniques holds people only made the newest row
+        #the one row that included bots
         today = _utc_day()
-        live = conn.execute("SELECT count(*) AS n FROM visit_seen WHERE day = %s", (today,)).fetchone()["n"]
-        usage = [{"day": today.isoformat(), "uniques": live}]
-        for u in conn.execute("SELECT day, uniques FROM visit_daily ORDER BY day DESC LIMIT 60"):
-            usage.append({"day": u["day"].isoformat(), "uniques": u["uniques"]})
+        live = conn.execute("""SELECT count(*) FILTER (WHERE NOT bot) AS uniques,
+                                      count(*) FILTER (WHERE bot) AS bots
+                               FROM visit_seen WHERE day = %s""", (today,)).fetchone()
+        #visit_daily.bots was added to a table that already had rows, and they
+        #took the column default. a zero there means "not measured" and not "no
+        #bots", so the days behind the split are marked rather than shown as
+        #all-human, which reads as a collapse in traffic that never happened
+        split_from = conn.execute("SELECT min(day) AS d FROM visit_daily WHERE bots > 0").fetchone()["d"]
+        rows_daily = conn.execute("SELECT day, uniques, bots FROM visit_daily ORDER BY day DESC LIMIT 60").fetchall()
+
+    def usage_row(day, uniques, bots, split):
+        total = uniques + bots
+        return {"day": day.isoformat(), "uniques": uniques, "bots": bots, "split": split,
+                "share": round(100 * bots / total) if split and total else 0}
+
+    usage = [usage_row(today, live["uniques"], live["bots"], True)]
+    for u in rows_daily:
+        usage.append(usage_row(u["day"], u["uniques"], u["bots"],
+                               split_from is not None and u["day"] >= split_from))
 
     def card_bit(role, oid, name, pct):
         c = info.get(oid)
