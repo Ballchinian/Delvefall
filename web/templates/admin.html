@@ -17,11 +17,11 @@
             {% if u.split %}
             <td>{{ u.bots }}</td><td>{{ u.share }}%</td>
             {% else %}
-            <td class="fb-quiet">-</td><td class="fb-quiet">-</td>
+            <td>-</td><td>-</td>
             {% endif %}</tr>
         {% endfor %}
         {% if usage[0].uniques == 0 and usage[0].bots == 0 and usage|length == 1 %}
-        <tr><td colspan="4" class="fb-quiet">nothing counted yet</td></tr>
+        <tr><td colspan="4" class="fb-none">nothing counted yet</td></tr>
         {% endif %}
     </table>
 

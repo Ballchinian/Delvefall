@@ -2744,6 +2744,12 @@ body.home main {
     font-variant-numeric: tabular-nums;
 }
 
+/* .fb-quiet is the report dialog's cancel BUTTON, background and border and
+   all, so a table cell cannot borrow it for muted text */
+.fb-usage .fb-none {
+    color: var(--muted);
+}
+
 .fb-cards {
     display: flex;
     flex-wrap: wrap;
