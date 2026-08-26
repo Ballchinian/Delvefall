@@ -74,6 +74,29 @@ def force_canonical_host():
     return redirect(url, code=301)
 
 
+#the browser rewrites http to https ITSELF for six months after a visit, so the
+#one request the redirect above cannot cover, the plain http one a typed address
+#sends before anything has answered it, stops leaving the machine.
+#
+#NO includeSubDomains. www is a separate hostname as far as hsts is concerned and
+#gets its own header off the 301 above, this running on that response too, so the
+#flag would only cover subdomains that do not exist. it is also a promise a
+#browser keeps until it expires and cannot be withdrawn by dropping the header,
+#so a later staging.delvefall.com on plain http would be unreachable with no way
+#to click through.
+#no preload either: that ships the domain inside chrome's binary and unships over
+#months.
+#
+#is_secure reads x-forwarded-proto through the ProxyFix above. the header is
+#specified to be IGNORED when it arrives over plain http, so the guard only keeps
+#it off responses where it would mean nothing
+@app.after_request
+def hsts(resp):
+    if request.is_secure:
+        resp.headers["Strict-Transport-Security"] = "max-age=15552000"
+    return resp
+
+
 #gzip for every text response (html, json, css, js). the search page and the
 #/more payloads are prose-heavy and shrink several times over
 Compress(app)
