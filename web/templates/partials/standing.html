@@ -172,14 +172,14 @@
                    one constant slot the thing that changed as you paged, and
                    printed a price where a search prints a percentage #}
                 <div class="result-name"><span class="card-name" title="{{ c.name }}">{{ c.name }}</span>
-                    {%- if c.badge %}<span class="percent">{{ c.badge }}</span>{% endif %}</div>
+                    {%- if c.badge %}<span class="percent" data-tip="originality">{{ c.badge }}</span>{% endif %}</div>
                 {# all four, not just the one this panel ranks on: "it is here
                    for its price, but what does it cost in salt" comes next #}
                 <div class="result-price">
                     {% if c.price_label %}<span class="price-figure">{{ c.price_label }}</span>{% endif %}
-                    {% if c.rank_label %}<span class="result-rank">{{ c.rank_label }}</span>{% endif %}
-                    {% if c.salt_label %}<span class="result-salt"><i class="salt-mark" aria-hidden="true"></i>{{ c.salt_label }}</span>{% endif %}
-                    {% if c.age_label %}<span class="result-age">{{ c.age_label }}</span>{% endif %}
+                    {% if c.rank_label %}<span class="result-rank" data-tip="rank">{{ c.rank_label }}</span>{% endif %}
+                    {% if c.salt_label %}<span class="result-salt" data-tip="salt"><i class="salt-mark" aria-hidden="true"></i>{{ c.salt_label }}</span>{% endif %}
+                    {% if c.age_label %}<span class="result-age" data-tip="age">{{ c.age_label }}</span>{% endif %}
                 </div>
             </div>
             {% endfor %}
@@ -196,7 +196,12 @@
 {# ONE legend, and until 2026-08-26 these four sentences were a title attribute
    on every badge of every tile. at 361 cards over five panels that was 149kb of
    the 831kb a precon page weighed, the same four sentences 361 times each.
-   a dl and not four paragraphs: it IS a term and its definition, four times #}
+   a dl and not four paragraphs: it IS a term and its definition, four times.
+
+   the data-tip on each badge above is the same four sentences again, held once
+   in cards.js and written onto a badge when a pointer reaches it. that half is
+   the hover; THIS half is what a reader with no javascript gets, and it is why
+   the words live in the markup as well #}
 <details class="card-legend">
     <summary>What the figures on each card mean</summary>
     <dl>
