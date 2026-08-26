@@ -172,18 +172,14 @@
                    one constant slot the thing that changed as you paged, and
                    printed a price where a search prints a percentage #}
                 <div class="result-name"><span class="card-name" title="{{ c.name }}">{{ c.name }}</span>
-                    {%- if c.badge %}<span class="percent"
-                        title="originality: one minus how close this card's nearest match anywhere in Magic gets, so a card at 0.30 has something out there 70% like it">{{ c.badge }}</span>{% endif %}</div>
+                    {%- if c.badge %}<span class="percent">{{ c.badge }}</span>{% endif %}</div>
                 {# all four, not just the one this panel ranks on: "it is here
                    for its price, but what does it cost in salt" comes next #}
                 <div class="result-price">
                     {% if c.price_label %}<span class="price-figure">{{ c.price_label }}</span>{% endif %}
-                    {% if c.rank_label %}<span class="result-rank"
-                        title="play rate: edhrec's rank for how often this card is played in commander, where #1 is the most played card in the format">{{ c.rank_label }}</span>{% endif %}
-                    {% if c.salt_label %}<span class="result-salt"
-                        title="salt {{ c.salt_label }} out of about 3, from edhrec's salt survey, where players vote on the cards they least enjoy facing"><i class="salt-mark" aria-hidden="true"></i>{{ c.salt_label }}</span>{% endif %}
-                    {% if c.age_label %}<span class="result-age"
-                        title="card age: how long ago this card was first printed, counted from its earliest printing, so a reprint does not make an old card new">{{ c.age_label }}</span>{% endif %}
+                    {% if c.rank_label %}<span class="result-rank">{{ c.rank_label }}</span>{% endif %}
+                    {% if c.salt_label %}<span class="result-salt"><i class="salt-mark" aria-hidden="true"></i>{{ c.salt_label }}</span>{% endif %}
+                    {% if c.age_label %}<span class="result-age">{{ c.age_label }}</span>{% endif %}
                 </div>
             </div>
             {% endfor %}
@@ -196,4 +192,29 @@
     {% endif %}
 </section>
 {% endfor %}
+
+{# ONE legend, and until 2026-08-26 these four sentences were a title attribute
+   on every badge of every tile. at 361 cards over five panels that was 149kb of
+   the 831kb a precon page weighed, the same four sentences 361 times each.
+   a dl and not four paragraphs: it IS a term and its definition, four times #}
+<details class="card-legend">
+    <summary>What the figures on each card mean</summary>
+    <dl>
+        <dt>Originality</dt>
+        <dd>One minus how close the card's nearest match anywhere in Magic gets,
+        so a card at 0.30 has something out there 70% like it.</dd>
+
+        <dt>Play rate</dt>
+        <dd>EDHREC's rank for how often the card is played in Commander, where #1
+        is the most played card in the format.</dd>
+
+        <dt>Salt</dt>
+        <dd>Out of about 3, from EDHREC's salt survey, where players vote on the
+        cards they least enjoy facing.</dd>
+
+        <dt>Card age</dt>
+        <dd>How long ago the card was first printed, counted from its earliest
+        printing, so a reprint does not make an old card new.</dd>
+    </dl>
+</details>
 {% endif %}

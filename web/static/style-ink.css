@@ -3309,6 +3309,33 @@ body.home main {
 
 .deck-standing-what strong { color: var(--gold); }
 
+/* the four sentences that used to ride every card tile as a title attribute */
+.card-legend {
+    margin-top: 18px;
+    font-size: 12.5px;
+    color: var(--muted);
+}
+
+.card-legend summary {
+    cursor: pointer;
+    color: var(--teal);
+}
+
+.card-legend summary::marker { color: var(--muted); }
+
+.card-legend dl {
+    margin: 10px 0 0;
+    max-width: 62ch;
+    line-height: 1.5;
+}
+
+.card-legend dt {
+    color: var(--gold);
+    font-weight: 600;
+}
+
+.card-legend dd { margin: 2px 0 10px; }
+
 /* the count says what is left, so the button is never a mystery box */
 .deck-card-more {
     display: flex;
