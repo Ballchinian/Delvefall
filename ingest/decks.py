@@ -26,7 +26,7 @@ DECK_URL = "https://mtgjson.com/api/v5/decks/%s.json"
 #nothing reads the string, it is a MARKER: change it whenever this starts filling
 #a column it did not before, and the gate in main() forces exactly one rebuild to
 #go and get it
-DECK_FIELDS = "source"
+DECK_FIELDS = "source source_ok"
 
 #mtgjson publishes 2990 decks across theme decks, jumpstart, secret lair drops
 #and mtgo redemption piles. none are 100 card singleton commander decks, so none
@@ -36,6 +36,36 @@ DECK_TYPE = "Commander Deck"
 #one file per deck and about 190 of them, the one place in the pipeline making a
 #lot of small requests
 REQUEST_PAUSE = 0.1
+
+
+#ONLY a 404 or a 410 takes a link away. magic.wizards.com sits behind a bot
+#filter that answers 403 to most of these, and a check counting every non-200 as
+#dead would have blanked 83 of the 155 working links the first time it ran. a 403
+#is the filter talking, a 404 is the site. anything else, a timeout included,
+#leaves the link alone
+DEAD_CODES = (404, 410)
+
+#one a second, ten times slower than the deck downloads above: the filter answers
+#more honestly the slower you go, and 65 distinct urls is about a minute
+SOURCE_PAUSE = 1.0
+
+
+def dead_sources(urls):
+    #HEAD, so this is 65 status lines rather than 65 articles
+    session = requests.Session()
+    session.headers.update(HEADERS)
+    dead = set()
+    for url in sorted(urls):
+        try:
+            code = session.head(url, timeout=30, allow_redirects=True).status_code
+        except Exception as e:
+            print("  unreachable, keeping the link: " + url + " (" + str(e) + ")")
+            continue
+        if code in DEAD_CODES:
+            dead.add(url)
+            print("  " + str(code) + " " + url)
+        time.sleep(SOURCE_PAUSE)
+    return dead
 
 
 def fetch_decks(entries):
@@ -157,6 +187,25 @@ def main():
     decks = drop_reprint_editions(decks)
     print("got " + str(before) + " decks, " + str(len(decks)) + " after dropping reprint editions")
 
+    #BEFORE the transaction below and before the truncate inside it: this is a
+    #minute of requests and it must not run holding a lock on the board.
+    #
+    #once dead, STAYS dead, which is what reading the old column back buys. the
+    #bot filter means a url that 404s today can answer 403 tomorrow, and without
+    #carrying the answer forward the same link would appear and vanish from the
+    #board on alternate ingests. the cost is that a page wizards restores stays
+    #hidden until someone clears the flag by hand, which for a section they
+    #deleted years ago is the right way round.
+    #fragments are dropped for the check because the server never sees one: four
+    #of the tarkir lists are the same article with a different anchor
+    was_dead = {r[0].split("#")[0] for r in
+                conn.execute("SELECT source FROM decks WHERE NOT source_ok AND source <> ''")}
+    urls = {d["source"].split("#")[0] for d in decks.values() if d["source"]}
+    print("checking " + str(len(urls - was_dead)) + " source urls ("
+          + str(len(was_dead)) + " already known dead)...")
+    dead = was_dead | dead_sources(urls - was_dead)
+    print(str(len(dead)) + " of " + str(len(urls)) + " source urls lead nowhere")
+
     #a card we do not have cannot be scored and the foreign key would refuse the
     #row anyway. dropping it quietly is right: 3 of 6257 measured, and they are
     #cards our own ingest chose not to keep rather than gaps in mtgjson
@@ -168,9 +217,10 @@ def main():
         missing = 0
         card_rows = []
         for slug, d in decks.items():
-            cur.execute("""INSERT INTO decks (slug, name, code, release_date, type, source)
-                           VALUES (%s, %s, %s, %s, %s, %s)""",
-                        (slug, d["name"], d["code"], d["date"], d["type"], d["source"]))
+            cur.execute("""INSERT INTO decks (slug, name, code, release_date, type, source, source_ok)
+                           VALUES (%s, %s, %s, %s, %s, %s, %s)""",
+                        (slug, d["name"], d["code"], d["date"], d["type"], d["source"],
+                         d["source"].split("#")[0] not in dead))
             for oid, count, commander in d["cards"]:
                 if oid not in known:
                     missing += 1

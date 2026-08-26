@@ -272,6 +272,11 @@ with pool.connection() as _conn:
     _conn.execute("ALTER TABLE feedback ADD COLUMN IF NOT EXISTS tag text NOT NULL DEFAULT ''")
     #also in schema.sql, and also here because railway only deploys web/. what
     #each holds is at todays_salt/count_visit below
+    #also in schema.sql. here as well because railway deploys web/ ON PUSH and the
+    #ingest runs at 9am: without this every precon page 500s on the column in
+    #between. true means "show the link", so a database waiting for its first
+    #check behaves exactly as it did before the column existed
+    _conn.execute("ALTER TABLE decks ADD COLUMN IF NOT EXISTS source_ok boolean NOT NULL DEFAULT true")
     _conn.execute("CREATE TABLE IF NOT EXISTS visit_salt (day date PRIMARY KEY, salt text NOT NULL)")
     _conn.execute("""CREATE TABLE IF NOT EXISTS visit_seen (
         day   date NOT NULL,
@@ -2072,7 +2077,12 @@ age_rolled AS (
            array_agg(name ORDER BY an) FILTER (WHERE an <= 3) AS age_drivers
     FROM aged GROUP BY deck_slug
 )
-SELECT d.slug, d.name, d.code, d.release_date, d.source, r.originality,
+SELECT d.slug, d.name, d.code, d.release_date,
+       --BLANKED here rather than handed over beside a flag: source is read in
+       --four places (the board, a deck's header, the neighbour rows, the
+       --ctrl-click payload) and each already asks whether there is one. a second
+       --field is a check every one of them could forget
+       CASE WHEN d.source_ok THEN d.source ELSE '' END AS source, r.originality,
        sr.salt, pr.price, plr.play_median,
        ar.age_total, ar.age_mean, ar.age_cards,
        r.drivers, sr.salt_drivers, pr.price_drivers, plr.play_drivers, ar.age_drivers,

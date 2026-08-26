@@ -321,6 +321,13 @@ CREATE TABLE IF NOT EXISTS decks (
 --page should not promise more
 ALTER TABLE decks ADD COLUMN IF NOT EXISTS source text NOT NULL DEFAULT '';
 
+--false only where the source url was SEEN to 404. wizards deleted its old
+--card-set-archive section, so 16 of the links above lead nowhere.
+--DEFAULT true, and it matters: a database the check has never run against shows
+--every link, which is how the site behaved before the column existed. the check
+--only ever takes a link away on proof
+ALTER TABLE decks ADD COLUMN IF NOT EXISTS source_ok boolean NOT NULL DEFAULT true;
+
 --no originality column ON PURPOSE. the score derives from cards.uniqueness,
 --which moves whenever the embedding model changes, so a stored number would rot
 --into a lie about a model that no longer exists. 166 decks by ~100 cards is 16k
