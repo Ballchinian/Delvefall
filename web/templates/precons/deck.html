@@ -20,26 +20,30 @@
 {% block content %}
 {# data-opened is which standing the arrows should open on: the sort the
    visitor arrived with, so a click off the salt board lands on salt #}
-<div class="guide precons deck-detail" data-opened="{{ opened }}">
+{# an article and not a div: the page IS one deck, and its title block is that
+   deck's header rather than the site's #}
+<article class="guide precons deck-detail" data-opened="{{ opened }}">
     {# keeps the sort: dropping it put people back on the originality board
        after they had clicked through from the price one #}
     <p class="precon-back"><a href="/precons{% if back != 'original' %}?sort={{ back }}{% endif %}">&larr; All precons</a></p>
 
-    <h1>{{ deck.name }}</h1>
-    <p class="deck-detail-sub">
-        {% if deck.leaders %}
-            {% for leader in deck.leaders %}<a href="/search?q={{ leader | urlencode }}" data-card="{{ leader }}">{{ leader }}</a>{{ '' if loop.last else ' / ' }}{% endfor %}
-            &middot;
-        {% endif %}
-        <span class="precon-set">{{ deck.code }}{% if year %} {{ year }}{% endif %}</span>
-        {% if is_new %}<span class="precon-new"
-            title="published inside the last year, so its salt, price and play rate are all still settling">new</span>{% endif %}
-        {% if deck.source %}
-        &middot; <a class="precon-source" href="{{ deck.source }}" target="_blank" rel="noopener"
-            aria-label="official decklist for {{ deck.name }} (opens in a new tab)">official decklist</a>
-        {% endif %}
-        &middot; {{ counted }} cards
-    </p>
+    <header>
+        <h1>{{ deck.name }}</h1>
+        <p class="deck-detail-sub">
+            {% if deck.leaders %}
+                {% for leader in deck.leaders %}<a href="/search?q={{ leader | urlencode }}" data-card="{{ leader }}">{{ leader }}</a>{{ '' if loop.last else ' / ' }}{% endfor %}
+                &middot;
+            {% endif %}
+            <span class="precon-set">{{ deck.code }}{% if year %} {{ year }}{% endif %}</span>
+            {% if is_new %}<span class="precon-new"
+                title="published inside the last year, so its salt, price and play rate are all still settling">new</span>{% endif %}
+            {% if deck.source %}
+            &middot; <a class="precon-source" href="{{ deck.source }}" target="_blank" rel="noopener"
+                aria-label="official decklist for {{ deck.name }} (opens in a new tab)">official decklist</a>
+            {% endif %}
+            &middot; {{ counted }} cards
+        </p>
+    </header>
 
     {% if not panels %}
     <p class="precon-empty">No scored cards for this deck yet.</p>
@@ -68,7 +72,7 @@
     <p class="deck-detail-foot">Every ranking here is against the other
     {{ total - 1 }} Commander precons, measured the same way for all of them.
     <a href="/deck">Read your own deck through the same lens &rarr;</a></p>
-</div>
+</article>
 {% endblock %}
 
 {% block scripts %}

@@ -87,7 +87,10 @@ h1, h2, h3 {
     font-weight: 600;
 }
 
-header {
+/* body > and not a bare tag: a <header> or <footer> inside an article is the
+   right element for that article's own title block, and an unscoped rule here
+   painted it as the site's dark bar */
+body > header {
     background: var(--ink);
     padding: 12px 16px;
 }
@@ -1298,14 +1301,14 @@ h2 {
     border-radius: 3px;
 }
 
-footer {
+body > footer {
     text-align: center;
     color: var(--muted);
     font-size: 12px;
     padding: 24px;
 }
 
-footer a { color: var(--teal); }
+body > footer a { color: var(--teal); }
 
 /* flex rather than a margin on the anchors, so the gap belongs to the row and
    neither link carries a stray edge if the other ever goes */
