@@ -3,3 +3,5 @@ flask-compress
 gunicorn
 psycopg[binary,pool]
 pgvector
+rcssmin
+rjsmin

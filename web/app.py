@@ -21,10 +21,14 @@ import urllib.request
 from urllib.parse import quote, urlencode
 from concurrent.futures import ThreadPoolExecutor
 
-from flask import Flask, render_template, request, redirect, abort, make_response, url_for, Response
+from flask import (Flask, render_template, request, redirect, abort, make_response, url_for,
+                   Response, send_from_directory)
 from flask_compress import Compress
 from markupsafe import Markup, escape
 from werkzeug.middleware.proxy_fix import ProxyFix
+from werkzeug.security import safe_join
+import rcssmin
+import rjsmin
 
 from db import pool
 from prefix_words import PREFIX_WORDS
@@ -106,6 +110,60 @@ def static_url(filename):
             v = hashlib.md5(f.read()).hexdigest()[:8]
         _static_hash[filename] = (stamp, v)
     return url_for("static", filename=filename) + "?v=" + _static_hash[filename][1]
+
+
+#the wire copy of every stylesheet and script. the source files keep every
+#comment: style-ink.css is 25kb gzipped, over half of that is comment prose, and
+#it loads on every page.
+#
+#rcssmin and rjsmin remove comments and whitespace and NOTHING else. no
+#renaming, no reordering, no restructuring, which is what makes them safe over
+#the es modules in static/js and leaves a stack trace naming the right function
+_MINIFY = {".css": rcssmin.cssmin, ".js": rjsmin.jsmin}
+
+_minified = {}
+
+
+@app.endpoint("static")
+def serve_static(filename):
+    #replaces flask's own static view, so url_for("static") and static_url above
+    #carry on unchanged. anything that is not css or js (the 150 symbol svgs, the
+    #logos, the woff2s) goes straight back to flask's sender
+    make = _MINIFY.get(os.path.splitext(filename)[1])
+    if make is None:
+        return send_from_directory(app.static_folder, filename)
+    #NOT os.path.join the way static_url does it: that one is handed names the
+    #templates spell out, this one is handed whatever the url said
+    path = safe_join(app.static_folder, filename)
+    if path is None:
+        abort(404)
+    try:
+        st = os.stat(path)
+    except OSError:
+        abort(404)
+    #memoised on mtime AND size, the same stamp and for the same reason as
+    #static_url: on the name alone an edited file serves its old bytes forever
+    stamp = (st.st_mtime_ns, st.st_size)
+    hit = _minified.get(filename)
+    if hit is None or hit[0] != stamp:
+        with open(path, encoding="utf-8") as f:
+            src = f.read()
+        try:
+            body = make(src).encode()
+        except Exception:
+            #a minifier that chokes on a file serves it whole rather than 500ing
+            #the page that asked for it
+            body = src.encode()
+        hit = _minified[filename] = (stamp, body)
+    resp = app.response_class(hit[1], mimetype=mimetypes.guess_type(filename)[0])
+    #the same year every other static file gets, safe for the same reason: the
+    #url carries static_url's content hash
+    resp.cache_control.public = True
+    resp.cache_control.max_age = app.config["SEND_FILE_MAX_AGE_DEFAULT"]
+    #of the MINIFIED bytes, which are what a browser is holding
+    resp.set_etag(hashlib.md5(hit[1]).hexdigest())
+    resp.last_modified = st.st_mtime
+    return resp.make_conditional(request)
 
 
 _MANA_TOKEN = re.compile(r"\{([^}]+)\}")
