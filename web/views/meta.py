@@ -144,3 +144,88 @@ def robots():
         #the index, which names the four parts. only this one is advertised
         "Sitemap: " + request.url_root + "sitemap.xml",
     ]) + "\n", mimetype="text/plain")
+
+
+#llmstxt.org's shape: an h1, a blockquote, then linked sections. what an agent
+#fetching the site cold would otherwise have to infer from 31k near-identical
+#card pages, which is what the site is FOR and which of its numbers mean what.
+#
+#it earns its place as an index and not as a pitch: every line here is a page
+#that exists or a fact about where the data came from. google confirmed june 2026
+#that this file does nothing for search or ai overviews, so nothing below is
+#written at a ranking
+@bp.route("/llms.txt")
+def llms():
+    root = request.url_root
+    return Response("""# Delvefall
+
+> Finds Magic: the Gathering cards by what their rules text does, rather than by
+> the words it uses. Every card's rules lines are embedded separately and matched
+> line against line, so "destroy target creature" finds the removal and not the
+> other cards that happen to say "target". It also scores how unusual a card's
+> text is against the rest of the game, and reads a Commander decklist for
+> originality, salt, price, card age and play rate against all %d official
+> precons.
+
+No account, no syntax to learn, no ads. Type a card name.
+
+## What the numbers mean
+
+- Originality: one minus how close a card's nearest match anywhere in Magic gets,
+  so a card at 0.30 has something out there 70%% like it.
+- Salt: EDHREC's salt survey, players voting on the cards they least enjoy
+  facing, roughly 0 to 3.
+- Play rate: EDHREC's rank for how often a card is played in Commander, where #1
+  is the most played card in the format.
+- Card age: counted from a card's earliest printing, so a reprint does not make
+  an old card new.
+
+## Pages
+
+- [Card search](%ssearch?q=Swords+to+Plowshares): every card that does the same
+  thing as the named one, ranked by how close, with prices and alternatives. One
+  page per card, %s of them. The query string is the card's exact name.
+- [The most unique cards](%sunique): the cards whose abilities nothing else in
+  the game comes close to.
+- [Deck lens](%sdeck): paste a Commander decklist, or import one from Moxfield or
+  Archidekt, and read it against every precon.
+- [Commander precons ranked](%sprecons): all %d of them by originality, salt,
+  price, play rate and age, each ranking its own page.
+- [How it works](%sguide): what the site does and what every number on a result
+  means.
+- [Privacy](%sprivacy): no accounts, no tracking cookies, no IP addresses kept.
+
+## Crawling
+
+- [Sitemap index](%ssitemap.xml): four parts, the hand written pages and then the
+  card pages split into three tiers by how played the card is.
+- [robots.txt](%srobots.txt): the json endpoints the pages fetch are disallowed,
+  every human page is open.
+
+## Where the data comes from
+
+- Card data and images: [Scryfall](https://scryfall.com).
+- Concept tags: [Scryfall Tagger](https://tagger.scryfall.com), applied by hand
+  by its volunteers.
+- Play rate and salt: [EDHREC](https://edhrec.com).
+- Precon decklists: [MTGJSON](https://mtgjson.com).
+
+Unofficial Fan Content. Not approved or endorsed by Wizards of the Coast.
+""" % (precon_total(), root, "{:,}".format(card_total()), root, root, root,
+       precon_total(), root, root, root, root),
+                    mimetype="text/plain")
+
+
+def card_total():
+    #off the sitemap tiers rather than its own count(*): they partition the whole
+    #table between them, they are cached for a day already, and a figure that
+    #disagreed with the sitemaps would be the one number here worth doubting
+    return sum(len(tier_rows(t)) for t in CARD_TIERS)
+
+
+def precon_total():
+    #the same board /precons ranks, so the file cannot claim a count the site
+    #does not show. cached an hour at its own end
+    from app import precon_board
+
+    return len(precon_board())
