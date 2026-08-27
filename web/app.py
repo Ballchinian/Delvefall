@@ -1881,24 +1881,32 @@ def unique_top():
     #cached an hour like the precon board, and for the same reason: the scores
     #only move when the ingest reruns and the list is identical for everyone.
     #
-    #pure rules-text uniqueness rather than the blend the dealer uses: this is
-    #the number the h1 makes a claim about
+    #the DEALER's ranking, because the list is a description of what the button
+    #above it hands out: both axes at BLEND, and legal_commander, which is what
+    #filter_sql applies unless illegal=1 asks. ranking this on the rules-text
+    #axis alone filled it with partners and un-set cards, see web/history.md
     if _unique_top["rows"] and time.time() - _unique_top["at"] < 3600:
         return _unique_top["rows"]
     try:
         with pool.connection() as conn:
             rows = [dict(r) for r in conn.execute("""
-                SELECT name, uniqueness, unique_line, image
+                SELECT name, unique_line, image,
+                       ((1 - %s) * uniqueness + %s * coalesce(concept_uniqueness, 0)) AS blended
                 FROM cards
                 WHERE uniqueness IS NOT NULL AND coalesce(unique_line, '') <> ''
-                ORDER BY uniqueness DESC, name
+                  AND legal_commander
+                ORDER BY blended DESC, name
                 LIMIT %s
-            """, (UNIQUE_TOP,)).fetchall()]
+            """, (BLEND, BLEND, UNIQUE_TOP)).fetchall()]
     except Exception:
         #whatever was there last stays, and the clock is not touched, so the
         #next visitor tries again rather than being served an empty list for
         #an hour
         return _unique_top["rows"]
+    #the same int(round()) card_json puts in the dealer's badge, so a card
+    #printed 46% in the list is printed 46% when it is dealt
+    for r in rows:
+        r["percent"] = int(round((r["blended"] or 0) * 100))
     _unique_top["at"] = time.time()
     _unique_top["rows"] = rows
     return rows

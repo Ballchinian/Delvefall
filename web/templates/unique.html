@@ -77,9 +77,10 @@
     <details class="unique-board-fold">
         <summary>See the {{ top_n }} most unique cards in Magic</summary>
         <p class="unique-board-note">Ranked by how far away the closest thing to each one
-        sits, measured against every card ever printed. The line under a name is the one
-        nothing else in Magic comes near. The dealer above walks this same list, one card
-        at a time and in its own order for everyone who opens it.</p>
+        sits, measured against every card ever printed: the average of its two scores, rules
+        text and concepts. The line under a name is the one that sits furthest from the rest
+        of Magic. Commander-legal cards only, and the dealer above walks this same list, one
+        card at a time and in its own order for everyone who opens it.</p>
         <ol class="unique-board">
             {% for c in top %}
             <li class="unique-row">
@@ -94,7 +95,9 @@
                     <a class="unique-name" href="/search?q={{ c.name | urlencode }}" data-card="{{ c.name }}">{{ c.name }}</a>
                     {% if c.unique_line %}<span class="unique-line-text">{{ c.unique_line }}</span>{% endif %}
                 </span>
-                <span class="unique-score">{{ '%.2f'|format(c.uniqueness or 0) }}</span>
+                {# the dealer's badge, same number and same words, on the card it
+                   would deal you #}
+                <span class="unique-score" title="uniqueness">{{ c.percent }}%</span>
             </li>
             {% endfor %}
         </ol>
