@@ -7,7 +7,8 @@
 #the em dashes in the data are real: scryfall prints them, and reading them is
 #the cleaner's job
 
-from common.cards import REMINDER_KEYWORDS, can_command, clean_line, reminder_is_the_rule
+from common.cards import (REMINDER_KEYWORDS, can_command, clean_line, get_text,
+                          keep_card, reminder_is_the_rule, split_lines)
 
 
 class TestCanCommand:
@@ -225,3 +226,141 @@ class TestCleanLineCardNames:
 
     def test_result_is_stripped(self):
         assert clean_line("   Draw a card.   ", "X") == "Draw a card."
+
+
+class TestSplitLines:
+    #split_lines picks the name clean_line strips, and on a two faced card that
+    #name is both halves joined by " // ", which neither face ever prints. the
+    #splitting happens inside clean_line rather than here, which is what keeps
+    #the web app's build_lines saying the same thing off a row that stores only
+    #the joined name
+
+    def faced(self, name, *faces):
+        return {"name": name,
+                "card_faces": [{"name": n, "oracle_text": t} for n, t in faces]}
+
+    def test_a_single_faced_card_loses_its_name(self):
+        card = {"name": "Lightning Bolt",
+                "oracle_text": "Lightning Bolt deals 3 damage to any target."}
+        assert split_lines(card) == [("this card deals 3 damage to any target.", 0)]
+
+    def test_an_adventure_half_loses_its_own_name(self):
+        card = self.faced("Bonecrusher Giant // Stomp",
+                          ("Bonecrusher Giant", "Trample"),
+                          ("Stomp", "Stomp deals 2 damage to any target."))
+        assert split_lines(card) == [("Trample", 0),
+                                     ("this card deals 2 damage to any target.", 1)]
+
+    def test_a_split_card_cleans_each_half_against_its_own_name(self):
+        #Turn // Burn, both halves at once. the joined name appears in neither,
+        #so without the split Burn keeps its own and stops matching the three
+        #damage burn spells printing the sentence it copies. the fuse line rides
+        #on both faces.
+        #
+        #"Until end of turn" survives the Turn half only because the replace is
+        #case sensitive, which is the thin part of stripping both halves off
+        #every line rather than each half off its own
+        card = self.faced(
+            "Turn // Burn",
+            ("Turn", "Until end of turn, target creature loses all abilities and becomes "
+                     "a red Weird with base power and toughness 0/1.\n"
+                     "Fuse (You may cast one or both halves of this card from your hand.)"),
+            ("Burn", "Burn deals 2 damage to any target.\n"
+                     "Fuse (You may cast one or both halves of this card from your hand.)"))
+        assert split_lines(card) == [
+            ("Until end of turn, target creature loses all abilities and becomes "
+             "a red Weird with base power and toughness 0/1.", 0),
+            ("Fuse", 0),
+            ("this card deals 2 damage to any target.", 1),
+            ("Fuse", 1)]
+
+    def test_a_name_holding_slashes_is_not_two_faces(self):
+        #SP//dr, Piloted by Peni is the one card carrying the slashes in its own
+        #name, and it has a single face. clean_line splits on " // " WITH the
+        #spaces for exactly this card: split on bare slashes it reads as two
+        #faces and cuts the name in half, leaving "this card//this card enters"
+        card = {"name": "SP//dr, Piloted by Peni",
+                "oracle_text": "Vigilance\n"
+                               "When SP//dr enters, put a +1/+1 counter on target creature."}
+        assert split_lines(card) == [
+            ("Vigilance", 0),
+            ("When this card enters, put a +1/+1 counter on target creature.", 0)]
+
+    def test_a_line_that_cleans_down_to_nothing_is_dropped(self):
+        #a reminder only line leaves an empty string, and the three character
+        #floor is what keeps it out of the lines table
+        card = {"name": "Bird",
+                "oracle_text": "Flying\n(You may cast this any time you could cast an "
+                               "instant.)\nDraw a card."}
+        assert split_lines(card) == [("Flying", 0), ("Draw a card.", 0)]
+
+
+class TestThePickerAsksForWhatTheIngestStored:
+    #both sides key on the cleaned text: the ingest writes it to lines.line_text
+    #and build_lines recomputes it to find the row behind a clicked line. a name
+    #one side strips and the other keeps is a line nobody can select.
+    #
+    #check_sync.py compares the two clean_line copies, but split_lines lives only
+    #in common/ and build_lines only in web/, so this is what holds the pair of
+    #them together
+
+    def card(self):
+        return {"name": "Turn // Burn",
+                "card_faces": [
+                    {"name": "Turn",
+                     "oracle_text": "Until end of turn, target creature loses all abilities "
+                                    "and becomes a red Weird with base power and toughness 0/1."},
+                    {"name": "Burn", "oracle_text": "Burn deals 2 damage to any target."}]}
+
+    def both_sides(self, card):
+        #imported here and not at the top of the file: app is the whole flask
+        #app, and at module scope one bad import inside it takes every clean_line
+        #test above down with it as a collection error rather than one failure.
+        #conftest's stub stands in for the pool, so this costs no database
+        import app
+
+        #the ingest reads the faces. the web app reads cards.oracle_text, which
+        #is get_text's join of those same faces, so it never sees a face name
+        stored = [text for text, face in split_lines(card)]
+        page = {"name": card["name"], "oracle_text": get_text(card)}
+        _, asked = app.build_lines(page, set(range(len(page["oracle_text"].split("\n")))))
+        return stored, asked
+
+    def test_a_split_card_cleans_the_same_on_both_sides(self):
+        stored, asked = self.both_sides(self.card())
+        assert asked == stored
+
+
+class TestKeepCard:
+    #the other gatekeeper: what reaches the cards table at all. only the digital
+    #branch is pinned here, because it is the one that reads like a redundant
+    #condition and is not. the layout, joke set and missing id branches say what
+    #they do on the line
+
+    def printing(self, **kw):
+        return dict({"oracle_id": "abc", "oracle_text": "Draw a card.",
+                     "set_type": "expansion", "layout": "normal"}, **kw)
+
+    def test_a_digital_printing_of_a_paper_card_is_kept(self):
+        #scryfall represents Ancestral Recall with a vintage masters printing,
+        #an mtgo set, so the card arrives flagged digital. the vintage check is
+        #the only thing separating it from an arena card, and dropping every
+        #digital printing takes the power nine off the site
+        assert keep_card(self.printing(digital=True, set_type="masters",
+                                       legalities={"vintage": "restricted"}))
+
+    def test_an_arena_only_card_drops(self):
+        #Davriel, Soul Broker. never printed on paper, so nothing in vintage
+        assert not keep_card(self.printing(digital=True, set_type="draft_innovation",
+                                           legalities={"vintage": "not_legal"}))
+
+    def test_a_digital_card_with_no_legalities_at_all_drops(self):
+        #the default is not_legal rather than a KeyError, so a bulk row missing
+        #the field fails closed instead of taking the ingest down
+        assert not keep_card(self.printing(digital=True, legalities={}))
+
+    def test_a_card_with_no_rules_text_has_nothing_to_compare(self):
+        #vanilla creatures and basic lands. the whole site is line similarity,
+        #so a card with no lines is a page that can never match anything
+        assert not keep_card(self.printing(oracle_text=""))
+        assert not keep_card(self.printing(oracle_text="   "))

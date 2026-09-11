@@ -70,9 +70,12 @@ def clean_line(line, card_name):
     m = re.match(r"^([^—•|]{1,40}?)\s+—\s+(?=\S)", line)
     if m and m.group(1) in PREFIX_WORDS:
         line = line[m.end():]
-    line = line.replace(card_name, "this card")
-    if "," in card_name:
-        line = line.replace(card_name.split(",")[0], "this card")
+    #both halves of a " // " name, stripped one at a time, exactly as the ingest
+    #strips them. the spaces keep SP//dr, Piloted by Peni in one piece
+    for part in card_name.split(" // "):
+        line = line.replace(part, "this card")
+        if "," in part:
+            line = line.replace(part.split(",")[0], "this card")
     return line.strip()
 
 

@@ -172,10 +172,17 @@ def clean_line(line, card_name):
     if m and m.group(1) in PREFIX_WORDS:
         line = line[m.end():]
     #a name left in makes the model think names matter. legendaries also shorten
-    #to their first name mid-text ("Jacob, the Great" -> "Jacob")
-    line = line.replace(card_name, "this card")
-    if "," in card_name:
-        line = line.replace(card_name.split(",")[0], "this card")
+    #to their first name mid-text ("Jacob, the Great" -> "Jacob").
+    #
+    #a two faced card's name is both halves joined by " // " and neither half
+    #ever prints the joined form, so the halves are stripped one at a time or
+    #Burn keeps its name and stops matching the burn spells printing the very
+    #sentence it copies. the SPACES are what make that split safe: SP//dr,
+    #Piloted by Peni carries bare slashes in a single faced name
+    for part in card_name.split(" // "):
+        line = line.replace(part, "this card")
+        if "," in part:
+            line = line.replace(part.split(",")[0], "this card")
     return line.strip()
 
 
