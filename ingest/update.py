@@ -344,7 +344,11 @@ def main():
                           get_text(c), get_image(c), c.get("scryfall_uri", ""), h,
                           "".join(c.get("color_identity", [])), usd, eur,
                           c.get("cmc", 0), c.get("game_changer", False),
-                          c.get("legalities", {}).get("commander") == "legal",
+                          #"or {}" for the same reason keep_card uses it: the key
+                          #arrives holding null as well as absent, and keep_card
+                          #only reads legalities on the digital branch, so a paper
+                          #card carrying null reaches this line untouched
+                          (c.get("legalities") or {}).get("commander") == "legal",
                           c.get("layout", "normal"), get_back_image(c), c.get("edhrec_rank"), rel,
                           #the printed power it reads is not stored anywhere, so
                           #this is the one chance to ask
