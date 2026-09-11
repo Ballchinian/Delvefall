@@ -356,8 +356,15 @@ class TestKeepCard:
 
     def test_a_digital_card_with_no_legalities_at_all_drops(self):
         #the default is not_legal rather than a KeyError, so a bulk row missing
-        #the field fails closed instead of taking the ingest down
+        #the field fails closed
         assert not keep_card(self.printing(digital=True, legalities={}))
+
+    def test_a_null_legalities_block_fails_closed_too(self):
+        #the shape the default above cannot answer: the key PRESENT holding
+        #null, which .get hands back as None rather than as the {}. the ingest
+        #loop in update.py has nothing around it, so one AttributeError here is
+        #the whole nightly run and the site keeps yesterday's prices
+        assert not keep_card(self.printing(digital=True, legalities=None))
 
     def test_a_card_with_no_rules_text_has_nothing_to_compare(self):
         #vanilla creatures and basic lands. the whole site is line similarity,

@@ -194,7 +194,10 @@ def keep_card(card):
         return False  #skip the joke sets
     if card.get("layout") in SKIP_LAYOUTS:
         return False
-    if card.get("digital") and card.get("legalities", {}).get("vintage", "not_legal") == "not_legal":
+    #"or {}" and not a get default: scryfall sends the key holding null as well
+    #as omitting it, and a default only answers the second. nothing wraps the
+    #per card loop in update.py, so one AttributeError here is the whole run
+    if card.get("digital") and (card.get("legalities") or {}).get("vintage", "not_legal") == "not_legal":
         #the vintage check is what keeps this from eating real cards: scryfall
         #sometimes picks a digital printing to represent a paper one (ancestral
         #recall arrives as vintage masters, an mtgo set), and every paper card is
