@@ -37,6 +37,13 @@ class TestSeedsAgree:
         assert mirror.CALIBRATION == [(0.0, 0), (0.13, 35), (0.26, 55),
                                       (0.45, 70), (0.59, 82), (0.68, 90), (1.0, 100)]
 
+    def test_the_mech_seed_survived_the_stub_too(self):
+        #the mech anchors below parametrize off this very map, so a replaced
+        #calibration would still pass them. this is the only thing asserting
+        #the map itself is the documented seed
+        assert mirror.MECH_CALIBRATION == [(0.0, 0), (0.30, 30), (0.42, 45),
+                                           (0.62, 65), (0.76, 80), (0.90, 92), (1.0, 100)]
+
 
 class TestConceptDisplay:
 
