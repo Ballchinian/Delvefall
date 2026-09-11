@@ -920,15 +920,20 @@ def read_filters():
 def read_number(name, label, errors):
     #a number box's value, None when empty. junk (a doctored url, pasted text)
     #is named on the page rather than dropped, so a filter that "didn't work"
-    #says what was ignored
+    #says what was ignored.
+    #
+    #digit shaped rather than whatever float() swallows: float() also takes
+    #"nan", "inf" and "1e400". nan is the dangerous one, it compares false
+    #against every row AND against the min>max check below, so the page comes
+    #back empty with nothing said and why_hidden then calls the card unfiltered.
+    #the same shape FQ_TOKEN reads, so usd>=5 and the price box agree on a number
     s = request.args.get(name, "").strip()
     if not s:
         return None
-    try:
-        return float(s)
-    except ValueError:
+    if not re.fullmatch(r"\d+(?:\.\d+)?", s):
         errors.append('"' + s + '" is not a number, so your ' + label + ' was ignored')
         return None
+    return float(s)
 
 
 #where the strong tier ends, in calibrated display units. nothing on the page
