@@ -1242,7 +1242,11 @@ RANK_BAND = 0.2
 
 
 def price_verdict(price, anchor):
-    if anchor is None or price is None or anchor <= 0:
+    #a stored 0.00 is an unpriced promo rather than a card that costs nothing,
+    #so it says nothing on WHICHEVER side of the comparison it lands. guarding
+    #the anchor alone made the pair disagree with itself: the promo wore "much
+    #cheaper" beside a fiver, and the fiver wore nothing beside the promo
+    if price is None or anchor is None or price <= 0 or anchor <= 0:
         return ""
     if price == anchor:
         return ""
