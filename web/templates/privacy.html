@@ -18,8 +18,18 @@
     every day and is then thrown away</strong>. Within a single day that fingerprint lets the
     count avoid counting you twice; once the day is over the secret is deleted, and after
     that nobody (including me) can turn the stored fingerprints back into an IP
-    address or link them to you. All that survives is a number: how many people came that
-    day. Your raw IP address is never written down.</p>
+    address or link them to you. All that survives is a handful of counts: how many visitors
+    came that day, and how many of them looked like people. Your raw IP address is never
+    written down.</p>
+    <p>Most of what reaches any website is automated, and a crawler is only ever asked to
+    admit it, so a count taking every visit at face value would be mostly machines. To tell
+    the difference, the fingerprint also carries a few yes or no notes for the day: whether
+    it loaded a page, whether it fetched the font the site draws with, whether it used the
+    search box or a form, and whether it asked for the files crawlers read, like robots.txt.
+    Working that out looks at two headers your browser already sends with every request,
+    which languages you accept and what the request is for, and neither is stored. None of
+    these notes is about you or what you searched for, only about how the visit behaved, and
+    they are deleted every night along with the fingerprint.</p>
     <p>This happens on the server, so nothing is stored on your device and there is nothing
     to consent to. It cannot follow you across days or to any other website.</p>
 

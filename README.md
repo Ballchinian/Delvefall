@@ -83,7 +83,7 @@ That table carries **no index**, which is measured rather than skipped. The obvi
 
 **Two** hold the population the deck lens ranks a pasted list against: `decks` and `deck_cards`, the preconstructed Commander decks from MTGJSON.
 
-**Three** count visitors without keeping anything that points back at one: `visit_salt` holds the day's secret, `visit_seen` the one way fingerprints made with it, and `visit_daily` the frozen number that is all that survives the day.
+**Three** count visitors without keeping anything that points back at one: `visit_salt` holds the day's secret, `visit_seen` the one way fingerprints made with it and what each one did that day, and `visit_daily` the frozen counts that are all that survive the day.
 
 Two derived columns power the unique cards page. `lines.nn_sim` is each line's nearest neighbor similarity (how close the closest line on any *other* card gets), and `cards.uniqueness` is 1 minus the card's most isolated line's `nn_sim`, so a card with Flying plus one ability nobody else has still counts as unique. The ingest recomputes them from scratch whenever lines change, never incrementally: a new card can make an old card less unique and a deleted card can make its neighbors more unique, so patching only changed rows would quietly rot the scores. The all-pairs math runs as one numpy matrix multiply on the Actions runner (about a minute) instead of ~31k pgvector scans against a busy production database (hours).
 
