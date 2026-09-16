@@ -56,9 +56,7 @@
 
     <p class="unique-status" id="unique-status"></p>
 
-    {# the dealer has no sort control but it does have a chosen stat, and it is
-       the one in the badge #}
-    <div id="unique-card" class="unique-single focus-badge"></div>
+    <div id="unique-card" class="unique-single"></div>
 
     {# start over sits way down here alone so a misclick around the controls
        can never wipe the seen list. the confirm is the second net #}
@@ -95,9 +93,6 @@
                     <a class="unique-name" href="/search?q={{ c.name | urlencode }}" data-card="{{ c.name }}">{{ c.name }}</a>
                     {% if c.unique_line %}<span class="unique-line-text">{{ c.unique_line }}</span>{% endif %}
                 </span>
-                {# the dealer's badge, same number and same words, on the card it
-                   would deal you #}
-                <span class="unique-score" title="uniqueness">{{ c.percent }}%</span>
             </li>
             {% endfor %}
         </ol>
@@ -200,12 +195,13 @@ function render(c) {
     who.title = c.name;
     who.textContent = c.name;
     name.appendChild(who);
-    var pct = document.createElement("span");
-    pct.className = "percent";
-    pct.title = "uniqueness";
-    pct.textContent = c.percent + "% unique";
-    name.appendChild(pct);
     div.appendChild(name);
+
+    var standing = document.createElement("div");
+    standing.className = "unique-standing";
+    standing.title = c.unique_rank;
+    standing.textContent = c.unique_words;
+    div.appendChild(standing);
 
     if (c.price || c.rank || c.salt || c.age) {
         var price = document.createElement("div");
@@ -254,7 +250,7 @@ function render(c) {
     var line = document.createElement("div");
     line.className = "match-line";
     manaFill(line, '"' + c.unique_line + '"');
-    line.title = "its most one-of-a-kind line, nothing else in the game comes within " + (100 - c.percent) + "% of it";
+    line.title = "its most one-of-a-kind line, the one furthest from anything else in the game";
     div.appendChild(line);
 
     var closest = document.createElement("div");
@@ -286,7 +282,8 @@ function showAt(i) {
         statusEl.textContent = trail;
         return;
     }
-    fetch("/unique/card?id=" + id + "&cur=" + form.elements.cur.value)
+    fetch("/unique/card?id=" + id + "&cur=" + form.elements.cur.value +
+          (form.elements.illegal.checked ? "&illegal=1" : ""))
         .then(function(r) { return r.json(); })
         .then(function(data) {
             if (data.card) {
@@ -318,6 +315,8 @@ form.elements.cur.onchange = function() {
         showAt(pos);
     }
 };
+//the standing is counted against the pool this box names, so it repaints the same way
+form.elements.illegal.onchange = form.elements.cur.onchange;
 
 /*
     the button's label. the sounds used to REPLACE it for good after the

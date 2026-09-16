@@ -2435,6 +2435,15 @@ body.home main {
     margin: 18px auto 0 auto;
 }
 
+/* a line of its own: "more original than 99.9% of Magic cards" does not fit
+   beside a name at 300px */
+.unique-standing {
+    margin-top: 2px;
+    font-size: 13px;
+    color: var(--text);
+    cursor: help;
+}
+
 /* above the card, so it never moves when a new one loads */
 .unique-controls {
     display: flex;
@@ -2550,7 +2559,7 @@ body.home main {
 #unique-reset:hover { border-color: #a89d84; color: var(--text); }
 
 /* teal and underlined like every other link, so it stops sharing a colour with
-   the uniqueness number two lines above */
+   the standing above it */
 .more-lines a {
     color: var(--teal);
     text-decoration: underline;
@@ -2980,13 +2989,6 @@ body.home main {
     margin-top: 2px;
     font-size: 12.5px;
     color: var(--muted);
-}
-
-.unique-score {
-    flex: none;
-    font-variant-numeric: tabular-nums;
-    font-size: 13px;
-    color: var(--gold);
 }
 
 @media (max-width: 560px) {

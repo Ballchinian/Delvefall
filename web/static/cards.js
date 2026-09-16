@@ -153,7 +153,7 @@ document.addEventListener("click", function(e) {
         return;
     }
     var open = document.querySelector(".tap-tip");
-    var el = e.target.closest(".match-line, .more-lines, .concept-tags, .result-rank, .percent, .price-vs, .rank-vs");
+    var el = e.target.closest(".match-line, .more-lines, .concept-tags, .result-rank, .percent, .price-vs, .rank-vs, .unique-standing");
     //a tap fires no pointerover on some browsers, so the title may not be filled
     //in yet when the guard below asks for it
     fillCardTip(el);

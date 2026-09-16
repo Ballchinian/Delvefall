@@ -397,6 +397,45 @@ def unique_blend(uniqueness, concept_uniqueness):
     return (1 - BLEND) * uniqueness + BLEND * concept_uniqueness
 
 
+#scores are stored as float4, so a card whose every line and tag is printed
+#elsewhere comes back a step either side of zero, -2.4e-07 to 6e-07 measured.
+#the first real near copy, Disorient, scores 9.5e-06. everything under this ties
+UNIQUE_NOISE = 1e-6
+
+
+def unique_standing(conn, blended, illegal=False, legal=True):
+    #(rank, below, total), rank 1 the most unique. counted, never stored: update.py
+    #writes uniqueness and tags.py writes concept_uniqueness, so a column built
+    #from both is stale whenever one runs without the other. a 26ms scan.
+    #
+    #against commander-legal cards unless illegal asks, the pool the dealer
+    #deals from. counting playtest cards, The Watcher in the Water is fifth.
+    #a card outside that pool is counted among everything, the one pool it is in
+    everything = illegal or not legal
+    x = blended if blended >= UNIQUE_NOISE else 0.0
+    row = conn.execute("""
+        SELECT count(*) FILTER (WHERE b > %(x)s) AS above,
+               count(*) FILTER (WHERE b < %(x)s) AS below,
+               count(*) AS total
+        FROM (SELECT CASE WHEN u < %(noise)s THEN 0 ELSE u END AS b
+              FROM (SELECT """ + UNIQUE_BLEND_SQL + """ AS u FROM cards c
+                    WHERE c.uniqueness IS NOT NULL""" + ("" if everything else " AND c.legal_commander") + """) s) t
+    """, {"x": x, "noise": UNIQUE_NOISE}).fetchone()
+    return row["above"] + 1, row["below"], row["total"]
+
+
+def unique_words(rank, below, total):
+    #floored rather than rounded: 11th of 31,295 beats 99.965%, which rounds to
+    #100.0. the tie at the bottom gets no number, being thousands of cards wide
+    if below == 0:
+        return "other cards already do everything it does"
+    if rank == 1:
+        return "the most unique card in Magic"
+    if rank <= 10:
+        return "#%d most unique card in Magic" % rank
+    return "more original than %.1f%% of Magic cards" % (1000 * below // total / 10)
+
+
 #---- the anchor's side of the concept axis ----
 
 #the searched card's tag vector, what every axis-2 query scores against.
@@ -1925,7 +1964,10 @@ def unique_top():
     #the DEALER's ranking, because the list is a description of what the button
     #above it hands out: both axes at BLEND, and legal_commander, which is what
     #filter_sql applies unless illegal=1 asks. ranking this on the rules-text
-    #axis alone filled it with partners and un-set cards, see web/history.md
+    #axis alone filled it with partners and un-set cards, see web/history.md.
+    #
+    #a card's place in this list is the rank unique_standing prints when it is
+    #dealt, so the two pools have to stay the same
     if _unique_top["rows"] and time.time() - _unique_top["at"] < 3600:
         return _unique_top["rows"]
     try:
@@ -1943,10 +1985,6 @@ def unique_top():
         #next visitor tries again rather than being served an empty list for
         #an hour
         return _unique_top["rows"]
-    #the same int(round()) card_json puts in the dealer's badge, so a card
-    #printed 46% in the list is printed 46% when it is dealt
-    for r in rows:
-        r["percent"] = int(round((r["blended"] or 0) * 100))
     _unique_top["at"] = time.time()
     _unique_top["rows"] = rows
     return rows
@@ -4495,9 +4533,10 @@ def deck_swap_cards():
             "panel": render_template("partials/anchorcard.html", **panel)}
 
 
-def card_json(c, currency):
+def card_json(c, currency, standing):
     #layout and image_back are what let the page offer rotate and turn-over
     price = price_label(c, currency)
+    rank, below, total = standing
     return {
         "oracle_id": str(c["oracle_id"]),
         "name": c["name"],
@@ -4512,7 +4551,8 @@ def card_json(c, currency):
         "rank": rank_label(c["edhrec_rank"]),
         "salt": salt_label(c["salt"]),
         "age": age_label(c["released_at"]),
-        "percent": int(round((c.get("blended_u") if c.get("blended_u") is not None else (c["uniqueness"] or 0)) * 100)),
+        "unique_words": unique_words(rank, below, total),
+        "unique_rank": "#{:,} of {:,} cards".format(rank, total),
         "unique_line": c["unique_line"] or "",
     }
 
@@ -4566,14 +4606,14 @@ def unique_cards():
             picked = random.sample(near, min(UNIQUE_PAGE, len(near)))
         rows = []
         if picked:
-            rows = conn.execute("SELECT " + CARD_FIELDS + ", uniqueness, unique_line, " + UNIQUE_BLEND_SQL +
+            rows = conn.execute("SELECT " + CARD_FIELDS + ", unique_line, legal_commander, " + UNIQUE_BLEND_SQL +
                                 " AS blended_u FROM cards c WHERE c.oracle_id = ANY(%s)",
                                 [[r["oracle_id"] for r in picked]]).fetchall()
+        standings = [unique_standing(conn, c["blended_u"], filters["illegal"], c["legal_commander"])
+                     for c in rows]
 
-    cards = []
     cur = read_currency()
-    for c in rows:
-        cards.append(card_json(c, cur))
+    cards = [card_json(c, cur, s) for c, s in zip(rows, standings)]
     #remaining counts whats left AFTER this deal, so the frontend knows when
     #the well is dry without another request
     return {"cards": cards, "remaining": remaining - len(cards)}
@@ -4591,13 +4631,15 @@ def unique_card():
     except ValueError:
         return {"card": None}
     with pool.connection() as conn:
-        #the trail arrows show the same blended number a fresh deal would
-        c = conn.execute("SELECT " + CARD_FIELDS + ", uniqueness, unique_line, " + UNIQUE_BLEND_SQL +
+        c = conn.execute("SELECT " + CARD_FIELDS + ", unique_line, legal_commander, " + UNIQUE_BLEND_SQL +
                          " AS blended_u FROM cards c WHERE oracle_id = %s",
                          (oid,)).fetchone()
-    if c is None:
-        return {"card": None}
-    return {"card": card_json(c, read_currency())}
+        if c is None:
+            return {"card": None}
+        #counted against the pool the page's illegal box names, as a fresh deal is
+        standing = unique_standing(conn, c["blended_u"], request.args.get("illegal") == "1",
+                                   c["legal_commander"])
+    return {"card": card_json(c, read_currency(), standing)}
 
 
 #the load more button on the results page calls this and gets json back. it
