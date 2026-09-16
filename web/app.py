@@ -425,13 +425,14 @@ def unique_standing(conn, blended, illegal=False, legal=True):
 
 
 def unique_words(rank, below, total):
-    #floored rather than rounded: 11th of 31,295 beats 99.965%, which rounds to
-    #100.0. the tie at the bottom gets no number, being thousands of cards wide
+    #named down to UNIQUE_TOP, the ranks the list under the dealer prints. floored
+    #rather than rounded: 101st of 31,295 beats 99.677%, which rounds up to 99.7.
+    #the tie at the bottom gets no number, being thousands of cards wide
     if below == 0:
         return "other cards already do everything it does"
     if rank == 1:
         return "the most unique card in Magic"
-    if rank <= 10:
+    if rank <= UNIQUE_TOP:
         return "#%d most unique card in Magic" % rank
     return "more original than %.1f%% of Magic cards" % (1000 * below // total / 10)
 

@@ -93,9 +93,12 @@ class TestTheStandingInWords:
         assert "the most unique" not in words
         assert "#2" in words
 
-    def test_named_ranks_stop_at_ten(self):
-        assert "#10" in app.unique_words(10, 31285, 31295)
-        assert "%" in app.unique_words(11, 31284, 31295)
+    def test_named_ranks_stop_where_the_list_does(self):
+        #the list under the dealer names the top UNIQUE_TOP, so a card dealt from
+        #inside it gets the same number the list gives it
+        last = app.UNIQUE_TOP
+        assert "#%d" % last in app.unique_words(last, 31295 - last, 31295)
+        assert "%" in app.unique_words(last + 1, 31295 - last - 1, 31295)
 
     def test_the_tie_at_the_bottom_gets_no_number(self):
         #4,392 legal cards tie there, and "more original than 0%" or a rank
@@ -104,10 +107,9 @@ class TestTheStandingInWords:
         assert "%" not in words and "#" not in words
 
     def test_a_percentile_never_claims_more_than_the_count(self):
-        #11th of 31,295 beats 99.965% of cards, which rounds to 100.0: a claim
-        #only a card with nothing above it could make
+        #101st of 31,295 beats 99.677% of cards, which rounds up to 99.7
         total = 31295
-        for rank in range(11, total):
+        for rank in range(app.UNIQUE_TOP + 1, total):
             below = total - rank
             printed = float(re.search(r"([\d.]+)%", app.unique_words(rank, below, total)).group(1))
             assert printed <= 100 * below / total, rank
