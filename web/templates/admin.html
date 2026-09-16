@@ -5,25 +5,42 @@
 {% block content %}
     <h1>Feedback review</h1>
 
-    <h2>Daily unique visitors</h2>
+    <h2>Daily visitors</h2>
     {# distinct visitors per day, from the one-way daily token. today is still
        counting; every earlier day is frozen and its tokens are long gone.
-       a dash is a day that predates the split, not a day without bots #}
+       every visitor sits in ONE column, taken in the order they are written
+       here, so a day adds up across the four and the bots.
+       a dash is a day from before that column was measured #}
     <table class="fb-usage">
-        <tr><th>day</th><th>people</th><th>bots</th><th>bot share</th></tr>
+        <tr><th>day</th><th>acted</th><th>rendered</th><th>unproven</th>
+            <th>suspect</th><th>bots</th><th>people</th></tr>
         {% for u in usage %}
         <tr><td>{{ u.day }}</td>
-            <td>{{ u.uniques }}</td>
-            {% if u.split %}
-            <td>{{ u.bots }}</td><td>{{ u.share }}%</td>
+            {% if u.measured %}
+            <td>{{ u.acted }}</td><td>{{ u.rendered }}</td>
+            <td>{{ u.unproven }}</td><td>{{ u.suspect }}</td>
             {% else %}
-            <td>-</td><td>-</td>
-            {% endif %}</tr>
+            <td>-</td><td>-</td><td>-</td><td>-</td>
+            {% endif %}
+            <td>{{ u.bots if u.split else "-" }}</td>
+            <td>{% if u.measured %}{{ u.floor }} to {{ u.ceiling }}{% else %}up to {{ u.ceiling }}{% endif %}</td></tr>
         {% endfor %}
-        {% if usage[0].uniques == 0 and usage[0].bots == 0 and usage|length == 1 %}
-        <tr><td colspan="4" class="fb-none">nothing counted yet</td></tr>
+        {% if usage[0].ceiling == 0 and usage[0].bots == 0 and usage|length == 1 %}
+        <tr><td colspan="7" class="fb-none">nothing counted yet</td></tr>
         {% endif %}
     </table>
+    <ul class="fb-legend">
+        <li><strong>bots</strong> said so in their user agent.</li>
+        <li><strong>suspect</strong> read robots.txt, a sitemap or llms.txt, or claimed a
+        browser without sending a browser's headers.</li>
+        <li><strong>acted</strong> typed in search, loaded more results, dealt a card, fixed
+        a missing card, sent a report or opened a decklist.</li>
+        <li><strong>rendered</strong> drew the page with its font and did nothing else.</li>
+        <li><strong>unproven</strong> loaded pages, with nothing pointing either way. A
+        person coming back to a cached site looks exactly like this.</li>
+        <li><strong>people</strong> is at least the ones who acted, at most everyone who is
+        not suspect or a bot.</li>
+    </ul>
 
     <h2>Pending ({{ pending|length }})</h2>
     {% if not pending %}

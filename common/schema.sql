@@ -196,25 +196,39 @@ CREATE TABLE IF NOT EXISTS meta (
 --
 --the salt is deleted once its day is over, which is what makes the stored tokens
 --permanently unresolvable; the raw ip is never written at all. visit_seen is
---cleared with it, and visit_daily is all that survives: two integers per day
+--cleared with it, and visit_daily is all that survives: one row of counts a day
 CREATE TABLE IF NOT EXISTS visit_salt (
     day  date PRIMARY KEY,
     salt text NOT NULL
 );
 
+--the flags are what the token DID that day: loaded a page, fetched the site's
+--font, typed or clicked, read a crawler's file, claimed a browser without a
+--browser's headers. html is the gate, since a visitor that only fetched the
+--share image is not one of the day's people
 CREATE TABLE IF NOT EXISTS visit_seen (
     day   date NOT NULL,
     token text NOT NULL,
     bot   boolean NOT NULL DEFAULT false,
+    html  boolean NOT NULL DEFAULT true,
+    font  boolean NOT NULL DEFAULT false,
+    act   boolean NOT NULL DEFAULT false,
+    crawl boolean NOT NULL DEFAULT false,
+    lies  boolean NOT NULL DEFAULT false,
     PRIMARY KEY (day, token)
 );
 
---uniques counts people and bots counts the rest, split on the flag above. rows
---predating the column take the default, so their days read as all human
+--uniques counts every visitor that is not a declared bot, and the three that
+--follow divide it: suspect did what automation does, acted did what a person
+--does, rendered drew the page. what is left over is unproven. NULL in any of
+--them is a day that ended before it was measured, which a 0 would hide
 CREATE TABLE IF NOT EXISTS visit_daily (
-    day     date PRIMARY KEY,
-    uniques int NOT NULL,
-    bots    int NOT NULL DEFAULT 0
+    day        date PRIMARY KEY,
+    uniques    int NOT NULL,
+    bots       int NOT NULL DEFAULT 0,
+    suspect_n  int,
+    acted_n    int,
+    rendered_n int
 );
 
 --community tags from scryfall tagger, via the oracle_tags bulk file.

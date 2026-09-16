@@ -41,7 +41,7 @@ from mirror import (REMINDER_KEYWORDS, reminder_is_the_rule, clean_line, line_we
 #who a visitor is for a day, without keeping anything that says who they are.
 #the report limiter and the import limiter identify people through this too
 import visitors
-from visitors import client_ip, visitor_token, _utc_day
+from visitors import client_ip, visitor_token, usage_row, SPLIT_COUNTS, _utc_day
 from views.meta import bp as meta_bp
 
 #python reads its mime table from the HOST: linux says text/javascript, a
@@ -282,17 +282,35 @@ with pool.connection() as _conn:
         day   date NOT NULL,
         token text NOT NULL,
         bot   boolean NOT NULL DEFAULT false,
+        html  boolean NOT NULL DEFAULT true,
+        font  boolean NOT NULL DEFAULT false,
+        act   boolean NOT NULL DEFAULT false,
+        crawl boolean NOT NULL DEFAULT false,
+        lies  boolean NOT NULL DEFAULT false,
         PRIMARY KEY (day, token)
     )""")
     _conn.execute("""CREATE TABLE IF NOT EXISTS visit_daily (
-        day     date PRIMARY KEY,
-        uniques int NOT NULL,
-        bots    int NOT NULL DEFAULT 0
+        day        date PRIMARY KEY,
+        uniques    int NOT NULL,
+        bots       int NOT NULL DEFAULT 0,
+        suspect_n  int,
+        acted_n    int,
+        rendered_n int
     )""")
     #the CREATEs reach a virgin database only, so a table that already exists
     #needs the column added the way feedback.tag is above
     _conn.execute("ALTER TABLE visit_seen ADD COLUMN IF NOT EXISTS bot boolean NOT NULL DEFAULT false")
     _conn.execute("ALTER TABLE visit_daily ADD COLUMN IF NOT EXISTS bots int NOT NULL DEFAULT 0")
+    #html DEFAULTS TRUE: every row already in the table was written by a counter
+    #that only ever counted page views, so the default is what those rows are
+    _conn.execute("ALTER TABLE visit_seen ADD COLUMN IF NOT EXISTS html boolean NOT NULL DEFAULT true")
+    for _flag in ("font", "act", "crawl", "lies"):
+        _conn.execute("ALTER TABLE visit_seen ADD COLUMN IF NOT EXISTS " + _flag +
+                      " boolean NOT NULL DEFAULT false")
+    #no default, so NULL means "the day was over before this was measured" and 0
+    #means the day had none. a default would make those two the same number
+    for _split in ("suspect_n", "acted_n", "rendered_n"):
+        _conn.execute("ALTER TABLE visit_daily ADD COLUMN IF NOT EXISTS " + _split + " int")
     #the width card_tag_vecs.vec declares. pgvector refuses to compare two
     #sparsevecs of different widths, so every anchor this app builds has to say
     #the same number the stored vectors do. read rather than repeated, because a
@@ -4985,32 +5003,31 @@ def admin():
                 line_texts.setdefault(l["oracle_id"], []).append(l["line_text"])
 
         #daily visitors, split the same way count_visit files them. today is
-        #still accumulating in visit_seen, past days are the frozen integer
-        #counts, so the two are read separately and stitched newest-first.
+        #still accumulating in visit_seen, past days are the frozen counts, so
+        #the two are read separately and stitched newest-first.
         #
-        #today's half counts FILTERED, not count(*): counting the whole table
-        #here while visit_daily.uniques holds people only made the newest row
-        #the one row that included bots
+        #both halves read SPLIT_COUNTS. spelling today's out here instead is what
+        #once made the newest row the one row that counted bots as people
         today = _utc_day()
-        live = conn.execute("""SELECT count(*) FILTER (WHERE NOT bot) AS uniques,
-                                      count(*) FILTER (WHERE bot) AS bots
-                               FROM visit_seen WHERE day = %s""", (today,)).fetchone()
+        live = conn.execute("SELECT " + SPLIT_COUNTS +
+                            " FROM visit_seen WHERE day = %s AND html", (today,)).fetchone()
         #visit_daily.bots was added to a table that already had rows, and they
         #took the column default. a zero there means "not measured" and not "no
         #bots", so the days behind the split are marked rather than shown as
         #all-human, which reads as a collapse in traffic that never happened
         split_from = conn.execute("SELECT min(day) AS d FROM visit_daily WHERE bots > 0").fetchone()["d"]
-        rows_daily = conn.execute("SELECT day, uniques, bots FROM visit_daily ORDER BY day DESC LIMIT 60").fetchall()
+        #the day the flags landed is half a day of rows written before they
+        #existed, so it reads as a page of unproven visitors and is marked
+        #instead. the ones after it are whole days
+        first_measured = conn.execute(
+            "SELECT min(day) AS d FROM visit_daily WHERE acted_n IS NOT NULL").fetchone()["d"]
+        rows_daily = conn.execute("""SELECT day, uniques, bots, suspect_n, acted_n, rendered_n
+                                     FROM visit_daily ORDER BY day DESC LIMIT 60""").fetchall()
 
-    def usage_row(day, uniques, bots, split):
-        total = uniques + bots
-        return {"day": day.isoformat(), "uniques": uniques, "bots": bots, "split": split,
-                "share": round(100 * bots / total) if split and total else 0}
-
-    usage = [usage_row(today, live["uniques"], live["bots"], True)]
+    usage = [usage_row(today, live, True, first_measured is not None)]
     for u in rows_daily:
-        usage.append(usage_row(u["day"], u["uniques"], u["bots"],
-                               split_from is not None and u["day"] >= split_from))
+        usage.append(usage_row(u["day"], u, split_from is not None and u["day"] >= split_from,
+                               u["acted_n"] is not None and u["day"] > first_measured))
 
     def card_bit(role, oid, name, pct):
         c = info.get(oid)

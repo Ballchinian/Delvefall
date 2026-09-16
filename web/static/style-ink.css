@@ -2721,7 +2721,7 @@ body.home main {
     font-size: 12.5px;
 }
 
-/* the usage table at the top of /admin: daily unique visitors, nothing fancy */
+/* the usage table at the top of /admin: daily visitors, nothing fancy */
 .fb-usage {
     border-collapse: collapse;
     font-size: 14px;
@@ -2743,7 +2743,8 @@ body.home main {
     letter-spacing: 0.04em;
 }
 
-.fb-usage td:last-child {
+/* every cell but the date, so six columns of counts line up under each other */
+.fb-usage td + td {
     font-variant-numeric: tabular-nums;
 }
 
@@ -2751,6 +2752,16 @@ body.home main {
    all, so a table cell cannot borrow it for muted text */
 .fb-usage .fb-none {
     color: var(--muted);
+}
+
+/* what each column of the table above counts */
+.fb-legend {
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.5;
+    max-width: 62ch;
+    margin: -16px 0 24px;
+    padding-left: 18px;
 }
 
 .fb-cards {
