@@ -28,7 +28,7 @@ import argparse
 import psycopg
 from pgvector.psycopg import register_vector
 
-from ingest.update import EMBED_MODEL, EMBED_PROMPT
+from ingest.update import EMBED_MODEL, EMBED_PROMPT, EMBED_TYPE
 
 TARGET = "embedding_v2"
 
@@ -62,7 +62,7 @@ def main():
         conn.execute(f.read())
     #made here rather than in schema.sql, so the column only exists while a trial
     #is running and a finished one can drop it cleanly
-    conn.execute("ALTER TABLE lines ADD COLUMN IF NOT EXISTS " + TARGET + " vector(768)")
+    conn.execute("ALTER TABLE lines ADD COLUMN IF NOT EXISTS " + TARGET + " " + EMBED_TYPE)
     conn.commit()
 
     total = conn.execute("SELECT count(*) FROM lines").fetchone()[0]
@@ -126,7 +126,7 @@ def main():
             try:
                 conn.execute("""
                     CREATE INDEX IF NOT EXISTS lines_embedding_v2_hnsw ON lines
-                    USING hnsw (""" + TARGET + """ vector_cosine_ops)
+                    USING hnsw (""" + TARGET + """ halfvec_cosine_ops)
                     WITH (m = 32, ef_construction = 200) WHERE (NOT whole)
                 """)
                 conn.commit()

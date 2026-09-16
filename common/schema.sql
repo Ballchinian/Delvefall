@@ -95,6 +95,13 @@ CREATE INDEX IF NOT EXISTS cards_name_trgm ON cards USING gin (name gin_trgm_ops
 --one row per line of rules text. the embedding is 768 numbers from the fine
 --tuned embeddinggemma, NORMALIZED, so cosine distance works.
 --
+--halfvec, 2 bytes a number. at 1,544 bytes the vector fits inside the row,
+--where a 3,080 byte vector sat out of line in toast. measured against the full
+--precision vectors: 3 of 7,935 search percents move a point and /unique's top
+--100 holds its order. the rounding leaves a vector up to 1.2e-4 off length 1,
+--which pgvector's <=> absorbs and a numpy dot product does not, so numpy reads
+--them through common/vectors.py's unit_rows
+--
 --nn_sim is how close the closest line on any OTHER card gets to this one: 1.0
 --means somebody printed this exact ability, low means nothing in the game does
 --anything like it. update.py fills it after the embeddings
@@ -102,7 +109,7 @@ CREATE TABLE IF NOT EXISTS lines (
     id        bigserial PRIMARY KEY,
     oracle_id uuid NOT NULL REFERENCES cards(oracle_id) ON DELETE CASCADE,
     line_text text NOT NULL,
-    embedding vector(768) NOT NULL,
+    embedding halfvec(768) NOT NULL,
     nn_sim    real,
     face      smallint NOT NULL DEFAULT 0
 );
@@ -117,7 +124,7 @@ CREATE TABLE IF NOT EXISTS lines (
 --the line below STAYS COMMENTED. a trial ends in a rename swap (embedding ->
 --embedding_v1, embedding_v2 -> embedding), so creating the column here would add
 --an empty one back on the next ingest. backfill_embeddings.py adds it itself.
---ALTER TABLE lines ADD COLUMN IF NOT EXISTS embedding_v2 vector(768);
+--ALTER TABLE lines ADD COLUMN IF NOT EXISTS embedding_v2 halfvec(768);
 
 --embedding_v1 was here and is GONE as of 2026-08-15, column and hnsw index both.
 --it held nothing: the model swap's TRUNCATE rebuilt every row and only ever
@@ -153,7 +160,7 @@ CREATE INDEX IF NOT EXISTS lines_oracle_id ON lines (oracle_id);
 --m=32/ef_construction=200 measured zero misses above 0.90 sim. partial on NOT
 --whole to mirror the search's filter. scan settings live in web/db.py, and
 --uniqueness is unaffected, recompute_uniqueness doing its math in numpy
-CREATE INDEX IF NOT EXISTS lines_embedding_hnsw ON lines USING hnsw (embedding vector_cosine_ops) WITH (m = 32, ef_construction = 200) WHERE (NOT whole);
+CREATE INDEX IF NOT EXISTS lines_embedding_hnsw ON lines USING hnsw (embedding halfvec_cosine_ops) WITH (m = 32, ef_construction = 200) WHERE (NOT whole);
 
 --the second bench's index is NOT created here: an hnsw index existing while 60k
 --rows are filled makes the backfill crawl, and building it afterwards is faster

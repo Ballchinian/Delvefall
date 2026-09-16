@@ -41,7 +41,7 @@ A web app that finds Magic: The Gathering cards similar to the card you search f
 
 ## How it works
 
-Everything lives in a Postgres database with the pgvector extension. The embeddings sit in a `vector(768)` column and the database does the nearest neighbor math itself, so the website is a tiny Flask app that runs a few queries per search. The language model only ever runs inside the update pipeline, never on the server.
+Everything lives in a Postgres database with the pgvector extension. The embeddings sit in a `halfvec(768)` column, 768 numbers at half precision, and the database does the nearest neighbor math itself, so the website is a tiny Flask app that runs a few queries per search. The language model only ever runs inside the update pipeline, never on the server.
 
 | Piece | What it does |
 | --- | --- |

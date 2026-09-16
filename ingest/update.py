@@ -39,7 +39,9 @@ PRICES_FILE = "default-cards.jsonl.gz"
 #where embedding_v1 used to be
 EMBED_MODEL = "BallchinianMan/mtg-tagtuned-embeddinggemma-300m"
 EMBED_PROMPT = "task: sentence similarity | query: "
-EMBED_DIMS = 768
+#what schema.sql declares lines.embedding as, 768 dims. a model swap rebuilds the
+#column from this, so a vector here would put every row back to 3kb out of line
+EMBED_TYPE = "halfvec(768)"
 
 #axis 1's calibration map: raw cosine -> displayed percent. raw cosine is
 #arbitrary per model, so this BELONGS to the model above and lives next to it. a
@@ -484,7 +486,7 @@ def main():
                 #through backfill_embeddings.py, which fills embedding_v2 with
                 #nothing reading it and no lock anybody waits on
                 cur.execute("TRUNCATE lines CASCADE")
-                cur.execute("ALTER TABLE lines ALTER COLUMN embedding TYPE vector(" + str(EMBED_DIMS) + ")")
+                cur.execute("ALTER TABLE lines ALTER COLUMN embedding TYPE " + EMBED_TYPE)
             #changed cards get their old lines thrown out and rebuilt fresh
             elif changed_cards:
                 old_ids = []
@@ -498,12 +500,12 @@ def main():
                 rows.append((c["oracle_id"], text, embs[j], faces[j], wholes[j]))
             print("writing " + str(len(rows)) + " lines...")
             #COPY rather than executemany: a full reseed is 61k rows carrying a
-            #3kb vector each.
+            #1.5kb vector each.
             #
             #TEXT format, not binary. binary wants a real uuid object per row and
             #scryfall hands us strings, so it would mean converting 61k ids to
-            #buy back less than the conversion costs. the vector round trips
-            #exactly either way, pgvector printing every float it stores
+            #buy back less than the conversion costs. the halfvec column rounds
+            #the printed floats exactly as it would binary ones
             with cur.copy("COPY lines (oracle_id, line_text, embedding, face, whole) FROM STDIN") as copy:
                 for r in rows:
                     copy.write_row(r)

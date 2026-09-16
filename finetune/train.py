@@ -100,8 +100,8 @@ def main():
     #downstream moves, and it already knows tap from untap.
     #
     #the tag bakeoff puts five stock bases in a 2.5 point band zero shot and the
-    #leader is 384 dims, which would mean changing EMBED_DIMS, the column type
-    #and the hnsw index for a lead unlikely to survive fine tuning.
+    #leader is 384 dims, which would mean changing EMBED_TYPE and the hnsw index
+    #for a lead unlikely to survive fine tuning.
     #
     #laptop smoke test: --model sentence-transformers/all-MiniLM-L6-v2
     ap.add_argument("--model", default="BallchinianMan/mtg-tuned-embeddinggemma-300m")

@@ -2,10 +2,37 @@
 #component rounded to ieee half precision. the numpy passes dot rows together
 #and read the result as a cosine, which only holds for rows of length 1
 
+import ast
+import os
+import re
+
 import numpy as np
 
 import app
 from common.vectors import unit_rows
+from conftest import ROOT, TEST_DB, needs_db
+
+
+def read(*path):
+    with open(os.path.join(ROOT, *path), encoding="utf-8") as f:
+        return f.read()
+
+
+class TestAModelSwapRebuildsTheColumnSchemaSqlDeclares:
+
+    def test_the_type_and_the_index_operator_class_match_it(self):
+        #a model swap ALTERs lines.embedding to EMBED_TYPE underneath the hnsw
+        #index schema.sql built, and pgvector refuses an operator class for another
+        #type, so the swap would die after the full reembed. read rather than
+        #imported: ingest/update.py imports psycopg, which the pure suite must not
+        embed_type = next(ast.literal_eval(node.value) for node in ast.parse(read("ingest", "update.py")).body
+                          if isinstance(node, ast.Assign) and getattr(node.targets[0], "id", "") == "EMBED_TYPE")
+        sql = read("common", "schema.sql")
+        table = re.search(r"CREATE TABLE IF NOT EXISTS lines \((.*?)\n\);", sql, re.S).group(1)
+        declared = re.search(r"^\s*embedding\s+(\S+)\s+NOT NULL", table, re.M).group(1)
+        opclass = re.search(r"lines_embedding_hnsw ON lines USING hnsw \(embedding (\w+)\)", sql).group(1)
+        assert embed_type == declared
+        assert opclass == declared.split("(")[0] + "_cosine_ops"
 
 
 class TestAHalfPrecisionRowIsUnitLengthAgain:
@@ -22,3 +49,38 @@ class TestAHalfPrecisionRowIsUnitLengthAgain:
         v /= np.linalg.norm(v, axis=1, keepdims=True)
         rows = unit_rows(v.astype(np.float16))
         assert (1 - (rows * rows).sum(axis=1)).max() < app.UNIQUE_NOISE
+
+
+@needs_db
+class TestTheUniquenessPassReadsTheColumnAsStored:
+
+    def test_two_cards_printing_the_same_line_tie_at_zero(self):
+        #the unit test above proves unit_rows. this proves recompute_uniqueness
+        #reads through it, off a column built the way schema.sql builds it. temp
+        #tables shadow cards and lines for this one connection, so the fixture rows
+        #other tests read are never scored
+        import psycopg
+        from pgvector.psycopg import register_vector
+        from ingest import update
+
+        rng = np.random.default_rng(3)
+        shared, other = rng.standard_normal((2, 768)).astype(np.float32)
+        shared /= np.linalg.norm(shared)
+        other /= np.linalg.norm(other)
+        #otherwise the test passes whether or not anything renormalises
+        assert abs(1 - (shared.astype(np.float16).astype(np.float32) ** 2).sum()) > app.UNIQUE_NOISE
+
+        twin_a = "00000000-0000-4000-8000-00000000aa01"
+        twin_b = "00000000-0000-4000-8000-00000000aa02"
+        loner = "00000000-0000-4000-8000-00000000aa03"
+        with psycopg.connect(TEST_DB) as conn:
+            register_vector(conn)
+            conn.execute("CREATE TEMP TABLE cards (oracle_id uuid PRIMARY KEY, uniqueness real, unique_line text)")
+            conn.execute("CREATE TEMP TABLE lines (LIKE public.lines INCLUDING DEFAULTS)")
+            for oid, text, vec in ((twin_a, "Flying", shared), (twin_b, "Flying", shared), (loner, "Banding", other)):
+                conn.execute("INSERT INTO cards (oracle_id) VALUES (%s)", (oid,))
+                conn.execute("INSERT INTO lines (oracle_id, line_text, embedding) VALUES (%s, %s, %s)", (oid, text, vec))
+            update.recompute_uniqueness(conn)
+            scores = dict(conn.execute("SELECT oracle_id::text, uniqueness FROM cards").fetchall())
+        assert scores[twin_a] < app.UNIQUE_NOISE
+        assert scores[twin_b] < app.UNIQUE_NOISE
