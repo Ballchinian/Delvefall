@@ -178,6 +178,7 @@ def recompute_uniqueness(conn):
     #database, against about a minute for one matrix multiply on the runner
     print("recomputing uniqueness scores...")
     import numpy as np  #late import like torch below, the no-op runs skip it
+    from common.vectors import unit_rows
 
     ids = []
     owners = []      #row i belongs to card owners[i]
@@ -189,7 +190,7 @@ def recompute_uniqueness(conn):
         vecs.append(vec.to_numpy())
     if not ids:
         return  #empty lines table, nothing to score
-    emb = np.asarray(vecs, dtype=np.float32)
+    emb = unit_rows(vecs)
     print("  pulled " + str(len(ids)) + " embeddings, multiplying...")
 
     #which rows belong to each card, so a card never counts as its own neighbor

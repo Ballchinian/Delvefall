@@ -21,6 +21,8 @@ import numpy as np
 import psycopg
 from pgvector.psycopg import register_vector
 
+from common.vectors import unit_rows
+
 #how many neighbour lines vote. wide enough that a common line still gathers a
 #varied neighbourhood, narrow enough that a rare one does not reach past its real
 #family into noise
@@ -109,7 +111,7 @@ def main():
     if not ids:
         print("no lines yet, nothing to attribute")
         return
-    emb = np.asarray(vecs, dtype=np.float32)
+    emb = unit_rows(vecs)
     del vecs
     print("  pulled " + str(len(ids)) + " embeddings")
 
