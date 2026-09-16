@@ -384,12 +384,17 @@ BLEND = 0.5
 
 #the uniqueness /unique ranks and deals by, reading a cards row aliased c.
 #unique_blend is the same sum in python, and tests/test_uniqueness.py fails the
-#moment the two say different things
-UNIQUE_BLEND_SQL = "((1 - %r) * c.uniqueness + %r * coalesce(c.concept_uniqueness, 0))" % (BLEND, BLEND)
+#moment the two say different things.
+#
+#a card with no tags has a NULL concept score, and the concepts axis sits out
+#rather than scoring it zero, the way find_similar treats a tagless anchor
+UNIQUE_BLEND_SQL = "coalesce((1 - %r) * c.uniqueness + %r * c.concept_uniqueness, c.uniqueness)" % (BLEND, BLEND)
 
 
 def unique_blend(uniqueness, concept_uniqueness):
-    return (1 - BLEND) * uniqueness + BLEND * (concept_uniqueness or 0)
+    if concept_uniqueness is None:
+        return uniqueness
+    return (1 - BLEND) * uniqueness + BLEND * concept_uniqueness
 
 
 #---- the anchor's side of the concept axis ----
@@ -4534,7 +4539,7 @@ def unique_cards():
     where, fparams = filter_sql(filters)
     #no uniqueness bar: the dealer works from whatever is left rather than from
     #a number anyone has to learn. cards with no searchable lines stay excluded,
-    #untagged cards count as 0 on the concept side
+    #untagged cards rank on their rules text alone
     cond = """
         FROM cards c
         WHERE c.uniqueness IS NOT NULL

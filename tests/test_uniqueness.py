@@ -36,6 +36,21 @@ class TestTheBlendIsWrittenOnce:
         assert owners_of("concept_uniqueness") == ["UNIQUE_BLEND_SQL"]
 
 
+class TestAnUntaggedCardSitsOutTheConceptAxis:
+    #schema.sql stores concept_uniqueness NULL for a card with no tags: unknown,
+    #not unique. read as zero it halved the card's score: Ogre Enforcer ranked
+    #17,164th where its rules text alone puts it 4,822nd
+
+    def test_its_score_is_its_rules_text_alone(self):
+        #Ogre Enforcer: rules text 0.271, no tags
+        assert app.unique_blend(0.271, None) == pytest.approx(0.271)
+
+    def test_a_concept_score_of_zero_is_not_a_missing_one(self):
+        #a card whose exact tags another card shares has a real zero on that
+        #axis, and it pulls the blend down
+        assert app.unique_blend(0.271, 0.0) < 0.271
+
+
 @needs_db
 class TestPythonAndSqlAgree:
 
