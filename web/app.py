@@ -5021,8 +5021,10 @@ def admin():
         #instead. the ones after it are whole days
         first_measured = conn.execute(
             "SELECT min(day) AS d FROM visit_daily WHERE acted_n IS NOT NULL").fetchone()["d"]
+        #a year. the table shows 14 and hides the rest behind its button, so the
+        #cap is only how far back that button can walk
         rows_daily = conn.execute("""SELECT day, uniques, bots, suspect_n, acted_n, rendered_n
-                                     FROM visit_daily ORDER BY day DESC LIMIT 60""").fetchall()
+                                     FROM visit_daily ORDER BY day DESC LIMIT 365""").fetchall()
 
     usage = [usage_row(today, live, True, first_measured is not None)]
     for u in rows_daily:

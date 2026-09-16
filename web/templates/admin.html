@@ -15,7 +15,9 @@
         <tr><th>day</th><th>acted</th><th>rendered</th><th>unproven</th>
             <th>suspect</th><th>bots</th><th>people</th></tr>
         {% for u in usage %}
-        <tr><td>{{ u.day }}</td>
+        {# 14 days is the screenful. the rest are rendered and hidden, and the
+           button below reveals them a fortnight at a time #}
+        <tr{% if loop.index0 >= 14 %} hidden{% endif %}><td>{{ u.day }}</td>
             {% if u.measured %}
             <td>{{ u.acted }}</td><td>{{ u.rendered }}</td>
             <td>{{ u.unproven }}</td><td>{{ u.suspect }}</td>
@@ -29,6 +31,9 @@
         <tr><td colspan="7" class="fb-none">nothing counted yet</td></tr>
         {% endif %}
     </table>
+    {% if usage|length > 14 %}
+    <button type="button" id="usage-more" class="fb-quiet">Show 14 more days</button>
+    {% endif %}
     <ul class="fb-legend">
         <li><strong>bots</strong> said so in their user agent.</li>
         <li><strong>suspect</strong> read robots.txt, a sitemap or llms.txt, or claimed a
@@ -135,4 +140,27 @@
         </form>
     </div>
     {% endfor %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+    //the visitor table renders every day it has and hides all but the newest 14.
+    //each press uncovers the next 14, and the button goes when the table is out
+    (function () {
+        var btn = document.getElementById("usage-more");
+        if (!btn) {
+            return;
+        }
+        var STEP = 14;
+        btn.onclick = function () {
+            var hidden = document.querySelectorAll(".fb-usage tr[hidden]");
+            for (var i = 0; i < STEP && i < hidden.length; i++) {
+                hidden[i].hidden = false;
+            }
+            if (hidden.length <= STEP) {
+                btn.remove();
+            }
+        };
+    })();
+</script>
 {% endblock %}

@@ -2725,8 +2725,12 @@ body.home main {
 .fb-usage {
     border-collapse: collapse;
     font-size: 14px;
-    margin-bottom: 24px;
+    margin-bottom: 14px;
     min-width: 260px;
+}
+
+#usage-more {
+    margin-bottom: 14px;
 }
 
 .fb-usage th, .fb-usage td {
@@ -2760,7 +2764,7 @@ body.home main {
     font-size: 13px;
     line-height: 1.5;
     max-width: 62ch;
-    margin: -16px 0 24px;
+    margin: 0 0 24px;
     padding-left: 18px;
 }
 
