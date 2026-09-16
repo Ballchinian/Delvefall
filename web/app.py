@@ -382,6 +382,15 @@ UNIQUE_WINDOW = 80
 #both pure ends, so the choice never needed making. see web/history.md
 BLEND = 0.5
 
+#the uniqueness /unique ranks and deals by, reading a cards row aliased c.
+#unique_blend is the same sum in python, and tests/test_uniqueness.py fails the
+#moment the two say different things
+UNIQUE_BLEND_SQL = "((1 - %r) * c.uniqueness + %r * coalesce(c.concept_uniqueness, 0))" % (BLEND, BLEND)
+
+
+def unique_blend(uniqueness, concept_uniqueness):
+    return (1 - BLEND) * uniqueness + BLEND * (concept_uniqueness or 0)
+
 
 #---- the anchor's side of the concept axis ----
 
@@ -1917,14 +1926,13 @@ def unique_top():
     try:
         with pool.connection() as conn:
             rows = [dict(r) for r in conn.execute("""
-                SELECT name, unique_line, image,
-                       ((1 - %s) * uniqueness + %s * coalesce(concept_uniqueness, 0)) AS blended
-                FROM cards
+                SELECT name, unique_line, image, """ + UNIQUE_BLEND_SQL + """ AS blended
+                FROM cards c
                 WHERE uniqueness IS NOT NULL AND coalesce(unique_line, '') <> ''
                   AND legal_commander
                 ORDER BY blended DESC, name
                 LIMIT %s
-            """, (BLEND, BLEND, UNIQUE_TOP)).fetchall()]
+            """, (UNIQUE_TOP,)).fetchall()]
     except Exception:
         #whatever was there last stays, and the clock is not touched, so the
         #next visitor tries again rather than being served an empty list for
@@ -4527,8 +4535,6 @@ def unique_cards():
     #no uniqueness bar: the dealer works from whatever is left rather than from
     #a number anyone has to learn. cards with no searchable lines stay excluded,
     #untagged cards count as 0 on the concept side
-    w = BLEND
-    blended = "((1 - %s) * c.uniqueness + %s * coalesce(c.concept_uniqueness, 0))"
     cond = """
         FROM cards c
         WHERE c.uniqueness IS NOT NULL
@@ -4539,9 +4545,9 @@ def unique_cards():
         #the shortlist first, ids and scores only. picking from it here rather
         #than in sql keeps the band rule (see UNIQUE_BAND) in one readable
         #place, and costs a second round trip for one card's worth of columns
-        shortlist = conn.execute("SELECT c.oracle_id, " + blended + " AS u" + cond +
+        shortlist = conn.execute("SELECT c.oracle_id, " + UNIQUE_BLEND_SQL + " AS u" + cond +
                                  " ORDER BY u DESC LIMIT %s",
-                                 [w, w] + params + [UNIQUE_WINDOW]).fetchall()
+                                 params + [UNIQUE_WINDOW]).fetchall()
         picked = []
         if shortlist:
             best = shortlist[0]["u"]
@@ -4555,9 +4561,9 @@ def unique_cards():
             picked = random.sample(near, min(UNIQUE_PAGE, len(near)))
         rows = []
         if picked:
-            rows = conn.execute("SELECT " + CARD_FIELDS + ", uniqueness, unique_line, " + blended +
+            rows = conn.execute("SELECT " + CARD_FIELDS + ", uniqueness, unique_line, " + UNIQUE_BLEND_SQL +
                                 " AS blended_u FROM cards c WHERE c.oracle_id = ANY(%s)",
-                                [w, w, [r["oracle_id"] for r in picked]]).fetchall()
+                                [[r["oracle_id"] for r in picked]]).fetchall()
 
     cards = []
     cur = read_currency()
@@ -4581,11 +4587,9 @@ def unique_card():
         return {"card": None}
     with pool.connection() as conn:
         #the trail arrows show the same blended number a fresh deal would
-        w = BLEND
-        c = conn.execute("SELECT " + CARD_FIELDS + """, uniqueness, unique_line,
-                            ((1 - %s) * uniqueness + %s * coalesce(concept_uniqueness, 0)) AS blended_u
-                          FROM cards WHERE oracle_id = %s""",
-                         (w, w, oid)).fetchone()
+        c = conn.execute("SELECT " + CARD_FIELDS + ", uniqueness, unique_line, " + UNIQUE_BLEND_SQL +
+                         " AS blended_u FROM cards c WHERE oracle_id = %s",
+                         (oid,)).fetchone()
     if c is None:
         return {"card": None}
     return {"card": card_json(c, read_currency())}
