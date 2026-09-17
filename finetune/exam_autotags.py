@@ -486,6 +486,69 @@ def rule_both(d, c):
 RULES = {"plan": rule_plan, "share": rule_share, "probe": rule_probe, "both": rule_both}
 
 
+#---- which tags need the type line, which typed rules text does not carry ----
+
+#a card's type as one word, in the order a type line has to be read: an Artifact
+#Creature is a creature, and every land is a land
+TYPES = ("Land", "Creature", "Instant", "Sorcery", "Artifact", "Enchantment", "Planeswalker", "Battle")
+
+
+def card_type(d, c):
+    head = (d.type_line[c] or "").split("//")[0]
+    for t in TYPES:
+        if t in head:
+            return t
+    return "other"
+
+
+def typeline_report(d, rule):
+    #for every chip the rule hands out on the dev half: was it right, and what
+    #type of card did it land on? a tag right on instants and wrong on creatures
+    #is one the text alone cannot decide
+    kind = {c: card_type(d, c) for c in range(len(d.card_ids))}
+    carry = {}
+    for c, ts in d.rolled.items():
+        for t in ts:
+            carry.setdefault(t, {}).setdefault(kind[c], 0)
+            carry[t][kind[c]] += 1
+    chips, right = {}, {}
+    cards = [c for c in d.population if d.half(c) == "dev"]
+    for i, c in enumerate(cards):
+        for t in rule(d, c):
+            chips.setdefault(t, {}).setdefault(kind[c], 0)
+            chips[t][kind[c]] += 1
+            if t in d.rolled[c]:
+                right.setdefault(t, {}).setdefault(kind[c], 0)
+                right[t][kind[c]] += 1
+        if i % 2000 == 0:
+            print("  %d/%d" % (i, len(cards)))
+    rows = []
+    for t, per in chips.items():
+        n = sum(per.values())
+        if n < 20:
+            continue
+        mine = right.get(t, {})
+        held = carry.get(t, {})
+        total = sum(held.values()) or 1
+        #chips on a type holding under 2% of the tag's real cards
+        off = sum(v for k, v in per.items() if held.get(k, 0) / total < 0.02)
+        rows.append((off / n, t, n, sum(mine.values()) / n, per, mine, held, total))
+    out = ["what share of each tag's chips land on a card type the tag hardly ever appears on.",
+           "dev half, " + str(len(cards)) + " cards, " + str(len(rows)) + " tags with 20 chips or more.", ""]
+    for off, t, n, prec, per, mine, held, total in sorted(rows, reverse=True)[:80]:
+        out.append("%-38s %4d chips  %3.0f%% right  off-type %3.0f%%" % (d.tags[t], n, 100 * prec, 100 * off))
+        out.append("    chips by type:  " + "  ".join(
+            "%s %d/%d" % (k, mine.get(k, 0), per[k]) for k in TYPES + ("other",) if per.get(k)))
+        out.append("    really on:      " + "  ".join(
+            "%s %d%%" % (k, round(100 * held[k] / total)) for k in TYPES + ("other",)
+            if held.get(k, 0) / total >= 0.02))
+    path = os.path.join(HERE, "out", "autotag_typeline.txt")
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        f.write("\n".join(out) + "\n")
+    print("wrote " + path)
+
+
 #---- the hand-marked half: precision as a person reads it ----
 
 MARKS = "exam_autotags"
@@ -563,12 +626,15 @@ def main():
     ap.add_argument("--show", type=int, default=0, help="print this many cards with their chips")
     ap.add_argument("--write-marks", type=int, default=0, help="write that many test cards to mark by hand")
     ap.add_argument("--marks", action="store_true", help="score against the marked file instead")
+    ap.add_argument("--typeline", action="store_true", help="write out/autotag_typeline.txt")
     args = ap.parse_args()
     d = Data()
     if args.write_marks:
         write_marks(d, RULES[args.rule], args.write_marks)
     elif args.marks:
         score_marks(d, RULES[args.rule])
+    elif args.typeline:
+        typeline_report(d, RULES[args.rule])
     else:
         evaluate(d, RULES[args.rule], args.half, args.limit, args.show)
 
