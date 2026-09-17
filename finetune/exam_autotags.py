@@ -486,15 +486,91 @@ def rule_both(d, c):
 RULES = {"plan": rule_plan, "share": rule_share, "probe": rule_probe, "both": rule_both}
 
 
+#---- the hand-marked half: precision as a person reads it ----
+
+MARKS = "exam_autotags"
+
+
+def marked_cards(d, rule, how_many, seed=11):
+    #the same cards every run, drawn from the test half and never twins
+    pool = sorted(c for c in d.population if d.half(c) == "test" and not d.twin[c])
+    rng = np.random.default_rng(seed)
+    picked = [pool[i] for i in rng.permutation(len(pool))[:how_many]]
+    return [(c, rule(d, c)) for c in sorted(picked, key=lambda c: d.names[c])]
+
+
+def write_marks(d, rule, how_many):
+    #merges: a Wrong line already in the file wins, and a card new to the rule
+    #arrives unjudged, so rerunning after a rule change loses no marking
+    import examfile
+    old = {}
+    if os.path.exists(examfile.path(MARKS)):
+        for e in examfile.read(MARKS).get("Chips", []):
+            old[e["fields"].get("Card", "")] = e["fields"].get("Wrong", "?")
+    out = ["# Are these the right tags for this text?", "",
+           "The chips `exam_autotags.py` infers for cards it never saw, for a person to judge.",
+           "Read at runtime by that script's `--marks`.", "",
+           "## Chips", "",
+           "**Wrong:** lists only the chips that are wrong about what the card does. `(none)`",
+           "means every chip is right, `?` means not judged yet and the card is not scored. A chip",
+           "that is true but tagger never typed it counts as RIGHT: this file is what precision",
+           "against the community tags cannot see.", ""]
+    for n, (c, chips) in enumerate(marked_cards(d, rule, how_many), 1):
+        out.append("%d." % n)
+        out.append("    **Card:** " + d.names[c])
+        for q in d.card_lines[c]:
+            out.append("    **Line:** `" + d.line_text[q] + "`")
+        out.append("    **Chips:** " + ", ".join(sorted(d.tags[t] for t in chips)))
+        out.append("    **Wrong:** " + old.get(d.names[c], "?"))
+        out.append("")
+    with open(examfile.path(MARKS), "w", encoding="utf-8") as f:
+        f.write("\n".join(out))
+    print("wrote " + examfile.path(MARKS) + ", %d cards" % how_many)
+
+
+def score_marks(d, rule):
+    import examfile
+    judged = tp = fp = unjudged = 0
+    gaps = []
+    for e in examfile.read(MARKS).get("Chips", []):
+        card = e["fields"].get("Card", "")
+        mark = e["fields"].get("Wrong", "?").strip()
+        if mark == "?" or card not in d.names:
+            unjudged += 1
+            continue
+        c = d.names.index(card)
+        chips = set(rule(d, c))
+        wrong = set() if mark == "(none)" else {d.tag_of[t.strip()] for t in mark.split(",")
+                                               if t.strip() in d.tag_of}
+        judged += 1
+        tp += len(chips - wrong)
+        fp += len(chips & wrong)
+        gaps += [d.tags[t] for t in chips - wrong - d.rolled[c]]
+    if not judged:
+        print("nothing judged yet in " + examfile.path(MARKS))
+        return
+    print("%d cards judged, %d not" % (judged, unjudged))
+    print("precision as marked: %.0f%% (%d right, %d wrong)" % (100 * tp / max(tp + fp, 1), tp, fp))
+    print("of those right chips, %d are tags the card does not carry, so tagger missed them:" % len(gaps))
+    print("  " + ", ".join(sorted(set(gaps))[:40]))
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--rule", default="plan", choices=sorted(RULES))
     ap.add_argument("--half", default="dev", choices=["dev", "test"])
     ap.add_argument("--limit", type=int, default=None, help="an even sample of this many cards")
     ap.add_argument("--show", type=int, default=0, help="print this many cards with their chips")
+    ap.add_argument("--write-marks", type=int, default=0, help="write that many test cards to mark by hand")
+    ap.add_argument("--marks", action="store_true", help="score against the marked file instead")
     args = ap.parse_args()
     d = Data()
-    evaluate(d, RULES[args.rule], args.half, args.limit, args.show)
+    if args.write_marks:
+        write_marks(d, RULES[args.rule], args.write_marks)
+    elif args.marks:
+        score_marks(d, RULES[args.rule])
+    else:
+        evaluate(d, RULES[args.rule], args.half, args.limit, args.show)
 
 
 if __name__ == "__main__":
