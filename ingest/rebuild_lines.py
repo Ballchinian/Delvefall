@@ -7,7 +7,8 @@
 #minutes and hold no lock a search waits on. the swap is renames in one short
 #transaction, refused if anything wrote to lines after the copy.
 #
-#from the repo root with DATABASE_URL set, well away from the 9am utc update:
+#from the repo root with DATABASE_URL set. every step refuses while an ingest run
+#holds the lock, and an ingest run waits while a step of this holds it:
 #    python -m ingest.rebuild_lines             copy and build lines_new, then compare
 #    python -m ingest.rebuild_lines --swap      put lines_new live, the old one kept as lines_old
 #    python -m ingest.rebuild_lines --rollback  put lines_old back
@@ -18,11 +19,11 @@ import os
 import sys
 import time
 import argparse
-import datetime
 
 import psycopg
 from pgvector.psycopg import register_vector
 
+from common import locks
 from ingest.update import EMBED_TYPE
 
 COLUMNS = ["id", "oracle_id", "line_text", "embedding", "nn_sim", "face", "whole"]
@@ -43,9 +44,6 @@ CONSTRAINTS = {
 #the swap waits this long for searches to finish before giving up and changing
 #nothing. every search that arrives behind it queues for as long as it waits
 LOCK_TIMEOUT = "3s"
-
-#the daily update starts at 9 utc and has run past an hour
-UPDATE_HOURS = range(8, 11)
 
 
 class Refused(Exception):
@@ -86,12 +84,20 @@ def expect_the_schema_shape(conn):
         raise Refused("tables pointing at lines: " + ", ".join(sorted(pointing)) + ", this tool repoints line_tags only")
 
 
+def alone(conn):
+    #the ingest takes the same lock before its first write, so this is the answer
+    #to "is a run happening", clock and github schedule both being no help
+    if not locks.claim(conn):
+        raise Refused("an ingest run holds the lock. it takes 7 to 12 minutes, so try again after that")
+
+
 #the copy is three transactions for main to commit between. every ingest opens
 #with schema.sql's ALTER TABLE lines and cards, which queue for ACCESS EXCLUSIVE
 #behind whatever lock this holds, and every search queues behind them: holding
 #lines or cards through a minutes long index build would stall the site for all
 #of it
 def fill(conn):
+    alone(conn)
     for t in ("lines_new", "lines_old"):
         if exists(conn, t):
             raise Refused(t + " already exists, from a rebuild that never finished. --swap, --rollback, "
@@ -154,6 +160,7 @@ def exchange(conn, incoming, outgoing, check=True):
     #
     #SHARE first lets searches carry on while the fingerprints are read, and holds
     #off any write. ACCESS EXCLUSIVE is only wanted for the renames
+    alone(conn)
     conn.execute("SET LOCAL lock_timeout = '" + LOCK_TIMEOUT + "'")
     conn.execute("LOCK TABLE lines IN SHARE MODE")
     if check and fingerprint(conn, "lines") != fingerprint(conn, incoming):
@@ -188,19 +195,13 @@ def main():
     act.add_argument("--rollback", action="store_true")
     act.add_argument("--drop-old", action="store_true")
     act.add_argument("--discard", action="store_true")
-    ap.add_argument("--force", action="store_true", help="run inside the daily update's hours, or roll back over "
-                                                         "writes the new table took")
+    ap.add_argument("--force", action="store_true", help="roll back over writes the new table has taken")
     args = ap.parse_args()
 
     db_url = os.environ.get("DATABASE_URL")
     if not db_url:
         print("set DATABASE_URL first (the postgres connection string)")
         sys.exit(1)
-    writes = not (args.drop_old or args.discard)
-    if writes and datetime.datetime.now(datetime.timezone.utc).hour in UPDATE_HOURS and not args.force:
-        print("the daily update runs from 9 utc, come back after 11 or pass --force")
-        sys.exit(1)
-
     conn = psycopg.connect(db_url)
     register_vector(conn)
     try:

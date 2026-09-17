@@ -17,6 +17,7 @@ import time
 import psycopg
 import requests
 
+from common import locks
 from common.cards import HEADERS
 from ingest.update import get_with_retries
 
@@ -142,6 +143,11 @@ def main():
         sys.exit(1)
 
     conn = psycopg.connect(db_url)
+    #before schema.sql below, this run's first write. a rebuild holding the lock
+    #parks the step here rather than half way through it
+    if not locks.claim(conn):
+        print("something else holds the ingest lock, waiting for it...")
+        locks.hold(conn)
     schema_path = os.path.join(os.path.dirname(__file__), "..", "common", "schema.sql")
     with open(schema_path, encoding="utf-8") as f:
         conn.execute(f.read())

@@ -20,6 +20,7 @@ import requests
 import psycopg
 from pgvector.psycopg import register_vector
 
+from common import locks
 from common.cards import (HEADERS, keep_card, split_lines, get_text, get_image, get_back_image,
                           bulk_uri, bulk_size, read_bulk, can_command)
 from common.concept import CALIBRATION as CONCEPT_CALIBRATION
@@ -247,6 +248,11 @@ def main():
         sys.exit(1)
 
     conn = psycopg.connect(db_url)
+    #before schema.sql below, this run's first write. a rebuild holding the lock
+    #parks the step here rather than half way through it
+    if not locks.claim(conn):
+        print("something else holds the ingest lock, waiting for it...")
+        locks.hold(conn)
 
     #schema.sql is all IF NOT EXISTS, so this is free after the first run
     schema_path = os.path.join(os.path.dirname(__file__), "..", "common", "schema.sql")

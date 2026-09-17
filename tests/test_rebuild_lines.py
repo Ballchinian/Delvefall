@@ -45,7 +45,10 @@ def conn():
     c = psycopg.connect(TEST_DB)
     register_vector(c)
     c.execute("CREATE SCHEMA rebuild_check")
-    c.execute("SET LOCAL search_path TO rebuild_check, public")
+    #session wide, not SET LOCAL: anything that commits mid test would end the
+    #transaction and drop a local setting, and the rest of the test would build
+    #its tables in public, on top of the fixtures every other test reads
+    c.execute("SET search_path TO rebuild_check, public")
     c.execute("CREATE TABLE cards (oracle_id uuid PRIMARY KEY)")
     for statement in statements_about_lines():
         c.execute(statement)
@@ -68,6 +71,8 @@ def conn():
             c.execute("INSERT INTO line_tags (line_id, tag, lift) VALUES (%s, 'fixture', 2.0)", (line_id,))
     yield c
     c.rollback()
+    c.execute("DROP SCHEMA IF EXISTS rebuild_check CASCADE")
+    c.commit()
     c.close()
 
 
@@ -147,3 +152,27 @@ class TestTheSwapOnlyHappensOverWhatWasCopied:
                                  VALUES ('00000000-0000-4000-8000-0000000bb000', 'Flying', %s) RETURNING id""",
                               (np.ones(768, dtype=np.float32),)).fetchone()[0]
         assert new_id > highest
+
+
+@needs_db
+class TestTheIngestAndTheToolTakeTurns:
+
+    def test_the_tool_refuses_while_the_ingest_holds_the_lock(self, conn):
+        #the clock cannot be the guard: update.yml asks for 9 utc and github has
+        #started it anywhere from 12:43 to 15:46
+        import psycopg
+
+        from common import locks
+        from ingest import rebuild_lines
+
+        ingest = psycopg.connect(TEST_DB)
+        try:
+            locks.hold(ingest)
+            with pytest.raises(rebuild_lines.Refused):
+                rebuild_lines.fill(conn)
+        finally:
+            ingest.close()
+        assert conn.execute("SELECT to_regclass('lines_new')").fetchone()[0] is None
+        #and once it lets go, the same call goes through
+        rebuild_lines.fill(conn)
+        assert conn.execute("SELECT count(*) FROM lines_new").fetchone()[0] == 18

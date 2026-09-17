@@ -21,6 +21,7 @@ import numpy as np
 import psycopg
 from pgvector.psycopg import register_vector
 
+from common import locks
 from common.vectors import unit_rows
 
 #how many neighbour lines vote. wide enough that a common line still gathers a
@@ -68,6 +69,11 @@ def main():
         sys.exit(1)
 
     conn = psycopg.connect(db_url)
+    #before schema.sql below, this run's first write. a rebuild holding the lock
+    #parks the step here rather than half way through it
+    if not locks.claim(conn):
+        print("something else holds the ingest lock, waiting for it...")
+        locks.hold(conn)
     register_vector(conn)  #without this the embeddings arrive as strings
     schema_path = os.path.join(os.path.dirname(__file__), "..", "common", "schema.sql")
     with open(schema_path, encoding="utf-8") as f:

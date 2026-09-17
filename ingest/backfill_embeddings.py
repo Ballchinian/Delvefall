@@ -28,6 +28,8 @@ import argparse
 import psycopg
 from pgvector.psycopg import register_vector
 
+from common import locks
+
 from ingest.update import EMBED_MODEL, EMBED_PROMPT, EMBED_TYPE
 
 TARGET = "embedding_v2"
@@ -56,6 +58,11 @@ def main():
     prompt = args.prompt if args.prompt is not None else EMBED_PROMPT
 
     conn = psycopg.connect(db_url)
+    #before schema.sql below, this run's first write. a rebuild holding the lock
+    #parks the step here rather than half way through it
+    if not locks.claim(conn):
+        print("something else holds the ingest lock, waiting for it...")
+        locks.hold(conn)
     register_vector(conn)
     schema_path = os.path.join(os.path.dirname(__file__), "..", "common", "schema.sql")
     with open(schema_path, encoding="utf-8") as f:
