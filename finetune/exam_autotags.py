@@ -410,6 +410,12 @@ CHIP_FLOOR = 0.15
 #the probe's share of the score in rule_both, the neighbours taking the rest
 PROBE_SHARE = 0.7
 
+#never chips, on top of the review's verdicts. they need the type line, which
+#typed rules text does not carry: Shadrix Silverquill's modes read like a spell's
+#and drew single-target-instant-sorcery. kept out of make_tagreview.md, which
+#would also drop them from training, where auc 0.91 says the model learns them
+UNSEEN = {"single-target-instant-sorcery"}
+
 _probe = {}
 
 
@@ -421,6 +427,7 @@ def banned(d):
         from make_tagreview import read_verdicts
         _probe["ban"] = {d.tag_of[t] for t, v in read_verdicts().items()
                          if v in ("card", "junk") and t in d.tag_of}
+        _probe["ban"] |= {d.tag_of[t] for t in UNSEEN if t in d.tag_of}
     return _probe["ban"]
 
 
