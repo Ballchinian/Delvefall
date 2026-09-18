@@ -21,6 +21,7 @@
 #  list      top 20 of the strong tier anchored on the chips against the /search
 #            list anchored on the human tags. baseline: rules text alone
 
+import re
 import os
 import sys
 import json
@@ -271,8 +272,8 @@ class Lists:
         return strong[:TOP], {entries[i][0]: np.rint(score[i]) for i in range(len(entries))}
 
 
-def evaluate(d, rule, half, limit=None, show=0, quiet=False):
-    cards = [c for c in d.population if d.half(c) == half]
+def evaluate(d, rule, half, limit=None, show=0, quiet=False, cards=None):
+    cards = cards if cards is not None else [c for c in d.population if d.half(c) == half]
     if limit:
         cards = cards[::max(1, len(cards) // limit)][:limit]
     rows = {"new": [], "twin": []}
@@ -593,7 +594,6 @@ def write_marks(d, rule, how_many):
 
 
 def score_marks(d, rule):
-    import re
     import examfile
     judged = tp = fp = unjudged = 0
     tagger_tp = tagger_fp = 0
