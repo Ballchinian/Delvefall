@@ -574,10 +574,11 @@ def write_marks(d, rule, how_many):
            "The chips `exam_autotags.py` infers for cards it never saw, for a person to judge.",
            "Read at runtime by that script's `--marks`.", "",
            "## Chips", "",
-           "**Wrong:** lists only the chips that are wrong about what the card does. `(none)`",
-           "means every chip is right, `?` means not judged yet and the card is not scored. A chip",
-           "that is true but tagger never typed it counts as RIGHT: this file is what precision",
-           "against the community tags cannot see.", ""]
+           "**Wrong:** lists only the chips that are wrong about what the card does. Empty or",
+           "`(none)` means every chip is right, `?` means not judged yet and the card is not",
+           "scored. Notes go in [square brackets] and are ignored. A chip that is true but tagger",
+           "never typed it counts as RIGHT: this file is what precision against the community tags",
+           "cannot see.", ""]
     for n, (c, chips) in enumerate(marked_cards(d, rule, how_many), 1):
         out.append("%d." % n)
         out.append("    **Card:** " + d.names[c])
@@ -592,9 +593,11 @@ def write_marks(d, rule, how_many):
 
 
 def score_marks(d, rule):
+    import re
     import examfile
     judged = tp = fp = unjudged = 0
-    gaps = []
+    tagger_tp = tagger_fp = 0
+    gaps, unknown, called = [], [], []
     for e in examfile.read(MARKS).get("Chips", []):
         card = e["fields"].get("Card", "")
         mark = e["fields"].get("Wrong", "?").strip()
@@ -603,19 +606,36 @@ def score_marks(d, rule):
             continue
         c = d.names.index(card)
         chips = set(rule(d, c))
-        wrong = set() if mark == "(none)" else {d.tag_of[t.strip()] for t in mark.split(",")
-                                               if t.strip() in d.tag_of}
+        wrong = set()
+        #a note in brackets is for people. a name that is not a tag is a typo, and
+        #silently reading it as nothing would score a wrong chip as right
+        for part in re.sub(r"\[[^\]]*\]", "", mark).split(","):
+            part = part.strip()
+            if not part or part == "(none)":
+                continue
+            if part in d.tag_of:
+                wrong.add(d.tag_of[part])
+            else:
+                unknown.append(card + ": " + part)
         judged += 1
         tp += len(chips - wrong)
         fp += len(chips & wrong)
+        tagger_tp += len(chips & d.rolled[c])
+        tagger_fp += len(chips - d.rolled[c])
         gaps += [d.tags[t] for t in chips - wrong - d.rolled[c]]
+        called += [(card, d.tags[t]) for t in chips & wrong]
     if not judged:
         print("nothing judged yet in " + examfile.path(MARKS))
         return
+    if unknown:
+        print("NOT A TAG, so not counted: " + "; ".join(unknown))
     print("%d cards judged, %d not" % (judged, unjudged))
-    print("precision as marked: %.0f%% (%d right, %d wrong)" % (100 * tp / max(tp + fp, 1), tp, fp))
-    print("of those right chips, %d are tags the card does not carry, so tagger missed them:" % len(gaps))
-    print("  " + ", ".join(sorted(set(gaps))[:40]))
+    print("precision as marked:  %.0f%% (%d right, %d wrong)" % (100 * tp / max(tp + fp, 1), tp, fp))
+    print("precision by tagger:  %.0f%% (%d right, %d wrong)"
+          % (100 * tagger_tp / max(tagger_tp + tagger_fp, 1), tagger_tp, tagger_fp))
+    print("marked wrong: " + ", ".join(n + " " + t for n, t in called))
+    print("%d chips are right but not on the card, so tagger missed them:" % len(gaps))
+    print("  " + ", ".join(sorted(set(gaps))))
 
 
 def main():
