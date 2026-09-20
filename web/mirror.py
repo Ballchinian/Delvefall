@@ -71,8 +71,11 @@ def clean_line(line, card_name):
     if m and m.group(1) in PREFIX_WORDS:
         line = line[m.end():]
     #both halves of a " // " name, stripped one at a time, exactly as the ingest
-    #strips them. the spaces keep SP//dr, Piloted by Peni in one piece
+    #strips them. the spaces keep SP//dr, Piloted by Peni in one piece, and an
+    #empty part is skipped because /custom's name field is optional
     for part in card_name.split(" // "):
+        if not part:
+            continue
         line = line.replace(part, "this card")
         if "," in part:
             line = line.replace(part.split(",")[0], "this card")

@@ -179,7 +179,12 @@ def clean_line(line, card_name):
     #Burn keeps its name and stops matching the burn spells printing the very
     #sentence it copies. the SPACES are what make that split safe: SP//dr,
     #Piloted by Peni carries bare slashes in a single faced name
+    #an empty part would insert at every position, "Flying" coming back as
+    #"this cardFthis cardlthis card...". no stored card has one, but /custom
+    #takes a name from a visitor and the field is optional
     for part in card_name.split(" // "):
+        if not part:
+            continue
         line = line.replace(part, "this card")
         if "," in part:
             line = line.replace(part.split(",")[0], "this card")

@@ -227,6 +227,15 @@ class TestCleanLineCardNames:
     def test_result_is_stripped(self):
         assert clean_line("   Draw a card.   ", "X") == "Draw a card."
 
+    def test_no_name_leaves_the_line_alone(self):
+        #"".split(" // ") is [""], and replacing the empty string inserts at
+        #every position. no stored card reaches this, but /custom's name field
+        #is optional and a visitor leaving it blank must not turn "Flying" into
+        #"this cardFthis cardlthis card..."
+        assert clean_line("Flying", "") == "Flying"
+        assert clean_line("Shivan Dragon deals 2 damage.", "") == \
+            "Shivan Dragon deals 2 damage."
+
 
 class TestSplitLines:
     #split_lines picks the name clean_line strips, and on a two faced card that
