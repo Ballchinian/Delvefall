@@ -1,7 +1,25 @@
+# the five pins below reproduce the stored vectors at cosine 1.000000, measured
+# over 400 random lines on 2026-09-16. unpinned, a library release could shift
+# newly embedded vectors under a table full of old ones, and nothing would say
+# so: the scores would just quietly stop comparing like with like.
+#
+# the same four the model card names (see finetune/requirements.txt), on python
+# 3.12. torch's version is pinned and its build is not, update.yml installing the
+# cpu wheel from pytorch's own index first so this line sees it satisfied.
+sentence-transformers==5.6.0
+transformers==5.13.0
+tokenizers==0.22.2
+torch==2.12.1
+
+# numpy is pinned for the same reason without being part of the model: it is
+# what common/vectors.py renormalises with and what recompute_uniqueness does
+# its 31k by 768 multiply in, so a major release moves cards.uniqueness without
+# touching a single weight.
+numpy==2.5.1
+
+# the rest are plumbing, floating on purpose: they move bytes about and none of
+# them decides a number that gets stored
 requests
 ijson
-torch
-numpy
-sentence-transformers
 psycopg[binary]
 pgvector

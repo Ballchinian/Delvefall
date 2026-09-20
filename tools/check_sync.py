@@ -71,6 +71,29 @@ if read("web/prefix_words.py") != read("common/prefix_words.py"):
 same("CALIBRATION seed", assign_value(MIRROR, "CALIBRATION"), assign_value("common/concept.py", "CALIBRATION"))
 same("MECH_CALIBRATION seed", assign_value(MIRROR, "MECH_CALIBRATION"), assign_value("ingest/update.py", "MECH_CALIBRATION"))
 
+#update.yml installs the cpu torch wheel by hand before the requirements step,
+#so the version is written down twice and only one of them is what the model
+#card was measured against. a disagreement embeds new lines with a different
+#torch than the table holds, and nothing anywhere says so
+def pinned(path, package):
+    for line in read(path).splitlines():
+        line = line.split("#")[0].strip()
+        if line.startswith(package + "=="):
+            return line.split("==", 1)[1].strip()
+    problems.append(path + " does not pin " + package)
+    return None
+
+
+workflow = read(".github/workflows/update.yml")
+in_workflow = None
+for line in workflow.splitlines():
+    if "download.pytorch.org" in line and "torch==" in line:
+        in_workflow = line.split("torch==", 1)[1].split()[0]
+same("the torch pin", in_workflow, pinned("ingest/requirements.txt", "torch"),
+     "between .github/workflows/update.yml and ingest/requirements.txt")
+if in_workflow is None:
+    problems.append(".github/workflows/update.yml installs torch without a version")
+
 #guarded on the file EXISTING, because finetune/ ships its scripts but not its
 #data: a checkout without it has nothing to compare, which must not read as a
 #failure

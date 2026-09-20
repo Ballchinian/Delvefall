@@ -27,8 +27,10 @@ jobs:
           key: mtg-tuned-embeddinggemma-300m
 
       #plain "pip install torch" grabs a 2gb+ cuda build this runner cannot use.
-      #the cpu wheel FIRST means the requirements step sees torch satisfied
-      - run: pip install torch --index-url https://download.pytorch.org/whl/cpu
+      #the cpu wheel FIRST means the requirements step sees torch satisfied.
+      #the version matches the pin in ingest/requirements.txt, so the two cannot
+      #disagree about which torch embedded the vectors already in the table
+      - run: pip install torch==2.12.1 --index-url https://download.pytorch.org/whl/cpu
       - run: pip install -r ingest/requirements.txt
 
       - run: python -m ingest.update
