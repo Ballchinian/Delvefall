@@ -18,9 +18,12 @@ from conftest import ROOT, TEST_DB, needs_db
 def statements_about_lines():
     with open(os.path.join(ROOT, "common", "schema.sql"), encoding="utf-8") as f:
         sql = "\n".join(line for line in f.read().splitlines() if not line.lstrip().startswith("--"))
+    #a $$ body carries its own semicolons, so the split steps over one whole
+    #rather than cutting inside it
+    statements = re.findall(r"(?:\$\$.*?\$\$|[^;])+", sql, re.S)
     wanted = re.compile(r"(CREATE TABLE IF NOT EXISTS (lines|line_tags) |ALTER TABLE lines |"
-                        r"CREATE INDEX IF NOT EXISTS \w+ ON (lines|line_tags) )")
-    return [s.strip() for s in sql.split(";") if wanted.match(s.strip())]
+                        r"CREATE INDEX IF NOT EXISTS \w+ ON (lines|line_tags) |DO \$\$)")
+    return [s.strip() for s in statements if wanted.match(s.strip())]
 
 
 def shape(conn):
@@ -107,6 +110,28 @@ class TestTheRebuiltTableIsTheOneSchemaSqlBuilds:
 
     def test_it_carries_the_indexes_and_keys_schema_sql_hangs_on_lines(self, conn):
         rebuild(conn)
+        assert shape(conn) == conn.fresh
+
+
+@needs_db
+class TestSchemaSqlAppliesEitherSideOfTheRebuild:
+
+    def test_it_leaves_a_vector_column_and_its_index_alone(self, conn):
+        #the fixture leaves lines in the shape production holds before the
+        #rebuild, and schema.sql runs at the top of every ingest, so it has to
+        #keep applying to that shape. a halfvec operator class written out in the
+        #file throws DatatypeMismatch against this column whether or not the
+        #index it names is already there, correct, and in use
+        for statement in statements_about_lines():
+            conn.execute(statement)
+        assert embedding_type(conn) == "vector(768)"
+        assert "vector_cosine_ops" in conn.execute(
+            "SELECT pg_get_indexdef('lines_embedding_hnsw'::regclass)").fetchone()[0]
+
+    def test_it_leaves_the_rebuilt_halfvec_column_alone(self, conn):
+        rebuild(conn)
+        for statement in statements_about_lines():
+            conn.execute(statement)
         assert shape(conn) == conn.fresh
 
 

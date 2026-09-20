@@ -160,7 +160,22 @@ CREATE INDEX IF NOT EXISTS lines_oracle_id ON lines (oracle_id);
 --m=32/ef_construction=200 measured zero misses above 0.90 sim. partial on NOT
 --whole to mirror the search's filter. scan settings live in web/db.py, and
 --uniqueness is unaffected, recompute_uniqueness doing its math in numpy
-CREATE INDEX IF NOT EXISTS lines_embedding_hnsw ON lines USING hnsw (embedding halfvec_cosine_ops) WITH (m = 32, ef_construction = 200) WHERE (NOT whole);
+--the operator class is read off the column rather than written out, because
+--CREATE INDEX IF NOT EXISTS resolves it against the live type BEFORE it checks
+--whether the name is taken: naming halfvec_cosine_ops here threw
+--DatatypeMismatch on every ingest run against a database still holding
+--vector(768), index present and correct or not, which is what stopped the daily
+--update between the halfvec commit and the rebuild that converts the column.
+--this way the file applies to the database either side of that rebuild, and
+--update.py prints which side it found
+DO $$
+BEGIN
+    EXECUTE format(
+        'CREATE INDEX IF NOT EXISTS lines_embedding_hnsw ON lines USING hnsw (embedding %s_cosine_ops) '
+        'WITH (m = 32, ef_construction = 200) WHERE (NOT whole)',
+        (SELECT split_part(format_type(atttypid, atttypmod), '(', 1) FROM pg_attribute
+         WHERE attrelid = 'lines'::regclass AND attname = 'embedding'));
+END $$;
 
 --the second bench's index is NOT created here: an hnsw index existing while 60k
 --rows are filled makes the backfill crawl, and building it afterwards is faster

@@ -20,7 +20,7 @@ def read(*path):
 
 class TestAModelSwapRebuildsTheColumnSchemaSqlDeclares:
 
-    def test_the_type_and_the_index_operator_class_match_it(self):
+    def test_the_column_it_declares_is_the_one_a_swap_alters_to(self):
         #a model swap ALTERs lines.embedding to EMBED_TYPE underneath the hnsw
         #index schema.sql built, and pgvector refuses an operator class for another
         #type, so the swap would die after the full reembed. read rather than
@@ -30,9 +30,16 @@ class TestAModelSwapRebuildsTheColumnSchemaSqlDeclares:
         sql = read("common", "schema.sql")
         table = re.search(r"CREATE TABLE IF NOT EXISTS lines \((.*?)\n\);", sql, re.S).group(1)
         declared = re.search(r"^\s*embedding\s+(\S+)\s+NOT NULL", table, re.M).group(1)
-        opclass = re.search(r"lines_embedding_hnsw ON lines USING hnsw \(embedding (\w+)\)", sql).group(1)
         assert embed_type == declared
-        assert opclass == declared.split("(")[0] + "_cosine_ops"
+
+    def test_the_index_takes_its_operator_class_from_the_column(self):
+        #the pair above cannot be checked against a written out operator class
+        #any more, because a name in the file throws against a database on the
+        #other type: see the statement's own comment. what holds the two together
+        #now is that the statement reads pg_attribute, which
+        #tests/test_rebuild_lines.py runs against both shapes
+        index = re.search(r"lines_embedding_hnsw ON lines USING hnsw \(embedding (\S+)\)", read("common", "schema.sql"))
+        assert index.group(1) == "%s_cosine_ops"
 
 
 class TestAHalfPrecisionRowIsUnitLengthAgain:

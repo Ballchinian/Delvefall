@@ -261,6 +261,15 @@ def main():
     conn.commit()
     register_vector(conn)
 
+    #converting the column is rebuild_lines.py's job, out of line with the site
+    #up, so schema.sql applies either side of it and says nothing. this is the
+    #only place a rebuild still owed gets said out loud
+    live = conn.execute("""SELECT format_type(atttypid, atttypmod) FROM pg_attribute
+                           WHERE attrelid = 'lines'::regclass AND attname = 'embedding'""").fetchone()
+    if live and live[0] != EMBED_TYPE:
+        print("lines.embedding is " + live[0] + " and schema.sql declares " + EMBED_TYPE +
+              ", so python -m ingest.rebuild_lines has not been run yet")
+
     #before the gate below, so even a nothing-changed run leaves them in place.
     #the site carries seed copies but the database's word wins, which is what
     #makes a model swap atomic: new vectors and their new map arrive together
