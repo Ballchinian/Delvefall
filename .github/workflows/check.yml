@@ -52,7 +52,7 @@ jobs:
       #every python file, not just the ones the drift check reads. no imports and
       #no database, so it only asks whether the source PARSES
       - name: compile every python file
-        run: python -m compileall -q common ingest finetune tools web tests
+        run: python -m compileall -q common embed ingest finetune tools web tests
 
       #a parse error here is a page that renders and then does nothing, harder to
       #notice than a 500. --input-type=module because these are es modules and

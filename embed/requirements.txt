@@ -1,0 +1,15 @@
+# the same pins as ingest/requirements.txt, because this service and the daily
+# ingest have to produce the same numbers for the same text. a line that reads
+# 100% matched against the table has to read 100% typed into /custom.
+#
+# torch is NOT here: the Dockerfile installs the cpu wheel from pytorch's own
+# index first, the way update.yml does, so this file never pulls the 2gb+ cuda
+# build. its version is pinned there, next to the index url that decides the
+# build.
+sentence-transformers==5.6.0
+transformers==5.13.0
+tokenizers==0.22.2
+numpy==2.5.1
+
+flask
+gunicorn

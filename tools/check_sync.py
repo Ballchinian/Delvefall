@@ -71,6 +71,13 @@ if read("web/prefix_words.py") != read("common/prefix_words.py"):
 same("CALIBRATION seed", assign_value(MIRROR, "CALIBRATION"), assign_value("common/concept.py", "CALIBRATION"))
 same("MECH_CALIBRATION seed", assign_value(MIRROR, "MECH_CALIBRATION"), assign_value("ingest/update.py", "MECH_CALIBRATION"))
 
+#the prefix the model was trained with. the table was embedded through
+#ingest/update.py's copy and a visitor's text goes through embed/app.py's, so a
+#character between them is the difference between a match and noise
+same("EMBED_PROMPT", assign_value("embed/app.py", "EMBED_PROMPT"),
+     assign_value("ingest/update.py", "EMBED_PROMPT"),
+     "between embed/app.py and ingest/update.py")
+
 #update.yml installs the cpu torch wheel by hand before the requirements step,
 #so the version is written down twice and only one of them is what the model
 #card was measured against. a disagreement embeds new lines with a different
