@@ -1,0 +1,34 @@
+Gemma is provided under and subject to the Gemma Terms of Use found at
+ai.google.dev/gemma/terms
+
+
+What this file is attached to
+-----------------------------
+
+mtg-tagtuned-embeddinggemma-300m, the sentence embedding model behind
+Delvefall's card similarity and originality scores (delvefall.com).
+
+It is a fine-tune of Google's EmbeddingGemma 300m, a Gemma model, so the weights
+in this archive are a Gemma derivative and the Gemma Terms of Use govern them.
+The notice above is the one those terms require to travel with the model, and
+this file is how it travels.
+
+  Base model      google/embeddinggemma-300m
+  Tuned from      BallchinianMan/mtg-tuned-embeddinggemma-300m
+  This model      BallchinianMan/mtg-tagtuned-embeddinggemma-300m
+  Architecture    Gemma3TextModel, 768 dimensions
+  Trained on      Magic: The Gathering rules text paired with Scryfall Tagger
+                  community tags
+
+Magic: The Gathering is a trademark of Wizards of the Coast. Delvefall is an
+unofficial personal project and is not affiliated with or endorsed by Wizards of
+the Coast or by Google.
+
+
+The terms themselves
+--------------------
+
+The full Gemma Terms of Use are at ai.google.dev/gemma/terms, and the Gemma
+Prohibited Use Policy they incorporate is at ai.google.dev/gemma/prohibited_use_policy.
+Both apply to anyone who downloads this archive, and to anything they go on to
+distribute that was made from it.

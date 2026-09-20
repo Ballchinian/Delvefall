@@ -1,0 +1,10 @@
+{
+  "tag": "model-4b9e782",
+  "file": "mtg-tagtuned-embeddinggemma-300m-4b9e782.tar",
+  "url": "https://github.com/Ballchinian/Delvefall/releases/download/model-4b9e782/mtg-tagtuned-embeddinggemma-300m-4b9e782.tar",
+  "sha256": "d06f255a6106eeda69867f314dfa7442b08415ac2041be6013b38af647a1a402",
+  "hf_revision": "4b9e7825f7153a0e6eed2a4cdc6b38c9aa0008ae",
+  "hf_repo": "BallchinianMan/mtg-tagtuned-embeddinggemma-300m",
+  "bytes": 1263800320,
+  "built": "2026-09-21"
+}
