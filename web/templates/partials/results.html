@@ -1,0 +1,58 @@
+{% set report = report | default(true) %}{# every card carries all five readings in all five sorts. the focus
+           class is the only thing that changes, and the css moves the ink to
+           the figure being sorted on.
+           results-grid names the ONE grid that is the page rather than a panel
+           inside one, which is what lets the css widen it past the reading
+           column. the swap and deck grids sit inside a reading and stay in it
+
+           shared by /search and /custom. report=false drops the "?" on
+           each card, which files a bad-match report against the SEARCHED
+           card, and a typed card is not in the database to report against.
+
+           the {%- tags below are load bearing. this renders byte for byte
+           what search.html held inline, and a tag on a line of its own
+           would add that line's whitespace to every page
+        #}
+        <div class="card-grid results-grid {{ focus }}">
+            {% for r in results %}
+            <div class="result">
+                {# the ? is the misplaced-card report, it fades in with the
+                   rest of the hover overlay #}
+                <div class="card-frame" data-sideways="{{ '1' if r.sideways else '' }}" data-flip="{{ '1' if r.flip else '' }}" data-back="{{ r.image_back }}">
+                    <a href="/search?q={{ r.name | urlencode }}" data-card="{{ r.name }}" data-scryfall="{{ r.scryfall_uri }}" title="search {{ r.name }} here. ctrl-click to open it on scryfall">
+                        <img src="{{ r.image }}" alt="{{ r.name }}" width="488" height="680" loading="lazy">
+                    </a>
+                    {%- if report %}
+                    {# a grid of buttons all named "?" without the label. the
+                       script-built copies in dom.js carry the same one #}
+                    <button type="button" class="report-flag" data-id="{{ r.oracle_id }}" data-name="{{ r.name }}"
+                            title="shouldn't be here? report this as a bad match"
+                            aria-label="report {{ r.name }} as a bad match">?</button>
+                    {%- endif %}
+                </div>
+                <div class="result-name"><span class="card-name" title="{{ r.name }}">{{ r.name }}</span><span class="percent{% if r.concept_only %} concept{% endif %}"{% if r.blended %} title="rules text {{ r.mech_pct }}%, concepts {{ r.concept_pct }}%, evenly blended"{% endif %}>{{ r.percent }}%</span></div>
+                {% if r.price or r.rank or r.salt or r.age %}<div class="result-price"><span class="price-figure {{ r.price_vs }}"{% if r.price_vs %} title="{{ r.price_vs.replace('-', ' ') }} than {{ card.name }} at {{ card.price }}"{% endif %}>{{ r.price }}{% if r.price_vs %}<span class="price-vs">{{ '↓' if 'cheaper' in r.price_vs else '↑' }}</span>{% endif %}</span>{% if r.rank %}<span class="result-rank" title="play rate: edhrec's rank for how often this card is played in commander, where #1 is the most played card in the format">{{ r.rank }}{% if r.rank_vs %}<span class="rank-vs" title="{{ 'more' if r.rank_vs == 'more-played' else 'less' }} played than {{ card.name }} at {{ card.rank }}">{{ '↑' if r.rank_vs == 'more-played' else '↓' }}</span>{% endif %}</span>{% endif %}{% if r.salt %}<span class="result-salt {{ r.salt_vs }}"{% if r.salt_vs %} title="{{ r.salt_vs.replace('-', ' ').replace('milder', 'less salty') }} than {{ card.name }} at {{ card.salt_text }}"{% else %} title="salt {{ r.salt }} out of about 3, from edhrec's salt survey, where players vote on the cards they least enjoy facing"{% endif %}><i class="salt-mark" aria-hidden="true"></i>{{ r.salt }}{% if r.salt_vs %}<span class="salt-vs">{{ '↓' if 'milder' in r.salt_vs else '↑' }}</span>{% endif %}</span>{% endif %}{% if r.age %}<span class="result-age"{% if r.age_vs %} title="{{ r.age_vs }} than {{ card.name }} at {{ card.age }}"{% else %} title="card age: how long ago this card was first printed, counted from its earliest printing, so a reprint does not make an old card new"{% endif %}>{{ r.age }}{% if r.age_vs %}<span class="age-vs">{{ '↑' if r.age_vs == 'older' else '↓' }}</span>{% endif %}</span>{% endif %}</div>{% endif %}
+                {% if r.their_line %}
+                <div class="match-line" title="matches your card's line: {{ r.our_line }}{% if r.matched_back %} (printed on the back face, shown here){% endif %}">"{{ r.their_line | mana }}"</div>
+                {% endif %}
+                {% if r.more_count %}
+                <div class="more-lines" title="{{ r.more_text }}">+{{ r.more_count }} more matching {% if r.more_count == 1 %}line{% else %}lines{% endif %}</div>
+                {% endif %}
+                {% if r.concept_tags %}
+                {# no percentage alongside: the card already prints its match
+                   on the badge above #}
+                <div class="concept-tags" title="community tags shared with your card">{{ r.concept_tags }}</div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+
+        {# pages the current tier, or steps down to the next band and says in
+           words how much worse it gets #}
+        {% if has_more or next_band %}
+        <div class="load-more-wrap">
+            <button id="load-more"{% if next_band %} data-next="{{ next_band.lo }}" data-words="{{ next_band.words }}"{% endif %}>
+                {%- if has_more %}Load 20 more{% else %}Show {{ next_band.count }} {{ next_band.words }}{% endif -%}
+            </button>
+        </div>
+        {% endif %}
