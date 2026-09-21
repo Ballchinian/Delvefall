@@ -3666,6 +3666,190 @@ body.home main {
     }
 }
 
+/* ---- /custom: a card somebody invented, against the cards already printed ----
+
+   the blank card on the right is drawn HERE and nowhere else: no image asset and
+   no second request, and static/js/custom.js fills it in from the form as you
+   type. T7c puts the type line box between the art and the rules, which is where
+   a real card carries it, and the tag chips under the form */
+
+.custom {
+    max-width: 860px;
+    margin: 0 auto;
+}
+
+/* the prose measure. the form under it takes the whole column, being controls */
+.custom-lede { max-width: 640px; }
+
+.custom-cols {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 300px;
+    gap: 28px;
+    align-items: start;
+    margin-top: 18px;
+}
+
+/* one column where "on the right" stops meaning anything, and the card goes
+   under the form rather than beside it */
+@media (max-width: 760px) {
+    .custom-cols { grid-template-columns: minmax(0, 1fr); gap: 20px; }
+    .custom-preview { justify-self: center; }
+}
+
+.custom-label {
+    display: block;
+    font-size: 13px;
+    color: var(--muted);
+    margin: 0 0 6px;
+}
+
+/* the optional fields say so IN the label: a required-field glyph has to be
+   explained somewhere, and there is exactly one required field here */
+.custom-optional {
+    font-style: italic;
+    cursor: help;
+}
+
+.custom-fields input[type="text"],
+.custom-fields textarea {
+    width: 100%;
+    font: inherit;
+    font-size: 14px;
+    padding: 8px 12px;
+    border: 1px solid var(--line-strong);
+    border-radius: 3px;
+    background: var(--panel);
+    color: var(--text);
+}
+
+.custom-fields input[type="text"] { margin-bottom: 14px; }
+
+/* monospace, like the deck paste box: one ability per line is easier to see
+   kept when the lines are not being ragged at you */
+.custom-fields textarea {
+    font-family: ui-monospace, Menlo, Consolas, monospace;
+    font-size: 13px;
+    line-height: 1.5;
+    resize: vertical;
+    margin-bottom: 12px;
+}
+
+.custom-fields input[type="text"]:focus,
+.custom-fields textarea:focus {
+    outline: 2px solid var(--teal);
+    outline-offset: -1px;
+}
+
+.custom-go {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.custom-go button {
+    font: inherit;
+    font-weight: 600;
+    padding: 8px 20px;
+    border: 0;
+    border-radius: 3px;
+    background: var(--teal);
+    color: #fff;
+    cursor: pointer;
+}
+
+.custom-go button:hover { background: var(--teal-hover); }
+
+.custom-note { font-size: 12.5px; color: var(--muted); }
+
+.custom-note a { color: var(--teal); }
+
+.custom-message { margin: 0 0 12px; }
+
+/* 300px is the size every SINGULAR card on the site is drawn at, and 488x680 is
+   scryfall's shape, so this sits at exactly the size a printed card would in its
+   place. box-sizing is border-box sitewide, so the ratio holds the padding in */
+.ink-card {
+    width: 300px;
+    aspect-ratio: 488 / 680;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 5%;
+    background: var(--wash);
+    border: 1px solid var(--line-strong);
+    border-radius: 4.75% / 3.5%; /* the magic card corner radius */
+}
+
+.ink-card-bar {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    padding: 5px 8px;
+    min-height: 32px;
+}
+
+.ink-card-name {
+    display: block;
+    font-family: var(--serif);
+    font-weight: 600;
+    font-size: 15px;
+    line-height: 1.25;
+    overflow-wrap: anywhere;
+}
+
+/* with no name the bar carries a RULE rather than nothing, so it reads as a
+   title waiting to be written instead of a box that failed to draw */
+.ink-card-name:empty::before {
+    content: "";
+    display: block;
+    width: 65%;
+    margin-top: 9px;
+    border-top: 1px solid var(--line-strong);
+}
+
+/* hatched and not flat grey, for the same reason: a plain panel reads as a
+   picture that did not load */
+.ink-card-art {
+    aspect-ratio: 626 / 457; /* the art window on a real card */
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    background: repeating-linear-gradient(45deg, var(--panel) 0 5px, var(--wash) 5px 10px);
+}
+
+.ink-card-rules {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    padding: 8px 10px;
+    font-size: 12px;
+    line-height: 1.45;
+}
+
+.ink-card-rules p {
+    margin: 0 0 6px;
+    overflow-wrap: anywhere;
+}
+
+.ink-card-rules p:last-child { margin-bottom: 0; }
+
+/* the answer to the question the h1 asks, so it is set like one */
+.custom-standing {
+    font-family: var(--serif);
+    font-size: 20px;
+    margin: 22px 0 6px;
+}
+
+.custom-standing-note {
+    font-size: 12.5px;
+    color: var(--muted);
+    max-width: 640px;
+    margin: 0;
+}
+
 /* ---- the keyboard's focus ring ----
 
    DOWN HERE on purpose: several controls above kill the outline on :focus and

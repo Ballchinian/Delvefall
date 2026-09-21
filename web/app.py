@@ -45,6 +45,7 @@ from visitors import client_ip, visitor_token, usage_row, SPLIT_COUNTS, _utc_day
 #the model runs in a service of its own, embed/. this is the client
 import embedder
 from views.meta import bp as meta_bp
+from views.custom import bp as custom_bp
 
 #python reads its mime table from the HOST: linux says text/javascript, a
 #windows box reads the registry and plenty answer text/plain. <script
@@ -5273,6 +5274,10 @@ def page_broke(e):
 #canonical host should not be counted at its wrong-host address
 visitors.register(app)
 app.register_blueprint(meta_bp)
+#and this one for a third reason: views/custom.py imports TIER_CUT,
+#similar_from_lines and the filter readers back out of here, inside its
+#functions, so the import only closes when a request arrives rather than here
+app.register_blueprint(custom_bp)
 
 
 if __name__ == "__main__":

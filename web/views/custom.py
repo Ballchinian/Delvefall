@@ -16,7 +16,7 @@
 #blueprint at the bottom of its own module, so a module-level import closes the
 #circle. views/meta.py does the same for the same reason.
 
-from flask import Blueprint
+from flask import Blueprint, render_template, request
 
 from db import pool
 from mirror import EMBED_COL, line_weight, split_lines
@@ -171,3 +171,134 @@ def custom_score(lines, filters, sort, offset=0, band=None, currency="usd", excl
             #what find_similar hands the page for a printed card, so the line
             #weights and the percents mean the same thing on both
             "weights": [line_weight(counts.get(t, 1)) for t in lines]}
+
+
+#---- the routes ----
+#
+#flask names a blueprint's endpoints "custom.<function>", so these are
+#custom.custom, custom.custom_post and so on, and those are the names
+#visitors.py has to carry: a name matching no route counts nothing and says
+#nothing about it either.
+
+
+def controls_from_form():
+    #read_filters(), read_sort() and partials/filters.html all read
+    #request.args, and every control on this page arrives in the POST BODY
+    #instead. it has to: the text runs to 12,000 characters, and a url is the
+    #one place it would get written down, in an access log, by the page that
+    #promises to keep none of it.
+    #
+    #so the body stands in as the query string for the length of the request.
+    #werkzeug's cached_property has a __set__ and the request object dies with
+    #the response, so nothing set here reaches another one
+    request.args = request.form
+
+
+def typed_lines(text):
+    #the RAW lines, for the blank card. it draws what was typed, where the model
+    #reads what clean_line makes of it. capped where read_custom turns the form
+    #away anyway, or a pasted megabyte draws a megabyte of card
+    return [line for line in (text or "").splitlines() if line.strip()][:MAX_LINES]
+
+
+def form_page(text, name, **extra):
+    #every answer this page has renders through here, so a rejection, a service
+    #that did not wake and a full set of results all come back with the same
+    #controls and the same text still in them
+    from app import CARD_TYPES
+
+    return render_template("custom.html", text=text, name=name, types=CARD_TYPES,
+                           preview=typed_lines(text), max_name=MAX_NAME, max_lines=MAX_LINES,
+                           #a POST result has no url to index and must not grow
+                           #one. the form itself is a page and stays open
+                           noindex=request.method == "POST", **extra)
+
+
+@bp.route("/custom")
+def custom():
+    #the empty form, and the request that counts the visitor: signal_for() calls
+    #only a GET "html", so the POST below adds the act flag and nothing else,
+    #even though it answers with a whole page
+    return form_page("", "")
+
+
+@bp.route("/custom", methods=["POST"])
+def custom_post():
+    from app import SORT_FIELDS, focus_class, read_filters, read_sort, read_sort_parts
+    import embedder
+
+    controls_from_form()
+    name = request.form.get("name", "")
+    text = request.form.get("text", "")
+    try:
+        lines = read_custom(text, name)
+    except Rejected as e:
+        #the message names the limit and is written for whoever typed it, so it
+        #goes on the page as it is. nothing has reached the model yet, which is
+        #the whole point of checking here
+        return form_page(text, name, message=str(e))
+
+    filters = read_filters()
+    sort_field, sort_dir = read_sort_parts()
+    try:
+        scored = custom_score(lines, filters, read_sort(), currency=filters["cur"])
+    except embedder.EmbedderDown:
+        #ASLEEP or still starting, which is a minute of waiting and not a fault.
+        #EmbedderRefused is deliberately not caught: it means this page and the
+        #service disagree about their own limits, and a bug worded as a nap
+        #would never get looked at
+        return form_page(text, name,
+                         message="The matcher didn't wake up in time. Try again in a minute."), 503
+
+    return form_page(text, name, answered=True, words=scored["words"],
+                     results=scored["results"], has_more=scored["has_more"],
+                     next_band=scored["next_band"], errors=filters["errors"],
+                     cur=filters["cur"], sort_fields=SORT_FIELDS, sort_field=sort_field,
+                     sort_dir=sort_dir, focus=focus_class(sort_field))
+
+
+@bp.route("/custom/more", methods=["POST"])
+def custom_more():
+    #the shape /more returns, so the button on the results grid is the same
+    #button. it POSTS because the text has to come with it and there is no card
+    #name to send instead
+    from app import read_filters, read_sort
+    import embedder
+
+    controls_from_form()
+    try:
+        lines = read_custom(request.form.get("text", ""), request.form.get("name", ""))
+    except Rejected:
+        return {"results": [], "has_more": False, "next_band": None}
+    #fail-soft like every other url reader, a doctored offset shouldn't 500
+    try:
+        offset = max(0, int(request.form.get("offset", 0)))
+    except ValueError:
+        offset = 0
+    #which band of weaker matches to page through, absent for the strong tier
+    try:
+        band = int(request.form["band"])
+    except (KeyError, ValueError):
+        band = None
+    filters = read_filters()
+    try:
+        scored = custom_score(lines, filters, read_sort(), offset=offset, band=band,
+                              currency=filters["cur"])
+    except embedder.EmbedderDown:
+        #the button says so and stays where it is. the page above it is already
+        #drawn, so there is nothing to render again
+        return {"results": [], "has_more": False, "next_band": None}, 503
+    return {"results": scored["results"], "has_more": scored["has_more"],
+            "next_band": scored["next_band"]}
+
+
+@bp.route("/custom/wake", methods=["POST"])
+def custom_wake():
+    #fired at the first focus on the textarea. the PACKET is the point and not
+    #the answer: it is what starts a sleeping container, so the model is loading
+    #while somebody is still typing. 204 however it went, since the page has
+    #nothing to do with what it hears back
+    import embedder
+
+    embedder.wake()
+    return "", 204

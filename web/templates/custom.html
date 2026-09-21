@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+
+{# 47 characters against the ~60 google prints. "custom card" is the phrase
+   that gets typed and it leads; "originality checker" is what the page does,
+   and there is no shorter true name for it #}
+{% block title %}MTG custom card originality checker - Delvefall{% endblock %}
+
+{# 133 against the ~155 google prints #}
+{% block metadesc %}Type the rules text of a Magic card you designed and see every printed card that already does something like it, ranked by how close.{% endblock %}
+
+{# a POST result has no url of its own, so there is nothing here to index and
+   something to get wrong: what somebody typed is not a page of this site. the
+   empty form IS a page and stays open #}
+{% block head_extra %}{% if noindex %}<meta name="robots" content="noindex">{% endif %}{% endblock %}
+
+{% block content %}
+<div class="custom">
+    <h1>Has your custom card been made before?</h1>
+    <p class="custom-lede">Type what your card does, one ability per line. This shows the
+    printed cards that already do something like it, closest first, and how original the
+    rules text reads against the rest of the game. It is a list of evidence, never a
+    verdict.</p>
+
+    {# ONE form. the filter bar, the sort and load more all have to send the
+       text again, and a form cannot sit inside another form #}
+    <form class="custom-form" action="/custom" method="post">
+        <div class="custom-cols">
+            <div class="custom-fields">
+                <label class="custom-label" for="custom-name">Card name
+                    <span class="custom-optional" title="a card that names itself is rewritten to say &quot;this card&quot;, which is how every printed card writes it. 6,558 stored lines say that and none say a card's own name, so without the name a self-referring line matches nothing">optional</span>
+                </label>
+                <input id="custom-name" name="name" type="text" maxlength="{{ max_name }}"
+                       spellcheck="false" autocomplete="off" placeholder="Name it, or don't"
+                       value="{{ name }}">
+
+                <label class="custom-label" for="custom-text">Rules text
+                    <span class="custom-optional">one ability per line, up to {{ max_lines }}</span>
+                </label>
+                <textarea id="custom-text" name="text" rows="7" spellcheck="false"
+                    data-max-lines="{{ max_lines }}"
+                    placeholder="Flying&#10;When this card enters, each opponent sacrifices a creature.&#10;{2}, {T}: Draw a card.">{{ text }}</textarea>
+
+                {% if message %}<p class="message custom-message">{{ message }}</p>{% endif %}
+
+                <div class="custom-go">
+                    <button type="submit">Find the closest cards</button>
+                    <span class="custom-note">Nothing you type is kept. <a href="/privacy">How
+                    this page handles it</a></span>
+                </div>
+                {# T7c hangs the inferred tag chips here, under the form #}
+            </div>
+
+            {# drawn in css and holding no image: it fills in as you type, and
+               with javascript off it is whatever was posted #}
+            <div class="custom-preview">
+                <div class="ink-card">
+                    <div class="ink-card-bar"><span class="ink-card-name" id="preview-name">{{ name }}</span></div>
+                    <div class="ink-card-art" aria-hidden="true"></div>
+                    {# T7c puts the type line between the art and the rules,
+                       which is where a real card carries it #}
+                    <div class="ink-card-rules" id="preview-rules">
+                        {% for line in preview %}<p>{{ line }}</p>{% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {% if answered %}
+        {# a DIV and not a form, and it has to be: Apply resends the typed text
+           along with the filters, so it is inside the form above #}
+        <div class="filter-bar">
+            {% include "partials/filters.html" %}
+            {# the same cluster /search carries, in the same order and for the
+               same reason: the direction sits before the field so picking a
+               sortable field does not shove the field out from under the
+               cursor that just used it #}
+            <span class="filter-actions">
+                {% set spec = sort_fields[sort_field] %}
+                <select name="dir" aria-label="which end first" class="sort-dir"
+                    {% if not spec.asc %}hidden disabled{% endif %}>
+                    <option value="asc" {% if sort_dir == 'asc' %}selected{% endif %}>{{ spec.asc[1] if spec.asc }}</option>
+                    <option value="desc" {% if sort_dir == 'desc' %}selected{% endif %}>{{ spec.desc[1] if spec.desc }}</option>
+                </select>
+                <select name="sort" aria-label="sort results by">
+                    {% for key, spec in sort_fields.items() %}
+                    <option value="{{ key }}" {% if key == sort_field %}selected{% endif %}>{{ spec.label }}</option>
+                    {% endfor %}
+                </select>
+                <button type="submit">Apply</button>
+            </span>
+        </div>
+        {% endif %}
+    </form>
+
+    {% if answered %}
+    {# RULES TEXT ALONE, which is why it is worded "its rules text" where
+       /unique says "this card". a printed card typed in here reads a different
+       percent from its own /unique page, because that one blends the concept
+       axis in and this one cannot: inferring the concept side from typed text
+       measured at rank correlation 0.43 against the stored value #}
+    <p class="custom-standing">{{ words }}</p>
+    <p class="custom-standing-note">Counted on your rules text alone, against every
+    commander-legal card: whatever printed line comes closest to your most unusual one is
+    what decides it. The filters below change the list and never this number.</p>
+
+    {% for e in errors %}
+    <p class="message">{{ e }}</p>
+    {% endfor %}
+
+    <h2>Printed cards similar to your card</h2>
+
+    {% if not results %}
+    <p class="message">Nothing matched with these filters.</p>
+    {% endif %}
+    {# report=false drops the "?" on each card: it files a bad match against the
+       SEARCHED card, and a card somebody typed is not in the database to be
+       reported against #}
+    {% set report = false %}
+    {% include "partials/results.html" %}
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    //the token -> url map manaFill in cards.js renders rules text with, for the
+    //cards load more adds. the server-rendered ones above went through app.py's
+    //mana filter instead
+    window.MANA_URLS = {{ mana_urls() | tojson }};
+    {%- if answered %}
+    //the direction options belong to whichever field is picked, so changing the
+    //field has to rewrite them and reset it to that field's own end
+    window.SORT_DIRS = {{ sort_fields | tojson }};
+    {%- endif %}
+</script>
+<script type="module" src="{{ static_url('js/custom.js') }}"></script>
+{% endblock %}
