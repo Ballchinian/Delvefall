@@ -313,3 +313,80 @@ class TestTheSentenceIsCountedOnRulesTextAlone:
         blended = rules_standing(conn, 0.20)
         conn.execute("UPDATE cards SET concept_uniqueness = 0.0")
         assert rules_standing(conn, 0.20) == blended
+
+
+@needs_db
+class TestScoringTypedTextAgainstTheTable:
+    #the seed's vectors are one hot on distinct axes, so a cosine between two
+    #stored lines is 0 or 1 and a query vector's similarity to each is something
+    #this can choose exactly. axis 1 is "Whenever this card attacks, draw a
+    #card.", on three of the four fixture cards; axis 2 is "Destroy target
+    #land."; nothing is stored on axis 5
+
+    @pytest.fixture
+    def typed(self, monkeypatch, seeded):
+        #the model never runs here. custom_score imports embedder inside itself,
+        #so this is the same module object it reaches for
+        def score(vectors, **kwargs):
+            monkeypatch.setattr(embedder, "embed",
+                                lambda texts: [np.asarray(v, dtype=np.float32) for v in vectors])
+            from views.custom import custom_score
+            with app.app.test_request_context("/custom"):
+                filters = app.read_filters()
+            names = ["line %d" % i for i in range(len(vectors))]
+            return custom_score(names, kwargs.pop("filters", filters), "match", **kwargs)
+
+        return score
+
+    def axis(self, i):
+        import seed
+        return seed.vec(i)
+
+    def between(self, i, j):
+        #halfway between two axes, so the cosine to a line on either is 1/sqrt(2)
+        import seed
+        v = seed.vec(i)
+        v[j] = 1.0
+        return [x / (2 ** 0.5) for x in v]
+
+    def test_a_line_already_in_the_table_is_not_original(self, typed):
+        assert typed([self.axis(1)])["uniqueness"] == pytest.approx(0.0, abs=1e-6)
+
+    def test_a_line_nothing_comes_near_is_wholly_original(self, typed):
+        assert typed([self.axis(5)])["uniqueness"] == pytest.approx(1.0, abs=1e-6)
+
+    def test_the_most_isolated_line_decides(self, typed):
+        #recompute_uniqueness's rule, and the reason it is not an average: one
+        #genuinely new ability makes a card original however ordinary the rest
+        #of it is. averaging these two would read 0.5, taking the best 0.0
+        got = typed([self.axis(1), self.axis(5)])["uniqueness"]
+        assert got == pytest.approx(1.0, abs=1e-6)
+
+    def test_a_partial_match_scores_between(self, typed):
+        #1 - 1/sqrt(2), so neither the floor nor the ceiling can pass by accident
+        got = typed([self.between(2, 5)])["uniqueness"]
+        assert got == pytest.approx(1 - 2 ** -0.5, abs=1e-5)
+
+    def test_with_nothing_to_exclude_the_results_still_come_back(self, typed):
+        #oracle_id <> NULL is NULL, which drops EVERY row rather than one card's.
+        #no route passes exclude_id, so this is the shape the page actually runs
+        assert typed([self.axis(1)])["results"]
+
+    def test_excluding_a_card_drops_only_that_card(self, typed):
+        import seed
+        everyone = {r["name"] for r in typed([self.axis(1)])["results"]}
+        without = {r["name"] for r in typed([self.axis(1)], exclude_id=seed.ANCHOR)["results"]}
+        assert "Fixture Anchor" in everyone
+        assert without == everyone - {"Fixture Anchor"}
+
+    def test_a_filter_moves_the_list_and_never_the_sentence(self, typed):
+        #how original a card is cannot depend on which colours somebody is
+        #browsing. the fixture cards are all blue, so filtering to red empties
+        #the list while the score behind the sentence has to stay put
+        with app.app.test_request_context("/custom?colors=R&cmode=exact"):
+            red = app.read_filters()
+        wide = typed([self.between(2, 5)])
+        narrow = typed([self.between(2, 5)], filters=red)
+        assert narrow["results"] == []
+        assert narrow["uniqueness"] == wide["uniqueness"]
+        assert narrow["words"] == wide["words"]
