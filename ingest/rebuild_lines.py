@@ -33,7 +33,7 @@ COLUMNS = ["id", "oracle_id", "line_text", "embedding", "nn_sim", "face", "whole
 INDEXES = {
     "_oracle_id": "CREATE INDEX {t}_oracle_id ON {t} (oracle_id)",
     "_embedding_hnsw": "CREATE INDEX {t}_embedding_hnsw ON {t} USING hnsw (embedding {ops}) "
-                       "WITH (m = 32, ef_construction = 200) WHERE (NOT whole)",
+                       "WITH (m = 64, ef_construction = 400) WHERE (NOT whole)",
 }
 CONSTRAINTS = {
     "_pkey": "ALTER TABLE {t} ADD CONSTRAINT {t}_pkey PRIMARY KEY (id)",
@@ -115,10 +115,11 @@ def constrain(conn):
 
 
 def index(conn):
-    #after the fill, a graph absorbing 60k inserts being slower and worse
-    #connected. SERIAL because a parallel worker's shared memory segment does not
-    #fit railway's /dev/shm (see backfill_embeddings.py), and 512mb holds the graph
-    #where the default 64mb spills to a slower path
+    #after the fill: grown one insert at a time, the m=32 graph took nearly 4x
+    #as long and left 157 and 259 texts missing their best match where building
+    #it after the fill left 55. SERIAL because a parallel worker's shared memory
+    #segment does not fit railway's /dev/shm (see backfill_embeddings.py), and
+    #512mb holds the m=64 graph where the default 64mb spills to a slower path
     conn.execute("SET LOCAL max_parallel_maintenance_workers = 0")
     conn.execute("SET LOCAL maintenance_work_mem = '512MB'")
     ops = EMBED_TYPE.split("(")[0] + "_cosine_ops"

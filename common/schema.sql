@@ -154,12 +154,16 @@ ALTER TABLE lines ADD COLUMN IF NOT EXISTS whole boolean NOT NULL DEFAULT false;
 CREATE INDEX IF NOT EXISTS lines_oracle_id ON lines (oracle_id);
 
 --~20ms per line where the exact scan measured 200-250ms. the dense build
---parameters are load bearing: common lines put hundreds of identical embeddings
---in the graph and the default m=16/ef_construction=64 leaves those clusters
---badly connected, dropping a 94% match at true rank 181 out of a top-400 scan.
---m=32/ef_construction=200 measured zero misses above 0.90 sim. partial on NOT
---whole to mirror the search's filter. scan settings live in web/db.py, and
---uniqueness is unaffected, recompute_uniqueness doing its math in numpy
+--parameters are load bearing: identical lines ("Flying" on 2,566 rows, "Enchant
+--creature" on 904) link almost only to each other and trap the walk, so a
+--search for "Enchant land" comes back as 400 rows of "Enchant creature" and no
+--ef_search gets it out. over all 35,987 distinct texts, m=32/ef_construction=200
+--left 55 to 259 of them missing their best match per build and
+--m=64/ef_construction=400 none in two builds, at 108mb against 86mb and as fast
+--as the float32 m=32 graph searched. the default m=16/ef_construction=64
+--dropped a 94% match at true rank 181. partial on NOT whole to mirror the
+--search's filter. scan settings live in web/db.py, and uniqueness is
+--unaffected, recompute_uniqueness doing its math in numpy
 --the operator class is read off the column rather than written out, because
 --CREATE INDEX IF NOT EXISTS resolves it against the live type BEFORE it checks
 --whether the name is taken: naming halfvec_cosine_ops here threw
@@ -172,7 +176,7 @@ DO $$
 BEGIN
     EXECUTE format(
         'CREATE INDEX IF NOT EXISTS lines_embedding_hnsw ON lines USING hnsw (embedding %s_cosine_ops) '
-        'WITH (m = 32, ef_construction = 200) WHERE (NOT whole)',
+        'WITH (m = 64, ef_construction = 400) WHERE (NOT whole)',
         (SELECT split_part(format_type(atttypid, atttypmod), '(', 1) FROM pg_attribute
          WHERE attrelid = 'lines'::regclass AND attname = 'embedding'));
 END $$;

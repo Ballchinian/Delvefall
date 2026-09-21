@@ -134,7 +134,7 @@ def main():
                 conn.execute("""
                     CREATE INDEX IF NOT EXISTS lines_embedding_v2_hnsw ON lines
                     USING hnsw (""" + TARGET + """ halfvec_cosine_ops)
-                    WITH (m = 32, ef_construction = 200) WHERE (NOT whole)
+                    WITH (m = 64, ef_construction = 400) WHERE (NOT whole)
                 """)
                 conn.commit()
                 print("done")
