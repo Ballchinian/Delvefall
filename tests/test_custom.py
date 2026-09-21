@@ -12,6 +12,8 @@ import pytest
 
 import app
 import embedder
+from mirror import clean_line
+from views.custom import MAX_CHARS, MAX_LINES, Rejected, custom_words, read_custom
 
 
 def render_results(results, **kwargs):
@@ -169,3 +171,91 @@ class TestTheClientForTheModelService:
         #not there yet must not turn into an error on the page
         served([http_error(502)])
         assert embedder.wake() is False
+
+
+class TestReadingTheForm:
+
+    def test_one_ability_a_line(self):
+        assert read_custom("Flying\nTrample") == ["Flying", "Trample"]
+
+    def test_blank_lines_are_not_lines(self):
+        assert read_custom("Flying\n\n   \nTrample") == ["Flying", "Trample"]
+
+    def test_windows_newlines_are_newlines(self):
+        #a textarea posted from windows sends \r\n. clean_line's strip() would
+        #cover the text either way, so what this really guards is the length
+        #check, which counts the raw line: a full length line arriving as \r\n
+        #measures one over and gets turned away for being too long
+        assert read_custom("Flying\r\nTrample") == ["Flying", "Trample"]
+        assert read_custom("x" * MAX_CHARS + "\r\nFlying") == ["x" * MAX_CHARS, "Flying"]
+
+    def test_the_name_becomes_this_card(self):
+        #6,558 stored lines say "this card", and none say the card's own name,
+        #so without this a card that refers to itself matches nothing
+        assert read_custom("Shivan Dragon deals 2 damage.", "Shivan Dragon") == \
+            ["this card deals 2 damage."]
+
+    def test_no_name_leaves_the_text_alone(self):
+        assert read_custom("Shivan Dragon deals 2 damage.") == ["Shivan Dragon deals 2 damage."]
+
+    def test_a_line_under_three_characters_is_dropped(self):
+        #the ingest's floor, applied by the ingest's own splitter. it is UNDER
+        #three, so "{T}" at exactly three stays: a stored line that short is
+        #rare but real, and the floor is there for stray punctuation
+        assert read_custom("Flying\nII\nTrample") == ["Flying", "Trample"]
+        assert read_custom("{T}") == ["{T}"]
+
+    def test_nothing_to_score_is_rejected(self):
+        for text in ("", "   ", "\n\n"):
+            with pytest.raises(Rejected):
+                read_custom(text)
+
+    def test_text_that_cleans_away_to_nothing_is_rejected(self):
+        #reminder text alone: the parens come out and there is no rule left
+        with pytest.raises(Rejected):
+            read_custom("(This is just a reminder.)")
+
+    def test_too_many_lines_names_the_limit(self):
+        ok = "\n".join(["Flying"] * MAX_LINES)
+        assert len(read_custom(ok)) == MAX_LINES
+        with pytest.raises(Rejected, match=str(MAX_LINES)):
+            read_custom("\n".join(["Flying"] * (MAX_LINES + 1)))
+
+    def test_too_long_a_line_names_the_limit(self):
+        assert read_custom("x" * MAX_CHARS) == ["x" * MAX_CHARS]
+        with pytest.raises(Rejected, match=str(MAX_CHARS)):
+            read_custom("x" * (MAX_CHARS + 1))
+
+    def test_the_length_check_is_on_the_raw_line(self):
+        #cleaning SHORTENS text, so checking afterwards would let a 5,000
+        #character line of reminder text through to the model
+        with pytest.raises(Rejected):
+            read_custom("Flying " + "(reminder) " * 200)
+
+    def test_an_overlong_name_is_rejected(self):
+        with pytest.raises(Rejected):
+            read_custom("Flying", "x" * 151)
+
+
+class TestTheOriginalitySentence:
+
+    def test_nothing_below_it_reads_zero(self):
+        assert custom_words(0, 31295) == "Its rules text is more original than 0.0% of Magic cards"
+
+    def test_everything_below_it_reads_a_hundred(self):
+        assert custom_words(31295, 31295) == \
+            "Its rules text is more original than 100.0% of Magic cards"
+
+    def test_the_percent_is_floored_not_rounded(self):
+        #101st of 31,295 beats 99.677%, which ROUNDS to 99.7 and would claim a
+        #place the card has not earned. unique_words floors for the same reason
+        assert "99.6%" in custom_words(31194, 31295)
+
+    def test_it_never_claims_a_rank_among_magic_cards(self):
+        #the three things /unique says about printed cards, none of which can be
+        #said about a card that is not in Magic
+        for below, total in ((0, 31295), (1, 31295), (31294, 31295), (31295, 31295), (0, 0)):
+            said = custom_words(below, total)
+            assert "already do everything it does" not in said
+            assert "most unique card in Magic" not in said
+            assert "#" not in said

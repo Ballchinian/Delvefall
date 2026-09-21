@@ -51,6 +51,10 @@ MIRROR = "web/mirror.py"
 same("clean_line", func_dump(MIRROR, "clean_line"), func_dump("common/cards.py", "clean_line"))
 same("reminder_is_the_rule", func_dump(MIRROR, "reminder_is_the_rule"),
      func_dump("common/cards.py", "reminder_is_the_rule"))
+#/custom reads typed text through this, so the three character floor and the
+#face handling are the ingest's own. a floor that drifted would embed a line
+#the table has no row for, or drop one it does
+same("split_lines", func_dump(MIRROR, "split_lines"), func_dump("common/cards.py", "split_lines"))
 same("REMINDER_KEYWORDS", assign_value(MIRROR, "REMINDER_KEYWORDS"),
      assign_value("common/cards.py", "REMINDER_KEYWORDS"))
 

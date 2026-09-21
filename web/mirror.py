@@ -82,6 +82,24 @@ def clean_line(line, card_name):
     return line.strip()
 
 
+def split_lines(card):
+    #one line of rules text is roughly one ability, so embedding per line means
+    #one matching ability is enough. the face index (0 front, 1 back) rides
+    #along so a match on the back can show that side of the card
+    if card.get("oracle_text"):
+        chunks = [(card["oracle_text"], 0)]
+    else:
+        chunks = [(f.get("oracle_text", ""), i) for i, f in enumerate(card.get("card_faces", []))]
+    out = []
+    for text, face in chunks:
+        for line in text.split("\n"):
+            cleaned = clean_line(line, card["name"])
+            if len(cleaned) < 3:
+                continue
+            out.append((cleaned, min(face, 1)))
+    return out
+
+
 #a homemade idf: without it every flying creature matches every other at 100%.
 #
 #nothing is punished until a line is on more than 5 cards. punishing from 2
