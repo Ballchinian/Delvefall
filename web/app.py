@@ -524,8 +524,8 @@ def anchor_vector(conn, oracle_id, dropped, picked=(), forced=()):
     #search. or the picked line genuinely is not about anything, the normal state
     #of a keyword line: Gishath's "Vigilance, trample, haste" owns none of its
     #card's seven tags.
-    #in that second case find_similar reads the empty norm and ranks on rules
-    #text alone, which is what picking a keyword line is asking for
+    #in that second case similar_from_lines reads the empty tag list and ranks
+    #on rules text alone, which is what picking a keyword line is asking for
     if picked and not rows and not card_has_attribution(conn, oracle_id):
         return anchor_vector(conn, oracle_id, dropped)
     tags = [r["tag"] for r in rows]
@@ -1403,19 +1403,6 @@ def band_words(step):
 def find_similar(oracle_id, picked, filters, min_pct, sort, offset=0, how_many=20, band=None,
                  currency="usd", dropped=(), forced=(), anchor_price=None, anchor_rank=None,
                  anchor_salt=None, anchor_released=None):
-    #every candidate keeps ALL its matching line pairs, not just the best, so
-    #results can show "+2 more matching lines".
-    #
-    #cards split around min_pct, and everything under it waits in 10 point bands.
-    #band=None is the strong tier, an int is that band's lower edge
-    pairs_by_card = {}  #other card's oracle_id -> list of (weighted score, real similarity, our line, their line)
-    prices = {}         #other card's oracle_id -> price in the chosen currency, for the price sorts
-    ranks = {}          #other card's oracle_id -> edhrec rank, for the played sorts
-    dates = {}          #other card's oracle_id -> first printing's date, for the newest sort
-    salts = {}          #other card's oracle_id -> edhrec salt score, for the salt sorts
-    where, fparams = filter_sql(filters)
-    #the column the price sorts read, matching the currency the page prints
-    pcol = price_col(currency)
     #the query card's lines are already embedded in the database, so the
     #model never runs at search time. grab them with their idf counts in one
     #go, on a briefly borrowed connection
@@ -1440,6 +1427,46 @@ def find_similar(oracle_id, picked, filters, min_pct, sort, offset=0, how_many=2
         if chosen:
             qlines = chosen
 
+    #a connection of its own, handed back before the threaded scans borrow
+    #theirs: holding one while the workers wait on the pool is how it deadlocks.
+    #the norm it returns goes unread here, only swap_candidates gates on it
+    with pool.connection() as conn:
+        atags, aweights, _, avec = anchor_vector(conn, oracle_id, dropped, picked, forced)
+
+    return similar_from_lines(qlines, (atags, aweights, avec), oracle_id, filters, min_pct, sort,
+                              offset, how_many, band, currency, anchor_price, anchor_rank,
+                              anchor_salt, anchor_released)
+
+
+def similar_from_lines(qlines, anchor, exclude_id, filters, min_pct, sort, offset=0, how_many=20,
+                       band=None, currency="usd", anchor_price=None, anchor_rank=None,
+                       anchor_salt=None, anchor_released=None):
+    #every candidate keeps ALL its matching line pairs, not just the best, so
+    #results can show "+2 more matching lines".
+    #
+    #cards split around min_pct, and everything under it waits in 10 point bands.
+    #band=None is the strong tier, an int is that band's lower edge.
+    #
+    #qlines are [{"line_text", "embedding", "count"}], from the database for a
+    #printed card and from the embed service for typed text, so nothing here
+    #reads a card that has to exist
+    atags, aweights, avec = anchor
+    pairs_by_card = {}  #other card's oracle_id -> list of (weighted score, real similarity, our line, their line)
+    prices = {}         #other card's oracle_id -> price in the chosen currency, for the price sorts
+    ranks = {}          #other card's oracle_id -> edhrec rank, for the played sorts
+    dates = {}          #other card's oracle_id -> first printing's date, for the newest sort
+    salts = {}          #other card's oracle_id -> edhrec salt score, for the salt sorts
+    where, fparams = filter_sql(filters)
+    #the column the price sorts read, matching the currency the page prints
+    pcol = price_col(currency)
+    #WITH NOTHING TO EXCLUDE THE CLAUSE LEAVES THE SQL, rather than binding a
+    #None: oracle_id <> NULL is NULL, which drops every candidate row instead of
+    #one card's. the concept query takes a standing true in its place, since
+    #filter_sql's snippet arrives already glued onto an AND
+    mine = "l.oracle_id <> %s AND " if exclude_id is not None else ""
+    vmine = "v.oracle_id <> %s" if exclude_id is not None else "true"
+    mine_params = [exclude_id] if exclude_id is not None else []
+
     def hunt(ql):
         #one line's walk through the hnsw index, ~10-20ms where the exact scan it
         #replaced measured 200-250ms. <=> is cosine distance, so similarity is 1
@@ -1463,10 +1490,10 @@ def find_similar(oracle_id, picked, filters, min_pct, sort, offset=0, how_many=2
             return c.execute("""
                 SELECT l.oracle_id, l.line_text, l.face, 1 - (l.""" + EMBED_COL + """ <=> %s) AS sim, """ + pcol + """ AS price, c.edhrec_rank, c.released_at, c.salt
                 FROM lines l JOIN cards c ON c.oracle_id = l.oracle_id
-                WHERE l.oracle_id <> %s AND NOT l.whole AND l.""" + EMBED_COL + """ IS NOT NULL""" + where + """
+                WHERE """ + mine + """NOT l.whole AND l.""" + EMBED_COL + """ IS NOT NULL""" + where + """
                 ORDER BY l.""" + EMBED_COL + """ <=> %s
                 LIMIT 400
-            """, [ql["embedding"], oracle_id] + fparams + [ql["embedding"]]).fetchall()
+            """, [ql["embedding"]] + mine_params + fparams + [ql["embedding"]]).fetchall()
 
     #the scans run side by side, each on its own pooled connection. the main
     #thread holds NO connection while they do: holding one while workers wait on
@@ -1505,7 +1532,7 @@ def find_similar(oracle_id, picked, filters, min_pct, sort, offset=0, how_many=2
         #a literal rather than a subquery over card_tags, because the user can
         #switch tags off: anchor_vector decides the kept set, and both queries
         #below just score against it
-        atags, aweights, anorm, avec = anchor_vector(conn, oracle_id, dropped, picked, forced)
+        #
         #no anchor vector means the concept axis SITS OUT entirely, rather than
         #scoring every candidate at zero and dragging the blend down with it.
         #picking a keyword line is how that happens: the line owns no tags, so
@@ -1541,14 +1568,14 @@ def find_similar(oracle_id, picked, filters, min_pct, sort, offset=0, how_many=2
                 FROM (
                     SELECT v.oracle_id, v.vec <=> %s::sparsevec AS dist
                     FROM card_tag_vecs v""" + inner + """
-                    WHERE v.oracle_id <> %s""" + where + """
+                    WHERE """ + vmine + where + """
                     ORDER BY 2, 1
                     LIMIT 300
                 ) s
                 JOIN cards c ON c.oracle_id = s.oracle_id
                 WHERE 1 - s.dist >= %s
                 ORDER BY s.dist, s.oracle_id
-            """, [avec, oracle_id] + fparams + [concept_raw_gate(min_pct)]).fetchall()
+            """, [avec] + mine_params + fparams + [concept_raw_gate(min_pct)]).fetchall()
             for r in rows:
                 concept_raw[r["oracle_id"]] = r["raw"]
                 prices.setdefault(r["oracle_id"], r["price"])
