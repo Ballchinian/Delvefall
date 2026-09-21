@@ -18,7 +18,8 @@
 
 from flask import Blueprint
 
-from mirror import clean_line, split_lines
+from db import pool
+from mirror import EMBED_COL, line_weight, split_lines
 
 bp = Blueprint("custom", __name__)
 
@@ -83,3 +84,90 @@ def custom_words(below, total):
     if not total:
         return "Its rules text is more original than 0.0% of Magic cards"
     return "Its rules text is more original than %.1f%% of Magic cards" % (1000 * below // total / 10)
+
+
+def rules_standing(conn, uniqueness):
+    #(below, total) over cards.uniqueness ALONE, against the commander legal
+    #pool /unique counts in by default whatever filters the page is wearing.
+    #
+    #this is unique_standing with the concept axis taken out, and the difference
+    #is deliberate: /unique blends the two, so a printed card typed into this
+    #page reads a different percent from its own /unique page. the wording says
+    #"its rules text" for exactly that reason.
+    #
+    #UNIQUE_NOISE ties the bottom. scores are float4, so a card whose every line
+    #is printed elsewhere lands a step either side of zero, and without the floor
+    #thousands of cards that all "already exist" would sort against each other on
+    #rounding error. 7,253 of 31,295 sit in that tie
+    from app import UNIQUE_NOISE
+
+    x = uniqueness if uniqueness >= UNIQUE_NOISE else 0.0
+    row = conn.execute("""
+        SELECT count(*) FILTER (WHERE b < %(x)s) AS below, count(*) AS total
+        FROM (SELECT CASE WHEN c.uniqueness < %(noise)s THEN 0 ELSE c.uniqueness END AS b
+              FROM cards c
+              WHERE c.uniqueness IS NOT NULL AND c.legal_commander) t
+    """, {"x": x, "noise": UNIQUE_NOISE}).fetchone()
+    return row["below"], row["total"]
+
+
+def custom_score(lines, filters, sort, offset=0, band=None, currency="usd", exclude_id=None):
+    #the whole of the results route below the form, so the tests and
+    #tools/check_custom.py can call it without going through http.
+    #
+    #exclude_id is for those two only: check_custom scores a printed card's own
+    #text with that card taken out and compares the answer against the stored
+    #cards.uniqueness. no route passes it, because a typed card is not in the
+    #table to exclude
+    from app import TIER_CUT, similar_from_lines
+    import embedder
+
+    vectors = embedder.embed(lines)
+
+    with pool.connection() as conn:
+        #the idf weight of each typed line, by exact text, as find_similar reads
+        #it. a line nobody has printed is absent and weighs 1, which is right:
+        #the weighting only ever punishes a line for being common
+        counts = {}
+        for r in conn.execute("SELECT line_text, count FROM line_stats WHERE line_text = ANY(%s)",
+                              (lines,)):
+            counts[r["line_text"]] = r["count"]
+
+        #NO FILTERS REACH THIS QUERY. how original a card is cannot depend on
+        #which colours the visitor is browsing, and a filtered nearest neighbour
+        #would make the sentence move when the list does.
+        #
+        #ORDER BY with a LIMIT is what walks the hnsw index. a literal
+        #SELECT max(1 - (embedding <=> %s)) reads every vector in the table
+        mine = "AND l.oracle_id <> %s " if exclude_id is not None else ""
+        nearest = []
+        for vec in vectors:
+            params = [vec] + ([exclude_id] if exclude_id is not None else []) + [vec]
+            row = conn.execute("""
+                SELECT 1 - (l.""" + EMBED_COL + """ <=> %s) AS sim
+                FROM lines l
+                WHERE NOT l.whole AND l.""" + EMBED_COL + """ IS NOT NULL """ + mine + """
+                ORDER BY l.""" + EMBED_COL + """ <=> %s
+                LIMIT 1
+            """, params).fetchone()
+            nearest.append(row["sim"] if row else 0.0)
+
+        #the MOST ISOLATED line decides, which is the rule recompute_uniqueness
+        #applies to every printed card. one genuinely new ability makes a card
+        #original even if everything else on it is Flying
+        uniqueness = 1 - min(nearest) if nearest else 0.0
+        below, total = rules_standing(conn, uniqueness)
+
+    qlines = [{"line_text": text, "embedding": vec, "count": counts.get(text, 1)}
+              for text, vec in zip(lines, vectors)]
+    #anchor empty: phase C scores the list on rules text alone. the chips and
+    #the tag side of the list arrive in T7, and the sentence never moves
+    results, has_more, next_band = similar_from_lines(
+        qlines, ((), (), None), exclude_id, filters, TIER_CUT, sort,
+        offset=offset, band=band, currency=currency)
+    return {"results": results, "has_more": has_more, "next_band": next_band,
+            "uniqueness": uniqueness, "words": custom_words(below, total),
+            "below": below, "total": total,
+            #what find_similar hands the page for a printed card, so the line
+            #weights and the percents mean the same thing on both
+            "weights": [line_weight(counts.get(t, 1)) for t in lines]}

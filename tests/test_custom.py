@@ -12,8 +12,9 @@ import pytest
 
 import app
 import embedder
-from mirror import clean_line
-from views.custom import MAX_CHARS, MAX_LINES, Rejected, custom_words, read_custom
+from conftest import needs_db
+from views.custom import (MAX_CHARS, MAX_LINES, Rejected, custom_words, read_custom,
+                          rules_standing)
 
 
 def render_results(results, **kwargs):
@@ -259,3 +260,56 @@ class TestTheOriginalitySentence:
             assert "already do everything it does" not in said
             assert "most unique card in Magic" not in said
             assert "#" not in said
+
+
+@needs_db
+class TestTheSentenceIsCountedOnRulesTextAlone:
+    #a temp table named cards shadows the real one inside this transaction, so
+    #the population is exactly these rows. concept_uniqueness is present and
+    #DELIBERATELY CONTRADICTS the rules score on two of them: /unique blends the
+    #two and this must not, or a printed card typed into /custom would read its
+    #own /unique percent and the wording would be a lie
+    CARDS = [
+        #name, uniqueness, concept_uniqueness, legal_commander
+        ("novel",       0.40,          0.01, True),
+        ("middling",    0.20,          0.99, True),
+        ("ordinary",    0.05,          0.50, True),
+        ("tied at zero", 0.0,          0.90, True),
+        ("also tied",   -1.1920929e-07, 0.10, True),
+        ("noise tied",   5.9604645e-07, 0.00, True),
+        ("not legal",   0.30,          0.30, False),
+    ]
+
+    @pytest.fixture
+    def conn(self):
+        import db
+        with db.pool.connection() as c:
+            c.execute("CREATE TEMP TABLE cards (name text, uniqueness real, "
+                      "concept_uniqueness real, legal_commander boolean) ON COMMIT DROP")
+            for row in self.CARDS:
+                c.execute("INSERT INTO cards VALUES (%s, %s, %s, %s)", row)
+            yield c
+            c.rollback()
+
+    def test_the_pool_is_commander_legal_cards_with_a_score(self, conn):
+        #six legal rows, the seventh left out however original it is
+        assert rules_standing(conn, 1.0)[1] == 6
+
+    def test_a_card_beating_everything_reads_the_whole_pool(self, conn):
+        assert rules_standing(conn, 1.0) == (6, 6)
+
+    def test_the_bottom_tie_counts_as_zero(self, conn):
+        #three of the six sit under UNIQUE_NOISE and tie there, so a card that
+        #also ties beats none of them rather than sorting on rounding error
+        assert rules_standing(conn, 0.0) == (0, 6)
+        assert rules_standing(conn, app.UNIQUE_NOISE / 2) == (0, 6)
+
+    def test_a_middling_card_beats_the_tie_and_the_ordinary_one(self, conn):
+        assert rules_standing(conn, 0.20) == (4, 6)
+
+    def test_the_concept_score_is_not_read(self, conn):
+        #"middling" has the pool's highest concept score and a middling rules
+        #score. blending would put it near the top; this must not move it
+        blended = rules_standing(conn, 0.20)
+        conn.execute("UPDATE cards SET concept_uniqueness = 0.0")
+        assert rules_standing(conn, 0.20) == blended
