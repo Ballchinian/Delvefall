@@ -79,11 +79,17 @@ def conn():
     c.close()
 
 
-def rebuild(conn):
+def build(conn):
     from ingest import rebuild_lines
     rebuild_lines.fill(conn)
     rebuild_lines.constrain(conn)
     rebuild_lines.index(conn)
+
+
+def rebuild(conn):
+    from ingest import rebuild_lines
+    build(conn)
+    rebuild_lines.record(conn, rebuild_lines.check(conn))
     rebuild_lines.exchange(conn, "lines_new", "lines_old")
     rebuild_lines.validate(conn)
 
@@ -157,9 +163,8 @@ class TestTheSwapOnlyHappensOverWhatWasCopied:
         #the uniqueness pass rewriting nn_sim is the write most likely to land
         #between a copy and a swap
         from ingest import rebuild_lines
-        rebuild_lines.fill(conn)
-        rebuild_lines.constrain(conn)
-        rebuild_lines.index(conn)
+        build(conn)
+        rebuild_lines.record(conn, rebuild_lines.check(conn))
         conn.execute("UPDATE lines SET nn_sim = 0.25 WHERE id = (SELECT min(id) FROM lines)")
         with pytest.raises(rebuild_lines.Refused):
             rebuild_lines.exchange(conn, "lines_new", "lines_old")
@@ -201,3 +206,73 @@ class TestTheIngestAndTheToolTakeTurns:
         #and once it lets go, the same call goes through
         rebuild_lines.fill(conn)
         assert conn.execute("SELECT count(*) FROM lines_new").fetchone()[0] == 18
+
+
+class TestTheRecallVerdict:
+
+    def test_a_walk_that_never_reaches_the_twins_is_blind(self):
+        #the live m=32 graph on "Flying, trample": 88 cards print it, so the exact
+        #top 20 are its twins at 1.0, and the index came back with 0.6968 at best
+        from ingest.rebuild_lines import verdict
+        found = [0.6968 - 0.002 * k for k in range(20)]
+        assert verdict(found, [1.0] * 20) == (0, True)
+
+    def test_a_line_that_finds_its_best_but_loses_middle_ranks_is_not_blind(self):
+        #"Web-slinging {U}" on both m=64 lab builds: best match found, 12 of 20 in
+        #place. the swap is refused on blind lines only, these are reported
+        from ingest.rebuild_lines import verdict
+        exact = [0.95 - 0.01 * k for k in range(21)]
+        found = exact[:12] + exact[13:]
+        assert verdict(found, exact[:20]) == (12, False)
+
+    def test_a_walk_that_returns_nothing_is_blind(self):
+        #guards rather than describes: no build has returned an empty walk
+        from ingest.rebuild_lines import verdict
+        assert verdict([], [0.9] * 20) == (0, True)
+
+
+@needs_db
+class TestTheSwapNeedsAPassingRecallCheck:
+
+    def test_a_lines_new_never_checked_is_refused(self, conn):
+        from ingest import rebuild_lines
+        build(conn)
+        with pytest.raises(rebuild_lines.Refused):
+            rebuild_lines.exchange(conn, "lines_new", "lines_old")
+        assert embedding_type(conn) == "vector(768)"
+
+    def test_a_failed_check_is_refused(self, conn):
+        from ingest import rebuild_lines
+        build(conn)
+        rebuild_lines.record(conn, {"passed": False, "texts": 1096, "blind": 13, "below_20": 95})
+        with pytest.raises(rebuild_lines.Refused):
+            rebuild_lines.exchange(conn, "lines_new", "lines_old")
+        assert embedding_type(conn) == "vector(768)"
+
+    def test_a_search_that_does_not_walk_the_graph_fails_the_check(self, conn):
+        #the check this replaced let the planner choose, and it seq scanned one
+        #table while walking the other: truth scored against itself reads perfect
+        from ingest import rebuild_lines
+        build(conn)
+        conn.execute("DROP INDEX lines_new_embedding_hnsw")
+        assert not rebuild_lines.check(conn)["passed"]
+
+    def test_the_exact_search_reads_every_row_whatever_the_settings(self, conn):
+        #the exact searches once shared the index search's text and leaned on
+        #enable_* to stay off the graph. a prepared plan outlives those, and the
+        #check passed a lab build with 55 texts blind
+        from ingest import rebuild_lines
+        build(conn)
+        vec = conn.execute("SELECT embedding FROM lines_new WHERE NOT whole LIMIT 1").fetchone()[0]
+        conn.execute("SET enable_seqscan = off; SET enable_sort = off")
+        plan = " ".join(r[0] for r in conn.execute(
+            "EXPLAIN " + rebuild_lines.EXACT, (vec, "00000000-0000-4000-8000-0000000bb000", vec)))
+        assert "lines_new_embedding_hnsw" not in plan
+
+    def test_a_rolled_back_table_is_checked_again_before_it_returns(self, conn):
+        from ingest import rebuild_lines
+        rebuild(conn)
+        rebuild_lines.exchange(conn, "lines_old", "lines_new")
+        rebuild_lines.validate(conn)
+        with pytest.raises(rebuild_lines.Refused):
+            rebuild_lines.exchange(conn, "lines_new", "lines_old")

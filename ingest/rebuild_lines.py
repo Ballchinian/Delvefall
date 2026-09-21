@@ -5,11 +5,13 @@
 #
 #the site reads the old table throughout. the copy and the index builds take
 #minutes and hold no lock a search waits on. the swap is renames in one short
-#transaction, refused if anything wrote to lines after the copy.
+#transaction, refused if anything wrote to lines after the copy or if lines_new
+#never passed the recall check.
 #
 #from the repo root with DATABASE_URL set. every step refuses while an ingest run
 #holds the lock, and an ingest run waits while a step of this holds it:
-#    python -m ingest.rebuild_lines             copy and build lines_new, then compare
+#    python -m ingest.rebuild_lines             copy and build lines_new, then check its recall
+#    python -m ingest.rebuild_lines --check     check an existing lines_new's recall again
 #    python -m ingest.rebuild_lines --swap      put lines_new live, the old one kept as lines_old
 #    python -m ingest.rebuild_lines --rollback  put lines_old back
 #    python -m ingest.rebuild_lines --drop-old  once the new table has held up
@@ -21,6 +23,7 @@ import time
 import argparse
 
 import psycopg
+from psycopg import sql
 from pgvector.psycopg import register_vector
 
 from common import locks
@@ -44,6 +47,26 @@ CONSTRAINTS = {
 #the swap waits this long for searches to finish before giving up and changing
 #nothing. every search that arrives behind it queues for as long as it waits
 LOCK_TIMEOUT = "3s"
+
+#the recall check: the NEAR texts closest to each of the GROUPS biggest groups
+#of identical lines, plus RANDOM others. about 1,100 texts, each searched twice,
+#ten minutes or so from a laptop
+GROUPS, NEAR, RANDOM = 25, 40, 300
+TOLERANCE = 1e-3
+PASSED = "recall check passed"
+
+#find_similar's hunt without the columns it only displays: the join and the
+#filters are what decide which rows the walk has to get past
+HUNT = ("SELECT 1 - (l.embedding <=> %s) FROM lines_new l JOIN cards c ON c.oracle_id = l.oracle_id "
+        "WHERE l.oracle_id <> %s AND NOT l.whole AND l.embedding IS NOT NULL "
+        "ORDER BY l.embedding <=> %s LIMIT 400")
+
+#HUNT's exact twin: + 0 leaves nothing the index can order by, so it reads every
+#row whatever the settings. switching enable_* over one query text is not
+#enough: psycopg prepares it from the fifth run, postgres keeps that plan through
+#the switch, and the exact searches walked the graph and passed a build with 55
+#texts blind
+EXACT = HUNT.replace("ORDER BY l.embedding <=> %s", "ORDER BY (l.embedding <=> %s) + 0")
 
 
 class Refused(Exception):
@@ -128,31 +151,94 @@ def index(conn):
     conn.execute("ANALYZE lines_new")
 
 
-def compare(conn, samples=25):
-    #the same searches on both tables, the way find_similar runs them: each
-    #anchor's vector read back from the table it searches. a tie among identical
-    #lines can order its members either way, so the scores are compared rather
-    #than which rows came back
-    conn.execute("SET LOCAL hnsw.ef_search = 400")
-    conn.execute("SET LOCAL hnsw.iterative_scan = 'strict_order'")
-    ids = [r[0] for r in conn.execute("SELECT id FROM lines WHERE NOT whole ORDER BY random() LIMIT %s", (samples,))]
-    worst = 0.0
-    for lid in ids:
-        top = []
-        for t in ("lines", "lines_new"):
-            vec = conn.execute("SELECT embedding FROM " + t + " WHERE id = %s", (lid,)).fetchone()[0]
-            top.append([r[0] for r in conn.execute(
-                "SELECT 1 - (embedding <=> %s) FROM " + t + " WHERE NOT whole ORDER BY embedding <=> %s LIMIT 20",
-                (vec, vec))])
-        worst = max([worst] + [abs(a - b) for a, b in zip(*top)])
-    vec = conn.execute("SELECT embedding FROM lines_new WHERE NOT whole LIMIT 1").fetchone()[0]
-    plan = str(conn.execute("EXPLAIN SELECT id FROM lines_new WHERE NOT whole ORDER BY embedding <=> %s LIMIT 400",
-                            (vec,)).fetchall())
-    size = lambda t: conn.execute("SELECT pg_total_relation_size(%s)", (t,)).fetchone()[0]
-    return {"rows": (fingerprint(conn, "lines")[0], fingerprint(conn, "lines_new")[0]),
-            "worst_score_gap": worst,
-            "uses_the_index": "lines_new_embedding_hnsw" in plan,
-            "bytes": (size("lines"), size("lines_new"))}
+def sample(conn):
+    #identical lines trap the graph walk, so the texts a broken graph loses sit
+    #next to the biggest groups of them. over every text of seven lab builds this
+    #sample held 22 to 49 of each broken build's misses. the random part is for
+    #everything else
+    texts = set()
+    for group, vec in conn.execute("""
+            SELECT DISTINCT ON (line_text) line_text, embedding FROM lines_new
+            WHERE NOT whole AND line_text IN (SELECT line_text FROM lines_new WHERE NOT whole
+                                              GROUP BY line_text ORDER BY count(*) DESC LIMIT %s)
+            ORDER BY line_text, id""", (GROUPS,)).fetchall():
+        texts.update(r[0] for r in conn.execute("""
+            SELECT line_text FROM lines_new WHERE NOT whole AND line_text <> %s
+            GROUP BY line_text ORDER BY min(embedding <=> %s) LIMIT %s""", (group, vec, NEAR)))
+    texts.update(r[0] for r in conn.execute("""
+        SELECT line_text FROM (SELECT DISTINCT line_text FROM lines_new WHERE NOT whole) t
+        ORDER BY random() LIMIT %s""", (RANDOM,)))
+    return conn.execute("""
+        SELECT DISTINCT ON (line_text) line_text, oracle_id, embedding FROM lines_new
+        WHERE NOT whole AND line_text = ANY(%s) ORDER BY line_text, id""", (sorted(texts),)).fetchall()
+
+
+def verdict(found, exact):
+    #scores rank for rank, never names: a tie among identical lines can put its
+    #members in either order. blind is the failure that matters, the walk never
+    #reaching the line's best match at all
+    hits = sum(1 for a, b in zip(found[:20], exact[:20]) if abs(a - b) < TOLERANCE)
+    blind = bool(exact) and (not found or found[0] < exact[0] - TOLERANCE)
+    return hits, blind
+
+
+def check(conn):
+    #each sampled text searched the way find_similar hunts, once forced onto
+    #lines_new's hnsw index and once exact. session wide rather than LOCAL, so
+    #they hold across main's autocommit: a transaction per search rather than one
+    #snapshot held open for ten minutes
+    rows = sample(conn)
+    if not rows:
+        return {"texts": 0, "passed": False, "worst": [], "blind": 0, "below_20": 0,
+                "reason": "lines_new has no searchable rows"}
+    conn.execute("SET hnsw.ef_search = 400; SET hnsw.iterative_scan = 'strict_order'; "
+                 "SET max_parallel_workers_per_gather = 0")
+    try:
+        exact = [[r[0] for r in conn.execute(EXACT, (vec, oid, vec))] for _, oid, vec in rows]
+        #sort off as well as seq scan: with only seq scan off, a small table walks
+        #the oracle_id btree and sorts every row, exact again under another name.
+        #unprepared, so each search runs the plan EXPLAIN shows
+        conn.execute("SET enable_seqscan = off; SET enable_sort = off")
+        _, oid, vec = rows[0]
+        plan = " ".join(r[0] for r in conn.execute("EXPLAIN " + HUNT, (vec, oid, vec)))
+        if "lines_new_embedding_hnsw" not in plan:
+            return {"texts": len(rows), "passed": False, "worst": [], "blind": 0, "below_20": 0,
+                    "reason": "the search did not walk lines_new_embedding_hnsw"}
+        index = [[r[0] for r in conn.execute(HUNT, (vec, oid, vec), prepare=False)] for _, oid, vec in rows]
+    finally:
+        conn.execute("RESET enable_seqscan; RESET enable_sort; RESET max_parallel_workers_per_gather; "
+                     "RESET hnsw.iterative_scan; RESET hnsw.ef_search")
+    scored = []
+    for (text, _, _), index_sims, exact_sims in zip(rows, index, exact):
+        hits, blind = verdict(index_sims, exact_sims)
+        scored.append((hits, blind, text, index_sims[0] if index_sims else 0.0, exact_sims[0] if exact_sims else 0.0))
+    blind = sum(1 for s in scored if s[1])
+    return {"texts": len(rows), "passed": blind == 0, "blind": blind,
+            "below_20": sum(1 for s in scored if s[0] < 20),
+            "worst": sorted((s for s in scored if s[0] < 20), key=lambda s: (not s[1], s[0]))[:10],
+            "reason": "%d of the %d sampled texts miss their best match" % (blind, len(rows))}
+
+
+def record(conn, report):
+    #--swap reads this back. it rides the table, so a rebuilt or rechecked
+    #lines_new carries its own verdict and nothing else can vouch for it
+    note = "%s: %d texts, %d missing their best match, %d below 20/20" % (
+        PASSED if report["passed"] else "recall check FAILED", report["texts"], report["blind"], report["below_20"])
+    conn.execute(sql.SQL("COMMENT ON TABLE lines_new IS {}").format(sql.Literal(note)))
+
+
+def show(conn, report):
+    size = lambda t: conn.execute("SELECT pg_total_relation_size(%s)", (t,)).fetchone()[0] / 1e6
+    print("rows: lines %d, lines_new %d" % (fingerprint(conn, "lines")[0], fingerprint(conn, "lines_new")[0]))
+    print("size: lines %.0fmb, lines_new %.0fmb" % (size("lines"), size("lines_new")))
+    print("recall over %d texts: %d miss their best match, %d fall below 20/20"
+          % (report["texts"], report["blind"], report["below_20"]))
+    for hits, blind, text, best, true in report["worst"]:
+        print("  %2d/20  best %.4f of %.4f%s  %s" % (hits, best, true, "  MISSES ITS BEST" if blind else "", text[:60]))
+    if report["passed"]:
+        print("\nif that all reads right: python -m ingest.rebuild_lines --swap")
+    else:
+        print("\ndo not swap, --swap will refuse: " + report["reason"])
 
 
 def exchange(conn, incoming, outgoing, check=True):
@@ -166,6 +252,10 @@ def exchange(conn, incoming, outgoing, check=True):
     conn.execute("LOCK TABLE lines IN SHARE MODE")
     if check and fingerprint(conn, "lines") != fingerprint(conn, incoming):
         raise Refused("lines has changed since " + incoming + " was copied from it")
+    note = conn.execute("SELECT obj_description(%s::regclass, 'pg_class')", (incoming,)).fetchone()[0]
+    if incoming == "lines_new" and not (note or "").startswith(PASSED):
+        raise Refused("lines_new has not passed the recall check (" + (note or "never run") +
+                      "). python -m ingest.rebuild_lines --check runs it again")
     seq = conn.execute("SELECT pg_get_serial_sequence('lines', 'id')").fetchone()[0]
     asked = conn.execute("SELECT clock_timestamp()").fetchone()[0]
     conn.execute("LOCK TABLE lines, " + incoming + ", line_tags IN ACCESS EXCLUSIVE MODE")
@@ -178,6 +268,9 @@ def exchange(conn, incoming, outgoing, check=True):
         for suffix in INDEXES:
             conn.execute("ALTER INDEX " + old + suffix + " RENAME TO " + new + suffix)
     conn.execute("ALTER SEQUENCE " + seq + " OWNED BY lines.id")
+    #the verdict vouched for lines_new, and whatever leaves as lines_new next
+    #gets checked again
+    conn.execute("COMMENT ON TABLE lines IS NULL")
     #NOT VALID skips the scan of line_tags under the lock; validate() runs it after
     conn.execute("ALTER TABLE line_tags ADD CONSTRAINT line_tags_line_id_fkey FOREIGN KEY (line_id) "
                  "REFERENCES lines(id) ON DELETE CASCADE NOT VALID")
@@ -192,6 +285,7 @@ def validate(conn):
 def main():
     ap = argparse.ArgumentParser()
     act = ap.add_mutually_exclusive_group()
+    act.add_argument("--check", action="store_true")
     act.add_argument("--swap", action="store_true")
     act.add_argument("--rollback", action="store_true")
     act.add_argument("--drop-old", action="store_true")
@@ -227,21 +321,27 @@ def main():
             conn.commit()
             print("dropped " + t)
         else:
-            for step, what in ((fill, "copying lines into lines_new at " + EMBED_TYPE),
-                               (constrain, "adding its keys"),
-                               (index, "building its indexes, the hnsw graph takes minutes")):
-                started = time.time()
-                print(what + "...")
-                step(conn)
+            if args.check:
+                alone(conn)
+                if not exists(conn, "lines_new"):
+                    raise Refused("there is no lines_new")
                 conn.commit()
-                print("  %.0fs" % (time.time() - started))
-            report = compare(conn)
-            conn.rollback()
-            print("rows: lines %d, lines_new %d" % report["rows"])
-            print("size: lines %.0fmb, lines_new %.0fmb" % tuple(b / 1e6 for b in report["bytes"]))
-            print("largest score gap over the sampled searches: %.5f" % report["worst_score_gap"])
-            print("a search on lines_new walks its hnsw index: %s" % report["uses_the_index"])
-            print("\nif that all reads right: python -m ingest.rebuild_lines --swap")
+            else:
+                for step, what in ((fill, "copying lines into lines_new at " + EMBED_TYPE),
+                                   (constrain, "adding its keys"),
+                                   (index, "building its indexes, the hnsw graph takes minutes")):
+                    started = time.time()
+                    print(what + "...")
+                    step(conn)
+                    conn.commit()
+                    print("  %.0fs" % (time.time() - started))
+            started = time.time()
+            print("checking lines_new's recall against exact searches, about ten minutes...")
+            conn.autocommit = True
+            report = check(conn)
+            record(conn, report)
+            print("  %.0fs" % (time.time() - started))
+            show(conn, report)
     except Refused as e:
         conn.rollback()
         print("refused, nothing changed: " + str(e))
