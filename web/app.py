@@ -36,12 +36,14 @@ from prefix_words import PREFIX_WORDS
 #place to compare against the rest of the repo. see mirror.py for the list
 import mirror
 from mirror import (REMINDER_KEYWORDS, reminder_is_the_rule, clean_line, line_weight,
-                    EMBED_COLUMNS, embed_column, EMBED_COL,
+                    EMBED_COLUMNS, embed_column, EMBED_COL, EMBED_TYPE,
                     concept_display, concept_raw_gate, mech_display)
 #who a visitor is for a day, without keeping anything that says who they are.
 #the report limiter and the import limiter identify people through this too
 import visitors
 from visitors import client_ip, visitor_token, usage_row, SPLIT_COUNTS, _utc_day
+#the model runs in a service of its own, embed/. this is the client
+import embedder
 from views.meta import bp as meta_bp
 
 #python reads its mime table from the HOST: linux says text/javascript, a
@@ -5105,6 +5107,19 @@ def admin():
         rows_daily = conn.execute("""SELECT day, uniques, bots, suspect_n, acted_n, rendered_n
                                      FROM visit_daily ORDER BY day DESC LIMIT 365""").fetchall()
 
+        #what lines.embedding actually is, against what schema.sql declares.
+        #the halfvec conversion is ingest/rebuild_lines.py's job and runs by
+        #hand, so this is the one place the answer is visible from a browser
+        #aliased and read by name: this pool hands back dict rows, so a
+        #positional index is a KeyError rather than a column
+        embed_type = conn.execute("""SELECT format_type(atttypid, atttypmod) AS t FROM pg_attribute
+                                     WHERE attrelid = 'lines'::regclass AND attname = 'embedding'
+                                  """).fetchone()["t"]
+        #WAKES the model service, which is why it is on this page and nowhere
+        #else. it is the standing guard against the ingest and the service
+        #drifting onto different weights, and a wake costs nothing but seconds
+        model = embedder.parity(conn)
+
     usage = [usage_row(today, live, True, first_measured is not None)]
     for u in rows_daily:
         usage.append(usage_row(u["day"], u, split_from is not None and u["day"] >= split_from,
@@ -5171,7 +5186,8 @@ def admin():
 
     return render_template("admin.html", key=ADMIN_KEY, pending=pending, accepted=accepted,
                            triplet_md="\n".join(triplet_md), pair_md="\n".join(pair_md),
-                           tag_md="\n".join(tag_md), deck_md="\n".join(deck_md), usage=usage)
+                           tag_md="\n".join(tag_md), deck_md="\n".join(deck_md), usage=usage,
+                           embed_type=embed_type, declared_type=EMBED_TYPE, model=model)
 
 
 @app.route("/admin/act", methods=["POST"])

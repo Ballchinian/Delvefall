@@ -5,6 +5,22 @@
 {% block content %}
     <h1>Feedback review</h1>
 
+    <h2>The model and the column</h2>
+    {# two things nothing else would tell you. the column type is owed a manual
+       rebuild whenever it disagrees with what schema.sql declares, and the
+       parity line is the standing guard against the ingest and the embed
+       service ending up on different weights: every percent on the site is a
+       comparison against the stored vectors, so a service on other weights
+       makes the numbers quietly wrong rather than obviously broken #}
+    <ul class="fb-usage">
+        <li>lines.embedding is <strong>{{ embed_type }}</strong>,
+            {% if embed_type == declared_type %}which is what schema.sql declares{% else %}
+            and schema.sql declares {{ declared_type }}: <strong>python -m ingest.rebuild_lines has not been run</strong>{% endif %}</li>
+        <li>{% if model.ok %}the model service answered {{ model.lines }} stored lines at
+            worst cosine <strong>{{ "%.9f"|format(model.worst) }}</strong>, weights {{ model.sha256[:12] or "unknown" }}
+            {% else %}the model service is asleep or unreachable: {{ model.why }}{% endif %}</li>
+    </ul>
+
     <h2>Daily visitors</h2>
     {# distinct visitors per day, from the one-way daily token. today is still
        counting; every earlier day is frozen and its tokens are long gone.

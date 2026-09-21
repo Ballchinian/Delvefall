@@ -62,6 +62,13 @@ same("embed_column", func_dump(MIRROR, "embed_column"),
 same("EMBED_COLUMNS", assign_value(MIRROR, "EMBED_COLUMNS"),
      assign_value("ingest/attribute.py", "EMBED_COLUMNS"))
 
+#/admin reads the live column type and says whether it matches. the thing it
+#matches AGAINST has to be the ingest's own answer, or the page reports a
+#rebuild owed against a type nothing declares
+same("EMBED_TYPE", assign_value(MIRROR, "EMBED_TYPE"),
+     assign_value("ingest/update.py", "EMBED_TYPE"),
+     "between web/mirror.py and ingest/update.py")
+
 #the generated scryfall word catalogs the cleaner leans on
 if read("web/prefix_words.py") != read("common/prefix_words.py"):
     problems.append("prefix_words.py drifted between web/ and common/")

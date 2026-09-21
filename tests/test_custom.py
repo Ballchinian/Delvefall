@@ -3,7 +3,15 @@
 #checked without the model: the shared results grid, the reading of the form,
 #and the wording of the sentence.
 
+import io
+import json
+import urllib.error
+
+import numpy as np
+import pytest
+
 import app
+import embedder
 
 
 def render_results(results, **kwargs):
@@ -40,3 +48,124 @@ class TestTheResultsGridIsSharedByTwoPages:
         #the tooltips naming card.name simply go quiet
         out = render_results(ONE, report=False)
         assert "None" not in out
+
+
+class _Answer:
+    #enough of urlopen's return for the client, which reads and json-parses it
+    def __init__(self, payload, status=200):
+        self.status = status
+        self._body = json.dumps(payload).encode()
+
+    def read(self):
+        return self._body
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+
+def http_error(code, payload=None):
+    return urllib.error.HTTPError("http://x/embed", code, "", {},
+                                  io.BytesIO(json.dumps(payload or {}).encode()))
+
+
+@pytest.fixture
+def served(monkeypatch):
+    #a stand-in for the embed service. the calls it received are recorded, so a
+    #test can say how many times the client tried rather than only what it
+    #returned
+    calls = []
+
+    def serve(answers, budget=0.5):
+        answers = list(answers)
+        monkeypatch.setattr(embedder, "EMBED_URL", "http://embed.test")
+        #no real waiting: the retry loop is under test, not the clock. the
+        #BUDGET goes down WITH it, or a test whose service never answers spins
+        #for the full 90 seconds instead of failing. it is an argument because
+        #this runs AFTER whatever the test set, and would otherwise overrule it
+        monkeypatch.setattr(embedder, "RETRY_EVERY", 0.0)
+        monkeypatch.setattr(embedder, "BUDGET", budget)
+
+        def fake(req, timeout=None):
+            calls.append(req)
+            a = answers.pop(0) if len(answers) > 1 else answers[0]
+            if isinstance(a, Exception):
+                raise a
+            return a
+
+        monkeypatch.setattr(embedder.urllib.request, "urlopen", fake)
+        return calls
+
+    return serve
+
+
+class TestTheClientForTheModelService:
+
+    def test_no_service_configured_fails_at_once(self, monkeypatch):
+        #a laptop that never started one, and every test that does not want it.
+        #it must not spend the budget discovering there is nothing to call
+        monkeypatch.setattr(embedder, "EMBED_URL", "")
+        with pytest.raises(embedder.EmbedderDown):
+            embedder.embed(["Flying"])
+
+    def test_vectors_come_back_as_float32(self, served):
+        #pgvector's adapter sends an ndarray as a vector and postgres casts
+        #vector to halfvec, so this is what goes straight into the sql
+        served([_Answer({"vectors": [[0.5] * 768], "sha256": "abc123"})])
+        got = embedder.embed(["Flying"])
+        assert len(got) == 1 and got[0].dtype == np.float32 and got[0].shape == (768,)
+        assert embedder._last_sha256 == "abc123"
+
+    def test_a_waking_service_is_retried_and_then_answers(self, served):
+        #the first request into a sleeping container can be refused while it
+        #comes up, which is the whole reason this retries rather than fails
+        calls = served([http_error(503), http_error(502),
+                        _Answer({"vectors": [[0.1] * 768], "sha256": "s"})])
+        assert len(embedder.embed(["Flying"])) == 1
+        assert len(calls) == 3
+
+    def test_a_service_that_never_wakes_gives_up_inside_the_budget(self, served):
+        calls = served([http_error(503)], budget=0.0)
+        with pytest.raises(embedder.EmbedderDown):
+            embedder.embed(["Flying"])
+        #tried once, then found no budget to sleep into. a budget of zero that
+        #still slept would hold a request thread for nothing
+        assert len(calls) == 1
+
+    def test_a_refusal_is_not_worded_as_a_wake(self, served):
+        #read_custom applies the same two limits before calling, so a 400 means
+        #the page and the service have drifted apart. that is a bug, and
+        #retrying it would spend the budget hiding one
+        calls = served([http_error(400, {"error": "at most 20 texts, got 21"})])
+        with pytest.raises(embedder.EmbedderRefused, match="at most 20 texts"):
+            embedder.embed(["Flying"] * 21)
+        assert len(calls) == 1
+
+    def test_the_wrong_number_of_vectors_is_refused(self, served):
+        served([_Answer({"vectors": [[0.1] * 768], "sha256": "s"})])
+        with pytest.raises(embedder.EmbedderRefused):
+            embedder.embed(["Flying", "Trample"])
+
+    def test_only_so_many_requests_wait_at_once(self, served, monkeypatch):
+        #2 workers of 4 threads serve the whole site. a cold start must not be
+        #able to park them all waiting on the model while /search queues behind
+        served([_Answer({"vectors": [[0.1] * 768], "sha256": "s"})])
+        monkeypatch.setattr(embedder, "_waiting", embedder.MAX_WAITING)
+        with pytest.raises(embedder.EmbedderDown, match="already waiting"):
+            embedder.embed(["Flying"])
+
+    def test_the_counter_comes_back_down_after_a_failure(self, served):
+        #or the third failed wake of the process locks /custom out for good
+        served([http_error(503)], budget=0.0)
+        for _ in range(embedder.MAX_WAITING + 1):
+            with pytest.raises(embedder.EmbedderDown):
+                embedder.embed(["Flying"])
+        assert embedder._waiting == 0
+
+    def test_the_wake_ping_never_raises(self, served):
+        #fired at the first keystroke and never waited on, so a service that is
+        #not there yet must not turn into an error on the page
+        served([http_error(502)])
+        assert embedder.wake() is False

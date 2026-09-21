@@ -112,6 +112,11 @@ def embed_column():
 
 EMBED_COL = embed_column()
 
+#what schema.sql declares lines.embedding as. here only so /admin can say
+#whether the live column matches it: converting the column is a job that runs by
+#hand, out of line with the site up, and nothing else would notice it was owed
+EMBED_TYPE = "halfvec(768)"
+
 
 #the raw cosine lives in a compressed band, so this map turns it into the percent
 #the site shows and the gate is written in DISPLAYED units.
