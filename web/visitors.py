@@ -105,7 +105,10 @@ def visitor_token(ip):
 #that page while the numbers keep arriving, only smaller, which is why
 #tests/test_visitors.py checks every name below against app.url_map
 PAGE_ENDPOINTS = {"home", "search", "unique", "precons", "precon", "deck", "guide",
-                  "privacy", "support"}
+                  "privacy", "support",
+                  #a blueprint route is named <blueprint>.<function>, so the bare
+                  #name matches no rule and would count nobody, silently
+                  "custom.custom"}
 
 
 #every one of these needs a keystroke, a click or a submit to fire. the json ones
@@ -119,7 +122,11 @@ PAGE_ENDPOINTS = {"home", "search", "unique", "precons", "precon", "deck", "guid
 #the four deck names are the POST half of those routes. their GET half is
 #deck_post_only, so a plain visit cannot reach them
 ACT_ENDPOINTS = {"suggest", "more", "unique_cards", "deck_found", "feedback",
-                 "deck_open", "deck_view", "deck_read", "deck_swap"}
+                 "deck_open", "deck_view", "deck_read", "deck_swap",
+                 #the POST that scores a typed card and the one behind its Load
+                 #more. custom.custom_wake is in NEITHER: it fires on the first
+                 #focus of the textarea, before anybody has done anything
+                 "custom.custom_post", "custom.custom_more"}
 
 
 #what a crawler reads first and a browser never asks for

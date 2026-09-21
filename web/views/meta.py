@@ -83,7 +83,7 @@ def page_locs():
     from app import PRECON_SORTS, PRECON_DEFAULT, precon_board
 
     root = request.url_root
-    locs = [root + p for p in ("", "unique", "deck", "precons", "guide", "privacy", "support")]
+    locs = [root + p for p in ("", "unique", "custom", "deck", "precons", "guide", "privacy", "support")]
     #every ranking is its own page answering its own question, so all ten are
     #worth crawling. the DEFAULT sort is /precons above and is not repeated, or
     #google meets the same board at two addresses. the era cuts are absent, being
@@ -140,6 +140,9 @@ def robots():
         "Disallow: /unique/",
         #belt and braces with the noindex: a post result has no url to index
         "Disallow: /deck/read",
+        #the two POST helpers behind /custom. the form itself is a page
+        #and stays open, and its results have no url to index anyway
+        "Disallow: /custom/",
         "Disallow: /deck/found",
         #the index, which names the four parts. only this one is advertised
         "Sitemap: " + request.url_root + "sitemap.xml",
@@ -187,6 +190,9 @@ No account, no syntax to learn, no ads. Type a card name.
   page per card, %s of them. The query string is the card's exact name.
 - [The most unique cards](%sunique): the cards whose abilities nothing else in
   the game comes close to.
+- [Custom card checker](%scustom): type the rules text of a card you designed
+  and see every printed card that already does something like it, ranked by how
+  close, with how original the text is.
 - [Deck lens](%sdeck): paste a Commander decklist, or import one from Moxfield or
   Archidekt, and read it against every precon.
 - [Commander precons ranked](%sprecons): all %d of them by originality, salt,
@@ -211,7 +217,7 @@ No account, no syntax to learn, no ads. Type a card name.
 - Precon decklists: [MTGJSON](https://mtgjson.com).
 
 Unofficial Fan Content. Not approved or endorsed by Wizards of the Coast.
-""" % (precon_total(), root, "{:,}".format(card_total()), root, root, root,
+""" % (precon_total(), root, "{:,}".format(card_total()), root, root, root, root,
        precon_total(), root, root, root, root),
                     mimetype="text/plain")
 
