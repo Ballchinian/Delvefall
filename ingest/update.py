@@ -30,12 +30,18 @@ BULK_URL = "https://api.scryfall.com/bulk-data"
 DOWNLOAD_FILE = "oracle-cards.jsonl.gz"
 PRICES_FILE = "default-cards.jsonl.gz"
 
-#a fine tuned embeddinggemma, taught to score a line against what it is about. it
-#sits in a PRIVATE hugging face repo, so HF_TOKEN has to be set or the download
-#401s. the prompt was glued to the front of every line during training, and
-#encoding without it gives useless vectors.
+#a fine tuned embeddinggemma, taught to score a line against what it is about.
+#the prompt was glued to the front of every line during training, and encoding
+#without it gives useless vectors.
 #
-#pointing EMBED_MODEL anywhere else makes the next run rebuild every vector.
+#this constant is the model's NAME, which is what meta.embed_model is compared
+#against, so pointing it anywhere else makes the next run rebuild every vector.
+#the WEIGHTS are whatever EMBED_MODEL_PATH holds when it is set, and update.yml
+#sets it to the github release the model service is built from, so the vectors
+#in the table and the one the site makes of what a visitor typed come out of the
+#same file. unset, the name is a private hugging face repo and HF_TOKEN has to
+#be set or the download 401s.
+#
 #78% recall @10 on the tag exam, 26/31 on the line-to-line regression guard, 94%
 #precision on attribution. there is no second copy to fall back to: see schema.sql
 #where embedding_v1 used to be
@@ -551,9 +557,12 @@ def main():
 
         #down here so nothing-changed runs never pay the torch import, which
         #takes longer than the entire rest of the script
-        print("loading the model (downloads ~1.2gb the very first time)...")
+        #a folder of weights if EMBED_MODEL_PATH names one, the hugging face repo
+        #if it does not, in which case this downloads ~1.2gb the very first time
+        source = os.environ.get("EMBED_MODEL_PATH") or EMBED_MODEL
+        print("loading the model from " + source + "...")
         from sentence_transformers import SentenceTransformer
-        model = SentenceTransformer(EMBED_MODEL)
+        model = SentenceTransformer(source)
         print("embedding " + str(len(texts)) + " lines, this is the slow part...")
         embs = model.encode(texts, batch_size=64, show_progress_bar=True,
                             normalize_embeddings=True, prompt=EMBED_PROMPT)

@@ -52,5 +52,5 @@ jobs:
       - run: python -m ingest.backfill_embeddings --model "${{ inputs.model }}" ${{ inputs.index && '--index' || '' }}
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          HF_TOKEN: ${{ secrets.HF_TOKEN }}  #the trial model is in a private repo too
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}  #a trial is the one thing still pulled from hugging face: nothing has been released to pin it to yet
           PYTHONUNBUFFERED: "1"

@@ -26,11 +26,22 @@ jobs:
           cache: pip
           cache-dependency-path: ingest/requirements.txt
 
-      #the embedding model is ~1.2gb, no point pulling it from huggingface every day
+      #the weights come from the github release, which is the same tar the model
+      #service is built from: a card the site scores against what a visitor typed
+      #cannot then read one percent here and another there.
+      #
+      #~1.25gb, so it is cached. the key is the whole of model_release.json
+      #rather than the sha256 inside it, which is stricter in the only direction
+      #that matters: a new release misses the cache instead of being handed the
+      #model it replaced
       - uses: actions/cache@v5
         with:
-          path: ~/.cache/huggingface
-          key: mtg-tuned-embeddinggemma-300m
+          path: /home/runner/model
+          key: model-${{ hashFiles('embed/model_release.json') }}
+
+      #stdlib only, so it needs nothing installed. on a cache hit it reads the
+      #.sha256 stamp the last run left and returns
+      - run: python embed/fetch_model.py --dest /home/runner/model
 
       #plain "pip install torch" grabs a 2gb+ cuda build this runner cannot use.
       #the cpu wheel FIRST means the requirements step sees torch satisfied.
@@ -42,7 +53,7 @@ jobs:
       - run: python -m ingest.update
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          HF_TOKEN: ${{ secrets.HF_TOKEN }}  #the tuned embedding model lives in a private hugging face repo
+          EMBED_MODEL_PATH: /home/runner/model  #the release weights above, so no hugging face and no token
           PYTHONUNBUFFERED: "1"  #otherwise the log messages pile up and appear all at once at the end
 
       #the community tags for the concept axis

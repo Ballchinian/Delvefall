@@ -54,12 +54,13 @@ def already_there(dest, sha256):
         return False
 
 
-def download(url, path, tries=3):
+def download(url, path, size, tries=3):
     #the release asset is a redirect to objects.githubusercontent.com, which
     #urlopen follows. no token: the repo is public, and needing one here would
     #have been the reason not to use a release asset at all
     for attempt in range(tries):
         digest = hashlib.sha256()
+        got = 0
         try:
             with urllib.request.urlopen(url, timeout=60) as r, open(path, "wb") as out:
                 while True:
@@ -67,13 +68,26 @@ def download(url, path, tries=3):
                     if not chunk:
                         break
                     digest.update(chunk)
+                    got += len(chunk)
                     out.write(chunk)
-            return digest.hexdigest()
         except (urllib.error.URLError, TimeoutError, ConnectionError) as e:
             if attempt == tries - 1:
                 raise
             print("  download failed (" + str(e) + "), retrying in 5s")
             time.sleep(5)
+            continue
+        if got == size:
+            return digest.hexdigest()
+        #a cut connection is not an exception: read() returns b"" and raises
+        #nothing, so a short body reaches the sha256 check as a mismatch, which
+        #reads like a replaced release asset and stops the run on the one thing
+        #a retry fixes. it happened here on 09-22, hence the byte count
+        if attempt == tries - 1:
+            raise SystemExit("the download stopped at " + str(got) + " bytes of " + str(size) +
+                             ", " + str(tries) + " times over. the network cut it, and nothing "
+                             "here can tell that from a release asset that shrank")
+        print("  got " + str(got) + " of " + str(size) + " bytes, retrying in 5s")
+        time.sleep(5)
 
 
 def fetch(dest, force=False):
@@ -90,11 +104,11 @@ def fetch(dest, force=False):
     tar_path = os.path.join(holding, "model.tar")
     try:
         print("downloading " + rel["file"] + " from " + rel["tag"] + "...")
-        got = download(rel["url"], tar_path)
+        got = download(rel["url"], tar_path, rel["bytes"])
         if got != sha256:
             raise SystemExit("sha256 mismatch: model_release.json says " + sha256 +
-                             ", the download is " + got + ". the release asset was replaced, "
-                             "or the download truncated")
+                             ", the download is " + got + ". the right number of bytes and "
+                             "the wrong ones, so the release asset was replaced")
         print("  sha256 ok, extracting...")
         #anything already in dest is from an older release, and leaving it would
         #mix two models in one folder
