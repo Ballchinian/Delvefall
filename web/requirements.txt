@@ -3,5 +3,7 @@ flask-compress
 gunicorn
 psycopg[binary,pool]
 pgvector
+#embedder.py's vectors and parity check. pgvector stopped pulling it in at 0.5.0
+numpy
 rcssmin
 rjsmin
