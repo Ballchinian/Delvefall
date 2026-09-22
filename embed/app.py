@@ -13,14 +13,25 @@
 #768 numbers, and goes back in the response.
 
 import os
+import time
 
 #before sentence_transformers is imported, or it phones home to check for a
 #newer snapshot of a model that is already on disk
 os.environ.setdefault("HF_HUB_OFFLINE", "1")
 os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
 
+import torch
 from flask import Flask, jsonify, request
 from sentence_transformers import SentenceTransformer
+
+#torch sizes its pool off every core the HOST has, and the container is allowed
+#a slice of them. uncapped, on 2026-09-22 one 20 line request at a time held
+#15 to 27 vcpu for minutes and none answered inside web's 30s: the threads
+#spent their time throttled and waiting on each other
+THREADS = int(os.environ.get("EMBED_THREADS", "8"))
+print("torch would run %d threads, the host shows %s cpus, running %d"
+      % (torch.get_num_threads(), os.cpu_count(), THREADS), flush=True)
+torch.set_num_threads(THREADS)
 
 #the prefix was glued to the front of every line during training, and encoding
 #without it gives useless vectors. IDENTICAL to ingest/update.py's, which
@@ -83,8 +94,11 @@ def embed():
     #the call ingest/update.py makes, argument for argument. batch_size is 64
     #there and stays 64 here even though nothing sends 64: sentence-transformers
     #sorts by length inside a batch, so the number is part of the answer
+    started = time.monotonic()
     vectors = model.encode(texts, batch_size=64, show_progress_bar=False,
                            normalize_embeddings=True, prompt=EMBED_PROMPT)
+    #how many and how long, never what: the text stays unlogged
+    print("embedded %d lines in %.2fs" % (len(texts), time.monotonic() - started), flush=True)
     #float32 widened to double and written by repr() comes back the same
     #float32, so the json round trip costs no precision. the accuracy bar this
     #whole service was chosen for is 1.8e-7, well inside what a lossy one
