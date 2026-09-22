@@ -53,7 +53,7 @@ jobs:
       - run: python -m ingest.update
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          EMBED_MODEL_PATH: /home/runner/model  #the release weights above, so no hugging face and no token
+          EMBED_MODEL_DIR: /home/runner/model  #the release weights above, so no hugging face and no token
           PYTHONUNBUFFERED: "1"  #otherwise the log messages pile up and appear all at once at the end
 
       #the community tags for the concept axis

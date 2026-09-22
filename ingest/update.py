@@ -36,7 +36,7 @@ PRICES_FILE = "default-cards.jsonl.gz"
 #
 #this constant is the model's NAME, which is what meta.embed_model is compared
 #against, so pointing it anywhere else makes the next run rebuild every vector.
-#the WEIGHTS are whatever EMBED_MODEL_PATH holds when it is set, and update.yml
+#the WEIGHTS are whatever EMBED_MODEL_DIR holds when it is set, and update.yml
 #sets it to the github release the model service is built from, so the vectors
 #in the table and the one the site makes of what a visitor typed come out of the
 #same file. unset, the name is a private hugging face repo and HF_TOKEN has to
@@ -556,10 +556,12 @@ def main():
                 owners.append(i)
 
         #down here so nothing-changed runs never pay the torch import, which
-        #takes longer than the entire rest of the script
-        #a folder of weights if EMBED_MODEL_PATH names one, the hugging face repo
-        #if it does not, in which case this downloads ~1.2gb the very first time
-        source = os.environ.get("EMBED_MODEL_PATH") or EMBED_MODEL
+        #takes longer than the entire rest of the script.
+        #
+        #a folder of weights if EMBED_MODEL_DIR names one, the hugging face repo if
+        #it does not, in which case this downloads ~1.2gb the very first time. the
+        #model service reads the same variable, so the folder has one name
+        source = os.environ.get("EMBED_MODEL_DIR") or EMBED_MODEL
         print("loading the model from " + source + "...")
         from sentence_transformers import SentenceTransformer
         model = SentenceTransformer(source)
