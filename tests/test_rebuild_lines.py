@@ -21,7 +21,7 @@ def statements_about_lines():
     #a $$ body carries its own semicolons, so the split steps over one whole
     #rather than cutting inside it
     statements = re.findall(r"(?:\$\$.*?\$\$|[^;])+", sql, re.S)
-    wanted = re.compile(r"(CREATE TABLE IF NOT EXISTS (lines|line_tags) |ALTER TABLE lines |"
+    wanted = re.compile(r"(CREATE TABLE IF NOT EXISTS (lines|line_tags|line_stats) |ALTER TABLE lines |"
                         r"CREATE INDEX IF NOT EXISTS \w+ ON (lines|line_tags) |DO \$\$)")
     return [s.strip() for s in statements if wanted.match(s.strip())]
 
@@ -276,3 +276,90 @@ class TestTheSwapNeedsAPassingRecallCheck:
         rebuild_lines.validate(conn)
         with pytest.raises(rebuild_lines.Refused):
             rebuild_lines.exchange(conn, "lines_new", "lines_old")
+
+
+def new_model_rows():
+    #what a model swap's encode hands update.py: every card again under new
+    #vectors, each printing Flying once, so line_stats has a count to get right
+    rng = np.random.default_rng(12)
+    unit = lambda v: v / np.linalg.norm(v)
+    flying = unit(rng.standard_normal(768).astype(np.float32))
+    rows = []
+    for k in range(6):
+        oid = "00000000-0000-4000-8000-0000000bb%03d" % k
+        rows.append((oid, "Flying", flying, 0, False))
+        rows.append((oid, "new line of card %d" % k, unit(rng.standard_normal(768).astype(np.float32)), 0, False))
+        rows.append((oid, "Flying\nnew line of card %d" % k, unit(rng.standard_normal(768).astype(np.float32)), 0, True))
+    return rows
+
+
+def build_aside(conn):
+    #update.py's model swap up to the swap: the COPY main runs, then build_aside
+    from ingest import rebuild_lines, update
+    rebuild_lines.create(conn)
+    with conn.cursor() as cur:
+        with cur.copy("COPY lines_new (oracle_id, line_text, embedding, face, whole) FROM STDIN") as copy:
+            for r in new_model_rows():
+                copy.write_row(r)
+    return update.build_aside(conn)
+
+
+def texts(conn):
+    return sorted(conn.execute("SELECT oracle_id::text, line_text, whole FROM lines").fetchall())
+
+
+@needs_db
+class TestAModelSwapGoesThroughLinesNew:
+
+    def test_the_site_reads_the_old_rows_until_the_swap_and_only_the_new_ones_after(self, conn):
+        from ingest import rebuild_lines, update
+        before = {k: v[:-1] for k, v in rows(conn).items()}
+        assert build_aside(conn)
+        assert {k: v[:-1] for k, v in rows(conn).items()} == before
+        update.swap_in(conn)
+        rebuild_lines.validate(conn)
+        conn.execute("DROP TABLE lines_old")
+        assert texts(conn) == sorted((r[0], r[1], r[4]) for r in new_model_rows())
+        assert shape(conn) == conn.fresh
+        #every tag pointed at an old line id
+        assert conn.execute("SELECT count(*) FROM line_tags").fetchone()[0] == 0
+        #six cards print Flying once each, and a whole card row is never counted
+        stats = dict(conn.execute("SELECT line_text, count FROM line_stats").fetchall())
+        assert stats["Flying"] == 6
+        assert stats["new line of card 0"] == 1
+        assert not [t for t in stats if "\n" in t]
+
+    def test_a_search_holding_lines_past_the_timeout_costs_a_retry_not_the_run(self, conn, monkeypatch):
+        #the other connection has to see the tables, so this one commits them.
+        #the fixture drops the schema whatever happens
+        import psycopg
+
+        from ingest import update
+        assert build_aside(conn)
+        conn.commit()
+        #stands for the run's writes before the swap: the card upsert, the encode
+        conn.execute("INSERT INTO cards VALUES ('00000000-0000-4000-8000-0000000bb999')")
+        search = psycopg.connect(TEST_DB)
+        try:
+            search.execute("SET search_path TO rebuild_check, public")
+            search.execute("SELECT count(*) FROM lines")
+            waits = []
+            monkeypatch.setattr(update.time, "sleep", lambda s: (waits.append(s), search.rollback()))
+            update.swap_in(conn)
+        finally:
+            search.close()
+        assert len(waits) == 1
+        assert conn.execute("SELECT count(*) FROM cards WHERE oracle_id = '00000000-0000-4000-8000-0000000bb999'"
+                            ).fetchone()[0] == 1
+        assert texts(conn) == sorted((r[0], r[1], r[4]) for r in new_model_rows())
+
+    def test_skipping_the_fingerprint_does_not_skip_the_recall_check(self, conn):
+        #a swap's lines_new differs from lines by design, so update.py turns the
+        #fingerprint off. the verdict still has to hold it back
+        from ingest import rebuild_lines, update
+        assert build_aside(conn)
+        rebuild_lines.record(conn, {"passed": False, "texts": 12, "blind": 1, "below_20": 1})
+        before = texts(conn)
+        with pytest.raises(rebuild_lines.Refused):
+            update.swap_in(conn)
+        assert texts(conn) == before

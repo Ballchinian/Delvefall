@@ -114,20 +114,30 @@ def alone(conn):
         raise Refused("an ingest run holds the lock. it takes 7 to 12 minutes, so try again after that")
 
 
+def clear(conn):
+    for t in ("lines_new", "lines_old"):
+        if exists(conn, t):
+            raise Refused(t + " already exists, from a rebuild that never finished. --swap, --rollback, "
+                          "--drop-old or --discard it first")
+    expect_the_schema_shape(conn)
+
+
+def create(conn):
+    #an empty lines_new. fill copies the live rows into it, a model swap in
+    #update.py COPYs the new model's rows in from the runner
+    alone(conn)
+    clear(conn)
+    conn.execute("CREATE TABLE lines_new (LIKE lines INCLUDING DEFAULTS INCLUDING STORAGE)")
+    conn.execute("ALTER TABLE lines_new ALTER COLUMN embedding TYPE " + EMBED_TYPE)
+
+
 #the copy is three transactions for main to commit between. every ingest opens
 #with schema.sql's ALTER TABLE lines and cards, which queue for ACCESS EXCLUSIVE
 #behind whatever lock this holds, and every search queues behind them: holding
 #lines or cards through a minutes long index build would stall the site for all
 #of it
 def fill(conn):
-    alone(conn)
-    for t in ("lines_new", "lines_old"):
-        if exists(conn, t):
-            raise Refused(t + " already exists, from a rebuild that never finished. --swap, --rollback, "
-                          "--drop-old or --discard it first")
-    expect_the_schema_shape(conn)
-    conn.execute("CREATE TABLE lines_new (LIKE lines INCLUDING DEFAULTS INCLUDING STORAGE)")
-    conn.execute("ALTER TABLE lines_new ALTER COLUMN embedding TYPE " + EMBED_TYPE)
+    create(conn)
     cols = ", ".join(COLUMNS)
     conn.execute("INSERT INTO lines_new (" + cols + ") SELECT " + cols + " FROM lines ORDER BY id")
 
@@ -140,9 +150,11 @@ def constrain(conn):
 def index(conn):
     #after the fill: grown one insert at a time, the m=32 graph took nearly 4x
     #as long and left 157 and 259 texts missing their best match where building
-    #it after the fill left 55. SERIAL because a parallel worker's shared memory
-    #segment does not fit railway's /dev/shm (see backfill_embeddings.py), and
-    #512mb holds the m=64 graph where the default 64mb spills to a slower path
+    #it after the fill left 55, and the m=64 one took 17 minutes against 4 and
+    #left 39 and 42 where after the fill left none. SERIAL because a parallel
+    #worker's shared memory segment does not fit railway's /dev/shm (see
+    #backfill_embeddings.py), and 512mb holds the m=64 graph where the default
+    #64mb spills to a slower path
     conn.execute("SET LOCAL max_parallel_maintenance_workers = 0")
     conn.execute("SET LOCAL maintenance_work_mem = '512MB'")
     ops = EMBED_TYPE.split("(")[0] + "_cosine_ops"
@@ -227,14 +239,18 @@ def record(conn, report):
     conn.execute(sql.SQL("COMMENT ON TABLE lines_new IS {}").format(sql.Literal(note)))
 
 
-def show(conn, report):
-    size = lambda t: conn.execute("SELECT pg_total_relation_size(%s)", (t,)).fetchone()[0] / 1e6
-    print("rows: lines %d, lines_new %d" % (fingerprint(conn, "lines")[0], fingerprint(conn, "lines_new")[0]))
-    print("size: lines %.0fmb, lines_new %.0fmb" % (size("lines"), size("lines_new")))
+def describe(report):
     print("recall over %d texts: %d miss their best match, %d fall below 20/20"
           % (report["texts"], report["blind"], report["below_20"]))
     for hits, blind, text, best, true in report["worst"]:
         print("  %2d/20  best %.4f of %.4f%s  %s" % (hits, best, true, "  MISSES ITS BEST" if blind else "", text[:60]))
+
+
+def show(conn, report):
+    size = lambda t: conn.execute("SELECT pg_total_relation_size(%s)", (t,)).fetchone()[0] / 1e6
+    print("rows: lines %d, lines_new %d" % (fingerprint(conn, "lines")[0], fingerprint(conn, "lines_new")[0]))
+    print("size: lines %.0fmb, lines_new %.0fmb" % (size("lines"), size("lines_new")))
+    describe(report)
     if report["passed"]:
         print("\nif that all reads right: python -m ingest.rebuild_lines --swap")
     else:

@@ -241,6 +241,76 @@ def recompute_uniqueness(conn):
     print("uniqueness done")
 
 
+def recount_line_stats(conn):
+    #one group by over ~61k rows, rather than patching the counts.
+    #
+    #counted PER SHAPE, not per exact text: a run of mana symbols collapses
+    #to a placeholder first, so "Overload {4}{R}" and "Overload {2}{R}" share
+    #a bucket. counting exact text lets any keyword with a varying cost dodge
+    #the idf weighting, fragmenting into one and two card texts that each
+    #draw the full 1.0 weight of a unique ability (overload: 27 card-lines,
+    #22 texts, biggest on 2), enough to match Vandalblast to Dynacharge at
+    #99% on the keyword alone. still KEYED by exact text, which is what the
+    #search joins on, and lines with no braces are unaffected: Flying = 2517
+    print("recounting how common every line is...")
+    conn.execute("TRUNCATE line_stats")
+    conn.execute(r"""
+        INSERT INTO line_stats
+        SELECT line_text, sum(n) OVER (PARTITION BY shape)
+        FROM (
+            SELECT line_text, count(*) AS n,
+                   regexp_replace(line_text, '(\{[^}]*\})+', '{C}', 'g') AS shape
+            FROM lines WHERE NOT whole GROUP BY line_text
+        ) t
+    """)
+
+
+def build_aside(conn):
+    #a model swap's lines_new, every row already in: its keys, its index built
+    #in one pass, and the recall check rebuild_lines' --swap insists on. true
+    #when it passed
+    from ingest import rebuild_lines
+    rebuild_lines.constrain(conn)
+    print("building lines_new's indexes, the hnsw graph takes minutes...")
+    rebuild_lines.index(conn)
+    print("checking lines_new's recall against exact searches, about ten minutes...")
+    report = rebuild_lines.check(conn)
+    rebuild_lines.record(conn, report)
+    rebuild_lines.describe(report)
+    return report["passed"]
+
+
+#each try waits rebuild_lines.LOCK_TIMEOUT for the searches ahead of it
+SWAP_TRIES = 5
+
+
+def swap_in(conn):
+    #lines_new takes the name lines inside the run's transaction, so the new
+    #vectors and meta's embed_model go live in the one commit.
+    #
+    #line_tags empties because its ids point into the old table. attribute.py,
+    #the workflow's last step, fills it again.
+    #
+    #a savepoint per try, so a search outlasting the lock timeout rolls back the
+    #swap and not the encode before it. line_stats is inside it too: its
+    #TRUNCATE comes after the swap holds lines, and a /custom request that read
+    #line_stats and is waiting on lines deadlocks with it
+    from ingest import rebuild_lines
+    for attempt in range(SWAP_TRIES):
+        try:
+            with conn.transaction():
+                waited, _ = rebuild_lines.exchange(conn, "lines_new", "lines_old", check=False)
+                conn.execute("TRUNCATE line_tags")
+                recount_line_stats(conn)
+            print("lines_new is live as lines, after waiting %.0fms for searches to finish" % (waited * 1000))
+            return
+        except (psycopg.errors.LockNotAvailable, psycopg.errors.DeadlockDetected):
+            if attempt == SWAP_TRIES - 1:
+                raise
+            print("searches held lines past the lock timeout, trying again in 10s")
+            time.sleep(10)
+
+
 def main():
     db_url = os.environ.get("DATABASE_URL")
     if not db_url:
@@ -287,6 +357,15 @@ def main():
     model_changed = row is None or row[0] != EMBED_MODEL
     if model_changed:
         print("embedding model changed, this run rebuilds every vector (the slow full reseed)")
+        #the new vectors go through lines_new, so both names have to be free.
+        #asked here rather than after the encode it would have wasted
+        from ingest import rebuild_lines
+        try:
+            rebuild_lines.clear(conn)
+        except rebuild_lines.Refused as e:
+            print("refused, nothing changed: " + str(e))
+            conn.close()
+            sys.exit(1)
 
     print("asking scryfall where the bulk files live...")
     bulk = None
@@ -482,26 +561,18 @@ def main():
         #database exactly as it was
         with conn.cursor() as cur:
             if model_changed:
-                #DOWN HERE on purpose: truncating before the slow encode would
-                #hold the table lock for the whole encode.
-                #
-                #CASCADE is required, not decoration. line_tags has a foreign key
-                #onto lines(id), and postgres refuses to truncate a referenced
-                #table whether or not the referencing one holds a single row.
-                #dropping the attribution is right anyway, line ids being
-                #bigserial and every row about to be rebuilt.
-                #
-                #what it still costs: TRUNCATE takes an ACCESS EXCLUSIVE lock and
-                #holds it until this transaction commits, which is after all 61k
-                #rows have gone in from a github runner over the network. every
-                #search blocks for that stretch, since every search reads lines.
-                #the COPY below is what keeps it to seconds instead of minutes.
+                #every row goes into lines_new while the site keeps searching
+                #lines, and swap_in below puts it live once its index passes the
+                #recall check. the old way, TRUNCATE lines and COPY back, grew the
+                #index one row at a time under a lock every search waits on: in
+                #the lab at m=64 that was 17 minutes, and two builds left 39 and
+                #42 texts missing their best match where building it after the
+                #fill left none.
                 #
                 #this branch is for a model already CHOSEN. trying one out goes
                 #through backfill_embeddings.py, which fills embedding_v2 with
                 #nothing reading it and no lock anybody waits on
-                cur.execute("TRUNCATE lines CASCADE")
-                cur.execute("ALTER TABLE lines ALTER COLUMN embedding TYPE " + EMBED_TYPE)
+                rebuild_lines.create(conn)
             #changed cards get their old lines thrown out and rebuilt fresh
             elif changed_cards:
                 old_ids = []
@@ -513,6 +584,7 @@ def main():
             for j, text in enumerate(texts):
                 c = work[owners[j]][0]
                 rows.append((c["oracle_id"], text, embs[j], faces[j], wholes[j]))
+            table = "lines_new" if model_changed else "lines"
             print("writing " + str(len(rows)) + " lines...")
             #COPY rather than executemany: a full reseed is 61k rows carrying a
             #1.5kb vector each.
@@ -521,9 +593,15 @@ def main():
             #scryfall hands us strings, so it would mean converting 61k ids to
             #buy back less than the conversion costs. the halfvec column rounds
             #the printed floats exactly as it would binary ones
-            with cur.copy("COPY lines (oracle_id, line_text, embedding, face, whole) FROM STDIN") as copy:
+            with cur.copy("COPY " + table + " (oracle_id, line_text, embedding, face, whole) FROM STDIN") as copy:
                 for r in rows:
                     copy.write_row(r)
+
+        if model_changed and not build_aside(conn):
+            conn.rollback()
+            print("refused, nothing changed: lines_new failed the recall check, so the old model's lines stay live")
+            conn.close()
+            sys.exit(1)
 
     #deleting a card cascades to its lines, so this cleans up everything
     if stale:
@@ -534,28 +612,10 @@ def main():
         with conn.cursor() as cur:
             cur.executemany("DELETE FROM cards WHERE oracle_id = %s", gone)
 
-    if work or stale:
-        #one group by over ~61k rows, rather than patching the counts.
-        #
-        #counted PER SHAPE, not per exact text: a run of mana symbols collapses
-        #to a placeholder first, so "Overload {4}{R}" and "Overload {2}{R}" share
-        #a bucket. counting exact text lets any keyword with a varying cost dodge
-        #the idf weighting, fragmenting into one and two card texts that each
-        #draw the full 1.0 weight of a unique ability (overload: 27 card-lines,
-        #22 texts, biggest on 2), enough to match Vandalblast to Dynacharge at
-        #99% on the keyword alone. still KEYED by exact text, which is what the
-        #search joins on, and lines with no braces are unaffected: Flying = 2517
-        print("recounting how common every line is...")
-        conn.execute("TRUNCATE line_stats")
-        conn.execute(r"""
-            INSERT INTO line_stats
-            SELECT line_text, sum(n) OVER (PARTITION BY shape)
-            FROM (
-                SELECT line_text, count(*) AS n,
-                       regexp_replace(line_text, '(\{[^}]*\})+', '{C}', 'g') AS shape
-                FROM lines WHERE NOT whole GROUP BY line_text
-            ) t
-        """)
+    if model_changed:
+        swap_in(conn)
+    elif work or stale:
+        recount_line_stats(conn)
 
     #what tomorrow's gate reads, and what the next model swap compares against
     conn.execute("""
@@ -567,6 +627,13 @@ def main():
         ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
     """, (EMBED_MODEL,))
     conn.commit()
+
+    if model_changed:
+        #nothing to roll back to: the old table holds the old model's vectors and
+        #meta now names the new one. undoing a swap is reverting EMBED_MODEL
+        rebuild_lines.validate(conn)
+        conn.execute("DROP TABLE lines_old")
+        conn.commit()
 
     #AFTER the commit above on purpose: derived data, so dying halfway leaves the
     #database consistent and the NULL check at the gate finishes it next run
