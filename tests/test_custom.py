@@ -92,6 +92,7 @@ def served(monkeypatch):
         monkeypatch.setattr(embedder, "BUDGET", budget)
 
         def fake(req, timeout=None):
+            req.waited = timeout
             calls.append(req)
             a = answers.pop(0) if len(answers) > 1 else answers[0]
             if isinstance(a, Exception):
@@ -136,6 +137,16 @@ class TestTheClientForTheModelService:
         #tried once, then found no budget to sleep into. a budget of zero that
         #still slept would hold a request thread for nothing
         assert len(calls) == 1
+
+    def test_a_slow_answer_is_waited_on_once_rather_than_sent_again(self, served):
+        #the service works one request at a time and keeps a timed out one in
+        #its queue. on 2026-09-22 each 30s retry queued another 20 line request
+        #behind the last, and /admin never got an answer again
+        calls = served([TimeoutError("timed out")], budget=5.0)
+        with pytest.raises(embedder.EmbedderDown):
+            embedder.embed(["Flying"])
+        assert len(calls) == 1
+        assert 4.0 < calls[0].waited <= 5.0
 
     def test_a_refusal_is_not_worded_as_a_wake(self, served):
         #read_custom applies the same two limits before calling, so a 400 means

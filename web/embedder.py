@@ -92,7 +92,11 @@ def embed(texts):
         last = None
         while True:
             try:
-                body = _post("/embed", {"texts": list(texts)}, timeout=30)
+                #the whole remaining budget as one wait. the service answers one
+                #request at a time, and a read that times out leaves its request
+                #in the queue: on 2026-09-22 every 30s retry queued another behind
+                #it, and the service fell further behind with each page load
+                body = _post("/embed", {"texts": list(texts)}, timeout=max(deadline - time.monotonic(), 0.1))
                 break
             except urllib.error.HTTPError as e:
                 if e.code not in WAKING:
@@ -103,7 +107,11 @@ def embed(texts):
                         pass
                     raise EmbedderRefused("the model service said %d: %s" % (e.code, detail))
                 last = e
-            except (urllib.error.URLError, TimeoutError, ConnectionError, OSError) as e:
+            except TimeoutError as e:
+                #connected and asked, so the service has it. a connect that
+                #times out arrives as a URLError instead and is retried below
+                raise EmbedderDown("the model service did not answer inside %.0fs (%s)" % (BUDGET, e))
+            except (urllib.error.URLError, ConnectionError, OSError) as e:
                 last = e
             #the sleep happens only when there is budget left to sleep into, so
             #a caller with none waits nothing and is told at once
