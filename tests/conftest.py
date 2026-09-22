@@ -48,6 +48,11 @@ class _Connection:
     def execute(self, *args, **kwargs):
         return _Result()
 
+    def transaction(self):
+        #app.py's boot block runs each statement in one of its own, under a
+        #lock timeout. nothing here locks anything, so it is the same with
+        return self
+
     def commit(self):
         pass
 
