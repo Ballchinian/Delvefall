@@ -18,6 +18,7 @@ import math
 import psycopg
 
 from common import locks
+from common.db import KEEPALIVE
 from common.cards import read_bulk
 from ingest.update import BULK_URL, get_with_retries, download_bulk
 
@@ -52,7 +53,7 @@ def main():
         print("set DATABASE_URL first (the postgres connection string)")
         sys.exit(1)
 
-    conn = psycopg.connect(db_url)
+    conn = psycopg.connect(db_url, **KEEPALIVE)
     #before schema.sql below, this run's first write. a rebuild holding the lock
     #parks the step here rather than half way through it
     if not locks.claim(conn):

@@ -29,6 +29,7 @@ import psycopg
 from pgvector.psycopg import register_vector
 
 from common import locks
+from common.db import KEEPALIVE
 
 from ingest.update import EMBED_MODEL, EMBED_PROMPT, EMBED_TYPE
 
@@ -57,7 +58,7 @@ def main():
     model_name = args.model or EMBED_MODEL
     prompt = args.prompt if args.prompt is not None else EMBED_PROMPT
 
-    conn = psycopg.connect(db_url)
+    conn = psycopg.connect(db_url, **KEEPALIVE)
     #before schema.sql below, this run's first write. a rebuild holding the lock
     #parks the step here rather than half way through it
     if not locks.claim(conn):

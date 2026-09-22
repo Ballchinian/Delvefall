@@ -21,6 +21,7 @@ import psycopg
 from pgvector.psycopg import register_vector
 
 from common import locks
+from common.db import KEEPALIVE
 from common.cards import (HEADERS, keep_card, split_lines, get_text, get_image, get_back_image,
                           bulk_uri, bulk_size, read_bulk, can_command)
 from common.concept import CALIBRATION as CONCEPT_CALIBRATION
@@ -317,7 +318,7 @@ def main():
         print("set DATABASE_URL first (the postgres connection string)")
         sys.exit(1)
 
-    conn = psycopg.connect(db_url)
+    conn = psycopg.connect(db_url, **KEEPALIVE)
     #before schema.sql below, this run's first write. a rebuild holding the lock
     #parks the step here rather than half way through it
     if not locks.claim(conn):

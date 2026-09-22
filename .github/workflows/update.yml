@@ -11,6 +11,12 @@ on:
 jobs:
   update:
     runs-on: ubuntu-latest
+    #github's own ceiling is 6 hours, which is no limit at all: a step whose
+    #database connection is black holed holds a transaction the site's boot
+    #queues behind, and on 09-22 that is what took the site down. the longest run
+    #there has ever been is the first seed, 86 minutes against an empty database,
+    #and no day's work since has passed 13
+    timeout-minutes: 180
     steps:
       - uses: actions/checkout@v5
 
@@ -41,6 +47,12 @@ jobs:
 
       #the community tags for the concept axis
       - run: python -m ingest.tags
+        #this step and the three below it do the same work against a full
+        #database as against an empty one, and their worst over the last 26 runs
+        #is 3.9 minutes. twenty is a hang rather than a slow day. the embedding
+        #step above has no bar of its own: a reseed really does take 86 minutes,
+        #so the job's own timeout is the only honest limit on it
+        timeout-minutes: 20
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           PYTHONUNBUFFERED: "1"
@@ -48,6 +60,7 @@ jobs:
       #edhrec's salt survey. its own meta key, so it and the deck ingest cannot
       #skip each other. the survey runs yearly, so most days this changes nothing
       - run: python -m ingest.salt
+        timeout-minutes: 20
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           PYTHONUNBUFFERED: "1"
@@ -56,6 +69,7 @@ jobs:
       #mtgjson's version rather than scryfall's timestamp, and it FOREIGN KEYS
       #into cards, so it needs the update step above to have filled that table
       - run: python -m ingest.decks
+        timeout-minutes: 20
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           PYTHONUNBUFFERED: "1"
@@ -63,6 +77,7 @@ jobs:
       #which tags each line is about. LAST because it reads what both steps above
       #wrote, and unconditional because either one changing invalidates it
       - run: python -m ingest.attribute
+        timeout-minutes: 20
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           PYTHONUNBUFFERED: "1"

@@ -27,6 +27,7 @@ from psycopg import sql
 from pgvector.psycopg import register_vector
 
 from common import locks
+from common.db import KEEPALIVE
 from ingest.update import EMBED_TYPE
 
 COLUMNS = ["id", "oracle_id", "line_text", "embedding", "nn_sim", "face", "whole"]
@@ -313,7 +314,7 @@ def main():
     if not db_url:
         print("set DATABASE_URL first (the postgres connection string)")
         sys.exit(1)
-    conn = psycopg.connect(db_url)
+    conn = psycopg.connect(db_url, **KEEPALIVE)
     register_vector(conn)
     try:
         if args.swap or args.rollback:
