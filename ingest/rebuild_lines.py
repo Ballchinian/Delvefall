@@ -57,7 +57,7 @@ PASSED = "recall check passed"
 
 #find_similar's hunt without the columns it only displays: the join and the
 #filters are what decide which rows the walk has to get past
-HUNT = ("SELECT 1 - (l.embedding <=> %s) FROM lines_new l JOIN cards c ON c.oracle_id = l.oracle_id "
+HUNT = ("SELECT 1 - (l.embedding <=> %s) AS sim FROM lines_new l JOIN cards c ON c.oracle_id = l.oracle_id "
         "WHERE l.oracle_id <> %s AND NOT l.whole AND l.embedding IS NOT NULL "
         "ORDER BY l.embedding <=> %s LIMIT 400")
 
