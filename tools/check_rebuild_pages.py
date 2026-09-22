@@ -1,31 +1,38 @@
 #does swapping lines_new in change what a card page shows? two questions per
-#sampled card, both against exact searches of lines_new, whose halfvec scores
-#sit within 1e-5 of the live float32 ones:
+#sampled card, both against exact searches of the new table, whose halfvec
+#scores sit within 1e-5 of the old float32 ones:
 #
 #  its lines   each line searched 400 deep, the rows a page is built from,
-#              through the live index and through lines_new's. scores only, so
-#              no tie can fool it. lines_new fails on any line whose best match
-#              the live index finds and it does not, or if it is less right than
-#              the live index over all of them
-#  its page    find_similar itself over lines, then over lines_new laid under
-#              the name lines by a temporary view on a second pool. where both
-#              indexes answer every line exactly and none ties at the cut, the
-#              badge at every rank holds within 1 point, check_custom.py's bar
-#              for the same reason
+#              through the old index and through the new one. scores only, so
+#              no tie can fool it. the new table fails on any line whose best
+#              match the old index finds and it does not, or if it is less right
+#              than the old index over all of them
+#  its page    find_similar itself over each table, whichever is not called
+#              lines laid under that name by a temporary view on a pool of its
+#              own. where both indexes answer every line exactly and none ties at
+#              the cut, the badge at every rank holds within 1 point,
+#              check_custom.py's bar for the same reason
 #
 #a line TIED at the 400 cut, rank 400 scoring the same as 401, leaves its rows an
 #arbitrary pick among equals: the hunt has no tiebreak, so each graph hands back
 #its own 400 of Flying's 2,566. those pages are counted, not judged.
 #
-#nothing is written and the view goes with its connection. the line searches get
+#the page side runs the site's own query and plan, which the forced walk on the
+#line side does not always reproduce: on lines_old the site's query put Battlefly
+#Swarm 398th for Fear of the Dark where it is 408th exactly, and read as a 2
+#point move against the table that had it right. read a judged page's two lists
+#before counting it against the new table.
+#
+#nothing is written and a view goes with its connection. the line searches get
 #a connection of their own: RESET on a pooled one put ef_search back to the
 #server's 40, and the next page on it was cut to 40 rows
 #
-#    python tools/check_rebuild_pages.py              400 cards
-#    python tools/check_rebuild_pages.py --cards 50   fewer, while iterating
+#    python tools/check_rebuild_pages.py               lines against lines_new, before --swap
+#    python tools/check_rebuild_pages.py --after-swap  lines_old against lines, while --rollback still can
+#    python tools/check_rebuild_pages.py --cards 50    fewer, while iterating
 #    python tools/check_rebuild_pages.py --include "Wind Zendikon"   plus a named card
 #
-#needs DATABASE_URL, and a lines_new from python -m ingest.rebuild_lines
+#needs DATABASE_URL
 
 import os
 import sys
@@ -39,7 +46,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 BADGE_DELTA = 1
 DEPTH = 400
 #reported, not failed: a line that drops this many of its 400 rows against the
-#live index
+#old index
 DROP = 20
 
 
@@ -54,25 +61,26 @@ def load_env(root):
             os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
 
 
-def read_lines(conn, oracle_id):
+def read_lines(conn, oracle_id, old, new):
     from ingest import rebuild_lines as rl
-    live_hunt = rl.HUNT.replace("lines_new", "lines")
-    exact_hunt = rl.EXACT.replace("LIMIT 400", "LIMIT %d" % (DEPTH + 1))
+    old_hunt = rl.HUNT.replace("lines_new", old)
+    new_hunt = rl.HUNT.replace("lines_new", new)
+    exact_hunt = rl.EXACT.replace("lines_new", new).replace("LIMIT 400", "LIMIT %d" % (DEPTH + 1))
     out = []
     for ln in conn.execute("""
-            SELECT o.line_text, o.embedding AS live, n.embedding AS new
-            FROM lines o JOIN lines_new n ON n.id = o.id
+            SELECT o.line_text, o.embedding AS old, n.embedding AS new
+            FROM """ + old + """ o JOIN """ + new + """ n ON n.id = o.id
             WHERE o.oracle_id = %s AND NOT o.whole""", (oracle_id,)).fetchall():
         exact = [r["sim"] for r in conn.execute(exact_hunt, (ln["new"], oracle_id, ln["new"]))]
         conn.execute("SET enable_seqscan = off; SET enable_sort = off")
-        live = [r["sim"] for r in conn.execute(live_hunt, (ln["live"], oracle_id, ln["live"]), prepare=False)]
-        new = [r["sim"] for r in conn.execute(rl.HUNT, (ln["new"], oracle_id, ln["new"]), prepare=False)]
+        was = [r["sim"] for r in conn.execute(old_hunt, (ln["old"], oracle_id, ln["old"]), prepare=False)]
+        now = [r["sim"] for r in conn.execute(new_hunt, (ln["new"], oracle_id, ln["new"]), prepare=False)]
         conn.execute("SET enable_seqscan = on; SET enable_sort = on")
         right = lambda found: sum(1 for a, b in zip(found[:DEPTH], exact[:DEPTH]) if abs(a - b) < rl.TOLERANCE)
         out.append({"text": ln["line_text"], "n": min(DEPTH, len(exact)),
                     "tied": len(exact) > DEPTH and exact[DEPTH - 1] - exact[DEPTH] < 1e-6,
-                    "live": right(live), "new": right(new),
-                    "live_blind": rl.verdict(live, exact)[1], "new_blind": rl.verdict(new, exact)[1]})
+                    "old": right(was), "new": right(now),
+                    "old_blind": rl.verdict(was, exact)[1], "new_blind": rl.verdict(now, exact)[1]})
     return out
 
 
@@ -81,7 +89,9 @@ def main():
     ap.add_argument("--cards", type=int, default=400)
     ap.add_argument("--seed", type=int, default=None, help="fix the sample, to compare two runs")
     ap.add_argument("--include", action="append", default=[], help="a card name to add to the sample")
+    ap.add_argument("--after-swap", action="store_true", help="lines_old against lines")
     args = ap.parse_args()
+    old, new = ("lines_old", "lines") if args.after_swap else ("lines", "lines_new")
 
     root = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
     load_env(root)
@@ -100,30 +110,34 @@ def main():
     from pgvector.psycopg import register_vector
     from ingest import rebuild_lines as rl
 
-    def over_lines_new(conn):
-        db.setup(conn)
-        conn.execute("CREATE TEMP VIEW lines AS SELECT * FROM public.lines_new")
-        conn.commit()
+    with psycopg.connect(os.environ["DATABASE_URL"]) as plain:
+        for t in (old, new):
+            if not rl.exists(plain, t):
+                print("there is no " + t + (". before --swap run it plain, after it with --after-swap"))
+                sys.exit(1)
+        #each side reads its own table and the truth reads the new one, so an
+        #ingest between the copy and this run would mix two tables' rows. tuple
+        #rows: dict rows fold the fingerprint's two coalesce columns into one
+        if rl.fingerprint(plain, old) != rl.fingerprint(plain, new):
+            print(old + " and " + new + " no longer hold the same rows, an ingest has run since the copy")
+            sys.exit(1)
 
-    live = db.pool
-    new = ConnectionPool(os.environ["DATABASE_URL"], min_size=1, max_size=4,
-                         kwargs={"row_factory": dict_row}, configure=over_lines_new, open=True)
+    def pool_over(table):
+        def configure(conn):
+            db.setup(conn)
+            conn.execute("CREATE TEMP VIEW lines AS SELECT * FROM public." + table)
+            conn.commit()
+        return ConnectionPool(os.environ["DATABASE_URL"], min_size=1, max_size=4,
+                              kwargs={"row_factory": dict_row}, configure=configure, open=True)
+
+    site = db.pool
+    pools = {t: site if t == "lines" else pool_over(t) for t in (old, new)}
 
     def use(chosen):
         #every module that did `from db import pool` holds its own name for it
         for m in list(sys.modules.values()):
-            if getattr(m, "pool", None) in (live, new):
+            if getattr(m, "pool", None) in pools.values():
                 m.pool = chosen
-
-    #the live side reads lines and the truth reads lines_new, so a day's ingest
-    #between the copy and this run would mix two tables' rows. tuple rows: dict
-    #rows fold the fingerprint's two coalesce columns into one
-    with psycopg.connect(os.environ["DATABASE_URL"]) as plain:
-        if rl.fingerprint(plain, "lines") != rl.fingerprint(plain, "lines_new"):
-            print("lines has changed since lines_new was copied from it. rebuild first")
-            sys.exit(1)
-        note = rl.exists(plain, "lines_new") and plain.execute(
-            "SELECT obj_description('lines_new'::regclass, 'pg_class')").fetchone()[0]
 
     probe = psycopg.connect(os.environ["DATABASE_URL"], autocommit=True, row_factory=dict_row)
     register_vector(probe)
@@ -137,39 +151,38 @@ def main():
         ORDER BY random() LIMIT %s""", (args.cards,)).fetchall()
     cards += probe.execute("SELECT oracle_id, name FROM cards WHERE name = ANY(%s)", (args.include,)).fetchall()
     #both forced searches have to walk the graphs they are named for
-    one = probe.execute("""SELECT o.oracle_id, o.embedding AS live, n.embedding AS new FROM lines o
-                           JOIN lines_new n ON n.id = o.id WHERE NOT o.whole LIMIT 1""").fetchone()
+    one = probe.execute("SELECT o.oracle_id, o.embedding AS old, n.embedding AS new FROM " + old + " o JOIN " +
+                        new + " n ON n.id = o.id WHERE NOT o.whole LIMIT 1").fetchone()
     probe.execute("SET enable_seqscan = off; SET enable_sort = off")
-    for table, query, vec in (("lines", rl.HUNT.replace("lines_new", "lines"), one["live"]),
-                              ("lines_new", rl.HUNT, one["new"])):
-        plan = " ".join(r["QUERY PLAN"] for r in probe.execute("EXPLAIN " + query, (vec, one["oracle_id"], vec)))
-        assert table + "_embedding_hnsw" in plan, "the forced search on " + table + " did not walk its index"
+    for table, side in ((old, "old"), (new, "new")):
+        plan = " ".join(r["QUERY PLAN"] for r in probe.execute(
+            "EXPLAIN " + rl.HUNT.replace("lines_new", table), (one[side], one["oracle_id"], one[side])))
+        assert " " + table + "_embedding_hnsw" in plan, "the forced search on " + table + " did not walk its index"
     probe.execute("SET enable_seqscan = on; SET enable_sort = on")
-    print("lines_new: %s" % (note or "never checked"))
-    print("%d cards, each line searched 400 deep and each list computed over lines and over lines_new\n"
-          % len(cards))
+    print("%s against %s: %d cards, each line searched 400 deep and each list computed over both\n"
+          % (old, new, len(cards)))
 
     all_lines, blind, drops = [], [], []
     judged, page_moves, fixed, reshuffled = 0, [], [], []
     worst_judged = 0
     started = time.time()
     for n, c in enumerate(cards):
-        lines = read_lines(probe, c["oracle_id"])
+        lines = read_lines(probe, c["oracle_id"], old, new)
         with web.app.test_request_context("/search?q=" + urllib.parse.quote(c["name"])):
             card = web.find_card(c["name"])
             if card is None or card["oracle_id"] != c["oracle_id"]:
                 continue
             filters = web.read_filters()
             lists = []
-            for chosen in (live, new):
-                use(chosen)
+            for t in (old, new):
+                use(pools[t])
                 results, _, _ = web.find_similar(card["oracle_id"], [], filters, web.TIER_CUT, web.read_sort(),
                                                  currency=filters["cur"],
                                                  anchor_price=web.price_in(card, filters["cur"]),
                                                  anchor_rank=card["edhrec_rank"], anchor_salt=card["salt"],
                                                  anchor_released=card["released_at"])
                 lists.append(results)
-            use(live)
+            use(site)
         a, b = lists
         delta = max([abs(x["percent"] - y["percent"]) for x, y in zip(a, b)] + [0])
         if len(a) != len(b):
@@ -177,12 +190,12 @@ def main():
 
         for ln in lines:
             all_lines.append(ln)
-            if ln["new_blind"] and not ln["live_blind"]:
+            if ln["new_blind"] and not ln["old_blind"]:
                 blind.append((c["name"], ln))
-            if ln["live"] - ln["new"] >= DROP:
+            if ln["old"] - ln["new"] >= DROP:
                 drops.append((c["name"], ln))
-        wrong = ["live %d new %d/%d %s" % (ln["live"], ln["new"], ln["n"], ln["text"][:40])
-                 for ln in lines if ln["live"] < ln["n"] or ln["new"] < ln["n"]]
+        wrong = ["old %d new %d/%d %s" % (ln["old"], ln["new"], ln["n"], ln["text"][:40])
+                 for ln in lines if ln["old"] < ln["n"] or ln["new"] < ln["n"]]
         if any(ln["tied"] for ln in lines):
             reshuffled.append(delta)
         elif wrong:
@@ -195,19 +208,23 @@ def main():
         if (n + 1) % 50 == 0:
             print("  %d/%d cards, %.0fs" % (n + 1, len(cards), time.time() - started), flush=True)
     probe.close()
-    new.close()
+    for p in pools.values():
+        if p is not site:
+            p.close()
 
-    live_right = sum(ln["live"] for ln in all_lines)
+    old_right = sum(ln["old"] for ln in all_lines)
     new_right = sum(ln["new"] for ln in all_lines)
     possible = sum(ln["n"] for ln in all_lines)
-    print("\nlines: %d, rows right of %d possible: live index %d, lines_new %d"
-          % (len(all_lines), possible, live_right, new_right))
-    print("  missing a best match the live index finds: %d" % len(blind))
+    print("\nlines: %d, rows right of %d possible: old index %d, new index %d"
+          % (len(all_lines), possible, old_right, new_right))
+    print("  missing a best match the old index finds: %d" % len(blind))
     for name, ln in blind:
         print("    %-28s %s" % (name[:28], ln["text"][:70]))
-    print("  dropping %d or more of 400 against the live index: %d" % (DROP, len(drops)))
+    print("  finding a best match the old index misses: %d"
+          % sum(1 for ln in all_lines if ln["old_blind"] and not ln["new_blind"]))
+    print("  dropping %d or more of 400 against the old index: %d" % (DROP, len(drops)))
     for name, ln in drops[:15]:
-        print("    live %3d new %3d  %-28s %s" % (ln["live"], ln["new"], name[:28], ln["text"][:50]))
+        print("    old %3d new %3d  %-28s %s" % (ln["old"], ln["new"], name[:28], ln["text"][:50]))
 
     print("\npages judged (no tied line, both indexes exact on every line): %d, worst badge move %d"
           % (judged, worst_judged))
@@ -223,13 +240,13 @@ def main():
 
     failed = []
     if blind:
-        failed.append("%d line(s) miss a best match the live index finds" % len(blind))
-    if new_right < live_right:
-        failed.append("lines_new gets %d fewer rows right than the live index" % (live_right - new_right))
+        failed.append("%d line(s) miss a best match the old index finds" % len(blind))
+    if new_right < old_right:
+        failed.append("the new index gets %d fewer rows right than the old one" % (old_right - new_right))
     if page_moves:
         failed.append("%d judged page(s) moved more than %d point" % (len(page_moves), BADGE_DELTA))
     print("\n" + ("FAIL: " + "; ".join(failed) if failed else
-                  "PASS: lines_new is as right as the live index on every line, and no judged page moved"))
+                  "PASS: the new index is as right as the old on every line, and no judged page moved"))
     sys.exit(1 if failed else 0)
 
 
