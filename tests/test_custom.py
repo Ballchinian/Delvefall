@@ -667,16 +667,29 @@ class TestSwitchingATypedLineOff:
         assert len(got) == 1
         assert "menace" in got[0].lower()
 
-    def test_a_line_switched_off_still_says_how_common_it_is(self, asked):
-        #the count is what the decision to switch a line back ON is made from, so
-        #it cannot cover only the lines being scored. the seed puts Flying on 3,000
-        #cards for exactly this reason
+    def test_a_line_not_picked_still_says_how_common_it_is(self, asked):
+        #the count is what the decision to rank without a line is made from, so it
+        #cannot cover only the lines being scored. the seed puts Flying on 3,000
+        #cards for exactly this reason, and Flying is the line NOT picked here
         asked(text="Flying\nWhenever this card attacks, draw a card.", lines=["1"])
         page = asked.page
         #the thousands separator too, since the number is what carries the point
         assert "3,000" in page
-        assert "printed card" in page
-        assert "custom-line off" in page
+        assert "printed cards" in page
+
+    def test_the_picked_line_is_the_one_marked_on_the_card(self, asked):
+        #/search's own class, so its hover, picked and focus styles come with it
+        asked(text="Flying\nWhenever this card attacks, draw a card.", lines=["1"])
+        assert 'class="oracle-line picked"' in asked.page
+        #carried forward, or a second click would lose the first
+        assert '<input type="hidden" name="lines" value="1">' in asked.page
+
+    def test_nothing_picked_marks_nothing_and_says_how_to(self, asked):
+        #the class and not the word: the filters panel has its own picked colors
+        asked(text="Flying\nWhenever this card attacks, draw a card.")
+        assert 'class="oracle-line picked"' not in asked.page
+        assert 'class="oracle-line"' in asked.page
+        assert "Click a line to rank on it alone" in asked.page
 
     def test_page_two_is_ranked_on_the_same_lines(self, asked):
         #custom.js posts the WHOLE form for /custom/more, tick boxes included, so a

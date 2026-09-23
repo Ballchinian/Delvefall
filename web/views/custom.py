@@ -333,22 +333,25 @@ def typed_pairs(text, name=""):
     return out
 
 
-def read_kept(how_many):
-    #the tick boxes post "lines" once per line still on, holding its index. an
-    #untouched form posts all of them, and nothing posted means all of them too,
-    #which is what /search's picker already means by an empty pick.
+def read_picked_lines(how_many):
+    #which lines were CLICKED on the card, as indexes posted in hidden inputs.
+    #empty is the resting state and means the whole card, the way /search's own
+    #picker means it, so this is the set to draw and not the set to score.
     #
     #isascii() BEFORE isdigit(): "²".isdigit() is True and int("²") raises, so the
     #pair on its own is a 500 on a posted body
-    kept = set()
+    picked = set()
     for part in request.form.getlist("lines"):
         part = part.strip()
         if part.isascii() and part.isdigit():
-            kept.add(int(part))
-    kept &= set(range(how_many))
-    #scoring nothing is not a question anyone can answer, so the last box coming
-    #off reads as all of them rather than an error page
-    return kept or set(range(how_many))
+            picked.add(int(part))
+    return picked & set(range(how_many))
+
+
+def read_kept(how_many):
+    #what actually gets scored. clicking nothing ranks on everything, which is
+    #also the only answer to the last line being clicked off
+    return read_picked_lines(how_many) or set(range(how_many))
 
 
 def form_page(text, name, type_line="", **extra):
@@ -361,10 +364,10 @@ def form_page(text, name, type_line="", **extra):
     #so a rejection and a full set of results offer the same choices. counts arrive
     #in extra when there was a database read to get them from
     pairs = typed_pairs(text, name)
-    kept = extra.pop("kept", None)
+    picked = extra.pop("picked", None) or set()
     counts = extra.pop("counts", None) or {}
     typed = [{"idx": i, "text": line, "cleaned": cleaned,
-              "kept": kept is None or i in kept,
+              "picked": i in picked,
               #absent from line_stats means NO printed card says it, which is not
               #the same as one card saying it, and the weighting reads both as 1
               "count": counts.get(cleaned) if cleaned else None}
@@ -408,15 +411,16 @@ def custom_post():
         #the whole point of checking here
         return form_page(text, name, type_line, message=str(e))
 
-    #the tick boxes decide what is SCORED. the limits above were checked against
-    #the whole card, so switching lines off cannot talk a too-long one through
+    #the clicked lines decide what is SCORED. the limits above were checked against
+    #the whole card, so narrowing to one line cannot talk a too-long one through
     pairs = typed_pairs(text, name)
-    kept = read_kept(len(pairs))
+    picked = read_picked_lines(len(pairs))
+    kept = picked or set(range(len(pairs)))
     lines = [cleaned for i, (line, cleaned) in enumerate(pairs) if cleaned and i in kept]
     if not lines:
-        #only reachable by a posted body: a line the splitter drops gets no box
-        return form_page(text, name, type_line, kept=kept,
-                         message="Leave at least one line the matcher can read.")
+        #only reachable by a posted body: a line the splitter drops is not clickable
+        return form_page(text, name, type_line, picked=picked,
+                         message="Pick a line the matcher can read.")
 
     filters = read_filters()
     sort_field, sort_dir = read_sort_parts()
@@ -428,11 +432,11 @@ def custom_post():
         #EmbedderRefused is deliberately not caught: it means this page and the
         #service disagree about their own limits, and a bug worded as a nap
         #would never get looked at
-        return form_page(text, name, type_line, kept=kept,
+        return form_page(text, name, type_line, picked=picked,
                          message="The matcher didn't wake up in time. Try again in a minute."), 503
 
     return form_page(text, name, type_line, answered=True, words=scored["words"],
-                     chips=scored["chips"], kept=kept, counts=scored["counts"],
+                     chips=scored["chips"], picked=picked, counts=scored["counts"],
                      results=scored["results"], has_more=scored["has_more"],
                      next_band=scored["next_band"], errors=filters["errors"],
                      cur=filters["cur"], sort_fields=SORT_FIELDS, sort_field=sort_field,

@@ -46,6 +46,7 @@ var typeBox = document.getElementById("custom-type");
 var MAX_LINES = Number(text.dataset.maxLines);
 
 function paint() {
+    setPicked([]);
     previewName.textContent = nameBox.value.trim();
     previewType.textContent = typeBox.value.trim();
     previewRules.textContent = "";
@@ -55,6 +56,49 @@ function paint() {
         el("p", "", previewRules, line);
     });
 }
+
+/*
+    a line on the card is the same control /search's anchor card carries: click it
+    and the list is ranked on that line alone, click again to put it back. the
+    picked indexes ride in hidden inputs, because the card is drawn text rather
+    than form controls, and /custom/more posts this same form.
+
+    typing clears them. the text moving shifts every index, so a pick made against
+    the old text would quietly rank on a different ability
+*/
+function picked() {
+    return Array.prototype.map.call(form.querySelectorAll('input[name="lines"]'),
+        function(input) {
+            return input.value;
+        });
+}
+
+function setPicked(values) {
+    Array.prototype.forEach.call(form.querySelectorAll('input[name="lines"]'),
+        function(input) {
+            input.remove();
+        });
+    values.forEach(function(value) {
+        var input = document.createElement("input");
+        input.type = "hidden";
+        input.name = "lines";
+        input.value = value;
+        form.appendChild(input);
+    });
+}
+
+previewRules.addEventListener("click", function(e) {
+    var line = e.target.closest(".oracle-line");
+    if (!line) {
+        return;
+    }
+    var idx = line.dataset.idx;
+    var on = picked();
+    setPicked(on.indexOf(idx) === -1 ? on.concat([idx]) : on.filter(function(value) {
+        return value !== idx;
+    }));
+    form.requestSubmit();
+});
 
 nameBox.addEventListener("input", paint);
 typeBox.addEventListener("input", paint);
@@ -70,14 +114,6 @@ text.addEventListener("input", paint);
     the reset the old value rides along with the submit, and moving from price
     to salt would ask for the least salty first
 */
-//a tick box coming off is a new ranking, so it resubmits the way the sort
-//selects do. with javascript off, Apply in the filter bar sends the same form
-form.addEventListener("change", function(e) {
-    if (e.target && e.target.name === "lines") {
-        form.requestSubmit();
-    }
-});
-
 var sortSel = form.querySelector('select[name="sort"]');
 var dirSel = form.querySelector('select[name="dir"]');
 

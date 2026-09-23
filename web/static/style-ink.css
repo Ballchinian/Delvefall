@@ -3705,6 +3705,14 @@ body.home main {
 
 /* the optional fields say so IN the label: a required-field glyph has to be
    explained somewhere, and there is exactly one required field here */
+/* beside the optional marker on the type line: what filling it in buys, which is
+   otherwise only in a title nobody hovers */
+.custom-hint {
+    font-weight: 400;
+    font-size: 11px;
+    color: var(--muted);
+}
+
 .custom-optional {
     font-style: italic;
     cursor: help;
@@ -3875,50 +3883,23 @@ body.home main {
     cursor: default;
 }
 
-/* the typed lines with a tick box each, and how common every one of them is.
-   ranking on one ability at a time is the only way to stop a keyword hundreds of
-   cards share from deciding the list, and the count is what makes that decision
-   an informed one rather than a guess. .off borrows the struck-through idiom the
-   tag chips use for the same gesture */
-.custom-lines {
-    margin-top: 16px;
+/* the preview card's lines once there is something to rank on: /search's own
+   control, so the class is the same and .oracle-line's hover, picked and focus
+   styles arrive with it. the margin matches the <p> it replaces so switching
+   between them does not move the card */
+.ink-card-rules .oracle-line {
+    margin: 0 0 4px;
+    overflow-wrap: anywhere;
 }
 
-.custom-lines-lede {
-    margin: 0 0 6px;
-    font-size: 13px;
-    color: var(--muted);
-    max-width: 52ch;
+.ink-card-rules .oracle-line:last-child {
+    margin-bottom: 0;
 }
 
-.custom-line {
-    display: flex;
-    align-items: baseline;
-    gap: 6px;
-    padding: 2px 0;
-    font-size: 13px;
-    cursor: pointer;
-}
-
-.custom-line-text {
-    flex: 1 1 auto;
-    min-width: 0;
-}
-
-.custom-line.off .custom-line-text {
-    color: var(--muted);
-    text-decoration: line-through;
-}
-
-.custom-line-count {
-    flex: 0 0 auto;
-    font-size: 11px;
-    color: var(--muted);
-}
-
-/* a line the splitter drops has nothing to rank on, so its box cannot be used */
-.custom-line input:disabled {
-    cursor: default;
+/* under the card, sized to the card's own text rather than the page's */
+.custom-preview .line-hint {
+    font-size: 12px;
+    margin-top: 8px;
 }
 
 /* where a real card carries it, between the art and the rules. empty until

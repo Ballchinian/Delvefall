@@ -35,6 +35,8 @@
 
                 <label class="custom-label" for="custom-type">Type line
                     <span class="custom-optional" title="only the card type is read out of it: Creature, Instant, Land and so on. it drops the tags that never land on that type, which rules text alone cannot tell">optional</span>
+                    <span class="custom-hint">sharpens the tags: drops the ones that never land
+                        on that type</span>
                 </label>
                 <input id="custom-type" name="type_line" type="text" maxlength="{{ max_type }}"
                        spellcheck="false" autocomplete="off"
@@ -51,14 +53,10 @@
 
                 <div class="custom-go">
                     <button type="submit">Find the closest cards</button>
-                    <span class="custom-note">Nothing you type is kept. <a href="/privacy">How
-                    this page handles it</a></span>
                 </div>
                 {# T7c hangs the inferred tag chips here, under the form #}
                 {% if chips %}
                 <div class="custom-chips">
-                    <p class="custom-chips-lede">What it looks like it's about, from the printed
-                    cards nearest each line. This doesn't count toward the originality below.</p>
                     <div class="custom-chip-row">
                         {% for chip in chips %}
                         <span class="tag-chip" title="{{ chip.description or chip.tag }}">{{ chip.tag }}</span>
@@ -67,33 +65,6 @@
                 </div>
                 {% endif %}
 
-                {# which typed lines the list is ranked on. only when there is a
-                   choice to make, and the count is the reason to make it: a
-                   keyword hundreds of cards share pulls the list toward whatever
-                   else those cards have in common #}
-                {% if answered and typed | length > 1 %}
-                <div class="custom-lines">
-                    <p class="custom-lines-lede">Ranked on these lines. Switch one off to rank on
-                    the rest, which is worth doing for a keyword hundreds of cards share.</p>
-                    {% for line in typed %}
-                    <label class="custom-line{% if not line.kept %} off{% endif %}">
-                        <input type="checkbox" name="lines" value="{{ line.idx }}"
-                               {% if line.kept %}checked{% endif %}
-                               {% if not line.cleaned %}disabled{% endif %}>
-                        <span class="custom-line-text">{{ line.text }}</span>
-                        {% if not line.cleaned %}
-                        <span class="custom-line-count">nothing left once reminder text and the
-                            card's own name come out</span>
-                        {% elif line.count %}
-                        <span class="custom-line-count">on {{ "{:,}".format(line.count) }} printed
-                            card{{ 's' if line.count != 1 else '' }}</span>
-                        {% else %}
-                        <span class="custom-line-count">on no printed card</span>
-                        {% endif %}
-                    </label>
-                    {% endfor %}
-                </div>
-                {% endif %}
             </div>
 
             {# drawn in css and holding no image: it fills in as you type, and
@@ -106,9 +77,40 @@
                        which is where a real card carries it #}
                     <div class="ink-card-type" id="preview-type">{{ type_line }}</div>
                     <div class="ink-card-rules" id="preview-rules">
-                        {% for line in preview %}<p>{{ line }}</p>{% endfor %}
+                        {%- if answered %}
+                        {%- for line in typed %}
+                        {# a div and not a button, the way /search's anchor card does it: a
+                           button's own font and line-height fight the rules text around it,
+                           and base.js turns Enter and Space into the click. the title is how
+                           common the line is, which is why you would rank without it #}
+                        <div class="oracle-line{% if line.picked %} picked{% endif %}"
+                             data-idx="{{ line.idx }}" role="button" tabindex="0"
+                             aria-pressed="{{ 'true' if line.picked else 'false' }}"
+                             aria-label="rank on this line only: {{ line.text }}"
+                             {%- if not line.cleaned %} title="nothing left once reminder text and the card's own name come out"
+                             {%- elif line.count %} title="on {{ "{:,}".format(line.count) }} printed cards, so it pulls the list less"
+                             {%- else %} title="no printed card says this"{% endif %}>{{ line.text }}</div>
+                        {%- endfor %}
+                        {%- else %}
+                        {%- for line in preview %}<p>{{ line }}</p>{% endfor %}
+                        {%- endif %}
                     </div>
                 </div>
+                {%- if answered %}
+                {% set on = typed | selectattr("picked") | list %}
+                {# reports rather than instructs once something is picked, the way
+                   the anchor card's own hint does #}
+                {% if on %}
+                <p class="line-hint">ranking on {{ 'this line' if on | length == 1 else 'these lines' }}
+                    only. click to toggle</p>
+                {% else %}
+                <p class="line-hint">Click a line to rank on it alone</p>
+                {% endif %}
+                {# the picks ride in hidden inputs: the card is drawn text, not form
+                   controls, and /custom/more posts this same form #}
+                {% for line in typed %}{% if line.picked %}
+                <input type="hidden" name="lines" value="{{ line.idx }}">{% endif %}{% endfor %}
+                {%- endif %}
             </div>
         </div>
 
