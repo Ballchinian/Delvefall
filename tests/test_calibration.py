@@ -10,10 +10,12 @@
 #these read the SEEDS: conftest's stub returns no meta rows, so load_calibration
 #falls back to the documented values rather than what the live database holds
 
+import json
 import math
 
 import pytest
 
+from conftest import needs_db
 from common import concept
 import mirror
 #conftest's stub stands in for the pool, so this import costs no database
@@ -173,3 +175,141 @@ class TestAnchorSparsevec:
         #find_similar guards this case rather than querying with it (cosine
         #against a zero vector is NaN), but it must not raise on the way out
         assert app.anchor_sparsevec([]) == "{}/" + str(app.TAG_VEC_WIDTH)
+
+
+class _Clock:
+    #monotonic only, so mirror's timer can be wound forward without sleeping
+    def __init__(self, now):
+        self.now = now
+
+    def monotonic(self):
+        return self.now
+
+
+class TestTheMapsAreReadAgainOnATimer:
+    #a model swap writes new maps into meta beside the new vectors, and nothing
+    #redeploys web: railway ships it on /web/** only. a worker that reads once then
+    #serves the new model's vectors through the OLD model's map, silently and site
+    #wide, where a near verbatim match reads 62% and the refit puts it at 77%
+
+    def armed(self, monkeypatch, now, calibrated=True):
+        clock = _Clock(now)
+        reads = []
+        monkeypatch.setattr(mirror, "time", clock)
+        monkeypatch.setattr(mirror, "CALIBRATED", calibrated)
+        monkeypatch.setattr(mirror, "_LOADED_AT", now)
+        monkeypatch.setattr(mirror, "load_calibration", lambda: reads.append(clock.now))
+        return clock, reads
+
+    def test_nothing_is_read_before_the_interval_is_up(self, monkeypatch):
+        clock, reads = self.armed(monkeypatch, 1000.0)
+        for _ in range(100):
+            mirror.refresh_calibration()
+        clock.now = 1000.0 + mirror.RELOAD_EVERY - 0.5
+        mirror.refresh_calibration()
+        assert reads == []
+
+    def test_the_first_request_past_it_reads_again(self, monkeypatch):
+        clock, reads = self.armed(monkeypatch, 1000.0)
+        clock.now = 1000.0 + mirror.RELOAD_EVERY
+        mirror.refresh_calibration()
+        assert reads == [clock.now]
+
+    def test_a_worker_that_never_got_an_answer_retries_every_request(self, monkeypatch):
+        #the boot blip retry predates the timer and has to outlive it: a database
+        #unreachable at boot costs one request's worth of seeds, not a worker's
+        clock, reads = self.armed(monkeypatch, 1000.0, calibrated=False)
+        for _ in range(3):
+            mirror.refresh_calibration()
+        assert len(reads) == 3
+
+
+class TestASecondReadReplacesTheFirst:
+
+    def served(self, monkeypatch, maps):
+        #enough of the pool for load_calibration, which looks each key up by name
+        class Rows:
+            def __init__(self, value):
+                self.value = value
+
+            def fetchone(self):
+                return None if self.value is None else {"value": json.dumps(self.value)}
+
+        class Conn:
+            def execute(self, sql, args):
+                return Rows(maps.get(args[0]))
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                return False
+
+        class Pool:
+            def connection(self):
+                return Conn()
+
+        monkeypatch.setattr(mirror, "pool", Pool())
+
+    def test_new_maps_in_meta_overwrite_the_ones_in_memory(self, monkeypatch):
+        monkeypatch.setattr(mirror, "CALIBRATION", list(mirror.CALIBRATION))
+        monkeypatch.setattr(mirror, "MECH_CALIBRATION", list(mirror.MECH_CALIBRATION))
+        monkeypatch.setattr(mirror, "CALIBRATED", False)
+        monkeypatch.setattr(mirror, "_LOADED_AT", 0.0)
+        #both keys at once, because which map each one lands in is an if/else
+        self.served(monkeypatch, {"concept_calibration": [[0.0, 0], [0.5, 90], [1.0, 100]],
+                                  "mech_calibration": [[0.0, 0], [0.5, 20], [1.0, 100]]})
+        was = mirror.concept_display(0.5)
+        mirror.load_calibration()
+        assert mirror.concept_display(0.5) == 90
+        assert mirror.mech_display(0.5) == 20
+        #74 under the seed map, so the reread is what moved it and not the arithmetic
+        assert was == 74
+
+    def test_a_read_that_throws_keeps_the_last_good_maps(self, monkeypatch):
+        #reverting to the seeds would move every percent on the site, so a blip has
+        #to change nothing. the timer moves anyway, because it is stamped before the
+        #query: a database that is down is asked once an interval, not once a request
+        clock = _Clock(5000.0)
+        monkeypatch.setattr(mirror, "time", clock)
+        monkeypatch.setattr(mirror, "_LOADED_AT", 0.0)
+        monkeypatch.setattr(mirror, "CALIBRATED", True)
+        monkeypatch.setattr(mirror, "CALIBRATION", [(0.0, 0.0), (1.0, 100.0)])
+
+        class Dead:
+            def connection(self):
+                raise RuntimeError("the database is down")
+
+        monkeypatch.setattr(mirror, "pool", Dead())
+        mirror.load_calibration()
+        assert mirror.CALIBRATION == [(0.0, 0.0), (1.0, 100.0)]
+        assert mirror.CALIBRATED is True
+        assert mirror._LOADED_AT == 5000.0
+
+
+@needs_db
+class TestItReadsTheMetaRowsThatAreActuallyThere:
+    #the tests above prove the timer against a stub. this one proves the query:
+    #nothing else in the suite reads a meta row that exists, since a test database
+    #the ingest never ran against has none
+
+    def test_a_map_written_to_meta_is_the_one_the_site_serves(self, monkeypatch):
+        import db
+        monkeypatch.setattr(mirror, "CALIBRATION", list(mirror.CALIBRATION))
+        monkeypatch.setattr(mirror, "CALIBRATED", False)
+        monkeypatch.setattr(mirror, "_LOADED_AT", 0.0)
+        written = [[0.0, 0], [0.4, 88], [1.0, 100]]
+        with db.pool.connection() as conn:
+            conn.execute("INSERT INTO meta (key, value) VALUES (%s, %s) "
+                         "ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value",
+                         ("concept_calibration", json.dumps(written)))
+            conn.commit()
+        try:
+            mirror.load_calibration()
+            assert mirror.CALIBRATION == [(0.0, 0.0), (0.4, 88.0), (1.0, 100.0)]
+            assert mirror.concept_display(0.4) == 88
+            assert mirror.CALIBRATED is True
+        finally:
+            with db.pool.connection() as conn:
+                conn.execute("DELETE FROM meta WHERE key = %s", ("concept_calibration",))
+                conn.commit()

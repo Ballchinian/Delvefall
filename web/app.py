@@ -1165,13 +1165,13 @@ def read_currency():
 
 
 @app.before_request
-def retry_calibration():
-    #load_calibration runs once at import, so a worker that booted while the
-    #database was unreachable would serve the SEED maps until the next deploy.
-    #one boolean per request until it succeeds. the readers look the maps up on
-    #the module at call time, so a late load reaches the imported names too
-    if not mirror.CALIBRATED:
-        mirror.load_calibration()
+def refresh_calibration():
+    #two ways a worker ends up serving maps that are not the database's: it booted
+    #while the database was unreachable and pinned the SEEDS, or a model swap wrote
+    #new maps and nothing redeployed web. mirror owns both decisions, one flag and
+    #one timer. the readers look the maps up on the module at call time, so a late
+    #load reaches the imported names too
+    mirror.refresh_calibration()
 
 
 @app.after_request

@@ -19,6 +19,7 @@ import re
 import os
 import math
 import json
+import time
 
 from db import pool
 from prefix_words import PREFIX_WORDS
@@ -174,6 +175,18 @@ MECH_CALIBRATION = [(0.0, 0), (0.30, 30), (0.42, 45), (0.62, 65), (0.76, 80), (0
 #blip costs one request's worth of seeds rather than a deploy's
 CALIBRATED = False
 
+#a model swap writes new maps into meta and does NOT redeploy web, which railway
+#ships on /web/** only, so a worker that reads once serves the new model's vectors
+#through the old model's map. that is silent and site wide: a near verbatim match
+#reads 62% where the refit puts it at 77%. five minutes is about 288 reads of two
+#rows a day per worker
+RELOAD_EVERY = 300.0
+
+#set by every load ATTEMPT and not just the ones that answer, so a database that
+#is down costs one read per interval rather than one per request. the flag above
+#is what retries a boot that found nothing
+_LOADED_AT = 0.0
+
 
 def load_calibration():
     #meta's maps replace the seeds, so the percents always belong to the model
@@ -184,7 +197,8 @@ def load_calibration():
     #different band per model, and the shared meta row belongs to whichever model
     #filled lines.embedding. without the suffix a near verbatim match reads 62%
     #under a trial model where the refit puts it at 77%
-    global CALIBRATION, MECH_CALIBRATION, CALIBRATED
+    global CALIBRATION, MECH_CALIBRATION, CALIBRATED, _LOADED_AT
+    _LOADED_AT = time.monotonic()
     suffix = "" if EMBED_COL == "embedding" else "_" + EMBED_COL
     try:
         with pool.connection() as conn:
@@ -206,6 +220,18 @@ def load_calibration():
         CALIBRATED = True
     except Exception:
         pass
+
+
+def refresh_calibration():
+    #the flag first, so a worker that booted during a database blip still retries
+    #on every request until it gets an answer. then the timer, which is the only
+    #thing that notices a model swap: nothing else restarts web.
+    #
+    #gunicorn runs 4 threads a worker, so two requests can pass this together. the
+    #timestamp is set before the read rather than after, so the worst a race costs
+    #is one extra read of two rows
+    if not CALIBRATED or time.monotonic() - _LOADED_AT >= RELOAD_EVERY:
+        load_calibration()
 
 
 load_calibration()
