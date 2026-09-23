@@ -197,8 +197,11 @@ def tag_chips(conn, vectors, around, type_line=""):
     kept = autotags.chips(scores, banned=banned, type_shares=types,
                           kind=kind if kind != "other" else None)
     #a list and not the dict, because the ORDER is the ranking and a template
-    #iterating a dict is one refactor away from losing it
-    return [{"tag": t, "description": said.get(t, "")} for t in kept]
+    #iterating a dict is one refactor away from losing it. the score rides along
+    #unshown: the page is a list and not a verdict, and a percent beside a chip
+    #reads as one. tools/show_chips.py is what needs it, to tell a chip that
+    #cleared the bar from one the top-up to two let through
+    return [{"tag": t, "description": said.get(t, ""), "score": kept[t]} for t in kept]
 
 
 def custom_score(lines, filters, sort, offset=0, band=None, currency="usd", exclude_id=None,

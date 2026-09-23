@@ -62,6 +62,7 @@ def main():
 
     #imported down here: web/db.py opens its pool the moment it is imported, so
     #the check above has to happen first
+    import autotags
     from db import pool
     from views.custom import line_neighbours, tag_chips
 
@@ -83,20 +84,24 @@ def main():
             vectors = [r["embedding"].to_numpy() for r in lines]
             around = line_neighbours(conn, vectors, card["oracle_id"])
             type_line = "" if args.no_type else card["type_line"]
-            chips = [c["tag"] for c in tag_chips(conn, vectors, around, type_line)]
+            chips = tag_chips(conn, vectors, around, type_line)
             stored = {r["tag"] for r in conn.execute(
                 "SELECT tag FROM card_tags WHERE oracle_id = %s", (card["oracle_id"],))}
 
             print("\n== " + card["name"] + "   " + (card["type_line"] or ""))
             for r in lines:
                 print("   | " + r["line_text"][:96])
-            print("   chips:  " + (", ".join(chips) if chips else "(none)"))
-            missed = [t for t in chips if t not in stored]
-            print("   not among its stored tags: " + (", ".join(missed) if missed else "none"))
+            #the score says which half of the rule put a chip there: at or above
+            #CHIP_BAR it was chosen, below it the top-up to two had nothing better
+            shown = ["%s %.2f%s" % (c["tag"], c["score"], "" if c["tag"] in stored else " *")
+                     for c in chips]
+            print("   chips:  " + (", ".join(shown) if shown else "(none)"))
+            print("          (* is a chip the card does not already carry. under %.2f is the "
+                  "top-up, not a choice)" % autotags.CHIP_BAR)
             counts.append(len(chips))
-            leaked += sum(1 for t in chips if t in banned)
+            leaked += sum(1 for c in chips if c["tag"] in banned)
             if chips:
-                overlaps.append(sum(1 for t in chips if t in stored) / len(chips))
+                overlaps.append(sum(1 for c in chips if c["tag"] in stored) / len(chips))
 
     counts.sort()
     overlaps.sort()
