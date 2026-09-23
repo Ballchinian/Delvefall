@@ -54,6 +54,8 @@ def main():
     ap.add_argument("--name", default="", help="show cards matching this name instead of random ones")
     ap.add_argument("--seed", type=float, default=None, help="fix the random sample")
     ap.add_argument("--no-type", action="store_true", help="score as if no type line was typed")
+    ap.add_argument("--quiet", action="store_true",
+                    help="the counts only, for a sample too big to read")
     args = ap.parse_args()
 
     if not os.environ.get("DATABASE_URL"):
@@ -67,6 +69,9 @@ def main():
     from views.custom import line_neighbours, tag_chips
 
     overlaps, counts, leaked = [], [], 0
+    #what the floor is doing: a chip under CHIP_BAR was not chosen, it is what
+    #the top-up to two reached for when nothing cleared the bar
+    topped, mute, chips_seen, below_bar = 0, 0, 0, 0
     with pool.connection() as conn:
         if args.seed is not None:
             conn.execute("SELECT setseed(%s)", (args.seed,))
@@ -88,16 +93,25 @@ def main():
             stored = {r["tag"] for r in conn.execute(
                 "SELECT tag FROM card_tags WHERE oracle_id = %s", (card["oracle_id"],))}
 
-            print("\n== " + card["name"] + "   " + (card["type_line"] or ""))
-            for r in lines:
-                print("   | " + r["line_text"][:96])
+            if not args.quiet:
+                print("\n== " + card["name"] + "   " + (card["type_line"] or ""))
+                for r in lines:
+                    print("   | " + r["line_text"][:96])
             #the score says which half of the rule put a chip there: at or above
             #CHIP_BAR it was chosen, below it the top-up to two had nothing better
             shown = ["%s %.2f%s" % (c["tag"], c["score"], "" if c["tag"] in stored else " *")
                      for c in chips]
-            print("   chips:  " + (", ".join(shown) if shown else "(none)"))
-            print("          (* is a chip the card does not already carry. under %.2f is the "
-                  "top-up, not a choice)" % autotags.CHIP_BAR)
+            if not args.quiet:
+                print("   chips:  " + (", ".join(shown) if shown else "(none)"))
+                print("          (* is a chip the card does not already carry. under %.2f is "
+                      "the top-up, not a choice)" % autotags.CHIP_BAR)
+            chose = [c for c in chips if c["score"] >= autotags.CHIP_BAR]
+            chips_seen += len(chips)
+            below_bar += len(chips) - len(chose)
+            topped += 1 if len(chose) < len(chips) else 0
+            #a card showing nothing today is not a card the floor is speaking for,
+            #so it does not count here however empty it looks
+            mute += 1 if chips and not chose else 0
             counts.append(len(chips))
             leaked += sum(1 for c in chips if c["tag"] in banned)
             if chips:
@@ -110,6 +124,9 @@ def main():
           (counts[0], counts[len(counts) // 2], counts[-1]))
     print("cards with fewer than 2: %d" % sum(1 for n in counts if n < 2))
     print("banned tags that got through: %d" % leaked)
+    print("chips the top-up reached for: %d of %d" % (below_bar, chips_seen))
+    print("cards the top-up spoke for at all: %d" % topped)
+    print("cards where it was the ONLY voice: %d  (they would show nothing without it)" % mute)
     if overlaps:
         print("share of chips the card already carries: median %.2f (optimistic, see the top "
               "of this file)" % overlaps[len(overlaps) // 2])
