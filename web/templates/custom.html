@@ -33,6 +33,13 @@
                        spellcheck="false" autocomplete="off" placeholder="Name it, or don't"
                        value="{{ name }}">
 
+                <label class="custom-label" for="custom-type">Type line
+                    <span class="custom-optional" title="only the card type is read out of it: Creature, Instant, Land and so on. it drops the tags that never land on that type, which rules text alone cannot tell">optional</span>
+                </label>
+                <input id="custom-type" name="type_line" type="text" maxlength="{{ max_type }}"
+                       spellcheck="false" autocomplete="off"
+                       placeholder="Creature — Human Wizard" value="{{ type_line }}">
+
                 <label class="custom-label" for="custom-text">Rules text
                     <span class="custom-optional">one ability per line, up to {{ max_lines }}</span>
                 </label>
@@ -48,6 +55,17 @@
                     this page handles it</a></span>
                 </div>
                 {# T7c hangs the inferred tag chips here, under the form #}
+                {% if chips %}
+                <div class="custom-chips">
+                    <p class="custom-chips-lede">What it looks like it's about, from the printed
+                    cards nearest each line. This doesn't count toward the originality below.</p>
+                    <div class="custom-chip-row">
+                        {% for chip in chips %}
+                        <span class="tag-chip" title="{{ chip.description or chip.tag }}">{{ chip.tag }}</span>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
             </div>
 
             {# drawn in css and holding no image: it fills in as you type, and
@@ -58,6 +76,7 @@
                     <div class="ink-card-art" aria-hidden="true"></div>
                     {# T7c puts the type line between the art and the rules,
                        which is where a real card carries it #}
+                    <div class="ink-card-type" id="preview-type">{{ type_line }}</div>
                     <div class="ink-card-rules" id="preview-rules">
                         {% for line in preview %}<p>{{ line }}</p>{% endfor %}
                     </div>

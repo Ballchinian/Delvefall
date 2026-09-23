@@ -326,6 +326,122 @@ class TestTheSentenceIsCountedOnRulesTextAlone:
         assert rules_standing(conn, 0.20) == blended
 
 
+@pytest.fixture
+def typed(monkeypatch, seeded):
+    #scores typed text without the model: custom_score imports embedder inside
+    #itself, so this is the same module object it reaches for.
+    #
+    #at module level rather than in a class, both the sentence and the chips
+    #being answers to the same call
+    def score(vectors, **kwargs):
+        monkeypatch.setattr(embedder, "embed",
+                            lambda texts: [np.asarray(v, dtype=np.float32) for v in vectors])
+        from views.custom import custom_score
+        with app.app.test_request_context("/custom"):
+            filters = app.read_filters()
+        names = ["line %d" % i for i in range(len(vectors))]
+        return custom_score(names, kwargs.pop("filters", filters), "match", **kwargs)
+
+    return score
+
+
+@needs_db
+class TestTheChipsUnderTheForm:
+    #the seed's one hot vectors again. a probe row here is an axis scaled by 40
+    #with a bias of -20, so a line ON that axis scores sigmoid(20), about 1, and
+    #a line anywhere else scores sigmoid(-20), about 0. without the bias every
+    #unrelated tag would sit at sigmoid(0) = 0.5 and the top-up would show them
+
+    @pytest.fixture
+    def probe(self, seeded):
+        #the table is emptied on the way in as well as out: a database somebody
+        #has run tools/load_tag_probe.py against would otherwise answer these
+        #with 1,933 real tags
+        import db
+        import seed
+        from psycopg.types.json import Jsonb
+
+        with db.pool.connection() as conn:
+            conn.execute("DELETE FROM tag_probe")
+
+        def load(rows):
+            with db.pool.connection() as conn:
+                for tag, axis, banned, types in rows:
+                    w = np.asarray(seed.vec(axis), dtype=np.float32) * 40
+                    conn.execute("INSERT INTO tag_probe (tag, w, b, banned, types) "
+                                 "VALUES (%s, %s, %s, %s, %s)", (tag, w, -20.0, banned, Jsonb(types)))
+
+        yield load
+        with db.pool.connection() as conn:
+            conn.execute("DELETE FROM tag_probe")
+
+    def test_an_empty_probe_shows_no_chips_at_all(self, typed, probe):
+        #the state of every database until tools/load_tag_probe.py has run. the
+        #neighbours alone would still name draw-on-attack, and showing it would
+        #be a worse rule rather than a missing one
+        import seed
+        probe([])
+        assert typed([seed.vec(1)])["chips"] == []
+
+    def test_a_tag_both_halves_name_is_the_first_chip(self, typed, probe):
+        #axis 1 is "Whenever this card attacks, draw a card.", stored on three
+        #cards and tagged draw-on-attack on all three
+        import seed
+        probe([("draw-on-attack", 1, False, {}), ("sac-outlet", 3, False, {})])
+        chips = typed([seed.vec(1)])["chips"]
+        assert [c["tag"] for c in chips][0] == "draw-on-attack"
+
+    def test_a_chip_carries_what_the_tag_means(self, typed, probe):
+        import seed
+        probe([("draw-on-attack", 1, False, {})])
+        chips = typed([seed.vec(1)])["chips"]
+        assert chips[0]["description"] == "draws when it attacks"
+
+    def test_a_banned_tag_is_never_a_chip(self, typed, probe):
+        #make_tagreview.md's card and junk verdicts arrive as this column
+        import seed
+        probe([("draw-on-attack", 1, True, {})])
+        assert [c["tag"] for c in typed([seed.vec(1)])["chips"]] == []
+
+    def test_a_typed_type_line_drops_a_tag_that_never_lands_on_it(self, typed, probe):
+        import seed
+        probe([("draw-on-attack", 1, False, {"Instant": 0.999, "Creature": 0.0001})])
+        wide = typed([seed.vec(1)])
+        narrow = typed([seed.vec(1)], type_line="Creature — Test")
+        assert "draw-on-attack" in [c["tag"] for c in wide["chips"]]
+        assert "draw-on-attack" not in [c["tag"] for c in narrow["chips"]]
+
+    def test_a_type_line_nothing_can_be_read_out_of_narrows_nothing(self, typed, probe):
+        #only the first card type word is read, and "Delvefall" is not one
+        import seed
+        probe([("draw-on-attack", 1, False, {"Instant": 0.999, "Creature": 0.0001})])
+        got = typed([seed.vec(1)], type_line="Delvefall")
+        assert "draw-on-attack" in [c["tag"] for c in got["chips"]]
+
+    def test_every_typed_line_gets_a_say(self, typed, probe):
+        #a card is the best of its lines, so an ability on the second line is as
+        #chippable as one on the first
+        import seed
+        probe([("draw-on-attack", 1, False, {}), ("sac-outlet", 3, False, {})])
+        chips = [c["tag"] for c in typed([seed.vec(1), seed.vec(3)])["chips"]]
+        assert "draw-on-attack" in chips
+        assert "sac-outlet" in chips
+
+    def test_the_next_page_of_results_does_not_pay_for_them(self, typed, probe):
+        #/custom/more redraws the grid and no chips, so it asks for none
+        import seed
+        probe([("draw-on-attack", 1, False, {})])
+        assert typed([seed.vec(1)], want_chips=False)["chips"] == []
+
+    def test_the_sentence_is_unchanged_by_the_chips(self, typed, probe):
+        #the neighbour query went from one row to ten to feed them, and the
+        #originality is still the nearest of those rows
+        import seed
+        probe([("draw-on-attack", 1, False, {})])
+        assert typed([seed.vec(1)])["uniqueness"] == pytest.approx(0.0, abs=1e-6)
+        assert typed([seed.vec(5)])["uniqueness"] == pytest.approx(1.0, abs=1e-6)
+
+
 @needs_db
 class TestScoringTypedTextAgainstTheTable:
     #the seed's vectors are one hot on distinct axes, so a cosine between two
@@ -333,21 +449,6 @@ class TestScoringTypedTextAgainstTheTable:
     #this can choose exactly. axis 1 is "Whenever this card attacks, draw a
     #card.", on three of the four fixture cards; axis 2 is "Destroy target
     #land."; nothing is stored on axis 5
-
-    @pytest.fixture
-    def typed(self, monkeypatch, seeded):
-        #the model never runs here. custom_score imports embedder inside itself,
-        #so this is the same module object it reaches for
-        def score(vectors, **kwargs):
-            monkeypatch.setattr(embedder, "embed",
-                                lambda texts: [np.asarray(v, dtype=np.float32) for v in vectors])
-            from views.custom import custom_score
-            with app.app.test_request_context("/custom"):
-                filters = app.read_filters()
-            names = ["line %d" % i for i in range(len(vectors))]
-            return custom_score(names, kwargs.pop("filters", filters), "match", **kwargs)
-
-        return score
 
     def axis(self, i):
         import seed

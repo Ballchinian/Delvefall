@@ -316,6 +316,38 @@ CREATE TABLE IF NOT EXISTS tag_dims (
     dim int NOT NULL UNIQUE
 );
 
+--everything /custom needs to know about a tag, and the only table the site reads
+--that no ingest step writes: tools/load_tag_probe.py fills it, because two of
+--the three things in it are trained and reviewed in finetune/ rather than
+--derived from scryfall.
+--
+--w and b are a linear probe, one per tag: sigmoid(w . v + b) is how likely a
+--typed line is about that tag, the half of the chip score that reads the text
+--directly rather than through its neighbours. tags too rare to have been taught
+--one sit here with w NULL, so the neighbour vote can still name them.
+--
+--NOT columns on `tags`: ingest/tags.py rebuilds that table from scratch whenever
+--scryfall publishes, which would throw the probe away every morning. the same
+--reasoning tag_dims is a table of its own for.
+--
+--vector rather than halfvec: these are weights, not unit vectors, and there is
+--no index on them to shrink. 1,933 rows is about 6mb.
+--
+--banned carries make_tagreview.md's card and junk verdicts, which are never
+--chips: out-of-color-token was right 26% of the time, doom-blade 7%.
+--
+--types is what share of the cards carrying this tag are each card type, and it
+--is read only when the visitor types a type line. a tag that lands on this type
+--under half a percent of the time it is used at all is one the text alone cannot
+--decide: Shadrix Silverquill's modes read like a spell's
+CREATE TABLE IF NOT EXISTS tag_probe (
+    tag    text PRIMARY KEY,
+    w      vector(768),
+    b      real,
+    banned boolean NOT NULL DEFAULT false,
+    types  jsonb NOT NULL DEFAULT '{}'
+);
+
 --the concept axis's candidate side: the same weights card_tags holds, laid out
 --so pgvector computes sum(a.weight * b.weight) / (|a| * |b|) in one pass.
 --

@@ -18,6 +18,7 @@
 
 from flask import Blueprint, render_template, request
 
+import autotags
 from db import pool
 from mirror import EMBED_COL, line_weight, split_lines
 
@@ -30,6 +31,10 @@ bp = Blueprint("custom", __name__)
 MAX_LINES = 20
 MAX_CHARS = 600
 MAX_NAME = 150
+#the longest type line a printed card carries is 71 characters, both faces
+#and the dash between them included. only the first card-type word is ever
+#read, so this is a cap on what gets stored in a form field, not a rule
+MAX_TYPE = 120
 
 
 class Rejected(Exception):
@@ -111,7 +116,66 @@ def rules_standing(conn, uniqueness):
     return row["below"], row["total"]
 
 
-def custom_score(lines, filters, sort, offset=0, band=None, currency="usd", exclude_id=None):
+def tag_chips(conn, vectors, around, type_line=""):
+    #what the typed text is ABOUT, as chips under the form. the rule is
+    #web/autotags.py's and the numbers behind it are tag_probe's; this is only
+    #where the two halves are fetched.
+    #
+    #an empty tag_probe means tools/load_tag_probe.py has never run against this
+    #database, and the page then shows NO chips rather than the neighbour half
+    #on its own: without a probe a tag tops out at 0.30 against a 0.40 bar, so
+    #what survives is whatever the top-up to two lets through, which reads like
+    #a worse rule rather than a missing one
+    probe = []
+    for vec in vectors:
+        #(w <#> v) is the NEGATIVE inner product, hence the sign. clamped
+        #because exp() overflows past 709 and a numeric error here would be a
+        #500 on a page that was only asked a question
+        rows = conn.execute("""
+            SELECT tag, 1 / (1 + exp(-greatest(least((w <#> %s) * -1 + b, 30), -30))) AS p
+            FROM tag_probe
+            WHERE w IS NOT NULL
+            ORDER BY p DESC
+            LIMIT %s
+        """, (vec, autotags.PROBE_KEEP)).fetchall()
+        probe.append({r["tag"]: r["p"] for r in rows})
+    if not any(probe):
+        return []
+
+    #the neighbours' tags in one query rather than one per line: the ten nearest
+    #of twenty lines is still only two hundred ids
+    ids = [r["id"] for rows in around for r in rows]
+    carried = {}
+    for r in conn.execute("SELECT line_id, tag FROM line_tags WHERE line_id = ANY(%s)", (ids,)):
+        carried.setdefault(r["line_id"], []).append(r["tag"])
+    share = [[(r["sim"], carried.get(r["id"], ())) for r in rows] for rows in around]
+
+    scores = autotags.blend(autotags.probe_scores(probe), autotags.share_scores(share))
+    #the description is what the chip says on hover, the way the picker on a
+    #card page does it. LEFT JOIN because `tags` is rebuilt from scryfall every
+    #morning and this table is not, so a tag can outlive its description
+    banned, types, said = set(), {}, {}
+    for r in conn.execute("""
+        SELECT p.tag, p.banned, p.types, COALESCE(t.description, '') AS description
+        FROM tag_probe p LEFT JOIN tags t ON t.tag = p.tag
+        WHERE p.tag = ANY(%s)
+    """, (list(scores),)):
+        if r["banned"]:
+            banned.add(r["tag"])
+        types[r["tag"]] = r["types"]
+        said[r["tag"]] = r["description"]
+    #"other" is what card_type says when it recognised nothing, which is not a
+    #type line to filter on. only a word it knows narrows anything
+    kind = autotags.card_type(type_line)
+    kept = autotags.chips(scores, banned=banned, type_shares=types,
+                          kind=kind if kind != "other" else None)
+    #a list and not the dict, because the ORDER is the ranking and a template
+    #iterating a dict is one refactor away from losing it
+    return [{"tag": t, "description": said.get(t, "")} for t in kept]
+
+
+def custom_score(lines, filters, sort, offset=0, band=None, currency="usd", exclude_id=None,
+                 type_line="", want_chips=True):
     #the whole of the results route below the form, so the tests and
     #tools/check_custom.py can call it without going through http.
     #
@@ -140,23 +204,31 @@ def custom_score(lines, filters, sort, offset=0, band=None, currency="usd", excl
         #ORDER BY with a LIMIT is what walks the hnsw index. a literal
         #SELECT max(1 - (embedding <=> %s)) reads every vector in the table
         mine = "AND l.oracle_id <> %s " if exclude_id is not None else ""
-        nearest = []
+        nearest, around = [], []
         for vec in vectors:
-            params = [vec] + ([exclude_id] if exclude_id is not None else []) + [vec]
-            row = conn.execute("""
-                SELECT 1 - (l.""" + EMBED_COL + """ <=> %s) AS sim
+            params = ([vec] + ([exclude_id] if exclude_id is not None else [])
+                      + [vec, autotags.SHARE_K])
+            rows = conn.execute("""
+                SELECT l.id, 1 - (l.""" + EMBED_COL + """ <=> %s) AS sim
                 FROM lines l
                 WHERE NOT l.whole AND l.""" + EMBED_COL + """ IS NOT NULL """ + mine + """
                 ORDER BY l.""" + EMBED_COL + """ <=> %s
-                LIMIT 1
-            """, params).fetchone()
-            nearest.append(row["sim"] if row else 0.0)
+                LIMIT %s
+            """, params).fetchall()
+            #ten now rather than one, because the chips need the neighbours
+            #that vote. the FIRST of them is the same row this asked for
+            #before, so the sentence below is unchanged
+            nearest.append(rows[0]["sim"] if rows else 0.0)
+            around.append(rows)
 
         #the MOST ISOLATED line decides, which is the rule recompute_uniqueness
         #applies to every printed card. one genuinely new ability makes a card
         #original even if everything else on it is Flying
         uniqueness = 1 - min(nearest) if nearest else 0.0
         below, total = rules_standing(conn, uniqueness)
+        #/custom/more asks for the next page of the same list and redraws no
+        #chips, so it does not pay for them
+        chips = tag_chips(conn, vectors, around, type_line) if want_chips else []
 
     qlines = [{"line_text": text, "embedding": vec, "count": counts.get(text, 1)}
               for text, vec in zip(lines, vectors)]
@@ -167,7 +239,7 @@ def custom_score(lines, filters, sort, offset=0, band=None, currency="usd", excl
         offset=offset, band=band, currency=currency)
     return {"results": results, "has_more": has_more, "next_band": next_band,
             "uniqueness": uniqueness, "words": custom_words(below, total),
-            "below": below, "total": total,
+            "below": below, "total": total, "chips": chips,
             #what find_similar hands the page for a printed card, so the line
             #weights and the percents mean the same thing on both
             "weights": [line_weight(counts.get(t, 1)) for t in lines]}
@@ -201,7 +273,7 @@ def typed_lines(text):
     return [line for line in (text or "").splitlines() if line.strip()][:MAX_LINES]
 
 
-def form_page(text, name, **extra):
+def form_page(text, name, type_line="", **extra):
     #every answer this page has renders through here, so a rejection, a service
     #that did not wake and a full set of results all come back with the same
     #controls and the same text still in them
@@ -209,6 +281,7 @@ def form_page(text, name, **extra):
 
     return render_template("custom.html", text=text, name=name, types=CARD_TYPES,
                            preview=typed_lines(text), max_name=MAX_NAME, max_lines=MAX_LINES,
+                           type_line=type_line, max_type=MAX_TYPE,
                            #a POST result has no url to index and must not grow
                            #one. the form itself is a page and stays open
                            noindex=request.method == "POST", **extra)
@@ -230,27 +303,33 @@ def custom_post():
     controls_from_form()
     name = request.form.get("name", "")
     text = request.form.get("text", "")
+    #cut rather than refused: the box has a maxlength, so a longer one is a
+    #posted body rather than something anybody typed, and only the first card
+    #type word is read out of it anyway
+    type_line = request.form.get("type_line", "")[:MAX_TYPE]
     try:
         lines = read_custom(text, name)
     except Rejected as e:
         #the message names the limit and is written for whoever typed it, so it
         #goes on the page as it is. nothing has reached the model yet, which is
         #the whole point of checking here
-        return form_page(text, name, message=str(e))
+        return form_page(text, name, type_line, message=str(e))
 
     filters = read_filters()
     sort_field, sort_dir = read_sort_parts()
     try:
-        scored = custom_score(lines, filters, read_sort(), currency=filters["cur"])
+        scored = custom_score(lines, filters, read_sort(), currency=filters["cur"],
+                              type_line=type_line)
     except embedder.EmbedderDown:
         #ASLEEP or still starting, which is a minute of waiting and not a fault.
         #EmbedderRefused is deliberately not caught: it means this page and the
         #service disagree about their own limits, and a bug worded as a nap
         #would never get looked at
-        return form_page(text, name,
+        return form_page(text, name, type_line,
                          message="The matcher didn't wake up in time. Try again in a minute."), 503
 
-    return form_page(text, name, answered=True, words=scored["words"],
+    return form_page(text, name, type_line, answered=True, words=scored["words"],
+                     chips=scored["chips"],
                      results=scored["results"], has_more=scored["has_more"],
                      next_band=scored["next_band"], errors=filters["errors"],
                      cur=filters["cur"], sort_fields=SORT_FIELDS, sort_field=sort_field,
@@ -283,7 +362,7 @@ def custom_more():
     filters = read_filters()
     try:
         scored = custom_score(lines, filters, read_sort(), offset=offset, band=band,
-                              currency=filters["cur"])
+                              currency=filters["cur"], want_chips=False)
     except embedder.EmbedderDown:
         #the button says so and stays where it is. the page above it is already
         #drawn, so there is nothing to render again

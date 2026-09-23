@@ -368,6 +368,17 @@ with pool.connection() as _conn:
     #between. it only makes the column EXIST, update.py is what fills it.
     #IF EXISTS on the table because cards belongs to the ingest, and a database it
     #has never touched has no such table to alter
+    #also in schema.sql, and also here because railway deploys web/ ON PUSH while
+    #the ingest waits for 9am: without it every /custom 500s on the chip query in
+    #between. tools/load_tag_probe.py is what fills it, so empty is the normal
+    #state until that has run and the page simply shows no chips
+    boot_ddl(_conn, """CREATE TABLE IF NOT EXISTS tag_probe (
+        tag    text PRIMARY KEY,
+        w      vector(768),
+        b      real,
+        banned boolean NOT NULL DEFAULT false,
+        types  jsonb NOT NULL DEFAULT '{}'
+    )""")
     boot_ddl(_conn, "ALTER TABLE IF EXISTS cards ADD COLUMN IF NOT EXISTS text_changed_at timestamptz")
 
 #the review page at /admin only exists when this is set in the environment

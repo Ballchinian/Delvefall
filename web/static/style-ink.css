@@ -3850,6 +3850,41 @@ body.home main {
     margin: 0;
 }
 
+/* the chips under the form: a LIST of what the text looks like it is about, and
+   the lede says out loud that it does not count toward the number below. they
+   are spans and not buttons, nothing here being switchable, so .tag-chip's
+   pointer cursor is turned back off */
+.custom-chips {
+    margin-top: 16px;
+}
+
+.custom-chips-lede {
+    margin: 0 0 6px;
+    font-size: 13px;
+    color: var(--muted);
+    max-width: 52ch;
+}
+
+.custom-chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+}
+
+.custom-chip-row .tag-chip {
+    cursor: default;
+}
+
+/* where a real card carries it, between the art and the rules. empty until
+   something is typed, and it holds its line so the card does not jump */
+.ink-card-type {
+    min-height: 1.2em;
+    padding: 4px 8px 0;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text);
+}
+
 /* ---- the keyboard's focus ring ----
 
    DOWN HERE on purpose: several controls above kill the outline on :focus and
