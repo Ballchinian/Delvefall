@@ -5,8 +5,9 @@
 #this is a port of rule_both in finetune/exam_autotags.py, which is what the
 #numbers were measured on: 98% marked precision at 5 chips, list overlap 0.71
 #against the stored tags. every constant below is that file's, and the two have
-#to move together. what holds them together is the gate, tools/check_autotags.py,
-#which scores real cards both ways and compares.
+#to move together: a constant changed on one side is a rule nothing measured.
+#only scoring real cards both ways says whether they still agree, and nothing
+#here can do that.
 #
 #PURE: scores in, chips out. the database work is views/custom.py's, because web
 #deploys on its own and this file is what the tests can reach without one.

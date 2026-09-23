@@ -1,9 +1,8 @@
 #the chip rule, away from any database: scores in, chips out.
 #
 #the numbers here come from what web/autotags.py says it does, not from what it
-#currently returns. the one thing they cannot check is whether the port still
-#agrees with finetune/exam_autotags.py, which is tools/check_autotags.py's job
-#against real cards
+#currently returns. what they cannot check is whether the port still agrees
+#with finetune/exam_autotags.py, which takes real cards scored both ways
 
 import pytest
 
