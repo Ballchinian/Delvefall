@@ -116,6 +116,33 @@ def rules_standing(conn, uniqueness):
     return row["below"], row["total"]
 
 
+def line_neighbours(conn, vectors, exclude_id=None):
+    #the SHARE_K stored lines nearest each typed one, with their similarity.
+    #
+    #NO FILTERS REACH THIS QUERY. how original a card is cannot depend on which
+    #colours the visitor is browsing, and a filtered nearest neighbour would make
+    #the sentence move when the list does.
+    #
+    #ORDER BY with a LIMIT is what walks the hnsw index. a literal
+    #SELECT max(1 - (embedding <=> %s)) reads every vector in the table.
+    #
+    #its own function because tools/show_chips.py asks the same question of real
+    #cards, and a second copy of this query is a second thing to keep in step
+    mine = "AND l.oracle_id <> %s " if exclude_id is not None else ""
+    around = []
+    for vec in vectors:
+        params = ([vec] + ([exclude_id] if exclude_id is not None else [])
+                  + [vec, autotags.SHARE_K])
+        around.append(conn.execute("""
+            SELECT l.id, 1 - (l.""" + EMBED_COL + """ <=> %s) AS sim
+            FROM lines l
+            WHERE NOT l.whole AND l.""" + EMBED_COL + """ IS NOT NULL """ + mine + """
+            ORDER BY l.""" + EMBED_COL + """ <=> %s
+            LIMIT %s
+        """, params).fetchall())
+    return around
+
+
 def tag_chips(conn, vectors, around, type_line=""):
     #what the typed text is ABOUT, as chips under the form. the rule is
     #web/autotags.py's and the numbers behind it are tag_probe's; this is only
@@ -197,29 +224,10 @@ def custom_score(lines, filters, sort, offset=0, band=None, currency="usd", excl
                               (lines,)):
             counts[r["line_text"]] = r["count"]
 
-        #NO FILTERS REACH THIS QUERY. how original a card is cannot depend on
-        #which colours the visitor is browsing, and a filtered nearest neighbour
-        #would make the sentence move when the list does.
-        #
-        #ORDER BY with a LIMIT is what walks the hnsw index. a literal
-        #SELECT max(1 - (embedding <=> %s)) reads every vector in the table
-        mine = "AND l.oracle_id <> %s " if exclude_id is not None else ""
-        nearest, around = [], []
-        for vec in vectors:
-            params = ([vec] + ([exclude_id] if exclude_id is not None else [])
-                      + [vec, autotags.SHARE_K])
-            rows = conn.execute("""
-                SELECT l.id, 1 - (l.""" + EMBED_COL + """ <=> %s) AS sim
-                FROM lines l
-                WHERE NOT l.whole AND l.""" + EMBED_COL + """ IS NOT NULL """ + mine + """
-                ORDER BY l.""" + EMBED_COL + """ <=> %s
-                LIMIT %s
-            """, params).fetchall()
-            #ten now rather than one, because the chips need the neighbours
-            #that vote. the FIRST of them is the same row this asked for
-            #before, so the sentence below is unchanged
-            nearest.append(rows[0]["sim"] if rows else 0.0)
-            around.append(rows)
+        around = line_neighbours(conn, vectors, exclude_id)
+        #the FIRST of the ten is the row this used to ask for on its own, so the
+        #sentence below is unchanged by the chips needing nine more
+        nearest = [rows[0]["sim"] if rows else 0.0 for rows in around]
 
         #the MOST ISOLATED line decides, which is the rule recompute_uniqueness
         #applies to every printed card. one genuinely new ability makes a card
