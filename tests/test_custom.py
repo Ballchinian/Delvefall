@@ -481,6 +481,19 @@ class TestTheChipsUnderTheForm:
         probe([("draw-on-attack", 1, False, {})])
         assert typed([seed.vec(1)], want_chips=False)["chips"] == []
 
+    def test_the_sentence_and_the_chips_ignore_which_line_is_picked(self, typed, probe):
+        #rank_on is a control on the LIST. the sentence is a calibrated number about
+        #the whole card, and the chips' 98% marked precision was measured on whole
+        #cards, so neither may move when a line is picked. both did, once
+        import seed
+        probe([("draw-on-attack", 1, False, {}), ("sac-outlet", 3, False, {})])
+        whole = typed([seed.vec(1), seed.vec(3)])
+        one = typed([seed.vec(1), seed.vec(3)], rank_on={0})
+        assert one["uniqueness"] == whole["uniqueness"]
+        assert [c["tag"] for c in one["chips"]] == [c["tag"] for c in whole["chips"]]
+        #and the chips really are saying something, or this passes on two empties
+        assert len(whole["chips"]) >= 2
+
     def test_the_sentence_is_unchanged_by_the_chips(self, typed, probe):
         #the neighbour query went from one row to ten to feed them, and the
         #originality is still the nearest of those rows
@@ -617,60 +630,78 @@ class TestReadingWhichLinesToScore:
 
 
 @needs_db
-class TestSwitchingATypedLineOff:
+class TestPickingALineRanksOnIt:
     #the point of the feature: a keyword hundreds of cards share otherwise drags
-    #the list toward whatever else those cards have in common
+    #the list toward whatever else those cards have in common.
+    #
+    #the pick is a control on the LIST alone. the model still sees the whole card,
+    #because the sentence is a calibrated number about the card and the chips' 98%
+    #marked precision was measured on whole cards
 
     TWO = "Menace\nWhenever this creature attacks, draw a card."
 
     @pytest.fixture
     def asked(self, monkeypatch, seeded):
-        #the texts that reached the model, which is what "ranked on" means here.
+        #two recordings: what reached the model, and what the ranking was handed.
         #asserted by substring rather than against clean_line's exact output, or
         #this would be checking the cleaning against itself. case folded because
         #clean_line keeps the case it was given
         import seed
-        seen = []
+        embedded, ranked = [], []
 
         def fake(texts):
-            seen.append(list(texts))
+            embedded.append(list(texts))
             return [np.asarray(seed.vec(1), dtype=np.float32) for _ in texts]
 
         monkeypatch.setattr(embedder, "embed", fake)
+        real = app.similar_from_lines
+
+        def spy(qlines, *args, **kwargs):
+            ranked.append([q["line_text"] for q in qlines])
+            return real(qlines, *args, **kwargs)
+
+        monkeypatch.setattr(app, "similar_from_lines", spy)
 
         def post(route="post", **extra):
             from views.custom import custom_more, custom_post
             data = dict({"text": self.TWO}, **extra)
             with app.app.test_request_context("/custom", method="POST", data=data):
-                #the rendered page hangs off the function, for the one test that
-                #reads what the boxes look like rather than what was scored
+                #the rendered page hangs off the function, for the tests that read
+                #what the card looks like rather than what was scored
                 post.page = (custom_post if route == "post" else custom_more)()
-            return seen[-1]
+            return {"embedded": embedded[-1], "ranked": ranked[-1]}
 
         return post
 
-    def test_both_lines_are_ranked_on_by_default(self, asked):
+    def test_the_whole_card_is_ranked_on_by_default(self, asked):
         got = asked()
-        assert len(got) == 2
-        assert any("menace" in t.lower() for t in got)
-        assert any("draw a card" in t for t in got)
+        assert len(got["ranked"]) == 2
+        assert any("menace" in t.lower() for t in got["ranked"])
+        assert any("draw a card" in t for t in got["ranked"])
 
-    def test_the_keyword_switched_off_never_reaches_the_model(self, asked):
+    def test_the_line_not_picked_is_left_out_of_the_ranking(self, asked):
         got = asked(lines=["1"])
-        assert len(got) == 1
-        assert "draw a card" in got[0]
-        assert "menace" not in got[0].lower()
+        assert len(got["ranked"]) == 1
+        assert "draw a card" in got["ranked"][0]
+        assert "menace" not in got["ranked"][0].lower()
 
-    def test_the_ability_can_be_the_one_switched_off(self, asked):
-        #nothing in the rule prefers the interesting line: it is whose box is on
+    def test_the_keyword_can_be_the_one_picked(self, asked):
+        #nothing in the rule prefers the interesting line: it is whichever is picked
         got = asked(lines=["0"])
-        assert len(got) == 1
-        assert "menace" in got[0].lower()
+        assert len(got["ranked"]) == 1
+        assert "menace" in got["ranked"][0].lower()
+
+    def test_the_model_still_sees_every_line(self, asked):
+        #the sentence and the chips are about the CARD, so narrowing the ranking
+        #must not narrow what was embedded. this is the regression: it did
+        got = asked(lines=["1"])
+        assert len(got["embedded"]) == 2
+        assert any("menace" in t.lower() for t in got["embedded"])
 
     def test_a_line_not_picked_still_says_how_common_it_is(self, asked):
-        #the count is what the decision to rank without a line is made from, so it
-        #cannot cover only the lines being scored. the seed puts Flying on 3,000
-        #cards for exactly this reason, and Flying is the line NOT picked here
+        #the count is what the decision to rank without a line is made from. the
+        #seed puts Flying on 3,000 cards for exactly this reason, and Flying is the
+        #line NOT picked here
         asked(text="Flying\nWhenever this card attacks, draw a card.", lines=["1"])
         page = asked.page
         #the thousands separator too, since the number is what carries the point
@@ -692,10 +723,10 @@ class TestSwitchingATypedLineOff:
         assert "Click a line to rank on it alone" in asked.page
 
     def test_page_two_is_ranked_on_the_same_lines(self, asked):
-        #custom.js posts the WHOLE form for /custom/more, tick boxes included, so a
-        #second page that read the text and ignored them would append results from
-        #a different ranking onto the first
+        #custom.js posts the WHOLE form for /custom/more, the picks with it, so a
+        #second page that ignored them would append a different ranking onto the
+        #first
         got = asked(route="more", lines=["1"])
-        assert len(got) == 1
-        assert "draw a card" in got[0]
-        assert "menace" not in got[0].lower()
+        assert len(got["ranked"]) == 1
+        assert "draw a card" in got["ranked"][0]
+        assert "menace" not in got["ranked"][0].lower()

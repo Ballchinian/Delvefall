@@ -234,7 +234,7 @@ def tag_chips(conn, vectors, around, type_line=""):
 
 
 def custom_score(lines, filters, sort, offset=0, band=None, currency="usd", exclude_id=None,
-                 type_line="", want_chips=True, all_lines=None):
+                 type_line="", want_chips=True, rank_on=None):
     #the whole of the results route below the form, so the tests and
     #tools/check_custom.py can call it without going through http.
     #
@@ -252,11 +252,8 @@ def custom_score(lines, filters, sort, offset=0, band=None, currency="usd", excl
         #it. a line nobody has printed is absent and weighs 1, which is right:
         #the weighting only ever punishes a line for being common
         counts = {}
-        #every typed line and not only the scored ones: a line switched off still
-        #shows how common it is, which is what the decision to switch it back on
-        #is made from
         for r in conn.execute("SELECT line_text, count FROM line_stats WHERE line_text = ANY(%s)",
-                              (list(all_lines or lines),)):
+                              (list(lines),)):
             counts[r["line_text"]] = r["count"]
 
         around = line_neighbours(conn, vectors, exclude_id)
@@ -266,15 +263,25 @@ def custom_score(lines, filters, sort, offset=0, band=None, currency="usd", excl
 
         #the MOST ISOLATED line decides, which is the rule recompute_uniqueness
         #applies to every printed card. one genuinely new ability makes a card
-        #original even if everything else on it is Flying
+        #original even if everything else on it is Flying.
+        #
+        #over EVERY typed line, never the picked ones: rank_on below is a control
+        #on the list, and this sentence is about the card. clicking a line used to
+        #move it, which is a calibrated number answering a different question
         uniqueness = 1 - min(nearest) if nearest else 0.0
         below, total = rules_standing(conn, uniqueness)
         #/custom/more asks for the next page of the same list and redraws no
         #chips, so it does not pay for them
+        #also over every line, for the same reason and one more: the 98% marked
+        #precision was measured on whole cards, so chips from one line of one are
+        #a number nobody has measured
         chips = tag_chips(conn, vectors, around, type_line) if want_chips else []
 
+    #rank_on is the only thing the picked lines touch: which lines the LIST is
+    #ranked on. indexes into lines, and None means all of them
     qlines = [{"line_text": text, "embedding": vec, "count": counts.get(text, 1)}
-              for text, vec in zip(lines, vectors)]
+              for n, (text, vec) in enumerate(zip(lines, vectors))
+              if rank_on is None or n in rank_on]
     #anchor empty: phase C scores the list on rules text alone. the chips and
     #the tag side of the list arrive in T7, and the sentence never moves
     results, has_more, next_band = similar_from_lines(
@@ -402,9 +409,9 @@ def custom_post():
     #type word is read out of it anyway
     type_line = request.form.get("type_line", "")[:MAX_TYPE]
     try:
-        #EVERYTHING typed, which both checks the limits and gives the count query
-        #every line to look up, ticked or not
-        every = read_custom(text, name)
+        #the limits are checked against EVERYTHING typed, so narrowing the ranking
+        #to one line cannot talk a card that is too long or too wide through
+        read_custom(text, name)
     except Rejected as e:
         #the message names the limit and is written for whoever typed it, so it
         #goes on the page as it is. nothing has reached the model yet, which is
@@ -416,8 +423,12 @@ def custom_post():
     pairs = typed_pairs(text, name)
     picked = read_picked_lines(len(pairs))
     kept = picked or set(range(len(pairs)))
-    lines = [cleaned for i, (line, cleaned) in enumerate(pairs) if cleaned and i in kept]
-    if not lines:
+    #the model sees the whole card either way. the picks only say which of those
+    #lines the list is ranked on, so the sentence and the chips do not move
+    readable = [(i, cleaned) for i, (line, cleaned) in enumerate(pairs) if cleaned]
+    lines = [cleaned for _, cleaned in readable]
+    rank_on = {n for n, (i, _) in enumerate(readable) if i in kept}
+    if not rank_on:
         #only reachable by a posted body: a line the splitter drops is not clickable
         return form_page(text, name, type_line, picked=picked,
                          message="Pick a line the matcher can read.")
@@ -426,7 +437,7 @@ def custom_post():
     sort_field, sort_dir = read_sort_parts()
     try:
         scored = custom_score(lines, filters, read_sort(), currency=filters["cur"],
-                              type_line=type_line, all_lines=every)
+                              type_line=type_line, rank_on=rank_on)
     except embedder.EmbedderDown:
         #ASLEEP or still starting, which is a minute of waiting and not a fault.
         #EmbedderRefused is deliberately not caught: it means this page and the
@@ -462,8 +473,10 @@ def custom_more():
     #same lines page one did or the list it appends to changes underneath it
     pairs = typed_pairs(text, name)
     kept = read_kept(len(pairs))
-    lines = [cleaned for i, (line, cleaned) in enumerate(pairs) if cleaned and i in kept]
-    if not lines:
+    readable = [(i, cleaned) for i, (line, cleaned) in enumerate(pairs) if cleaned]
+    lines = [cleaned for _, cleaned in readable]
+    rank_on = {n for n, (i, _) in enumerate(readable) if i in kept}
+    if not rank_on:
         return {"results": [], "has_more": False, "next_band": None}
     #fail-soft like every other url reader, a doctored offset shouldn't 500
     try:
@@ -478,7 +491,7 @@ def custom_more():
     filters = read_filters()
     try:
         scored = custom_score(lines, filters, read_sort(), offset=offset, band=band,
-                              currency=filters["cur"], want_chips=False)
+                              currency=filters["cur"], want_chips=False, rank_on=rank_on)
     except embedder.EmbedderDown:
         #the button says so and stays where it is. the page above it is already
         #drawn, so there is nothing to render again
