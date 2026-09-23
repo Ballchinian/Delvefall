@@ -143,19 +143,28 @@ def wake(timeout=1.0):
         return False
 
 
-def parity(conn, how_many=20):
+def parity_rows(conn, how_many=20):
+    #the read, split off from parity so the caller can hand its pooled
+    #connection back BEFORE the wake. parity waits up to BUDGET (90s) on a
+    #sleeping container, and a transaction left open on lines for that long is
+    #the 09-22 outage: an ingest queues behind it, every search behind the ingest
+    if not EMBED_URL:
+        return []
+    return conn.execute("SELECT line_text, embedding FROM lines WHERE NOT whole "
+                        "ORDER BY random() LIMIT %s", (how_many,)).fetchall()
+
+
+def parity(rows):
     #the standing guard against the ingest and the service drifting apart. the
     #service embeds text the ingest already embedded, and the two have to agree:
     #a card's percent is a comparison against the stored vectors, so a service
     #on other weights makes every number on /custom quietly wrong.
     #
     #the bar is the one tools/check_embed_parity.py uses, UNIQUE_NOISE, because
-    #an error under it cannot lift a card off the tie at zero. read only, and it
-    #WAKES THE SERVICE, so /admin is the only thing that calls it
+    #an error under it cannot lift a card off the tie at zero. it takes rows and
+    #not a connection because it WAKES THE SERVICE and blocks while it does
     if not EMBED_URL:
         return {"ok": False, "why": "EMBED_URL is not set"}
-    rows = conn.execute("SELECT line_text, embedding FROM lines WHERE NOT whole "
-                        "ORDER BY random() LIMIT %s", (how_many,)).fetchall()
     if not rows:
         return {"ok": False, "why": "no lines to compare against"}
     try:

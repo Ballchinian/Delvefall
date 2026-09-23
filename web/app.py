@@ -5158,10 +5158,17 @@ def admin():
         embed_type = conn.execute("""SELECT format_type(atttypid, atttypmod) AS t FROM pg_attribute
                                      WHERE attrelid = 'lines'::regclass AND attname = 'embedding'
                                   """).fetchone()["t"]
-        #WAKES the model service, which is why it is on this page and nowhere
-        #else. it is the standing guard against the ingest and the service
-        #drifting onto different weights, and a wake costs nothing but seconds
-        model = embedder.parity(conn)
+        #the read half only. the wake is below, OUTSIDE this block: parity waits
+        #up to EMBED_BUDGET (90s) on a sleeping service, and holding a pooled
+        #connection that long leaves a transaction on lines for an ingest to
+        #queue behind, which is how 09-22 went down
+        model_rows = embedder.parity_rows(conn)
+
+    #WAKES the model service, which is why it is on this page and nowhere else.
+    #it is the standing guard against the ingest and the service drifting onto
+    #different weights, and a wake costs nothing but seconds. the connection is
+    #back in the pool by here: 4 wakes measured 09-23 took 7s to 13s each
+    model = embedder.parity(model_rows)
 
     usage = [usage_row(today, live, True, first_measured is not None)]
     for u in rows_daily:
