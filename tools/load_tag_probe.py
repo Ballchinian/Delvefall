@@ -128,6 +128,17 @@ def main():
         conn.close()
         return
 
+    #the table arrives with common/schema.sql, which the ingest runs and web
+    #creates its own copy of at boot. before either has happened against this
+    #database the write below is an UndefinedTable nobody can read, so it says
+    #so instead. checked here and not before the dry run, which is worth having
+    #while the deploy is still waiting
+    if conn.execute("SELECT to_regclass('tag_probe')").fetchone()[0] is None:
+        print("tag_probe is not in this database yet: deploy web, or let the daily "
+              "ingest run, and try again")
+        conn.close()
+        sys.exit(1)
+
     #plain inserts rather than a COPY: 1,933 rows is nothing, and a COPY of a
     #vector column has to go through binary mode and set_types to say what it
     #is carrying.
