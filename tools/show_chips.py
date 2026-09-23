@@ -66,13 +66,20 @@ def main():
     #the check above has to happen first
     import autotags
     from db import pool
-    from views.custom import line_neighbours, tag_chips
+    from views.custom import line_neighbours, probe_stale, tag_chips
 
     overlaps, counts, leaked = [], [], 0
     #what the floor is doing: a chip under CHIP_BAR was not chosen, it is what
     #the top-up to two reached for when nothing cleared the bar
     topped, mute, chips_seen, below_bar = 0, 0, 0, 0
     with pool.connection() as conn:
+        #the page refuses chips when the probe cannot be proved to match the
+        #vectors, and this tool shows what the page shows. said here rather than
+        #printed as 0 chips a card, which reads as a bad rule instead of a stamp
+        why = probe_stale(conn)
+        if why:
+            print("no chips anywhere: " + why)
+            return
         if args.seed is not None:
             conn.execute("SELECT setseed(%s)", (args.seed,))
         banned = {r["tag"] for r in conn.execute("SELECT tag FROM tag_probe WHERE banned")}

@@ -107,6 +107,15 @@ def main():
     shares = type_shares(conn)
     print("type shares: %d tags counted over %s" % (len(shares), ", ".join(TYPES)))
 
+    #the weights are fitted to ONE model's vector space, so they have to be stamped
+    #with the model whose vectors they were trained against. a swap refills
+    #lines.embedding and leaves tag_probe alone, and then every chip is noise that
+    #still scores in [0,1]: views/custom.py's probe_stale is what refuses it, and
+    #this row is the only thing it has to go on
+    row = conn.execute("SELECT value FROM meta WHERE key = 'embed_model'").fetchone()
+    model = row[0] if row else None
+    print("vectors: embed_model = " + (model or "NOT SET, this database has no ingest behind it"))
+
     #every tag either half of the rule can name, so a tag with no probe still
     #arrives with its ban verdict and its type shares
     every = sorted(set(tags) | set(shares) | banned)
@@ -139,6 +148,14 @@ def main():
         conn.close()
         sys.exit(1)
 
+    #without this there is nothing to stamp the weights with, and chips that cannot
+    #be proved to match the vectors do not show at all. a database with no ingest
+    #behind it has no vectors to match either
+    if not model:
+        print("meta has no embed_model: run the ingest against this database first")
+        conn.close()
+        sys.exit(1)
+
     #plain inserts rather than a COPY: 1,933 rows is nothing, and a COPY of a
     #vector column has to go through binary mode and set_types to say what it
     #is carrying.
@@ -151,8 +168,12 @@ def main():
     with conn.cursor() as cur:
         cur.executemany("INSERT INTO tag_probe (tag, w, b, banned, types) "
                         "VALUES (%s, %s, %s, %s, %s)", rows)
+    #in the SAME transaction as the rows, so the stamp can never name a model the
+    #weights beside it were not loaded against
+    conn.execute("INSERT INTO meta (key, value) VALUES ('tag_probe_model', %s) "
+                 "ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value", (model,))
     conn.commit()
-    print("wrote %d rows to tag_probe" % len(rows))
+    print("wrote %d rows to tag_probe, stamped %s" % (len(rows), model))
     conn.close()
 
 

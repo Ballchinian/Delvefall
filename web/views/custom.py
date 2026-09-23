@@ -143,6 +143,31 @@ def line_neighbours(conn, vectors, exclude_id=None):
     return around
 
 
+def probe_stale(conn):
+    #tag_probe's 768 weights are fitted to ONE model's vector space. a model swap
+    #refills lines.embedding through lines_new and empties line_tags, and touches
+    #tag_probe nowhere, so the weights then score the new vectors as noise: every
+    #number still lands in [0,1], the blend still runs, the chips still render and
+    #mean nothing. no error and no empty state, which is why this is asked rather
+    #than waited for.
+    #
+    #tools/load_tag_probe.py stamps meta.tag_probe_model with the embed_model it
+    #loaded against. a missing stamp counts as stale: it means the loader has not
+    #run since this check existed, and an unprovable match is the thing being
+    #refused. returns the reason, or "" when the chips can be trusted
+    said = {r["key"]: r["value"] for r in conn.execute(
+        "SELECT key, value FROM meta WHERE key IN ('embed_model', 'tag_probe_model')")}
+    model, stamped = said.get("embed_model"), said.get("tag_probe_model")
+    if not stamped:
+        return "tag_probe carries no model stamp: rerun tools/load_tag_probe.py"
+    if not model:
+        return "meta has no embed_model, so this database has never been through an ingest"
+    if stamped != model:
+        return ("tag_probe was loaded against " + stamped + " and the vectors are " +
+                model + ": rerun tools/load_tag_probe.py")
+    return ""
+
+
 def tag_chips(conn, vectors, around, type_line=""):
     #what the typed text is ABOUT, as chips under the form. the rule is
     #web/autotags.py's and the numbers behind it are tag_probe's; this is only
@@ -152,7 +177,11 @@ def tag_chips(conn, vectors, around, type_line=""):
     #database, and the page then shows NO chips rather than the neighbour half
     #on its own: without a probe a tag tops out at 0.30 against a 0.40 bar, so
     #what survives is whatever the top-up to two lets through, which reads like
-    #a worse rule rather than a missing one
+    #a worse rule rather than a missing one.
+    #
+    #a probe that cannot be proved to match the vectors takes the same route out
+    if probe_stale(conn):
+        return []
     probe = []
     for vec in vectors:
         #(w <#> v) is the NEGATIVE inner product, hence the sign. clamped

@@ -345,6 +345,11 @@ def typed(monkeypatch, seeded):
     return score
 
 
+#the model the seed's vectors stand for. tools/load_tag_probe.py stamps whatever
+#meta.embed_model says, and the chips are refused unless the stamp still matches
+PROBE_MODEL = "test/model-a"
+
+
 @needs_db
 class TestTheChipsUnderTheForm:
     #the seed's one hot vectors again. a probe row here is an axis scaled by 40
@@ -361,19 +366,30 @@ class TestTheChipsUnderTheForm:
         import seed
         from psycopg.types.json import Jsonb
 
-        with db.pool.connection() as conn:
+        def clean(conn):
             conn.execute("DELETE FROM tag_probe")
+            conn.execute("DELETE FROM meta WHERE key IN ('embed_model', 'tag_probe_model')")
 
-        def load(rows):
+        with db.pool.connection() as conn:
+            clean(conn)
+
+        def load(rows, stamp=PROBE_MODEL, vectors_by=PROBE_MODEL):
+            #the stamp is the loader's, and None for either side is a real state:
+            #a probe loaded before the stamp existed, or a database with no ingest
             with db.pool.connection() as conn:
                 for tag, axis, banned, types in rows:
                     w = np.asarray(seed.vec(axis), dtype=np.float32) * 40
                     conn.execute("INSERT INTO tag_probe (tag, w, b, banned, types) "
                                  "VALUES (%s, %s, %s, %s, %s)", (tag, w, -20.0, banned, Jsonb(types)))
+                for key, value in (("embed_model", vectors_by), ("tag_probe_model", stamp)):
+                    if value is not None:
+                        conn.execute("INSERT INTO meta (key, value) VALUES (%s, %s) "
+                                     "ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value",
+                                     (key, value))
 
         yield load
         with db.pool.connection() as conn:
-            conn.execute("DELETE FROM tag_probe")
+            clean(conn)
 
     def test_an_empty_probe_shows_no_chips_at_all(self, typed, probe):
         #the state of every database until tools/load_tag_probe.py has run. the
@@ -382,6 +398,38 @@ class TestTheChipsUnderTheForm:
         import seed
         probe([])
         assert typed([seed.vec(1)])["chips"] == []
+
+    def test_a_probe_with_no_model_stamp_shows_nothing(self, typed, probe):
+        #a database loaded before the stamp existed. the match cannot be proved, and
+        #the failure being guarded has no symptom, so it is refused rather than shown
+        import seed
+        probe([("draw-on-attack", 1, False, {})], stamp=None)
+        assert typed([seed.vec(1)])["chips"] == []
+
+    def test_a_probe_stamped_with_another_model_shows_nothing(self, typed, probe):
+        #what a model swap leaves behind: 768 weights fitted to the old vector space
+        #scoring the new vectors, every number still in [0,1] and none of them meaning
+        #anything
+        import seed
+        probe([("draw-on-attack", 1, False, {})], stamp="test/model-b")
+        assert typed([seed.vec(1)])["chips"] == []
+
+    def test_a_stamp_with_no_vectors_to_match_shows_nothing(self, typed, probe):
+        #no embed_model in meta is a database the ingest has never run against
+        import seed
+        probe([("draw-on-attack", 1, False, {})], vectors_by=None)
+        assert typed([seed.vec(1)])["chips"] == []
+
+    def test_the_reason_names_both_models(self, probe):
+        #tools/show_chips.py prints this instead of 0 chips a card, so it has to say
+        #which way round the mismatch is
+        import db
+        from views.custom import probe_stale
+        probe([("draw-on-attack", 1, False, {})], stamp="test/model-b")
+        with db.pool.connection() as conn:
+            why = probe_stale(conn)
+        assert "test/model-b" in why
+        assert PROBE_MODEL in why
 
     def test_a_tag_both_halves_name_is_the_first_chip(self, typed, probe):
         #axis 1 is "Whenever this card attacks, draw a card.", stored on three
