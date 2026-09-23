@@ -234,7 +234,7 @@ def tag_chips(conn, vectors, around, type_line=""):
 
 
 def custom_score(lines, filters, sort, offset=0, band=None, currency="usd", exclude_id=None,
-                 type_line="", want_chips=True):
+                 type_line="", want_chips=True, all_lines=None):
     #the whole of the results route below the form, so the tests and
     #tools/check_custom.py can call it without going through http.
     #
@@ -252,8 +252,11 @@ def custom_score(lines, filters, sort, offset=0, band=None, currency="usd", excl
         #it. a line nobody has printed is absent and weighs 1, which is right:
         #the weighting only ever punishes a line for being common
         counts = {}
+        #every typed line and not only the scored ones: a line switched off still
+        #shows how common it is, which is what the decision to switch it back on
+        #is made from
         for r in conn.execute("SELECT line_text, count FROM line_stats WHERE line_text = ANY(%s)",
-                              (lines,)):
+                              (list(all_lines or lines),)):
             counts[r["line_text"]] = r["count"]
 
         around = line_neighbours(conn, vectors, exclude_id)
@@ -277,7 +280,8 @@ def custom_score(lines, filters, sort, offset=0, band=None, currency="usd", excl
     results, has_more, next_band = similar_from_lines(
         qlines, ((), (), None), exclude_id, filters, TIER_CUT, sort,
         offset=offset, band=band, currency=currency)
-    return {"results": results, "has_more": has_more, "next_band": next_band,
+    return {"counts": counts,
+            "results": results, "has_more": has_more, "next_band": next_band,
             "uniqueness": uniqueness, "words": custom_words(below, total),
             "below": below, "total": total, "chips": chips,
             #what find_similar hands the page for a printed card, so the line
@@ -313,15 +317,62 @@ def typed_lines(text):
     return [line for line in (text or "").splitlines() if line.strip()][:MAX_LINES]
 
 
+def typed_pairs(text, name=""):
+    #each non-blank typed line beside the cleaned line the model reads for it, or
+    #None where the cleaning left under three characters and the splitter drops it.
+    #
+    #the tick boxes index into THIS, so it must not be a second copy of the rule.
+    #split_lines is per line and carries nothing between them, so handing it one
+    #line at a time gives that line's own contribution and nothing else. the test
+    #pins the two forms against each other, since a splitter that ever merged
+    #lines would silently shift every index here
+    out = []
+    for line in typed_lines(text):
+        got = split_lines({"oracle_text": line, "name": name})
+        out.append((line, got[0][0] if got else None))
+    return out
+
+
+def read_kept(how_many):
+    #the tick boxes post "lines" once per line still on, holding its index. an
+    #untouched form posts all of them, and nothing posted means all of them too,
+    #which is what /search's picker already means by an empty pick.
+    #
+    #isascii() BEFORE isdigit(): "²".isdigit() is True and int("²") raises, so the
+    #pair on its own is a 500 on a posted body
+    kept = set()
+    for part in request.form.getlist("lines"):
+        part = part.strip()
+        if part.isascii() and part.isdigit():
+            kept.add(int(part))
+    kept &= set(range(how_many))
+    #scoring nothing is not a question anyone can answer, so the last box coming
+    #off reads as all of them rather than an error page
+    return kept or set(range(how_many))
+
+
 def form_page(text, name, type_line="", **extra):
     #every answer this page has renders through here, so a rejection, a service
     #that did not wake and a full set of results all come back with the same
     #controls and the same text still in them
     from app import CARD_TYPES
 
+    #one row per typed line for the tick boxes, on every path this helper serves,
+    #so a rejection and a full set of results offer the same choices. counts arrive
+    #in extra when there was a database read to get them from
+    pairs = typed_pairs(text, name)
+    kept = extra.pop("kept", None)
+    counts = extra.pop("counts", None) or {}
+    typed = [{"idx": i, "text": line, "cleaned": cleaned,
+              "kept": kept is None or i in kept,
+              #absent from line_stats means NO printed card says it, which is not
+              #the same as one card saying it, and the weighting reads both as 1
+              "count": counts.get(cleaned) if cleaned else None}
+             for i, (line, cleaned) in enumerate(pairs)]
+
     return render_template("custom.html", text=text, name=name, types=CARD_TYPES,
                            preview=typed_lines(text), max_name=MAX_NAME, max_lines=MAX_LINES,
-                           type_line=type_line, max_type=MAX_TYPE,
+                           typed=typed, type_line=type_line, max_type=MAX_TYPE,
                            #a POST result has no url to index and must not grow
                            #one. the form itself is a page and stays open
                            noindex=request.method == "POST", **extra)
@@ -348,28 +399,40 @@ def custom_post():
     #type word is read out of it anyway
     type_line = request.form.get("type_line", "")[:MAX_TYPE]
     try:
-        lines = read_custom(text, name)
+        #EVERYTHING typed, which both checks the limits and gives the count query
+        #every line to look up, ticked or not
+        every = read_custom(text, name)
     except Rejected as e:
         #the message names the limit and is written for whoever typed it, so it
         #goes on the page as it is. nothing has reached the model yet, which is
         #the whole point of checking here
         return form_page(text, name, type_line, message=str(e))
 
+    #the tick boxes decide what is SCORED. the limits above were checked against
+    #the whole card, so switching lines off cannot talk a too-long one through
+    pairs = typed_pairs(text, name)
+    kept = read_kept(len(pairs))
+    lines = [cleaned for i, (line, cleaned) in enumerate(pairs) if cleaned and i in kept]
+    if not lines:
+        #only reachable by a posted body: a line the splitter drops gets no box
+        return form_page(text, name, type_line, kept=kept,
+                         message="Leave at least one line the matcher can read.")
+
     filters = read_filters()
     sort_field, sort_dir = read_sort_parts()
     try:
         scored = custom_score(lines, filters, read_sort(), currency=filters["cur"],
-                              type_line=type_line)
+                              type_line=type_line, all_lines=every)
     except embedder.EmbedderDown:
         #ASLEEP or still starting, which is a minute of waiting and not a fault.
         #EmbedderRefused is deliberately not caught: it means this page and the
         #service disagree about their own limits, and a bug worded as a nap
         #would never get looked at
-        return form_page(text, name, type_line,
+        return form_page(text, name, type_line, kept=kept,
                          message="The matcher didn't wake up in time. Try again in a minute."), 503
 
     return form_page(text, name, type_line, answered=True, words=scored["words"],
-                     chips=scored["chips"],
+                     chips=scored["chips"], kept=kept, counts=scored["counts"],
                      results=scored["results"], has_more=scored["has_more"],
                      next_band=scored["next_band"], errors=filters["errors"],
                      cur=filters["cur"], sort_fields=SORT_FIELDS, sort_field=sort_field,
@@ -385,9 +448,18 @@ def custom_more():
     import embedder
 
     controls_from_form()
+    text = request.form.get("text", "")
+    name = request.form.get("name", "")
     try:
-        lines = read_custom(request.form.get("text", ""), request.form.get("name", ""))
+        read_custom(text, name)
     except Rejected:
+        return {"results": [], "has_more": False, "next_band": None}
+    #the tick boxes ride along in the posted form, so page two has to score the
+    #same lines page one did or the list it appends to changes underneath it
+    pairs = typed_pairs(text, name)
+    kept = read_kept(len(pairs))
+    lines = [cleaned for i, (line, cleaned) in enumerate(pairs) if cleaned and i in kept]
+    if not lines:
         return {"results": [], "has_more": False, "next_band": None}
     #fail-soft like every other url reader, a doctored offset shouldn't 500
     try:

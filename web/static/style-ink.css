@@ -3875,6 +3875,52 @@ body.home main {
     cursor: default;
 }
 
+/* the typed lines with a tick box each, and how common every one of them is.
+   ranking on one ability at a time is the only way to stop a keyword hundreds of
+   cards share from deciding the list, and the count is what makes that decision
+   an informed one rather than a guess. .off borrows the struck-through idiom the
+   tag chips use for the same gesture */
+.custom-lines {
+    margin-top: 16px;
+}
+
+.custom-lines-lede {
+    margin: 0 0 6px;
+    font-size: 13px;
+    color: var(--muted);
+    max-width: 52ch;
+}
+
+.custom-line {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    padding: 2px 0;
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.custom-line-text {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.custom-line.off .custom-line-text {
+    color: var(--muted);
+    text-decoration: line-through;
+}
+
+.custom-line-count {
+    flex: 0 0 auto;
+    font-size: 11px;
+    color: var(--muted);
+}
+
+/* a line the splitter drops has nothing to rank on, so its box cannot be used */
+.custom-line input:disabled {
+    cursor: default;
+}
+
 /* where a real card carries it, between the art and the rules. empty until
    something is typed, and it holds its line so the card does not jump */
 .ink-card-type {

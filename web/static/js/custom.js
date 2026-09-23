@@ -70,6 +70,14 @@ text.addEventListener("input", paint);
     the reset the old value rides along with the submit, and moving from price
     to salt would ask for the least salty first
 */
+//a tick box coming off is a new ranking, so it resubmits the way the sort
+//selects do. with javascript off, Apply in the filter bar sends the same form
+form.addEventListener("change", function(e) {
+    if (e.target && e.target.name === "lines") {
+        form.requestSubmit();
+    }
+});
+
 var sortSel = form.querySelector('select[name="sort"]');
 var dirSel = form.querySelector('select[name="dir"]');
 

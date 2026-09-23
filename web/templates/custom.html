@@ -66,6 +66,34 @@
                     </div>
                 </div>
                 {% endif %}
+
+                {# which typed lines the list is ranked on. only when there is a
+                   choice to make, and the count is the reason to make it: a
+                   keyword hundreds of cards share pulls the list toward whatever
+                   else those cards have in common #}
+                {% if answered and typed | length > 1 %}
+                <div class="custom-lines">
+                    <p class="custom-lines-lede">Ranked on these lines. Switch one off to rank on
+                    the rest, which is worth doing for a keyword hundreds of cards share.</p>
+                    {% for line in typed %}
+                    <label class="custom-line{% if not line.kept %} off{% endif %}">
+                        <input type="checkbox" name="lines" value="{{ line.idx }}"
+                               {% if line.kept %}checked{% endif %}
+                               {% if not line.cleaned %}disabled{% endif %}>
+                        <span class="custom-line-text">{{ line.text }}</span>
+                        {% if not line.cleaned %}
+                        <span class="custom-line-count">nothing left once reminder text and the
+                            card's own name come out</span>
+                        {% elif line.count %}
+                        <span class="custom-line-count">on {{ "{:,}".format(line.count) }} printed
+                            card{{ 's' if line.count != 1 else '' }}</span>
+                        {% else %}
+                        <span class="custom-line-count">on no printed card</span>
+                        {% endif %}
+                    </label>
+                    {% endfor %}
+                </div>
+                {% endif %}
             </div>
 
             {# drawn in css and holding no image: it fills in as you type, and

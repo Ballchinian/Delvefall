@@ -550,3 +550,139 @@ class TestScoringTypedTextAgainstTheTable:
         assert narrow["results"] == []
         assert narrow["uniqueness"] == wide["uniqueness"]
         assert narrow["words"] == wide["words"]
+
+
+class TestTypedLinesPairWithWhatTheModelReads:
+    #the tick boxes post indexes into the TYPED lines, and the scoring uses the
+    #cleaned line each one produced. if those two lists ever stop lining up, every
+    #index shifts and switching one line off silently drops a different ability
+
+    LINES = ["Flying", "Whenever this creature attacks, draw a card.", "{T}: Add {G}.",
+             "ab", "Menace"]
+
+    def test_the_splitter_is_per_line_so_the_pairing_holds(self):
+        #the whole assumption in one assertion: split_lines carries nothing between
+        #lines, so asking it one line at a time gives the same list as asking once.
+        #a splitter that ever merged or reordered would fail here first
+        from mirror import split_lines
+        text = "\n".join(self.LINES)
+        whole = split_lines({"oracle_text": text, "name": "Test"})
+        one_at_a_time = []
+        for line in self.LINES:
+            one_at_a_time += split_lines({"oracle_text": line, "name": "Test"})
+        assert whole == one_at_a_time
+
+    def test_a_line_the_splitter_drops_pairs_with_nothing(self):
+        #under three characters once cleaned, so there is nothing to rank on and
+        #nothing to switch off either
+        from views.custom import typed_pairs
+        pairs = typed_pairs("ab\nWhenever this creature attacks, draw a card.", "Test")
+        assert [cleaned is None for _, cleaned in pairs] == [True, False]
+        assert pairs[0][0] == "ab"
+
+    def test_the_rows_stay_in_the_order_typed(self):
+        from views.custom import typed_pairs
+        pairs = typed_pairs("Flying\nMenace\nTrample", "Test")
+        assert [raw for raw, _ in pairs] == ["Flying", "Menace", "Trample"]
+
+    def test_blank_lines_are_not_rows_at_all(self):
+        #a blank row would take an index and shift every box below it
+        from views.custom import typed_pairs
+        pairs = typed_pairs("Flying\n\n   \nMenace", "Test")
+        assert [raw for raw, _ in pairs] == ["Flying", "Menace"]
+
+
+class TestReadingWhichLinesToScore:
+
+    def kept(self, data, how_many):
+        from views.custom import read_kept
+        with app.app.test_request_context("/custom", method="POST", data=data):
+            return read_kept(how_many)
+
+    def test_nothing_posted_means_every_line(self):
+        #what /search's picker already means by an empty pick, and scoring nothing
+        #is not a question anyone can answer
+        assert self.kept({}, 3) == {0, 1, 2}
+
+    def test_the_boxes_left_on_are_what_gets_scored(self):
+        assert self.kept({"lines": ["0", "2"]}, 3) == {0, 2}
+
+    def test_an_index_past_the_end_is_dropped(self):
+        assert self.kept({"lines": ["1", "9"]}, 3) == {1}
+
+    def test_a_unicode_digit_is_not_a_500(self):
+        #"²".isdigit() is True where int() on it raises, so isdigit on its own
+        #turns a posted body into an error page
+        assert self.kept({"lines": ["²"]}, 2) == {0, 1}
+
+
+@needs_db
+class TestSwitchingATypedLineOff:
+    #the point of the feature: a keyword hundreds of cards share otherwise drags
+    #the list toward whatever else those cards have in common
+
+    TWO = "Menace\nWhenever this creature attacks, draw a card."
+
+    @pytest.fixture
+    def asked(self, monkeypatch, seeded):
+        #the texts that reached the model, which is what "ranked on" means here.
+        #asserted by substring rather than against clean_line's exact output, or
+        #this would be checking the cleaning against itself. case folded because
+        #clean_line keeps the case it was given
+        import seed
+        seen = []
+
+        def fake(texts):
+            seen.append(list(texts))
+            return [np.asarray(seed.vec(1), dtype=np.float32) for _ in texts]
+
+        monkeypatch.setattr(embedder, "embed", fake)
+
+        def post(route="post", **extra):
+            from views.custom import custom_more, custom_post
+            data = dict({"text": self.TWO}, **extra)
+            with app.app.test_request_context("/custom", method="POST", data=data):
+                #the rendered page hangs off the function, for the one test that
+                #reads what the boxes look like rather than what was scored
+                post.page = (custom_post if route == "post" else custom_more)()
+            return seen[-1]
+
+        return post
+
+    def test_both_lines_are_ranked_on_by_default(self, asked):
+        got = asked()
+        assert len(got) == 2
+        assert any("menace" in t.lower() for t in got)
+        assert any("draw a card" in t for t in got)
+
+    def test_the_keyword_switched_off_never_reaches_the_model(self, asked):
+        got = asked(lines=["1"])
+        assert len(got) == 1
+        assert "draw a card" in got[0]
+        assert "menace" not in got[0].lower()
+
+    def test_the_ability_can_be_the_one_switched_off(self, asked):
+        #nothing in the rule prefers the interesting line: it is whose box is on
+        got = asked(lines=["0"])
+        assert len(got) == 1
+        assert "menace" in got[0].lower()
+
+    def test_a_line_switched_off_still_says_how_common_it_is(self, asked):
+        #the count is what the decision to switch a line back ON is made from, so
+        #it cannot cover only the lines being scored. the seed puts Flying on 3,000
+        #cards for exactly this reason
+        asked(text="Flying\nWhenever this card attacks, draw a card.", lines=["1"])
+        page = asked.page
+        #the thousands separator too, since the number is what carries the point
+        assert "3,000" in page
+        assert "printed card" in page
+        assert "custom-line off" in page
+
+    def test_page_two_is_ranked_on_the_same_lines(self, asked):
+        #custom.js posts the WHOLE form for /custom/more, tick boxes included, so a
+        #second page that read the text and ignored them would append results from
+        #a different ranking onto the first
+        got = asked(route="more", lines=["1"])
+        assert len(got) == 1
+        assert "draw a card" in got[0]
+        assert "menace" not in got[0].lower()
