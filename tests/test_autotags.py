@@ -158,6 +158,20 @@ class TestReadingATypeLine:
     def test_only_the_front_face_is_read(self):
         assert card_type("Instant // Creature — Spirit") == "Instant"
 
+    @pytest.mark.parametrize("line,kind", [
+        ("legendary creature", "Creature"),
+        ("instant", "Instant"),
+        ("ARTIFACT", "Artifact"),
+        ("Artifact—Creature", "Creature"),
+    ])
+    def test_a_type_typed_in_any_case_is_read(self, line, kind):
+        #the box is free text. read as other, the type filter switched off
+        assert card_type(line) == kind
+
+    def test_a_type_inside_a_longer_word_is_not_one(self):
+        #"Land" is read before "Creature", so the substring made this a land
+        assert card_type("Creature — Human Landfall") == "Creature"
+
     def test_something_unrecognised_is_other(self):
         assert card_type("Kindred Hippo") == "other"
         assert card_type("") == "other"

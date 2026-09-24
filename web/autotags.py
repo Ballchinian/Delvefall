@@ -12,6 +12,8 @@
 #PURE: scores in, chips out. the database work is views/custom.py's, because web
 #deploys on its own and this file is what the tests can reach without one.
 
+import re
+
 #a tag's score is the probe reading the typed line directly, blended with the
 #vote of the lines nearest it. 0.7/0.3 was tuned on the dev half
 PROBE_SHARE = 0.7
@@ -48,10 +50,14 @@ TYPES = ("Land", "Creature", "Instant", "Sorcery", "Artifact", "Enchantment", "P
 
 def card_type(type_line):
     #the FRONT face only, the way the exam reads it: a back face is a different
-    #card and the visitor typed one card's worth of text
-    head = (type_line or "").split("//")[0]
+    #card and the visitor typed one card's worth of text.
+    #
+    #whole words in any case, since /custom's box is free text: "legendary
+    #creature" is a creature and "Creature — Human Landfall" is not a land. the
+    #exam's substring match reads all 31,919 printed type lines the same way
+    words = set(re.findall(r"[a-z]+", (type_line or "").split("//")[0].lower()))
     for kind in TYPES:
-        if kind in head:
+        if kind.lower() in words:
             return kind
     return "other"
 
