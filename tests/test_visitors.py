@@ -206,6 +206,25 @@ class TestTheRollup:
         assert row["uniques"] == 1
         assert row["suspect_n"] == 0
 
+    def test_a_row_written_after_its_day_was_taken_changes_nothing(self):
+        #a request straddling midnight: its row lands after the rollup froze the
+        #day, and the next rollup replaced the day with that one visitor
+        with db.pool.connection() as conn:
+            self.seen(conn, SEEDED, "person", font=True, act=True)
+            self.seen(conn, SEEDED, "reader", font=True)
+            conn.commit()
+        assert self.rolled(SEEDED)["uniques"] == 2
+        visitors._visit = {"day": None, "salt": None}
+        with db.pool.connection() as conn:
+            self.seen(conn, SEEDED, "straddler")
+            conn.commit()
+        row = self.rolled(SEEDED)
+        assert (row["uniques"], row["acted_n"], row["rendered_n"]) == (2, 1, 1)
+        #and it is cleared with the rest, not carried into tomorrow
+        with db.pool.connection() as conn:
+            assert conn.execute("SELECT count(*) AS n FROM visit_seen WHERE day = %s",
+                                (SEEDED,)).fetchone()["n"] == 0
+
     def test_a_visitors_kinds_gather_into_one_row(self):
         #the page and the font arrive as separate requests minutes apart, and a
         #flag already set never goes out again

@@ -77,15 +77,15 @@ def todays_salt():
                      (day, secrets.token_hex(16)))
         salt = conn.execute("SELECT salt FROM visit_salt WHERE day = %s", (day,)).fetchone()["salt"]
         #AND html, so a visitor who fetched the sitemap or the share image and
-        #never loaded a page is not one of the day's people
+        #never loaded a page is not one of the day's people.
+        #
+        #a finished day is never rewritten. a request straddling midnight can
+        #write its row after the rollup took that day, and replacing the day with
+        #whatever sits there next time turns a day's visitors into that one
         conn.execute("""INSERT INTO visit_daily (day, uniques, bots, suspect_n, acted_n, rendered_n)
                         SELECT day, """ + SPLIT_COUNTS + """
                         FROM visit_seen WHERE day < %s AND html GROUP BY day
-                        ON CONFLICT (day) DO UPDATE SET uniques = EXCLUDED.uniques,
-                                                        bots = EXCLUDED.bots,
-                                                        suspect_n = EXCLUDED.suspect_n,
-                                                        acted_n = EXCLUDED.acted_n,
-                                                        rendered_n = EXCLUDED.rendered_n""", (day,))
+                        ON CONFLICT (day) DO NOTHING""", (day,))
         conn.execute("DELETE FROM visit_seen WHERE day < %s", (day,))
         conn.execute("DELETE FROM visit_salt WHERE day < %s", (day,))
     _visit["day"] = day
