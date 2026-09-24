@@ -4843,9 +4843,11 @@ def filter_reasons(card, filters):
         if not any(t.lower() in tl for t in filters["types"]):
             reasons.append("its type line doesn't include " + " or ".join(filters["types"]))
     if filters["cmdr"]:
-        #front face only, mirroring filter_sql: the back face can't lead a deck
+        #COMMANDER_SQL in python: can_command, or a legendary creature on the
+        #front face. without can_command a legendary Vehicle with a printed power
+        #read as hidden, and a real missing report was turned away with that
         tl = (card["type_line"] or "").split("//")[0].lower()
-        if "legendary" not in tl or "creature" not in tl:
+        if not card["can_command"] and ("legendary" not in tl or "creature" not in tl):
             reasons.append("it can't be a commander and \"commanders only\" is on")
     if filters["gc"] and card["game_changer"]:
         reasons.append("it's a game changer and \"hide game changers\" is on")
@@ -4941,7 +4943,8 @@ def feedback():
             if cpct is not None:
                 snap["concept_pct"] = cpct
                 shown_pct = int(round((1 - BLEND) * expected_pct + BLEND * cpct))
-            full = conn.execute("""SELECT color_identity, price_usd, price_eur, cmc, type_line, game_changer, legal_commander, oracle_text, salt
+            full = conn.execute("""SELECT color_identity, price_usd, price_eur, cmc, type_line, game_changer, legal_commander,
+                                          oracle_text, salt, can_command
                                    FROM cards WHERE oracle_id = %s""", (expected["oracle_id"],)).fetchone()
             reasons = filter_reasons(full, filters)
             #the filter box is one compiled expression, so the honest check

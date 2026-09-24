@@ -177,3 +177,28 @@ class TestCaseInsensitivity:
         assert compile_fq("O:draw") == compile_fq("o:draw")
         assert compile_fq("o:a OR o:b") == compile_fq("o:a or o:b")
         assert compile_fq("o:a AND o:b") == compile_fq("o:a and o:b")
+
+
+class TestTheReportDiagnosisAgreesWithCommanderSql:
+    #a missing-card report is answered "your filters hide it" and never stored when
+    #filter_reasons says so, so it has to hide exactly what COMMANDER_SQL hides
+
+    def reasons(self, **card):
+        import app
+        row = dict(color_identity="", price_usd=None, price_eur=None, cmc=5, salt=None,
+                   type_line="", game_changer=False, legal_commander=True, can_command=False)
+        row.update(card)
+        with app.app.test_request_context("/search?cmdr=1"):
+            return app.filter_reasons(row, app.read_filters())
+
+    def test_a_vehicle_with_a_printed_power_can_command(self):
+        #Parhelion II: the type line says Vehicle, and can_command is what the
+        #ingest read off its printed power
+        assert self.reasons(type_line="Legendary Artifact — Vehicle", can_command=True) == []
+
+    def test_a_vehicle_without_one_cannot(self):
+        assert self.reasons(type_line="Legendary Artifact — Vehicle", can_command=False)
+
+    def test_a_legendary_creature_can_before_the_ingest_has_set_it(self):
+        #COMMANDER_SQL's safety net for a database the column is still false in
+        assert self.reasons(type_line="Legendary Creature — Elf", can_command=False) == []
