@@ -24,12 +24,15 @@
     <p>Most of what reaches any website is automated, and a crawler is only ever asked to
     admit it, so a count taking every visit at face value would be mostly machines. To tell
     the difference, the fingerprint also carries a few yes or no notes for the day: whether
-    it loaded a page, whether it fetched the font the site draws with, whether it used the
-    search box or a form, and whether it asked for the files crawlers read, like robots.txt.
-    Working that out looks at two headers your browser already sends with every request,
-    which languages you accept and what the request is for, and neither is stored. None of
-    these notes is about you or what you searched for, only about how the visit behaved, and
-    they are deleted every night along with the fingerprint.</p>
+    it loaded a page, whether it fetched the font the site draws with, whether it did
+    something on a page (typed in the search box, loaded more results, dealt a card or sent a
+    form), whether it asked for the files crawlers read, like robots.txt, whether its browser
+    name says it is a bot, and whether it claimed to be a browser without sending what
+    browsers send. Working that out looks at three headers your browser already sends with
+    every request: the name of the browser, which languages you accept and what the request
+    is for. None of the three is stored. None of these notes is about you or what you
+    searched for, only about how the visit behaved, and they are deleted every night along
+    with the fingerprint.</p>
     <p>This happens on the server, so nothing is stored on your device and there is nothing
     to consent to. It cannot follow you across days or to any other website.</p>
 
