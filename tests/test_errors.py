@@ -83,3 +83,29 @@ class TestAPostedBodyCannotTurnIntoA500:
         client = app.app.test_client()
         assert client.post("/deck/swap/cards", json={"lines": ["²", "1"]}).status_code != 500
         assert client.post("/deck/swap/cards", json={"lines": {"0": 1}}).status_code != 500
+
+
+class TestTheSuggestBoxIsBounded:
+
+    def test_a_pasted_page_asks_for_a_name_no_longer_than_one(self, monkeypatch):
+        #every keystroke sends it, and each pattern it builds goes into ILIKE and
+        #a trigram comparison against every name
+        asked = []
+
+        class Pool:
+            def connection(self):
+                return self
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                return False
+
+            def execute(self, sql, params):
+                asked.extend(p for p in params if isinstance(p, str))
+                return []
+
+        monkeypatch.setattr(app, "pool", Pool())
+        app.app.test_client().get("/suggest?q=" + "a" * 20000)
+        assert asked and max(len(p) for p in asked) <= app.SUGGEST_MAX + 2

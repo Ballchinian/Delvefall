@@ -5325,11 +5325,14 @@ def admin_act():
 #the LIMIT is where the index walk stops, and it is the same walk either way
 SUGGEST_SHOW = 8
 SUGGEST_ROWS = 12
+#the longest name in the table is 61 characters, both faces of Sidequest: Play
+#Blitzball. past this the box only feeds the trigram scan
+SUGGEST_MAX = 100
 
 
 @app.route("/suggest")
 def suggest():
-    q = request.args.get("q", "").strip()
+    q = request.args.get("q", "")[:SUGGEST_MAX].strip()
     if len(q) < 2:
         return {"names": []}
     p, s = q + "%", "%" + q + "%"
