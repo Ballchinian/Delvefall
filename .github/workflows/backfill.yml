@@ -45,8 +45,9 @@ jobs:
           key: backfill-${{ inputs.model }}
 
       #the cpu wheel first, or requirements pulls a 2gb+ cuda build nothing here
-      #can use
-      - run: pip install torch --index-url https://download.pytorch.org/whl/cpu
+      #can use. the version is the table's, since a trial that wins is served by
+      #the embed service on that torch. tools/check_sync.py holds them together
+      - run: pip install torch==2.12.1 --index-url https://download.pytorch.org/whl/cpu
       - run: pip install -r ingest/requirements.txt
 
       - run: python -m ingest.backfill_embeddings --model "${{ inputs.model }}" ${{ inputs.index && '--index' || '' }}

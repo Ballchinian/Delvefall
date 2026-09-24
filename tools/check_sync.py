@@ -37,6 +37,17 @@ def assign_value(path, name):
     return None
 
 
+def assign_dump(path, name):
+    #for a value literal_eval cannot read, a compiled regex: the call and its
+    #pattern compared as written
+    for node in ast.parse(read(path)).body:
+        if isinstance(node, ast.Assign) and any(
+                isinstance(t, ast.Name) and t.id == name for t in node.targets):
+            return ast.dump(node.value)
+    problems.append(path + " has no assignment " + name)
+    return None
+
+
 def same(what, a, b, where="between web/ and its source of truth"):
     if a is not None and b is not None and a != b:
         problems.append(what + " drifted " + where)
@@ -57,6 +68,9 @@ same("reminder_is_the_rule", func_dump(MIRROR, "reminder_is_the_rule"),
 same("split_lines", func_dump(MIRROR, "split_lines"), func_dump("common/cards.py", "split_lines"))
 same("REMINDER_KEYWORDS", assign_value(MIRROR, "REMINDER_KEYWORDS"),
      assign_value("common/cards.py", "REMINDER_KEYWORDS"))
+#the two patterns reminder_is_the_rule reads, which its own ast only names
+for pattern in ("_BARE_KEYWORD", "_DASH_COST"):
+    same(pattern, assign_dump(MIRROR, pattern), assign_dump("common/cards.py", pattern))
 
 #which column the vectors are read from. it gets interpolated into sql in both
 #places, so the allowlist that keeps it safe has to say the same thing in both
@@ -102,15 +116,32 @@ def pinned(path, package):
     return None
 
 
-workflow = read(".github/workflows/update.yml")
-in_workflow = None
-for line in workflow.splitlines():
-    if "download.pytorch.org" in line and "torch==" in line:
-        in_workflow = line.split("torch==", 1)[1].split()[0]
-same("the torch pin", in_workflow, pinned("ingest/requirements.txt", "torch"),
-     "between .github/workflows/update.yml and ingest/requirements.txt")
-if in_workflow is None:
-    problems.append(".github/workflows/update.yml installs torch without a version")
+def torch_installed_by(path):
+    #the version on the line that installs the cpu wheel by hand
+    for line in read(path).splitlines():
+        if "download.pytorch.org" in line and "torch" in line:
+            if "torch==" not in line:
+                problems.append(path + " installs torch without a version")
+                return None
+            return line.split("torch==", 1)[1].split()[0]
+    problems.append(path + " no longer installs the cpu torch wheel")
+    return None
+
+
+ingest_torch = pinned("ingest/requirements.txt", "torch")
+#update.yml embeds every morning's new lines, the embed service's image embeds
+#what a visitor types, and backfill.yml fills a trial column the site can switch
+#to. all three have to be the torch the table was embedded with
+for path in (".github/workflows/update.yml", "embed/Dockerfile", ".github/workflows/backfill.yml"):
+    same("the torch pin", torch_installed_by(path), ingest_torch,
+         "between " + path + " and ingest/requirements.txt")
+
+#the same text has to come out as the same vector on both sides, so the model's
+#libraries are pinned alike in both
+for package in ("sentence-transformers", "transformers", "tokenizers", "numpy"):
+    same("the " + package + " pin", pinned("embed/requirements.txt", package),
+         pinned("ingest/requirements.txt", package),
+         "between embed/requirements.txt and ingest/requirements.txt")
 
 #guarded on the file EXISTING, because finetune/ ships its scripts but not its
 #data: a checkout without it has nothing to compare, which must not read as a
