@@ -7,6 +7,10 @@
 //and the recent-search list, none of which a card somebody typed has.
 
 import { el, resultCard } from "dom";
+import { hold, keep } from "place";
+
+//before anything below can change the page height under it
+keep();
 
 var form = document.querySelector(".custom-form");
 var text = document.getElementById("custom-text");
@@ -109,6 +113,9 @@ previewRules.addEventListener("click", function(e) {
     setPicked(on.indexOf(idx) === -1 ? on.concat([idx]) : on.filter(function(value) {
         return value !== idx;
     }));
+    //the answer is the same page with the card where it was, as /search keeps its
+    //anchor card, not the top of it
+    hold("#preview-rules");
     form.requestSubmit();
 });
 
@@ -181,12 +188,23 @@ if (sortSel && window.SORT_DIRS) {
             dirSel.hidden = false;
             dirSel.disabled = false;
         }
+        hold(".filter-bar");
         form.requestSubmit();
     };
     dirSel.onchange = function() {
+        hold(".filter-bar");
         form.requestSubmit();
     };
 }
+
+/* a box inside a shut panel cannot be focused, so the browser refuses to submit
+   and shows nothing at all. covers the native min and max messages too */
+form.addEventListener("invalid", function(e) {
+    var fold = e.target.closest("details");
+    if (fold) {
+        fold.open = true;
+    }
+}, true);
 
 /*
     load more does the two jobs it does on /search: inside a tier it pages 20 at
