@@ -266,6 +266,39 @@ class TestASecondReadReplacesTheFirst:
         #74 under the seed map, so the reread is what moved it and not the arithmetic
         assert was == 74
 
+    def test_a_read_that_dies_between_the_maps_changes_neither(self, monkeypatch):
+        #the concept map arrives, the mech read throws: the new concept map beside
+        #the old mech map is one model's percents on one axis and another's on the
+        #other, for the 300s until the next reload
+        monkeypatch.setattr(mirror, "CALIBRATION", [(0.0, 0.0), (1.0, 100.0)])
+        monkeypatch.setattr(mirror, "MECH_CALIBRATION", [(0.0, 0.0), (1.0, 100.0)])
+        monkeypatch.setattr(mirror, "CALIBRATED", True)
+
+        class Rows:
+            def fetchone(self):
+                return {"value": json.dumps([[0.0, 0], [0.5, 90], [1.0, 100]])}
+
+        class Conn:
+            def execute(self, sql, args):
+                if args[0].startswith("mech"):
+                    raise RuntimeError("the connection dropped")
+                return Rows()
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                return False
+
+        class Pool:
+            def connection(self):
+                return Conn()
+
+        monkeypatch.setattr(mirror, "pool", Pool())
+        mirror.load_calibration()
+        assert mirror.CALIBRATION == [(0.0, 0.0), (1.0, 100.0)]
+        assert mirror.MECH_CALIBRATION == [(0.0, 0.0), (1.0, 100.0)]
+
     def test_a_read_that_throws_keeps_the_last_good_maps(self, monkeypatch):
         #reverting to the seeds would move every percent on the site, so a blip has
         #to change nothing. the timer moves anyway, because it is stamped before the

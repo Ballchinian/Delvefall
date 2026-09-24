@@ -201,6 +201,7 @@ def load_calibration():
     _LOADED_AT = time.monotonic()
     suffix = "" if EMBED_COL == "embedding" else "_" + EMBED_COL
     try:
+        got = {}
         with pool.connection() as conn:
             for key in ("concept_calibration", "mech_calibration"):
                 row = None
@@ -210,11 +211,11 @@ def load_calibration():
                 if row is None:
                     row = conn.execute("SELECT value FROM meta WHERE key = %s", (key,)).fetchone()
                 if row:
-                    pts = [(float(x), float(y)) for x, y in json.loads(row["value"])]
-                    if key == "concept_calibration":
-                        CALIBRATION = pts
-                    else:
-                        MECH_CALIBRATION = pts
+                    got[key] = [(float(x), float(y)) for x, y in json.loads(row["value"])]
+        #both or neither: a read that dies after the first map would leave one
+        #model's concept map beside the other's mech map until the next reload
+        CALIBRATION = got.get("concept_calibration", CALIBRATION)
+        MECH_CALIBRATION = got.get("mech_calibration", MECH_CALIBRATION)
         #reaching here means the database ANSWERED, possibly "no such rows",
         #which is a virgin database and a real answer
         CALIBRATED = True
