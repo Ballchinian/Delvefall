@@ -99,7 +99,10 @@ def expect_the_schema_shape(conn):
     names = {r[0] for r in conn.execute("""
         SELECT c.relname FROM pg_index i JOIN pg_class c ON c.oid = i.indexrelid
         WHERE i.indrelid = 'lines'::regclass""")}
-    names |= {r[0] for r in conn.execute("SELECT conname FROM pg_constraint WHERE conrelid = 'lines'::regclass")}
+    #not the NOT NULLs, which postgres 18 lists here as contype 'n' and LIKE
+    #copies anyway. a check or a unique the renames would leave behind still counts
+    names |= {r[0] for r in conn.execute("""SELECT conname FROM pg_constraint
+                                            WHERE conrelid = 'lines'::regclass AND contype <> 'n'""")}
     wanted = {"lines" + k for k in list(INDEXES) + list(CONSTRAINTS)}
     if names != wanted:
         raise Refused("lines carries " + ", ".join(sorted(names)) + ", this tool rebuilds " + ", ".join(sorted(wanted)))
@@ -266,6 +269,9 @@ def exchange(conn, incoming, outgoing, check=True):
     alone(conn)
     conn.execute("SET LOCAL lock_timeout = '" + LOCK_TIMEOUT + "'")
     conn.execute("LOCK TABLE lines IN SHARE MODE")
+    #asked again under the lock: an index or a key added to lines since the copy
+    #is one the renames below would quietly leave behind on the outgoing table
+    expect_the_schema_shape(conn)
     if check and fingerprint(conn, "lines") != fingerprint(conn, incoming):
         raise Refused("lines has changed since " + incoming + " was copied from it")
     note = conn.execute("SELECT obj_description(%s::regclass, 'pg_class')", (incoming,)).fetchone()[0]

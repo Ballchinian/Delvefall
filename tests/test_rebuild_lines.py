@@ -172,6 +172,27 @@ class TestTheSwapOnlyHappensOverWhatWasCopied:
             rebuild_lines.exchange(conn, "lines_new", "lines_old")
         assert embedding_type(conn) == "vector(768)"
 
+    def test_an_index_added_to_lines_since_the_copy_refuses_the_swap(self, conn):
+        #the renames carry only what this tool built, so the new index would stay
+        #behind on lines_old and the live table would go without it
+        from ingest import rebuild_lines
+        build(conn)
+        rebuild_lines.record(conn, rebuild_lines.check(conn))
+        conn.execute("CREATE INDEX lines_face ON lines (face)")
+        with pytest.raises(rebuild_lines.Refused, match="lines_face"):
+            rebuild_lines.exchange(conn, "lines_new", "lines_old")
+        assert embedding_type(conn) == "vector(768)"
+
+    def test_a_check_added_to_lines_refuses_it_too(self, conn):
+        #only postgres 18's NOT NULL rows are left out of the shape, not every
+        #constraint that is not a key
+        from ingest import rebuild_lines
+        build(conn)
+        rebuild_lines.record(conn, rebuild_lines.check(conn))
+        conn.execute("ALTER TABLE lines ADD CONSTRAINT lines_face_check CHECK (face >= 0)")
+        with pytest.raises(rebuild_lines.Refused, match="lines_face_check"):
+            rebuild_lines.exchange(conn, "lines_new", "lines_old")
+
     def test_a_rollback_puts_the_old_table_back_and_the_new_one_can_go(self, conn):
         from ingest import rebuild_lines
         rebuild(conn)
