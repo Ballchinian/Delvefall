@@ -72,12 +72,16 @@ function paint() {
     than form controls, and /custom/more posts this same form.
 
     typing clears them. the text moving shifts every index, so a pick made against
-    the old text would quietly rank on a different ability
+    the old text would quietly rank on a different ability.
+
+    the next picks come from the card as drawn and not from the inputs, so a
+    second click before the page answers asks the same thing again rather than
+    toggling the line back off
 */
 function picked() {
-    return Array.prototype.map.call(form.querySelectorAll('input[name="lines"]'),
-        function(input) {
-            return input.value;
+    return Array.prototype.map.call(previewRules.querySelectorAll(".oracle-line.picked"),
+        function(line) {
+            return line.dataset.idx;
         });
 }
 
@@ -106,6 +110,44 @@ previewRules.addEventListener("click", function(e) {
         return value !== idx;
     }));
     form.requestSubmit();
+});
+
+/*
+    one question at a time. every submit parks a server thread for as long as
+    the matcher takes, up to 90s on a cold wake, and a wake measures 7 to 13s
+    with nothing else on screen. the line clicks, the sort and apply all
+    submit through here
+*/
+var go = form.querySelector(".custom-go button");
+var goLabel = go.textContent;
+var submitting = false;
+var waiting = null;
+
+form.addEventListener("submit", function(e) {
+    if (submitting) {
+        e.preventDefault();
+        return;
+    }
+    submitting = true;
+    go.disabled = true;
+    go.textContent = "Finding the closest cards...";
+    if (!waiting) {
+        waiting = el("span", "custom-note", go.parentNode,
+                     "If the matcher was asleep it takes about ten seconds to wake.");
+    }
+    waiting.hidden = false;
+});
+
+//a page restored from the back-forward cache comes back mid submit
+window.addEventListener("pageshow", function(e) {
+    if (e.persisted) {
+        submitting = false;
+        go.disabled = false;
+        go.textContent = goLabel;
+        if (waiting) {
+            waiting.hidden = true;
+        }
+    }
 });
 
 nameBox.addEventListener("input", paint);
