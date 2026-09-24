@@ -1217,13 +1217,25 @@ def currency_urls():
     return out
 
 
+def json_body():
+    #a posted json OBJECT, or {}. get_json can hand back a list, a string or a
+    #number, and `or {}` rescues only the falsy ones: [1, 2] reached body.get
+    #and was a 500
+    body = request.get_json(silent=True)
+    return body if isinstance(body, dict) else {}
+
+
 def read_picked():
     #the lines param holds indexes into the searched card's rules text, like
-    #"0,2" for the first and third line, set by clicking lines on the page
+    #"0,2" for the first and third line, set by clicking lines on the page.
+    #
+    #isascii() BEFORE isdigit(): "²".isdigit() is True and int("²") raises, so
+    #?lines=² was a 500 on the search page
     picked = set()
     for part in request.args.get("lines", "").split(","):
-        if part.strip().isdigit():
-            picked.add(int(part.strip()))
+        part = part.strip()
+        if part.isascii() and part.isdigit():
+            picked.add(int(part))
     return picked
 
 
@@ -1782,7 +1794,11 @@ def similar_from_lines(qlines, anchor, exclude_id, filters, min_pct, sort, offse
 
     results = []
     for oid, pairs in page:
-        c = info[oid]
+        #the ranking and this read are two statements under READ COMMITTED, and
+        #the ingest deletes cards scryfall dropped: one gone in between is skipped
+        c = info.get(oid)
+        if c is None:
+            continue
         concept_pct = concept_display(concept_raw[oid]) if oid in concept_raw else 0
         more = []
         if pairs:
@@ -3795,7 +3811,7 @@ def deck_found():
     #
     #it goes through the same table and the same review page as every other
     #report, so there is one queue rather than a second half-built one
-    body = request.get_json(silent=True) or {}
+    body = json_body()
     raw = " ".join(str(body.get("raw", "")).split())[:200]
     want = " ".join(str(body.get("name", "")).split())[:200]
     if not want:
@@ -4562,7 +4578,7 @@ def deck_swap_cards():
     #walks to open a page is most of a second of database for eleven cards the
     #user may never scroll to, and they can be fetched while the current one is
     #being read instead
-    body = request.get_json(silent=True) or {}
+    body = json_body()
     field, direction = read_axis()
     if (body.get("axis"), body.get("dir")) in SWAP_AXES:
         field, direction = body["axis"], body["dir"]
@@ -4578,10 +4594,14 @@ def deck_swap_cards():
     #lines arrive as INDEXES, exactly like ?lines=0,2 does, so the browser never
     #has to send a rules line back to us and build_lines stays the one place
     #that turns an index into the text the tables are keyed on
+    #isascii() for the reason read_picked gives, and a list checked for, since a
+    #posted object would not slice
     picked_idx = set()
-    for x in (body.get("lines") or [])[:40]:
-        if str(x).strip().lstrip("-").isdigit():
-            picked_idx.add(int(str(x).strip()))
+    lines = body.get("lines")
+    for x in (lines if isinstance(lines, list) else [])[:40]:
+        x = str(x).strip()
+        if x.isascii() and x.lstrip("-").isdigit():
+            picked_idx.add(int(x))
 
     def tags(key):
         v = body.get(key)
@@ -4653,7 +4673,7 @@ def unique_cards():
     #the seen list arrives as a json BODY because after enough dealing it
     #outgrows what a url can carry
     filters = read_filters()
-    body = request.get_json(silent=True) or {}
+    body = json_body()
     seen = []
     #the browser caps its list at 2000, the [-4000:] is the server not
     #taking its word for it: newest entries win, a hand-rolled megalist
@@ -4865,7 +4885,7 @@ def feedback():
     #negative. missing reports are DIAGNOSED before anything is stored: when a
     #filter is what hides the card, the user learns that on the spot and the
     #review queue never hears about it
-    body = request.get_json(silent=True) or {}
+    body = json_body()
     kind = body.get("kind", "")
     if kind not in ("missing", "misplaced", "tag"):
         return {"ok": False, "stored": False, "msg": "That report didn't make sense to the server, sorry."}

@@ -8,6 +8,7 @@
 import html
 
 import app
+from conftest import needs_db
 
 
 def text_of(response):
@@ -61,3 +62,24 @@ class TestASearchThatMatchesNothing:
         body = app.app.test_client().get("/search?q=zzqqxx").get_data(as_text=True)
         assert 'name="robots" content="noindex"' in body
         assert 'rel="canonical"' not in body
+
+
+class TestAPostedBodyCannotTurnIntoA500:
+    #each of these raised before reaching anything else the route does, so a
+    #malformed request was a 500 however healthy the site was
+
+    @needs_db
+    def test_a_json_body_that_is_not_an_object(self):
+        #get_json hands back the list, and `or {}` rescues only a falsy one. real
+        #rows, because past the body /unique/cards subscripts what it reads back
+        client = app.app.test_client()
+        for path in ("/deck/found", "/deck/swap/cards", "/unique/cards", "/feedback"):
+            assert client.post(path, json=[1, 2, 3]).status_code != 500, path
+
+    def test_a_unicode_digit_in_the_picked_lines(self):
+        #"²".isdigit() is True and int("²") raises
+        with app.app.test_request_context("/search?q=Sol+Ring&lines=%C2%B2,1"):
+            assert app.read_picked() == {1}
+        client = app.app.test_client()
+        assert client.post("/deck/swap/cards", json={"lines": ["²", "1"]}).status_code != 500
+        assert client.post("/deck/swap/cards", json={"lines": {"0": 1}}).status_code != 500
