@@ -101,7 +101,8 @@ def main():
         print("  " + name + " " + str(counts[name]))
 
     meta = {k: v for k, v in conn.execute(
-        "SELECT key, value FROM meta WHERE key IN ('tag_vec_width', 'mech_calibration', 'concept_calibration')")}
+        "SELECT key, value FROM meta WHERE key IN ('tag_vec_width', 'mech_calibration', 'concept_calibration', "
+        "'embed_model', 'embed_sha256')")}
     meta["frozen_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
     meta["counts"] = counts
     dump("meta", meta)

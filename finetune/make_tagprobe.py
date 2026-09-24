@@ -13,6 +13,7 @@
 
 import os
 import sys
+import json
 import time
 import argparse
 
@@ -82,10 +83,17 @@ def main():
     labels = [d.line_tags.get(i, ()) for i in range(len(d.line_ids))]
 
     if not args.crossfit:
+        #the weights that made the frozen vectors ride along: tools/load_tag_probe.py
+        #refuses a probe trained against any others
+        with open(os.path.join(ea.DATA, "meta.json"), encoding="utf-8") as f:
+            frozen = json.load(f)
+        if not frozen.get("embed_sha256"):
+            raise SystemExit("tagdata/meta.json has no embed_sha256: refreeze with finetune/freeze_tagdata.py")
         print("training on all %d lines..." % len(labels))
         cols, lin = train(x, labels, len(d.tags), 0)
         np.savez(os.path.join(ea.DATA, "tagprobe.npz"), tags=np.array([d.tags[t] for t in cols]),
-                 weight=lin.weight.detach().numpy() * SCALE, bias=lin.bias.detach().numpy())
+                 weight=lin.weight.detach().numpy() * SCALE, bias=lin.bias.detach().numpy(),
+                 model=np.array(frozen["embed_model"]), sha256=np.array(frozen["embed_sha256"]))
         print("wrote tagprobe.npz, %d tags" % len(cols))
         return
 

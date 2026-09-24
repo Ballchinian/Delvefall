@@ -208,6 +208,10 @@ CREATE TABLE IF NOT EXISTS line_stats (
 --                        with decks.py, whichever ran second would see the
 --                        version already recorded and skip itself forever
 --  embed_model           which model made the vectors, so a swap rebuilds them
+--  embed_sha256          the release sha256 of its weights, so a retrain under
+--                        the same name is a swap too
+--  tag_probe_model       the same pair for the weights tag_probe was trained
+--  tag_probe_sha256      against, so /custom shows no chips once they differ
 --  mech_calibration      raw cosine -> displayed percent, for each axis. they
 --  concept_calibration   ride here so the site and the pipeline can never
 --                        disagree about what a percent means, and so a model

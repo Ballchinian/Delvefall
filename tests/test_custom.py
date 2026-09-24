@@ -400,9 +400,11 @@ def typed(monkeypatch, seeded):
     return score
 
 
-#the model the seed's vectors stand for. tools/load_tag_probe.py stamps whatever
-#meta.embed_model says, and the chips are refused unless the stamp still matches
+#the model the seed's vectors stand for, by name and by the sha256 of its weights.
+#the chips are refused unless tag_probe's stamps still match the vectors'
 PROBE_MODEL = "test/model-a"
+WEIGHTS = "d06f255a" + "0" * 56
+RETRAIN = "e17a3c90" + "0" * 56
 
 
 @needs_db
@@ -423,20 +425,23 @@ class TestTheChipsUnderTheForm:
 
         def clean(conn):
             conn.execute("DELETE FROM tag_probe")
-            conn.execute("DELETE FROM meta WHERE key IN ('embed_model', 'tag_probe_model')")
+            conn.execute("DELETE FROM meta WHERE key IN ('embed_model', 'tag_probe_model', "
+                         "'embed_sha256', 'tag_probe_sha256')")
 
         with db.pool.connection() as conn:
             clean(conn)
 
-        def load(rows, stamp=PROBE_MODEL, vectors_by=PROBE_MODEL):
-            #the stamp is the loader's, and None for either side is a real state:
-            #a probe loaded before the stamp existed, or a database with no ingest
+        def load(rows, stamp=PROBE_MODEL, vectors_by=PROBE_MODEL, trained=None, weights=None):
+            #the stamps are the loader's, and None for either side is a real state:
+            #a probe loaded before a stamp existed, or a database with no ingest.
+            #no shas at all is a database no ingest has recorded weights for
             with db.pool.connection() as conn:
                 for tag, axis, banned, types in rows:
                     w = np.asarray(seed.vec(axis), dtype=np.float32) * 40
                     conn.execute("INSERT INTO tag_probe (tag, w, b, banned, types) "
                                  "VALUES (%s, %s, %s, %s, %s)", (tag, w, -20.0, banned, Jsonb(types)))
-                for key, value in (("embed_model", vectors_by), ("tag_probe_model", stamp)):
+                for key, value in (("embed_model", vectors_by), ("tag_probe_model", stamp),
+                                   ("embed_sha256", weights), ("tag_probe_sha256", trained)):
                     if value is not None:
                         conn.execute("INSERT INTO meta (key, value) VALUES (%s, %s) "
                                      "ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value",
@@ -485,6 +490,32 @@ class TestTheChipsUnderTheForm:
             why = probe_stale(conn)
         assert "test/model-b" in why
         assert PROBE_MODEL in why
+
+    def test_matching_weights_show_chips(self, typed, probe):
+        import seed
+        probe([("draw-on-attack", 1, False, {})], trained=WEIGHTS, weights=WEIGHTS)
+        assert [c["tag"] for c in typed([seed.vec(1)])["chips"]] == ["draw-on-attack"]
+
+    def test_a_retrain_under_the_same_name_shows_nothing(self, typed, probe):
+        #the names match and the weights do not: a new release of the same repo
+        #reseeds the vectors and leaves the probe fitted to the old ones
+        import seed
+        probe([("draw-on-attack", 1, False, {})], trained=WEIGHTS, weights=RETRAIN)
+        assert typed([seed.vec(1)])["chips"] == []
+
+    def test_a_probe_with_no_weights_stamp_shows_nothing_once_the_vectors_have_one(self, typed, probe):
+        #the names match here too, and would pass on their own
+        import seed
+        probe([("draw-on-attack", 1, False, {})], weights=WEIGHTS)
+        assert typed([seed.vec(1)])["chips"] == []
+
+    def test_the_reason_names_both_weights(self, probe):
+        import db
+        from views.custom import probe_stale
+        probe([("draw-on-attack", 1, False, {})], trained=WEIGHTS, weights=RETRAIN)
+        with db.pool.connection() as conn:
+            why = probe_stale(conn)
+        assert WEIGHTS[:12] in why and RETRAIN[:12] in why
 
     def test_a_tag_both_halves_name_is_the_first_chip(self, typed, probe):
         #axis 1 is "Whenever this card attacks, draw a card.", stored on three

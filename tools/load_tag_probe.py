@@ -2,7 +2,8 @@
 #
 #run it after finetune/make_tagprobe.py has retrained, or after a verdict changes
 #in finetune/testing_list/make_tagreview.md. nothing runs it on a schedule: the
-#probe is trained on line_tags, and line_tags moves slowly.
+#probe is trained on line_tags, and line_tags moves slowly. it refuses a probe
+#trained against other weights than the ones that made the vectors.
 #
 #    python tools/load_tag_probe.py
 #    python tools/load_tag_probe.py --probe some/other/tagprobe.npz --dry-run
@@ -50,8 +51,28 @@ UNSEEN = ("single-target-instant-sorcery",)
 
 
 def read_probe(path):
+    #model and sha256 are the weights whose vectors it was trained on, which
+    #finetune/make_tagprobe.py copies out of the frozen meta. an npz without
+    #them is refused
     z = np.load(path, allow_pickle=True)
-    return list(z["tags"]), z["weight"].astype(np.float32), z["bias"].astype(np.float32)
+    trained = (str(z["model"]), str(z["sha256"])) if "sha256" in z.files else (None, None)
+    return list(z["tags"]), z["weight"].astype(np.float32), z["bias"].astype(np.float32), trained
+
+
+def mismatch(trained, weights):
+    #why a probe trained against the weights `trained` cannot score vectors made
+    #by `weights`, or "". both are release sha256s. the fix for a stale probe is
+    #a new one, since reloading the same npz stamps the same old weights
+    retrain = ("refreeze (finetune/freeze_tagdata.py), retrain (finetune/make_tagprobe.py), "
+               "then load")
+    if not trained:
+        return "the probe records no weights it was trained against: " + retrain
+    if not weights:
+        return "meta has no embed_sha256: run the ingest against this database first"
+    if trained != weights:
+        return ("the probe was trained against weights " + trained[:12] + " and the vectors are " +
+                weights[:12] + ": " + retrain)
+    return ""
 
 
 def read_banned():
@@ -93,7 +114,7 @@ def main():
         print(args.probe + " is not there. train it first: python finetune/make_tagprobe.py")
         sys.exit(1)
 
-    tags, weight, bias = read_probe(args.probe)
+    tags, weight, bias, (trained_on, trained) = read_probe(args.probe)
     banned = read_banned()
     print("probe: %d tags, %d dims" % (len(tags), weight.shape[1]))
     print("never a chip: %d tags" % len(banned))
@@ -111,10 +132,15 @@ def main():
     #with the model whose vectors they were trained against. a swap refills
     #lines.embedding and leaves tag_probe alone, and then every chip is noise that
     #still scores in [0,1]: views/custom.py's probe_stale is what refuses it, and
-    #this row is the only thing it has to go on
-    row = conn.execute("SELECT value FROM meta WHERE key = 'embed_model'").fetchone()
-    model = row[0] if row else None
-    print("vectors: embed_model = " + (model or "NOT SET, this database has no ingest behind it"))
+    #these rows are the only thing it has to go on
+    said = dict(conn.execute("SELECT key, value FROM meta WHERE key IN ('embed_model', 'embed_sha256')"))
+    weights = said.get("embed_sha256")
+    print("vectors: %s at %s" % (said.get("embed_model") or "no embed_model",
+                                 (weights or "no embed_sha256")[:12]))
+    print("probe trained against: %s at %s" % (trained_on or "no model", (trained or "no sha256")[:12]))
+    why = mismatch(trained, weights)
+    if why:
+        print(why)
 
     #every tag either half of the rule can name, so a tag with no probe still
     #arrives with its ban verdict and its type shares
@@ -148,11 +174,10 @@ def main():
         conn.close()
         sys.exit(1)
 
-    #without this there is nothing to stamp the weights with, and chips that cannot
-    #be proved to match the vectors do not show at all. a database with no ingest
-    #behind it has no vectors to match either
-    if not model:
-        print("meta has no embed_model: run the ingest against this database first")
+    #a stamp naming weights the probe was not trained against would pass
+    #probe_stale and show noise as chips
+    if why:
+        print("refused, nothing written")
         conn.close()
         sys.exit(1)
 
@@ -169,11 +194,12 @@ def main():
         cur.executemany("INSERT INTO tag_probe (tag, w, b, banned, types) "
                         "VALUES (%s, %s, %s, %s, %s)", rows)
     #in the SAME transaction as the rows, so the stamp can never name a model the
-    #weights beside it were not loaded against
-    conn.execute("INSERT INTO meta (key, value) VALUES ('tag_probe_model', %s) "
-                 "ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value", (model,))
+    #weights beside it were not trained against
+    for key, value in (("tag_probe_model", trained_on), ("tag_probe_sha256", trained)):
+        conn.execute("INSERT INTO meta (key, value) VALUES (%s, %s) "
+                     "ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value", (key, value))
     conn.commit()
-    print("wrote %d rows to tag_probe, stamped %s" % (len(rows), model))
+    print("wrote %d rows to tag_probe, stamped %s at %s" % (len(rows), trained_on, trained[:12]))
     conn.close()
 
 

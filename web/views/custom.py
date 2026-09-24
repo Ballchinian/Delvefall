@@ -194,20 +194,37 @@ def probe_stale(conn):
     #mean nothing. no error and no empty state, which is why this is asked rather
     #than waited for.
     #
-    #tools/load_tag_probe.py stamps meta.tag_probe_model with the embed_model it
-    #loaded against. a missing stamp counts as stale: it means the loader has not
-    #run since this check existed, and an unprovable match is the thing being
-    #refused. returns the reason, or "" when the chips can be trusted
+    #the WEIGHTS decide, not the name: a retrain released under the same repo
+    #keeps it. tools/load_tag_probe.py stamps meta.tag_probe_sha256 with the
+    #release the probe was trained against, the ingest records embed_sha256 for
+    #the vectors, and a missing stamp counts as stale, an unprovable match being
+    #the thing refused.
+    #
+    #names alone only while NEITHER sha is recorded: a database the ingest has
+    #not run against since it began recording them. its next run records both
+    #at once. returns the reason, or "" when the chips can be trusted
     said = {r["key"]: r["value"] for r in conn.execute(
-        "SELECT key, value FROM meta WHERE key IN ('embed_model', 'tag_probe_model')")}
+        "SELECT key, value FROM meta WHERE key IN "
+        "('embed_model', 'embed_sha256', 'tag_probe_model', 'tag_probe_sha256')")}
+    retrain = ("retrain it on these vectors (finetune/freeze_tagdata.py, then "
+               "finetune/make_tagprobe.py) and load it with tools/load_tag_probe.py")
+    weights, trained = said.get("embed_sha256"), said.get("tag_probe_sha256")
+    if weights or trained:
+        if not trained:
+            return "tag_probe carries no weights stamp: " + retrain
+        if not weights:
+            return "meta has no embed_sha256, so no ingest has recorded which weights made the vectors"
+        if trained != weights:
+            return ("tag_probe was trained against weights " + trained[:12] + " and the vectors are " +
+                    weights[:12] + ": " + retrain)
+        return ""
     model, stamped = said.get("embed_model"), said.get("tag_probe_model")
     if not stamped:
-        return "tag_probe carries no model stamp: rerun tools/load_tag_probe.py"
+        return "tag_probe carries no model stamp: " + retrain
     if not model:
         return "meta has no embed_model, so this database has never been through an ingest"
     if stamped != model:
-        return ("tag_probe was loaded against " + stamped + " and the vectors are " +
-                model + ": rerun tools/load_tag_probe.py")
+        return "tag_probe was loaded against " + stamped + " and the vectors are " + model + ": " + retrain
     return ""
 
 

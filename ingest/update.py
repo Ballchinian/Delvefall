@@ -34,12 +34,12 @@ PRICES_FILE = "default-cards.jsonl.gz"
 #the prompt was glued to the front of every line during training, and encoding
 #without it gives useless vectors.
 #
-#this constant is the model's NAME, which is what meta.embed_model is compared
-#against, so pointing it anywhere else makes the next run rebuild every vector.
-#the WEIGHTS are whatever EMBED_MODEL_DIR holds when it is set, and update.yml
-#sets it to the github release the model service is built from, so the vectors
-#in the table and the one the site makes of what a visitor typed come out of the
-#same file. unset, the name is a private hugging face repo and HF_TOKEN has to
+#this constant is the model's NAME and embed/model_release.json names its
+#WEIGHTS. meta records both, and a run finding either one different rebuilds
+#every vector. update.yml sets EMBED_MODEL_DIR to that release, the one the
+#model service is built from, so the vectors in the table and the one the site
+#makes of what a visitor typed come out of the same file. unset, the name is a
+#private hugging face repo read at the release's revision, and HF_TOKEN has to
 #be set or the download 401s.
 #
 #78% recall @10 on the tag exam, 26/31 on the line-to-line regression guard, 94%
@@ -47,6 +47,7 @@ PRICES_FILE = "default-cards.jsonl.gz"
 #where embedding_v1 used to be
 EMBED_MODEL = "BallchinianMan/mtg-tagtuned-embeddinggemma-300m"
 EMBED_PROMPT = "task: sentence similarity | query: "
+RELEASE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "embed", "model_release.json")
 #what schema.sql declares lines.embedding as, 768 dims. a model swap rebuilds the
 #column from this, so a vector here would put every row back to 3kb out of line
 EMBED_TYPE = "halfvec(768)"
@@ -334,28 +335,68 @@ def publish_calibration(conn):
         set_meta(conn, key, json.dumps(cal))
 
 
-def swapping_models(conn):
+def model_release():
+    #the weights EMBED_MODEL means: the github release update.yml fetches and the
+    #model service is built from. its sha256 is what identifies the model, since
+    #a retrain released under the same repo keeps the name.
+    #
+    #refused before anything is written when the weights this run would embed
+    #with are not that release, or the run records one model under another's sha
+    with open(RELEASE, encoding="utf-8") as f:
+        rel = json.load(f)
+    if rel["hf_repo"] != EMBED_MODEL:
+        raise SystemExit("embed/model_release.json is a release of " + rel["hf_repo"] +
+                         " and EMBED_MODEL is " + EMBED_MODEL)
+    folder = os.environ.get("EMBED_MODEL_DIR")
+    if folder:
+        try:
+            with open(os.path.join(folder, ".sha256"), encoding="utf-8") as f:
+                stamp = f.read().strip()
+        except OSError:
+            stamp = ""
+        if stamp != rel["sha256"]:
+            raise SystemExit(folder + " holds " + ("weights " + stamp[:12] if stamp else "no .sha256 stamp") +
+                             " and model_release.json names " + rel["sha256"][:12] +
+                             ": python embed/fetch_model.py --dest " + folder)
+    return rel
+
+
+def swapping_models(conn, sha256):
     #vectors from two models cannot be compared, so a database embedded by any
-    #other one needs every line redone this run.
+    #other one, by name or by weights, needs every line redone this run.
+    #
+    #a database embedded before meta.embed_sha256 existed has the name and no
+    #sha. /admin's parity check vouches that its vectors are the release's
+    #(worst cosine 0.99999994 against d06f255a), so the sha is recorded rather
+    #than every line redone, and a probe stamped under the same name gets it too,
+    #or its chips would go dark on nothing but a missing row.
     #
     #the maps go out now only when the model stays, so even a nothing-changed run
     #refits them. on a swap they wait for record_run: published here, the old
     #model's cosines read through the new map for the whole reseed (86 minutes on
     #the first seed), and for good if the recall check refuses the swap
-    row = conn.execute("SELECT value FROM meta WHERE key = 'embed_model'").fetchone()
-    changed = row is None or row[0] != EMBED_MODEL
+    said = dict(conn.execute("""SELECT key, value FROM meta WHERE key IN
+        ('embed_model', 'embed_sha256', 'tag_probe_model', 'tag_probe_sha256')""").fetchall())
+    if said.get("embed_model") == EMBED_MODEL and not said.get("embed_sha256"):
+        print("meta names " + EMBED_MODEL + " and no weights, recording " + sha256[:12])
+        set_meta(conn, "embed_sha256", sha256)
+        said["embed_sha256"] = sha256
+        if said.get("tag_probe_model") == EMBED_MODEL and not said.get("tag_probe_sha256"):
+            set_meta(conn, "tag_probe_sha256", sha256)
+    changed = said.get("embed_model") != EMBED_MODEL or said.get("embed_sha256") != sha256
     if not changed:
         publish_calibration(conn)
     conn.commit()
     return changed
 
 
-def record_run(conn, updated_at, model_changed):
+def record_run(conn, updated_at, model_changed, sha256):
     #what tomorrow's gate reads and what the next model swap compares against,
     #plus a swap's maps. no commit: main's commit is the one swap_in's new vectors
     #go live in
     set_meta(conn, "scryfall_updated_at", updated_at)
     set_meta(conn, "embed_model", EMBED_MODEL)
+    set_meta(conn, "embed_sha256", sha256)
     if model_changed:
         publish_calibration(conn)
 
@@ -366,6 +407,7 @@ def main():
         print("set DATABASE_URL first (the postgres connection string)")
         sys.exit(1)
 
+    release = model_release()
     conn = psycopg.connect(db_url, **KEEPALIVE)
     #before schema.sql below, this run's first write. a rebuild holding the lock
     #parks the step here rather than half way through it
@@ -389,7 +431,7 @@ def main():
         print("lines.embedding is " + live[0] + " and schema.sql declares " + EMBED_TYPE +
               ", so python -m ingest.rebuild_lines has not been run yet")
 
-    model_changed = swapping_models(conn)
+    model_changed = swapping_models(conn, release["sha256"])
     if model_changed:
         print("embedding model changed, this run rebuilds every vector (the slow full reseed)")
         #the new vectors go through lines_new, so both names have to be free.
@@ -588,11 +630,14 @@ def main():
         #
         #a folder of weights if EMBED_MODEL_DIR names one, the hugging face repo if
         #it does not, in which case this downloads ~1.2gb the very first time. the
-        #model service reads the same variable, so the folder has one name
-        source = os.environ.get("EMBED_MODEL_DIR") or EMBED_MODEL
-        print("loading the model from " + source + "...")
+        #model service reads the same variable, so the folder has one name.
+        #model_release checked the folder's stamp, and the revision pins the repo
+        #to the same release, or its newest commit would embed under this sha
+        folder = os.environ.get("EMBED_MODEL_DIR")
+        print("loading the model from " + (folder or EMBED_MODEL + " at " + release["hf_revision"][:7]) + "...")
         from sentence_transformers import SentenceTransformer
-        model = SentenceTransformer(source)
+        model = (SentenceTransformer(folder) if folder
+                 else SentenceTransformer(EMBED_MODEL, revision=release["hf_revision"]))
         print("embedding " + str(len(texts)) + " lines, this is the slow part...")
         embs = model.encode(texts, batch_size=64, show_progress_bar=True,
                             normalize_embeddings=True, prompt=EMBED_PROMPT)
@@ -657,12 +702,13 @@ def main():
     elif work or stale:
         recount_line_stats(conn)
 
-    record_run(conn, updated_at, model_changed)
+    record_run(conn, updated_at, model_changed, release["sha256"])
     conn.commit()
 
     if model_changed:
         #nothing to roll back to: the old table holds the old model's vectors and
-        #meta now names the new one. undoing a swap is reverting EMBED_MODEL
+        #meta now names the new one. undoing a swap is reverting EMBED_MODEL and
+        #embed/model_release.json
         rebuild_lines.validate(conn)
         conn.execute("DROP TABLE lines_old")
         conn.commit()
