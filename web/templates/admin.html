@@ -18,7 +18,9 @@
             and schema.sql declares {{ declared_type }}: <strong>python -m ingest.rebuild_lines has not been run</strong>{% endif %}</li>
         <li>{% if model.ok %}the model service answered {{ model.lines }} stored lines at
             worst cosine <strong>{{ "%.9f"|format(model.worst) }}</strong>, weights {{ model.sha256[:12] or "unknown" }}
-            {% else %}the model service is asleep or unreachable: {{ model.why }}{% endif %}</li>
+            {% else %}no parity answer: {{ model.why }}{% endif %}
+            ({% if model_age %}{{ model_age }} min ago{% else %}just now{% endif %},
+            <a href="/admin?key={{ key }}&amp;parity=1">check again</a>)</li>
     </ul>
 
     <h2>Daily visitors</h2>

@@ -5042,6 +5042,17 @@ def feedback():
 
 #---- the review side of the feedback loop ----
 
+#parity wakes the model service and reads lines ORDER BY random(), a scan, and
+#/admin reloads after every accept and reject. one answer serves a worker for
+#this long, and ?parity=1 asks again
+PARITY_EVERY = 900.0
+_parity = {"model": None, "at": 0.0}
+
+
+def parity_due(asked):
+    return asked or _parity["model"] is None or time.monotonic() - _parity["at"] >= PARITY_EVERY
+
+
 def admin_allowed():
     #no ADMIN_KEY in the environment means no admin pages anywhere, and a
     #wrong key 404s instead of 403 so the page doesn't admit it exists
@@ -5180,13 +5191,18 @@ def admin():
         #up to EMBED_BUDGET (90s) on a sleeping service, and holding a pooled
         #connection that long leaves a transaction on lines for an ingest to
         #queue behind, which is how 09-22 went down
-        model_rows = embedder.parity_rows(conn)
+        checking = parity_due(request.args.get("parity") == "1")
+        model_rows = embedder.parity_rows(conn) if checking else []
 
     #WAKES the model service, which is why it is on this page and nowhere else.
     #it is the standing guard against the ingest and the service drifting onto
     #different weights, and a wake costs nothing but seconds. the connection is
     #back in the pool by here: 4 wakes measured 09-23 took 7s to 13s each
-    model = embedder.parity(model_rows)
+    if checking:
+        _parity["model"] = embedder.parity(model_rows)
+        _parity["at"] = time.monotonic()
+    model = _parity["model"]
+    model_age = round((time.monotonic() - _parity["at"]) / 60)
 
     usage = [usage_row(today, live, True, first_measured is not None)]
     for u in rows_daily:
@@ -5255,7 +5271,8 @@ def admin():
     return render_template("admin.html", key=ADMIN_KEY, pending=pending, accepted=accepted,
                            triplet_md="\n".join(triplet_md), pair_md="\n".join(pair_md),
                            tag_md="\n".join(tag_md), deck_md="\n".join(deck_md), usage=usage,
-                           embed_type=embed_type, declared_type=EMBED_TYPE, model=model)
+                           embed_type=embed_type, declared_type=EMBED_TYPE, model=model,
+                           model_age=model_age)
 
 
 @app.route("/admin/act", methods=["POST"])

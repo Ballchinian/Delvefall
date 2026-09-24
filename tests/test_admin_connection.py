@@ -13,6 +13,7 @@ import os
 import numpy as np
 import pytest
 
+import app
 import embedder
 from conftest import ROOT
 
@@ -169,3 +170,34 @@ class TestParityRowsAsksForNothingItCannotUse:
         monkeypatch.setattr(embedder, "EMBED_COL", "embedding_v2")
         embedder.parity_rows(Fake())
         assert "embedding_v2 AS embedding" in seen["sql"]
+
+
+class TestParityIsNotAskedOnEveryLoad:
+    #/admin reloads after every accept and reject, and each ask is a scan of lines
+    #and a wake
+
+    class Clock:
+        def __init__(self, now):
+            self.now = now
+
+        def monotonic(self):
+            return self.now
+
+    def test_the_first_load_asks(self, monkeypatch):
+        monkeypatch.setattr(app, "_parity", {"model": None, "at": 0.0})
+        assert app.parity_due(False)
+
+    def test_a_reload_inside_the_interval_does_not(self, monkeypatch):
+        monkeypatch.setattr(app, "_parity", {"model": {"ok": True}, "at": 1000.0})
+        monkeypatch.setattr(app, "time", self.Clock(1000.0 + app.PARITY_EVERY - 1))
+        assert not app.parity_due(False)
+
+    def test_asking_by_hand_always_does(self, monkeypatch):
+        monkeypatch.setattr(app, "_parity", {"model": {"ok": True}, "at": 1000.0})
+        monkeypatch.setattr(app, "time", self.Clock(1001.0))
+        assert app.parity_due(True)
+
+    def test_an_old_answer_is_asked_again(self, monkeypatch):
+        monkeypatch.setattr(app, "_parity", {"model": {"ok": True}, "at": 1000.0})
+        monkeypatch.setattr(app, "time", self.Clock(1000.0 + app.PARITY_EVERY))
+        assert app.parity_due(False)
