@@ -304,6 +304,42 @@ class TestReadingTheForm:
         assert len(typed_lines(text)) == 2
 
 
+class TestAnAnswerWithNoListKeepsTheControls:
+    #the filter bar, the sort and the picks were drawn on a full answer alone, so
+    #the retry a cold wake asks for started from the default filters. EMBED_URL
+    #unset is the matcher down, answered before any database read
+
+    DATA = {"text": "Flying\nWhenever this card attacks, draw a card.", "lines": ["1"],
+            "cur": "eur", "sort": "price", "dir": "desc", "colors": ["R"], "cmode": "exact"}
+
+    def post(self, monkeypatch, **extra):
+        from views.custom import custom_post
+        monkeypatch.setattr(embedder, "EMBED_URL", "")
+        with app.app.test_request_context("/custom", method="POST", data=dict(self.DATA, **extra)):
+            got = custom_post()
+        return got[0] if isinstance(got, tuple) else got
+
+    def assert_controls(self, page):
+        assert '<option value="eur" selected>' in page
+        assert 'value="R" checked' in page
+        assert '<option value="price" selected>' in page
+        assert '<option value="desc" selected>' in page
+
+    def test_a_matcher_that_did_not_wake_keeps_them_and_the_picks(self, monkeypatch):
+        page = self.post(monkeypatch)
+        assert "wake up in time" in page
+        self.assert_controls(page)
+        assert '<input type="hidden" name="lines" value="1">' in page
+        assert 'class="oracle-line picked"' in page
+        #nothing was read from line_stats, so no line can be said to be unprinted
+        assert "no printed card says this" not in page
+
+    def test_a_rejected_card_keeps_them(self, monkeypatch):
+        page = self.post(monkeypatch, text="x" * (MAX_CHARS + 1))
+        assert str(MAX_CHARS) in page
+        self.assert_controls(page)
+
+
 class TestTheOriginalitySentence:
 
     def test_nothing_below_it_reads_zero(self):

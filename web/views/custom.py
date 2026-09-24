@@ -405,16 +405,17 @@ def form_page(text, name, type_line="", pairs=(), **extra):
     #
     #pairs is read_custom's, and absent on a rejection: text that failed the
     #limits is drawn as typed and never cleaned. counts arrive in extra when
-    #there was a database read to get them from
+    #there was a database read to get them from, and without one the card says
+    #nothing about how common a line is rather than "no printed card says this"
     from app import CARD_TYPES
 
     picked = extra.pop("picked", None) or set()
-    counts = extra.pop("counts", None) or {}
+    counts = extra.pop("counts", None)
     typed = [{"idx": i, "text": line, "cleaned": cleaned,
               "picked": i in picked,
               #absent from line_stats means NO printed card says it, which is not
               #the same as one card saying it, and the weighting reads both as 1
-              "count": counts.get(cleaned) if cleaned else None}
+              "count": counts.get(cleaned) if cleaned and counts is not None else None}
              for i, (line, cleaned) in enumerate(pairs)]
 
     return render_template("custom.html", text=text, name=name, types=CARD_TYPES,
@@ -422,7 +423,8 @@ def form_page(text, name, type_line="", pairs=(), **extra):
                            #pasted megabyte draws a megabyte of card
                            preview=typed_lines(text)[:MAX_LINES], max_name=MAX_NAME,
                            max_lines=MAX_LINES,
-                           typed=typed, type_line=type_line, max_type=MAX_TYPE,
+                           typed=typed, counted=counts is not None, type_line=type_line,
+                           max_type=MAX_TYPE,
                            #a POST result has no url to index and must not grow
                            #one. the form itself is a page and stays open
                            noindex=request.method == "POST", **extra)
@@ -448,6 +450,12 @@ def custom_post():
     #posted body rather than something anybody typed, and only the first card
     #type word is read out of it anyway
     type_line = request.form.get("type_line", "")[:MAX_TYPE]
+    #the filters, sort and currency go back on EVERY page this answers, so a
+    #retry after a cold wake or a fixed typo asks the same question again
+    filters = read_filters()
+    sort_field, sort_dir = read_sort_parts()
+    controls = {"cur": filters["cur"], "sort_fields": SORT_FIELDS, "sort_field": sort_field,
+                "sort_dir": sort_dir, "focus": focus_class(sort_field)}
     try:
         #the limits are checked against EVERYTHING typed, so narrowing the ranking
         #to one line cannot talk a card that is too long or too wide through
@@ -456,7 +464,7 @@ def custom_post():
         #the message names the limit and is written for whoever typed it, so it
         #goes on the page as it is. nothing has reached the model yet, which is
         #the whole point of checking here
-        return form_page(text, name, type_line, message=str(e))
+        return form_page(text, name, type_line, message=str(e), **controls)
 
     #the model sees the whole card either way. the picks only say which of those
     #lines the list is ranked on, so the sentence and the chips do not move
@@ -465,10 +473,8 @@ def custom_post():
     if not rank_on:
         #only reachable by a posted body: a line the splitter drops is not clickable
         return form_page(text, name, type_line, pairs, picked=picked,
-                         message="Pick a line the matcher can read.")
+                         message="Pick a line the matcher can read.", **controls)
 
-    filters = read_filters()
-    sort_field, sort_dir = read_sort_parts()
     try:
         scored = custom_score(lines, filters, read_sort(), currency=filters["cur"],
                               type_line=type_line, rank_on=rank_on)
@@ -478,14 +484,13 @@ def custom_post():
         #service disagree about their own limits, and a bug worded as a nap
         #would never get looked at
         return form_page(text, name, type_line, pairs, picked=picked,
-                         message="The matcher didn't wake up in time. Try again in a minute."), 503
+                         message="The matcher didn't wake up in time. Try again in a minute.",
+                         **controls), 503
 
     return form_page(text, name, type_line, pairs, answered=True, words=scored["words"],
                      chips=scored["chips"], picked=picked, counts=scored["counts"],
                      results=scored["results"], has_more=scored["has_more"],
-                     next_band=scored["next_band"], errors=filters["errors"],
-                     cur=filters["cur"], sort_fields=SORT_FIELDS, sort_field=sort_field,
-                     sort_dir=sort_dir, focus=focus_class(sort_field))
+                     next_band=scored["next_band"], errors=filters["errors"], **controls)
 
 
 @bp.route("/custom/more", methods=["POST"])

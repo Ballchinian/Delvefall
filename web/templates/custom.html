@@ -76,8 +76,10 @@
                     {# T7c puts the type line between the art and the rules,
                        which is where a real card carries it #}
                     <div class="ink-card-type" id="preview-type">{{ type_line }}</div>
+                    {# controls whenever the text passed the limits, so the page a
+                       sleeping matcher answers keeps its picks #}
                     <div class="ink-card-rules" id="preview-rules">
-                        {%- if answered %}
+                        {%- if typed %}
                         {%- for line in typed %}
                         {%- if line.cleaned %}
                         {# a div and not a button, the way /search's anchor card does it: a
@@ -88,7 +90,8 @@
                              data-idx="{{ line.idx }}" role="button" tabindex="0"
                              aria-pressed="{{ 'true' if line.picked else 'false' }}"
                              aria-label="rank on this line only: {{ line.text }}"
-                             {%- if line.count %} title="on {{ "{:,}".format(line.count) }} printed cards, so it pulls the list less"
+                             {%- if not counted %}
+                             {%- elif line.count %} title="on {{ "{:,}".format(line.count) }} printed cards, so it pulls the list less"
                              {%- else %} title="no printed card says this"{% endif %}>{{ line.text }}</div>
                         {%- else %}
                         {# nothing to rank on, so not a control: a click posted a pick of
@@ -101,7 +104,7 @@
                         {%- endif %}
                     </div>
                 </div>
-                {%- if answered %}
+                {%- if typed %}
                 {% set on = typed | selectattr("picked") | list %}
                 {# reports rather than instructs once something is picked, the way
                    the anchor card's own hint does #}
@@ -119,7 +122,9 @@
             </div>
         </div>
 
-        {% if answered %}
+        {# on every answer to a post, not only a full one, or a retry after a
+           cold wake starts from the default filters #}
+        {% if sort_fields %}
         {# a DIV and not a form, and it has to be: Apply resends the typed text
            along with the filters, so it is inside the form above #}
         <div class="filter-bar">
@@ -181,7 +186,7 @@
     //cards load more adds. the server-rendered ones above went through app.py's
     //mana filter instead
     window.MANA_URLS = {{ mana_urls() | tojson }};
-    {%- if answered %}
+    {%- if sort_fields %}
     //the direction options belong to whichever field is picked, so changing the
     //field has to rewrite them and reset it to that field's own end
     window.SORT_DIRS = {{ sort_fields | tojson }};
