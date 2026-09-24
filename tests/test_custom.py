@@ -798,6 +798,14 @@ class TestPickingALineRanksOnIt:
         #carried forward, or a second click would lose the first
         assert '<input type="hidden" name="lines" value="1">' in asked.page
 
+    def test_a_line_the_model_never_reads_is_not_a_control(self, asked):
+        #"ab" is under the splitter's three characters. clickable, it posted a pick
+        #of nothing and the page came back asking for a readable line with no list
+        asked(text="ab\nWhenever this card attacks, draw a card.")
+        assert '<div class="oracle-plain"' in asked.page
+        assert 'data-idx="0"' not in asked.page
+        assert 'data-idx="1"' in asked.page
+
     def test_nothing_picked_marks_nothing_and_says_how_to(self, asked):
         #the class and not the word: the filters panel has its own picked colors
         asked(text="Flying\nWhenever this card attacks, draw a card.")

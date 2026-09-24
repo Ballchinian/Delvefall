@@ -79,6 +79,7 @@
                     <div class="ink-card-rules" id="preview-rules">
                         {%- if answered %}
                         {%- for line in typed %}
+                        {%- if line.cleaned %}
                         {# a div and not a button, the way /search's anchor card does it: a
                            button's own font and line-height fight the rules text around it,
                            and base.js turns Enter and Space into the click. the title is how
@@ -87,9 +88,13 @@
                              data-idx="{{ line.idx }}" role="button" tabindex="0"
                              aria-pressed="{{ 'true' if line.picked else 'false' }}"
                              aria-label="rank on this line only: {{ line.text }}"
-                             {%- if not line.cleaned %} title="nothing left once reminder text and the card's own name come out"
-                             {%- elif line.count %} title="on {{ "{:,}".format(line.count) }} printed cards, so it pulls the list less"
+                             {%- if line.count %} title="on {{ "{:,}".format(line.count) }} printed cards, so it pulls the list less"
                              {%- else %} title="no printed card says this"{% endif %}>{{ line.text }}</div>
+                        {%- else %}
+                        {# nothing to rank on, so not a control: a click posted a pick of
+                           a line the model never reads and came back with no list #}
+                        <div class="oracle-plain" title="nothing left once reminder text and the card's own name come out">{{ line.text }}</div>
+                        {%- endif %}
                         {%- endfor %}
                         {%- else %}
                         {%- for line in preview %}<p>{{ line }}</p>{% endfor %}

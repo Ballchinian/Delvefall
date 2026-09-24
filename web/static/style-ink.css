@@ -3887,12 +3887,14 @@ body.home main {
    control, so the class is the same and .oracle-line's hover, picked and focus
    styles arrive with it. the margin matches the <p> it replaces so switching
    between them does not move the card */
-.ink-card-rules .oracle-line {
+.ink-card-rules .oracle-line,
+.ink-card-rules .oracle-plain {
     margin: 0 0 4px;
     overflow-wrap: anywhere;
 }
 
-.ink-card-rules .oracle-line:last-child {
+.ink-card-rules .oracle-line:last-child,
+.ink-card-rules .oracle-plain:last-child {
     margin-bottom: 0;
 }
 
