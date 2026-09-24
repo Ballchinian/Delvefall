@@ -306,9 +306,14 @@ def tag_chips(conn, vectors, around, type_line=""):
 
 
 def custom_score(lines, filters, sort, offset=0, band=None, currency="usd", exclude_id=None,
-                 type_line="", want_chips=True, rank_on=None):
+                 type_line="", want_card=True, rank_on=None):
     #the whole of the results route below the form, so the tests and
     #tools/check_custom.py can call it without going through http.
+    #
+    #want_card is the sentence and the chips, the answers about the CARD above
+    #the list. /custom/more asks for the next page of the same list and draws
+    #neither, so it pays for neither: the neighbour search is up to 20 hnsw walks
+    #and the standing a scan of cards. uniqueness, words and chips come back None
     #
     #exclude_id is for those two only: check_custom scores a printed card's own
     #text with that card taken out and compares the answer against the stored
@@ -328,26 +333,26 @@ def custom_score(lines, filters, sort, offset=0, band=None, currency="usd", excl
                               (list(lines),)):
             counts[r["line_text"]] = r["count"]
 
-        around = line_neighbours(conn, vectors, exclude_id)
-        #the FIRST of the ten is the row this used to ask for on its own, so the
-        #sentence below is unchanged by the chips needing nine more
-        nearest = [rows[0]["sim"] if rows else 0.0 for rows in around]
+        uniqueness = words = below = total = chips = None
+        if want_card:
+            around = line_neighbours(conn, vectors, exclude_id)
+            #the FIRST of the ten is the row this used to ask for on its own, so
+            #the sentence below is unchanged by the chips needing nine more
+            nearest = [rows[0]["sim"] if rows else 0.0 for rows in around]
 
-        #the MOST ISOLATED line decides, which is the rule recompute_uniqueness
-        #applies to every printed card. one genuinely new ability makes a card
-        #original even if everything else on it is Flying.
-        #
-        #over EVERY typed line, never the picked ones: rank_on below is a control
-        #on the list, and this sentence is about the card. clicking a line used to
-        #move it, which is a calibrated number answering a different question
-        uniqueness = 1 - min(nearest) if nearest else 0.0
-        below, total = rules_standing(conn, uniqueness)
-        #/custom/more asks for the next page of the same list and redraws no
-        #chips, so it does not pay for them
-        #also over every line, for the same reason and one more: the 98% marked
-        #precision was measured on whole cards, so chips from one line of one are
-        #a number nobody has measured
-        chips = tag_chips(conn, vectors, around, type_line) if want_chips else []
+            #the MOST ISOLATED line decides, which is the rule recompute_uniqueness
+            #applies to every printed card. one genuinely new ability makes a card
+            #original even if everything else on it is Flying.
+            #
+            #over EVERY typed line, never the picked ones: rank_on below is a
+            #control on the list, and this sentence is about the card
+            uniqueness = 1 - min(nearest) if nearest else 0.0
+            below, total = rules_standing(conn, uniqueness)
+            words = custom_words(below, total)
+            #also over every line, for the same reason and one more: the 98%
+            #marked precision was measured on whole cards, so chips from one line
+            #of one are a number nobody has measured
+            chips = tag_chips(conn, vectors, around, type_line)
 
     #rank_on is the only thing the picked lines touch: which lines the LIST is
     #ranked on. indexes into lines, and None means all of them
@@ -361,7 +366,7 @@ def custom_score(lines, filters, sort, offset=0, band=None, currency="usd", excl
         offset=offset, band=band, currency=currency)
     return {"counts": counts,
             "results": results, "has_more": has_more, "next_band": next_band,
-            "uniqueness": uniqueness, "words": custom_words(below, total),
+            "uniqueness": uniqueness, "words": words,
             "below": below, "total": total, "chips": chips,
             #what find_similar hands the page for a printed card, so the line
             #weights and the percents mean the same thing on both
@@ -538,7 +543,7 @@ def custom_more():
     filters = read_filters()
     try:
         scored = custom_score(lines, filters, read_sort(), offset=offset, band=band,
-                              currency=filters["cur"], want_chips=False, rank_on=rank_on)
+                              currency=filters["cur"], want_card=False, rank_on=rank_on)
     except embedder.EmbedderDown:
         #the button says so and stays where it is. the page above it is already
         #drawn, so there is nothing to render again

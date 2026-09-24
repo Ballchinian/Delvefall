@@ -676,7 +676,7 @@ class TestTheChipsUnderTheForm:
         #/custom/more redraws the grid and no chips, so it asks for none
         import seed
         probe([("draw-on-attack", 1, False, {})])
-        assert typed([seed.vec(1)], want_chips=False)["chips"] == []
+        assert typed([seed.vec(1)], want_card=False)["chips"] is None
 
     def test_the_sentence_and_the_chips_ignore_which_line_is_picked(self, typed, probe):
         #rank_on is a control on the LIST. the sentence is a calibrated number about
@@ -924,15 +924,16 @@ class TestPickingALineRanksOnIt:
         assert 'class="oracle-line"' in asked.page
         assert "Click a line to rank on it alone" in asked.page
 
-    def test_page_two_asks_for_no_chips(self, asked, monkeypatch):
-        #/custom/more draws the grid and nothing above it, so the probe query and
-        #the neighbours' tags are a cost it has no use for
+    def test_page_two_asks_for_no_chips_and_no_sentence(self, asked, monkeypatch):
+        #/custom/more draws the grid and nothing above it, so the neighbour walks,
+        #the standing scan and the probe query are costs it has no use for
         import views.custom
 
         def refuse(*args, **kwargs):
-            raise AssertionError("page two worked out chips it never draws")
+            raise AssertionError("page two worked out an answer about the card it never draws")
 
-        monkeypatch.setattr(views.custom, "tag_chips", refuse)
+        for name in ("tag_chips", "line_neighbours", "rules_standing"):
+            monkeypatch.setattr(views.custom, name, refuse)
         got = asked(route="more")
         assert got["ranked"]
 
