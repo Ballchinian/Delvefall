@@ -299,6 +299,17 @@ def validate(conn):
     conn.execute("ALTER TABLE line_tags VALIDATE CONSTRAINT line_tags_line_id_fkey")
 
 
+def drop(conn, table):
+    #lines_old and lines_new both carry a foreign key into cards, so dropping one
+    #takes ACCESS EXCLUSIVE on cards and every card page queues behind it for as
+    #long as it waits. the caller commits
+    alone(conn)
+    if not exists(conn, table):
+        raise Refused("there is no " + table)
+    conn.execute("SET LOCAL lock_timeout = '" + LOCK_TIMEOUT + "'")
+    conn.execute("DROP TABLE " + table)
+
+
 def main():
     ap = argparse.ArgumentParser()
     act = ap.add_mutually_exclusive_group()
@@ -332,9 +343,7 @@ def main():
             print("line_tags' foreign key validated")
         elif args.drop_old or args.discard:
             t = "lines_old" if args.drop_old else "lines_new"
-            if not exists(conn, t):
-                raise Refused("there is no " + t)
-            conn.execute("DROP TABLE " + t)
+            drop(conn, t)
             conn.commit()
             print("dropped " + t)
         else:
@@ -362,6 +371,11 @@ def main():
     except Refused as e:
         conn.rollback()
         print("refused, nothing changed: " + str(e))
+        sys.exit(1)
+    except psycopg.errors.LockNotAvailable:
+        conn.rollback()
+        print("refused, nothing changed: a query held the table past the " + LOCK_TIMEOUT +
+              " lock timeout. try again")
         sys.exit(1)
     finally:
         conn.close()

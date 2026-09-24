@@ -31,7 +31,9 @@ class TestEveryIngestStepTakesTheLock:
 
     def test_nothing_opens_a_connection_without_it(self):
         #where each one takes it is its own business: the steps take it in main
-        #before schema.sql, rebuild_lines.py inside the calls that write
+        #before schema.sql, rebuild_lines.py inside the calls that write. one call
+        #anywhere passes this, so a branch of rebuild_lines' main that skips it
+        #does too: test_rebuild_lines runs each of its actions against a held lock
         for name, tree in modules():
             made = calls(tree)
             if "psycopg.connect" not in made:

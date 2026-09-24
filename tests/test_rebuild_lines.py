@@ -207,6 +207,70 @@ class TestTheIngestAndTheToolTakeTurns:
         rebuild_lines.fill(conn)
         assert conn.execute("SELECT count(*) FROM lines_new").fetchone()[0] == 18
 
+    @pytest.mark.parametrize("action,tables", [
+        ("--drop-old", ["lines_old"]), ("--discard", ["lines_new"]), ("--swap", ["lines_new"]),
+        ("--rollback", ["lines_old"]), ("--check", ["lines_new"]), (None, []),
+    ])
+    def test_every_action_refuses_while_the_ingest_holds_the_lock(self, conn, monkeypatch, capsys,
+                                                                  action, tables):
+        #each action is its own branch of main and the lock is taken inside the calls
+        #that write, so a branch that never makes one writes unguarded. --drop-old
+        #and --discard did. each gets only the tables it needs, so no other refusal
+        #can stand in for this one
+        import sys
+        import urllib.parse
+
+        import psycopg
+
+        from common import locks
+        from ingest import rebuild_lines
+
+        def tables_now():
+            return sorted(r[0] for r in conn.execute(
+                "SELECT tablename FROM pg_tables WHERE schemaname = 'rebuild_check'"))
+
+        for t in tables:
+            conn.execute("CREATE TABLE " + t + " (LIKE lines)")
+        conn.commit()
+        before = tables_now()
+        monkeypatch.setenv("DATABASE_URL", TEST_DB + ("&" if "?" in TEST_DB else "?") + "options=" +
+                           urllib.parse.quote("-c search_path=rebuild_check,public"))
+        monkeypatch.setattr(sys, "argv", ["rebuild_lines"] + ([action] if action else []))
+        ingest = psycopg.connect(TEST_DB)
+        try:
+            locks.hold(ingest)
+            with pytest.raises(SystemExit):
+                rebuild_lines.main()
+        finally:
+            ingest.close()
+        assert "an ingest run holds the lock" in capsys.readouterr().out
+        assert tables_now() == before
+
+    def test_a_drop_waits_on_cards_no_longer_than_the_lock_timeout(self, conn, monkeypatch):
+        #lines_new's foreign key into cards means its drop takes ACCESS EXCLUSIVE on
+        #cards, and every card page queues behind a drop that is waiting
+        import psycopg
+
+        from ingest import rebuild_lines
+        monkeypatch.setattr(rebuild_lines, "LOCK_TIMEOUT", "200ms")
+        build(conn)
+        conn.commit()
+        #a drop with no lock timeout fails here instead of hanging the suite
+        conn.execute("SET statement_timeout = '10s'")
+        page = psycopg.connect(TEST_DB)
+        try:
+            page.execute("SET search_path TO rebuild_check, public")
+            page.execute("SELECT count(*) FROM cards")
+            with pytest.raises(psycopg.errors.LockNotAvailable):
+                rebuild_lines.drop(conn, "lines_new")
+            conn.rollback()
+        finally:
+            page.close()
+        assert conn.execute("SELECT to_regclass('lines_new')").fetchone()[0] is not None
+        #and with the card page gone, the same drop goes through
+        rebuild_lines.drop(conn, "lines_new")
+        assert conn.execute("SELECT to_regclass('lines_new')").fetchone()[0] is None
+
 
 class TestTheRecallVerdict:
 
