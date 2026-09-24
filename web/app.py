@@ -4648,7 +4648,9 @@ def card_json(c, currency, standing):
         "salt": salt_label(c["salt"]),
         "age": age_label(c["released_at"]),
         "unique_words": unique_words(rank, below, total),
-        "unique_rank": "#{:,} of {:,} cards".format(rank, total),
+        #empty in the tie at the bottom, which unique_words gives no number: its
+        #rank is only where the tie starts, 7,253 cards wide
+        "unique_rank": "#{:,} of {:,} cards".format(rank, total) if below else "",
         "unique_line": c["unique_line"] or "",
     }
 

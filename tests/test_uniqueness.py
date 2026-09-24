@@ -100,6 +100,15 @@ class TestTheStandingInWords:
         assert "#%d" % last in app.unique_words(last, 31295 - last, 31295)
         assert "%" in app.unique_words(last + 1, 31295 - last - 1, 31295)
 
+    def test_the_tie_at_the_bottom_gets_no_rank_on_hover_either(self):
+        #the words say no number for it, and the tooltip said "#24,043 of 31,295"
+        card = {"oracle_id": "0000", "name": "Groundbreaker", "mana_cost": "", "type_line": "",
+                "image": "", "image_back": "", "layout": "normal", "scryfall_uri": "",
+                "price_usd": None, "price_eur": None, "edhrec_rank": None, "salt": None,
+                "released_at": None, "unique_line": ""}
+        assert app.card_json(card, "usd", (24043, 0, 31295))["unique_rank"] == ""
+        assert app.card_json(card, "usd", (24042, 1, 31295))["unique_rank"] == "#24,042 of 31,295 cards"
+
     def test_the_tie_at_the_bottom_gets_no_number(self):
         #4,392 legal cards tie there, and "more original than 0%" or a rank
         #shared by thousands says nothing
