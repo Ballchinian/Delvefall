@@ -4,6 +4,21 @@
 CREATE EXTENSION IF NOT EXISTS vector;
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
+--every column added after its table was first made goes through this, because
+--ADD COLUMN IF NOT EXISTS takes ACCESS EXCLUSIVE even when the column is there.
+--the whole file is one transaction, so the first of those on cards waited for
+--any search reading lines while every card page waited for it. asking the
+--catalog first takes no lock a reader holds. pg_temp, so it lasts as long as the
+--connection and is never part of the schema
+CREATE OR REPLACE FUNCTION pg_temp.add_column(tab text, col text, decl text) RETURNS void
+LANGUAGE plpgsql AS $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_attribute
+                   WHERE attrelid = to_regclass(tab) AND attname = col AND NOT attisdropped) THEN
+        EXECUTE format('ALTER TABLE %I ADD COLUMN IF NOT EXISTS %I ', tab, col) || decl;
+    END IF;
+END $$;
+
 --oracle_id is stable across every printing of a card, which is what makes it the
 --key. text_hash is how the updater spots changed text without comparing strings
 CREATE TABLE IF NOT EXISTS cards (
@@ -29,31 +44,31 @@ CREATE TABLE IF NOT EXISTS cards (
 );
 
 --databases predating the filter columns pick them up here
-ALTER TABLE cards ADD COLUMN IF NOT EXISTS color_identity text NOT NULL DEFAULT '';
-ALTER TABLE cards ADD COLUMN IF NOT EXISTS price_usd numeric;
-ALTER TABLE cards ADD COLUMN IF NOT EXISTS price_eur numeric;
-ALTER TABLE cards ADD COLUMN IF NOT EXISTS cmc numeric NOT NULL DEFAULT 0;
-ALTER TABLE cards ADD COLUMN IF NOT EXISTS game_changer boolean NOT NULL DEFAULT false;
-ALTER TABLE cards ADD COLUMN IF NOT EXISTS legal_commander boolean NOT NULL DEFAULT true;
+SELECT pg_temp.add_column('cards', 'color_identity', $$text NOT NULL DEFAULT ''$$);
+SELECT pg_temp.add_column('cards', 'price_usd', $$numeric$$);
+SELECT pg_temp.add_column('cards', 'price_eur', $$numeric$$);
+SELECT pg_temp.add_column('cards', 'cmc', $$numeric NOT NULL DEFAULT 0$$);
+SELECT pg_temp.add_column('cards', 'game_changer', $$boolean NOT NULL DEFAULT false$$);
+SELECT pg_temp.add_column('cards', 'legal_commander', $$boolean NOT NULL DEFAULT true$$);
 
 --a card's MOST ISOLATED LINE: 1 minus the best match that line has anywhere
 --else. per line rather than per card on purpose, so Flying plus one ability
 --nobody else has still counts as unique. NULL for cards with no searchable
 --lines, which keeps them off /unique
-ALTER TABLE cards ADD COLUMN IF NOT EXISTS uniqueness real;
-ALTER TABLE cards ADD COLUMN IF NOT EXISTS unique_line text;
+SELECT pg_temp.add_column('cards', 'uniqueness', $$real$$);
+SELECT pg_temp.add_column('cards', 'unique_line', $$text$$);
 
 --the same in tag space, 1 minus the best cosine any other card's tag vector
 --manages. NULL for untagged cards: unknown is not the same as unique
-ALTER TABLE cards ADD COLUMN IF NOT EXISTS concept_uniqueness real;
+SELECT pg_temp.add_column('cards', 'concept_uniqueness', $$real$$);
 
 --scryfall's edhrec rank, 1 being the most played. NULL is unranked, which the
 --sorts read as maximally obscure
-ALTER TABLE cards ADD COLUMN IF NOT EXISTS edhrec_rank int;
+SELECT pg_temp.add_column('cards', 'edhrec_rank', $$int$$);
 
 --the EARLIEST released_at across every printing, so it says when the card first
 --existed rather than when this printing did. NULL sinks in the newest sort
-ALTER TABLE cards ADD COLUMN IF NOT EXISTS released_at date;
+SELECT pg_temp.add_column('cards', 'released_at', $$date$$);
 
 --edhrec's annual salt survey, carried by mtgjson (scryfall does not have it).
 --
@@ -64,12 +79,12 @@ ALTER TABLE cards ADD COLUMN IF NOT EXISTS released_at date;
 --
 --NULL is nobody voted, not zero. ~8% of cards, overwhelmingly ones too new or
 --obscure to have annoyed anyone yet
-ALTER TABLE cards ADD COLUMN IF NOT EXISTS salt real;
+SELECT pg_temp.add_column('cards', 'salt', $$real$$);
 
 --'split' and battle type lines print the picture sideways and get a rotate
 --button, 'flip' means the bottom half reads upside down
-ALTER TABLE cards ADD COLUMN IF NOT EXISTS layout text NOT NULL DEFAULT 'normal';
-ALTER TABLE cards ADD COLUMN IF NOT EXISTS image_back text NOT NULL DEFAULT '';
+SELECT pg_temp.add_column('cards', 'layout', $$text NOT NULL DEFAULT 'normal'$$);
+SELECT pg_temp.add_column('cards', 'image_back', $$text NOT NULL DEFAULT ''$$);
 
 --who can lead a deck, which "legendary creature" has not answered since 2025:
 --a legendary Vehicle or Spacecraft with a PRINTED POWER can, and so can the
@@ -81,13 +96,13 @@ ALTER TABLE cards ADD COLUMN IF NOT EXISTS image_back text NOT NULL DEFAULT '';
 --DEFAULT false is safe to land ahead of the ingest that fills it: every query
 --reading this ORs it with the old legendary-creature test, so an unfilled
 --column behaves exactly as the site did before the column existed
-ALTER TABLE cards ADD COLUMN IF NOT EXISTS can_command boolean NOT NULL DEFAULT false;
+SELECT pg_temp.add_column('cards', 'can_command', $$boolean NOT NULL DEFAULT false$$);
 
 --when the RULES TEXT last changed, which is the only honest lastmod the sitemap
 --has: updated_at moves on every run because prices do. NULL is "never seen to
 --change", and those urls emit no lastmod at all rather than an invented one.
 --update.py sets it off the stored text_hash, so it fills in as cards are errata'd
-ALTER TABLE cards ADD COLUMN IF NOT EXISTS text_changed_at timestamptz;
+SELECT pg_temp.add_column('cards', 'text_changed_at', $$timestamptz$$);
 
 --trigram index so the name searches (prefix, substring, fuzzy) stay quick
 CREATE INDEX IF NOT EXISTS cards_name_trgm ON cards USING gin (name gin_trgm_ops);
@@ -137,19 +152,19 @@ CREATE TABLE IF NOT EXISTS lines (
 --DO NOT re-add the ALTER. this file runs at the top of every ingest, so a line
 --here puts the empty column back every morning
 
-ALTER TABLE lines ADD COLUMN IF NOT EXISTS nn_sim real;
+SELECT pg_temp.add_column('lines', 'nn_sim', $$real$$);
 
 --0 front / 1 back, so a match on the back face shows that side and the line
 --under the picture is on the picture (the ulvenwald lesson: the back really does
 --print "{T}: Add {C}{C}.", the display just hid it)
-ALTER TABLE lines ADD COLUMN IF NOT EXISTS face smallint NOT NULL DEFAULT 0;
+SELECT pg_temp.add_column('lines', 'face', $$smallint NOT NULL DEFAULT 0$$);
 
 --one extra row per multi-line card holding its whole cleaned text, for the
 --line-merging blind spot (two lines that together equal another card's compound
 --line, shadrix vs gluntch). retrieval material for a future card-level scorer,
 --and OUT of everything line-shaped: uniqueness, line_stats, the per-line search
 --and the training miner all filter on NOT whole
-ALTER TABLE lines ADD COLUMN IF NOT EXISTS whole boolean NOT NULL DEFAULT false;
+SELECT pg_temp.add_column('lines', 'whole', $$boolean NOT NULL DEFAULT false$$);
 
 CREATE INDEX IF NOT EXISTS lines_oracle_id ON lines (oracle_id);
 
@@ -277,7 +292,7 @@ CREATE INDEX IF NOT EXISTS card_tags_tag ON card_tags (tag);
 --actually typed filters on NOT inherited. without it siblings score zero against
 --each other (delney/tetsuko both give evasion, shared nothing), which was two
 --thirds of the axis's linking signal
-ALTER TABLE card_tags ADD COLUMN IF NOT EXISTS inherited boolean NOT NULL DEFAULT false;
+SELECT pg_temp.add_column('card_tags', 'inherited', $$boolean NOT NULL DEFAULT false$$);
 
 --the tag's idf, HALVED when inherited rather than typed. rolling up undamped
 --floods every pair with generic ancestors (removal, card-advantage) and the gap
@@ -285,7 +300,7 @@ ALTER TABLE card_tags ADD COLUMN IF NOT EXISTS inherited boolean NOT NULL DEFAUL
 --
 --both sides of a pair can weigh the same tag differently, which is why the
 --numerator is sum(a.weight * b.weight) and not sum(idf * idf)
-ALTER TABLE card_tags ADD COLUMN IF NOT EXISTS weight real NOT NULL DEFAULT 0;
+SELECT pg_temp.add_column('card_tags', 'weight', $$real NOT NULL DEFAULT 0$$);
 
 --one row per tag that survived the trivia blocklist. idf is derived from
 --card_count, so broad tags like triggered-ability barely count
@@ -297,7 +312,7 @@ CREATE TABLE IF NOT EXISTS tags (
     description text NOT NULL DEFAULT ''
 );
 
-ALTER TABLE tags ADD COLUMN IF NOT EXISTS idf real NOT NULL DEFAULT 0;
+SELECT pg_temp.add_column('tags', 'idf', $$real NOT NULL DEFAULT 0$$);
 
 --each card's tag vector length. the scoring queries read card_tag_vecs below
 --instead, so this is left for common/concept.py, which the finetune scripts run
@@ -395,14 +410,14 @@ CREATE TABLE IF NOT EXISTS decks (
 --mtg.wiki). for recent sets it is the announcement article carrying all four or
 --five lists at once, so it is a PROVENANCE link rather than a deep one and the
 --page should not promise more
-ALTER TABLE decks ADD COLUMN IF NOT EXISTS source text NOT NULL DEFAULT '';
+SELECT pg_temp.add_column('decks', 'source', $$text NOT NULL DEFAULT ''$$);
 
 --false only where the source url was SEEN to 404. wizards deleted its old
 --card-set-archive section, so 16 of the links above lead nowhere.
 --DEFAULT true, and it matters: a database the check has never run against shows
 --every link, which is how the site behaved before the column existed. the check
 --only ever takes a link away on proof
-ALTER TABLE decks ADD COLUMN IF NOT EXISTS source_ok boolean NOT NULL DEFAULT true;
+SELECT pg_temp.add_column('decks', 'source_ok', $$boolean NOT NULL DEFAULT true$$);
 
 --no originality column ON PURPOSE. the score derives from cards.uniqueness,
 --which moves whenever the embedding model changes, so a stored number would rot
@@ -477,7 +492,7 @@ CREATE TABLE IF NOT EXISTS feedback (
 --which DIRECTION the complaint runs is read off the attribution at review time
 --rather than trusted from the form, so a report stays readable even if the
 --attribution is rebuilt before anyone looks at it
-ALTER TABLE feedback ADD COLUMN IF NOT EXISTS tag text NOT NULL DEFAULT '';
+SELECT pg_temp.add_column('feedback', 'tag', $$text NOT NULL DEFAULT ''$$);
 
 --feedback.ip holds the day's one-way token, never an address. /privacy says
 --plainly that an ip is never stored, so a row carrying a real one has to go.

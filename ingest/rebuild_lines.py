@@ -132,11 +132,10 @@ def create(conn):
     conn.execute("ALTER TABLE lines_new ALTER COLUMN embedding TYPE " + EMBED_TYPE)
 
 
-#the copy is three transactions for main to commit between. every ingest opens
-#with schema.sql's ALTER TABLE lines and cards, which queue for ACCESS EXCLUSIVE
-#behind whatever lock this holds, and every search queues behind them: holding
-#lines or cards through a minutes long index build would stall the site for all
-#of it
+#the copy is three transactions for main to commit between. a schema.sql that
+#adds a column to lines or cards queues for ACCESS EXCLUSIVE behind whatever
+#lock this holds, and every search queues behind it: holding lines or cards
+#through a minutes long index build would stall the site for all of it
 def fill(conn):
     create(conn)
     cols = ", ".join(COLUMNS)

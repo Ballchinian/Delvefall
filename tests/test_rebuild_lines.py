@@ -21,7 +21,9 @@ def statements_about_lines():
     #a $$ body carries its own semicolons, so the split steps over one whole
     #rather than cutting inside it
     statements = re.findall(r"(?:\$\$.*?\$\$|[^;])+", sql, re.S)
-    wanted = re.compile(r"(CREATE TABLE IF NOT EXISTS (lines|line_tags|line_stats) |ALTER TABLE lines |"
+    wanted = re.compile(r"(CREATE TABLE IF NOT EXISTS (lines|line_tags|line_stats) |"
+                        r"CREATE OR REPLACE FUNCTION pg_temp\.add_column|"
+                        r"SELECT pg_temp\.add_column\('lines'|"
                         r"CREATE INDEX IF NOT EXISTS \w+ ON (lines|line_tags) |DO \$\$)")
     return [s.strip() for s in statements if wanted.match(s.strip())]
 
