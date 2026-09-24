@@ -59,7 +59,7 @@ EMBED_TYPE = "halfvec(768)"
 #the anchors put a hand judged "yes" at 88 and a "no" at 59, so the two separate
 #by nearly thirty points and about three quarters of results clear the 70 gate.
 #sat lower, too many land in the 60-70 band and the axis reads stingy next to
-#concepts. both maps ride to the site through meta, written in main below
+#concepts. both maps ride to the site through meta, by publish_calibration below
 MECH_CALIBRATION = [(0.0, 0), (0.30, 30), (0.42, 45), (0.62, 65), (0.76, 80), (0.90, 92), (1.0, 100)]
 
 
@@ -318,6 +318,48 @@ def swap_in(conn):
             time.sleep(10)
 
 
+def set_meta(conn, key, value):
+    conn.execute("""
+        INSERT INTO meta (key, value) VALUES (%s, %s)
+        ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
+    """, (key, value))
+
+
+def publish_calibration(conn):
+    #the site carries seed copies of both maps and the database's word wins. web
+    #rereads them every 5 minutes, so whichever commit carries these decides
+    #which vectors they are read against
+    for key, cal in (("mech_calibration", MECH_CALIBRATION),
+                     ("concept_calibration", CONCEPT_CALIBRATION)):
+        set_meta(conn, key, json.dumps(cal))
+
+
+def swapping_models(conn):
+    #vectors from two models cannot be compared, so a database embedded by any
+    #other one needs every line redone this run.
+    #
+    #the maps go out now only when the model stays, so even a nothing-changed run
+    #refits them. on a swap they wait for record_run: published here, the old
+    #model's cosines read through the new map for the whole reseed (86 minutes on
+    #the first seed), and for good if the recall check refuses the swap
+    row = conn.execute("SELECT value FROM meta WHERE key = 'embed_model'").fetchone()
+    changed = row is None or row[0] != EMBED_MODEL
+    if not changed:
+        publish_calibration(conn)
+    conn.commit()
+    return changed
+
+
+def record_run(conn, updated_at, model_changed):
+    #what tomorrow's gate reads and what the next model swap compares against,
+    #plus a swap's maps. no commit: main's commit is the one swap_in's new vectors
+    #go live in
+    set_meta(conn, "scryfall_updated_at", updated_at)
+    set_meta(conn, "embed_model", EMBED_MODEL)
+    if model_changed:
+        publish_calibration(conn)
+
+
 def main():
     db_url = os.environ.get("DATABASE_URL")
     if not db_url:
@@ -347,21 +389,7 @@ def main():
         print("lines.embedding is " + live[0] + " and schema.sql declares " + EMBED_TYPE +
               ", so python -m ingest.rebuild_lines has not been run yet")
 
-    #before the gate below, so even a nothing-changed run leaves them in place.
-    #the site carries seed copies but the database's word wins, which is what
-    #makes a model swap atomic: new vectors and their new map arrive together
-    for key, cal in (("mech_calibration", MECH_CALIBRATION),
-                     ("concept_calibration", CONCEPT_CALIBRATION)):
-        conn.execute("""
-            INSERT INTO meta (key, value) VALUES (%s, %s)
-            ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
-        """, (key, json.dumps(cal)))
-    conn.commit()
-
-    #vectors from two models cannot be compared, so a database embedded by any
-    #other one needs every line redone this run
-    row = conn.execute("SELECT value FROM meta WHERE key = 'embed_model'").fetchone()
-    model_changed = row is None or row[0] != EMBED_MODEL
+    model_changed = swapping_models(conn)
     if model_changed:
         print("embedding model changed, this run rebuilds every vector (the slow full reseed)")
         #the new vectors go through lines_new, so both names have to be free.
@@ -629,15 +657,7 @@ def main():
     elif work or stale:
         recount_line_stats(conn)
 
-    #what tomorrow's gate reads, and what the next model swap compares against
-    conn.execute("""
-        INSERT INTO meta (key, value) VALUES ('scryfall_updated_at', %s)
-        ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
-    """, (updated_at,))
-    conn.execute("""
-        INSERT INTO meta (key, value) VALUES ('embed_model', %s)
-        ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
-    """, (EMBED_MODEL,))
+    record_run(conn, updated_at, model_changed)
     conn.commit()
 
     if model_changed:
