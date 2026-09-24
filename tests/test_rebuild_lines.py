@@ -172,6 +172,38 @@ class TestTheSwapOnlyHappensOverWhatWasCopied:
             rebuild_lines.exchange(conn, "lines_new", "lines_old")
         assert embedding_type(conn) == "vector(768)"
 
+    def test_a_forced_rollback_leaves_nothing_the_ingest_thinks_is_embedded(self, conn, monkeypatch,
+                                                                            capsys):
+        #after the swap an ingest rewrote card 0's text and added card 6, and the
+        #old table has neither. forced back, their hashes still said current, so
+        #card 6 had no lines and card 0 its old ones, and no run would ever look
+        import sys
+        import urllib.parse
+
+        from ingest import rebuild_lines
+
+        conn.execute("ALTER TABLE cards ADD COLUMN text_hash text NOT NULL DEFAULT 'embedded'")
+        rebuild(conn)
+        rewritten, added = "00000000-0000-4000-8000-0000000bb000", "00000000-0000-4000-8000-0000000bb006"
+        vec = np.ones(768, dtype=np.float32) / 768 ** 0.5
+        conn.execute("DELETE FROM lines WHERE oracle_id = %s", (rewritten,))
+        conn.execute("INSERT INTO cards VALUES (%s, 'embedded')", (added,))
+        for oid in (rewritten, added):
+            conn.execute("INSERT INTO lines (oracle_id, line_text, embedding) VALUES (%s, 'new text', %s)",
+                         (oid, vec))
+        conn.commit()
+        #the rebuild above took the ingest lock on this connection, and main opens its own
+        conn.execute("SELECT pg_advisory_unlock_all()")
+
+        monkeypatch.setenv("DATABASE_URL", TEST_DB + ("&" if "?" in TEST_DB else "?") + "options=" +
+                           urllib.parse.quote("-c search_path=rebuild_check,public"))
+        monkeypatch.setattr(sys, "argv", ["rebuild_lines", "--rollback", "--force"])
+        rebuild_lines.main()
+        assert "2 cards changed after the swap" in capsys.readouterr().out
+        hashes = dict(conn.execute("SELECT oracle_id::text, text_hash FROM cards").fetchall())
+        assert hashes[rewritten] == "" and hashes[added] == ""
+        assert sum(1 for h in hashes.values() if h == "embedded") == 5
+
     def test_an_index_added_to_lines_since_the_copy_refuses_the_swap(self, conn):
         #the renames carry only what this tool built, so the new index would stay
         #behind on lines_old and the live table would go without it

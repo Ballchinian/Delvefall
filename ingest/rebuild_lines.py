@@ -300,6 +300,22 @@ def exchange(conn, incoming, outgoing, check=True):
     return (held - asked).total_seconds(), (done - held).total_seconds()
 
 
+def forget_what_was_missed(conn):
+    #after a FORCED rollback: the restored table missed every write since the
+    #swap, so a card added or reembedded there has a text_hash saying current over
+    #lines the live table does not hold, and the daily ingest never looks at it
+    #again. a cleared hash reads as changed text, and the next run embeds it.
+    #compared by text, since the two tables share no ids for new rows
+    return conn.execute("""
+        UPDATE cards SET text_hash = '' WHERE oracle_id IN (
+            SELECT oracle_id FROM (SELECT oracle_id, line_text, face, whole FROM lines_new
+                                   EXCEPT SELECT oracle_id, line_text, face, whole FROM lines) missed
+            UNION
+            SELECT oracle_id FROM (SELECT oracle_id, line_text, face, whole FROM lines
+                                   EXCEPT SELECT oracle_id, line_text, face, whole FROM lines_new) stale)
+    """).rowcount
+
+
 def validate(conn):
     conn.execute("ALTER TABLE line_tags VALIDATE CONSTRAINT line_tags_line_id_fkey")
 
@@ -340,9 +356,12 @@ def main():
             if exists(conn, outgoing):
                 raise Refused(outgoing + " already exists")
             waited, held = exchange(conn, incoming, outgoing, check=args.swap or not args.force)
+            forgotten = forget_what_was_missed(conn) if args.rollback and args.force else 0
             conn.commit()
             print("%s is live as lines: waited %.0fms for searches to finish, then held them %.0fms"
                   % (incoming, waited * 1000, held * 1000))
+            if forgotten:
+                print("%d cards changed after the swap, and the next ingest embeds them again" % forgotten)
             validate(conn)
             conn.commit()
             print("line_tags' foreign key validated")
