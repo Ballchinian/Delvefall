@@ -924,6 +924,18 @@ class TestPickingALineRanksOnIt:
         assert 'class="oracle-line"' in asked.page
         assert "Click a line to rank on it alone" in asked.page
 
+    def test_page_two_asks_for_no_chips(self, asked, monkeypatch):
+        #/custom/more draws the grid and nothing above it, so the probe query and
+        #the neighbours' tags are a cost it has no use for
+        import views.custom
+
+        def refuse(*args, **kwargs):
+            raise AssertionError("page two worked out chips it never draws")
+
+        monkeypatch.setattr(views.custom, "tag_chips", refuse)
+        got = asked(route="more")
+        assert got["ranked"]
+
     def test_page_two_is_ranked_on_the_same_lines(self, asked):
         #custom.js posts the WHOLE form for /custom/more, the picks with it, so a
         #second page that ignored them would append a different ranking onto the
