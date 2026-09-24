@@ -13,6 +13,14 @@ var text = document.getElementById("custom-text");
 var nameBox = document.getElementById("custom-name");
 
 /*
+    what this page's list was scored on, read once as it loads: load more asks for
+    page two of THAT. the form itself is live, typing clears the picks, and a body
+    read at click time appended page two of a different search under page one.
+    after the filter panel's own script, so a hidden slot is already left out
+*/
+var asked = new URLSearchParams(new FormData(form));
+
+/*
     the wake, on the FIRST focus of the textarea and only that one. the packet
     is the point and not the answer: it is what starts a sleeping container, so
     the model is loading while somebody is still typing, and a ping per
@@ -164,7 +172,7 @@ function loadNext() {
     var words = btn.dataset.words;
     var resting = btn.textContent;
     btn.textContent = "Loading...";
-    var body = new URLSearchParams(new FormData(form));
+    var body = new URLSearchParams(asked);
     body.set("offset", stepping ? 0 : offset);
     if (target !== null) {
         body.set("band", target);
