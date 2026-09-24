@@ -127,3 +127,50 @@ class TestAStatementThatFailsForAnyOtherReason:
                 boot_ddl(victim, "ALTER TABLE boot_probe_missing ADD COLUMN b int")
         finally:
             victim.close()
+
+
+@needs_db
+class TestAColumnAlreadyThereTakesNoLock:
+
+    def test_it_is_asked_of_the_catalog_and_never_altered(self, two_tables, monkeypatch):
+        #ADD COLUMN IF NOT EXISTS takes ACCESS EXCLUSIVE whether or not it adds
+        #anything, so every boot queued behind any open read of the table
+        import psycopg
+
+        import app
+
+        altered = []
+        monkeypatch.setattr(app, "boot_ddl", lambda conn, sql: altered.append(sql))
+        victim = psycopg.connect(TEST_DB)
+        try:
+            app.boot_column(victim, FREE, "a", "ALTER TABLE " + FREE + " ADD COLUMN IF NOT EXISTS a int")
+            assert altered == []
+            app.boot_column(victim, FREE, "b", "ALTER TABLE " + FREE + " ADD COLUMN IF NOT EXISTS b int")
+            assert len(altered) == 1
+        finally:
+            victim.close()
+
+
+class TestTheBootBlockOpensNoTransactionOfItsOwn:
+
+    def test_every_statement_comes_before_the_first_read(self):
+        #a read opens a transaction, and every boot_ddl after it is then a
+        #savepoint inside it, holding its lock to the end of the block
+        import ast
+        import os
+
+        from conftest import ROOT
+
+        with open(os.path.join(ROOT, "web", "app.py"), encoding="utf-8") as f:
+            tree = ast.parse(f.read())
+        block = next(node for node in tree.body if isinstance(node, ast.With)
+                     and ast.unparse(node.items[0].context_expr) == "pool.connection()")
+        kinds = []
+        for stmt in block.body:
+            names = {ast.unparse(n.func) for n in ast.walk(stmt) if isinstance(n, ast.Call)}
+            if names & {"boot_ddl", "boot_column"}:
+                kinds.append("ddl")
+            elif "_conn.execute" in names:
+                kinds.append("read")
+        assert "ddl" in kinds and "read" in kinds
+        assert "ddl" not in kinds[kinds.index("read"):]

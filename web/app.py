@@ -245,11 +245,13 @@ def mana_urls():
 #timeout a locked table costs one skipped statement instead, and every statement
 #here is IF NOT EXISTS, so the next boot applies what this one left.
 #
-#one second, because eighteen statements each waiting their turn has to finish
+#one second, because nineteen statements each waiting their turn has to finish
 #well inside gunicorn's 30s timeout, which kills a worker that slow to boot and
 #starts another one behind the same lock. a statement that would have been
 #granted at 1.2s is not worth that risk: nothing here has ever had to wait.
-#one transaction each, so waiting on one table never holds another
+#one transaction each, so waiting on one table never holds another: nothing in
+#the block may open one first, or every boot_ddl after it is a savepoint inside
+#it and its locks are held to the end of the block
 BOOT_LOCK_TIMEOUT = "1s"
 
 
@@ -268,6 +270,20 @@ def boot_ddl(conn, sql):
         if getattr(e, "sqlstate", None) != "55P03":
             raise
         print("boot: skipped a locked " + " ".join(sql.split())[:60] + "...", flush=True)
+
+
+def boot_column(conn, table, column, sql):
+    #ADD COLUMN IF NOT EXISTS takes ACCESS EXCLUSIVE even when the column is
+    #already there, so every boot queued behind any open read of the table, and
+    #every search behind the boot. the catalog is asked first, in a transaction of
+    #its own so the ALTER after it is not a savepoint
+    with conn.transaction():
+        there = conn.execute("""
+            SELECT 1 FROM pg_attribute
+            WHERE attrelid = to_regclass(%s) AND attname = %s AND NOT attisdropped
+        """, (table, column)).fetchone()
+    if not there:
+        boot_ddl(conn, sql)
 
 
 #user reports from the results page (see the /feedback route). the table
@@ -303,14 +319,15 @@ with pool.connection() as _conn:
     #schema.sql, because a database the ingest has never touched only gets what
     #this block asks for. without it /feedback 500s on a tag report and /admin
     #500s reading the column back
-    boot_ddl(_conn, "ALTER TABLE feedback ADD COLUMN IF NOT EXISTS tag text NOT NULL DEFAULT ''")
+    boot_column(_conn, "feedback", "tag", "ALTER TABLE feedback ADD COLUMN IF NOT EXISTS tag text NOT NULL DEFAULT ''")
     #also in schema.sql, and also here because railway only deploys web/. what
     #each holds is at todays_salt/count_visit below
     #also in schema.sql. here as well because railway deploys web/ ON PUSH and the
     #ingest runs at 9am: without this every precon page 500s on the column in
     #between. true means "show the link", so a database waiting for its first
     #check behaves exactly as it did before the column existed
-    boot_ddl(_conn, "ALTER TABLE decks ADD COLUMN IF NOT EXISTS source_ok boolean NOT NULL DEFAULT true")
+    boot_column(_conn, "decks", "source_ok",
+                "ALTER TABLE decks ADD COLUMN IF NOT EXISTS source_ok boolean NOT NULL DEFAULT true")
     boot_ddl(_conn, "CREATE TABLE IF NOT EXISTS visit_salt (day date PRIMARY KEY, salt text NOT NULL)")
     boot_ddl(_conn, """CREATE TABLE IF NOT EXISTS visit_seen (
         day   date NOT NULL,
@@ -333,29 +350,22 @@ with pool.connection() as _conn:
     )""")
     #the CREATEs reach a virgin database only, so a table that already exists
     #needs the column added the way feedback.tag is above
-    boot_ddl(_conn, "ALTER TABLE visit_seen ADD COLUMN IF NOT EXISTS bot boolean NOT NULL DEFAULT false")
-    boot_ddl(_conn, "ALTER TABLE visit_daily ADD COLUMN IF NOT EXISTS bots int NOT NULL DEFAULT 0")
+    boot_column(_conn, "visit_seen", "bot",
+                "ALTER TABLE visit_seen ADD COLUMN IF NOT EXISTS bot boolean NOT NULL DEFAULT false")
+    boot_column(_conn, "visit_daily", "bots",
+                "ALTER TABLE visit_daily ADD COLUMN IF NOT EXISTS bots int NOT NULL DEFAULT 0")
     #html DEFAULTS TRUE: every row already in the table was written by a counter
     #that only ever counted page views, so the default is what those rows are
-    boot_ddl(_conn, "ALTER TABLE visit_seen ADD COLUMN IF NOT EXISTS html boolean NOT NULL DEFAULT true")
+    boot_column(_conn, "visit_seen", "html",
+                "ALTER TABLE visit_seen ADD COLUMN IF NOT EXISTS html boolean NOT NULL DEFAULT true")
     for _flag in ("font", "act", "crawl", "lies"):
-        boot_ddl(_conn, "ALTER TABLE visit_seen ADD COLUMN IF NOT EXISTS " + _flag +
-                        " boolean NOT NULL DEFAULT false")
+        boot_column(_conn, "visit_seen", _flag, "ALTER TABLE visit_seen ADD COLUMN IF NOT EXISTS " +
+                    _flag + " boolean NOT NULL DEFAULT false")
     #no default, so NULL means "the day was over before this was measured" and 0
     #means the day had none. a default would make those two the same number
     for _split in ("suspect_n", "acted_n", "rendered_n"):
-        boot_ddl(_conn, "ALTER TABLE visit_daily ADD COLUMN IF NOT EXISTS " + _split + " int")
-    #the width card_tag_vecs.vec declares. pgvector refuses to compare two
-    #sparsevecs of different widths, so every anchor this app builds has to say
-    #the same number the stored vectors do. read rather than repeated, because a
-    #copy here would be a second source of truth that nothing checks, and the
-    #failure it produces is a 500 on every search. the fallback matches
-    #schema.sql and only ever applies to the test stub, which answers nothing
-    _row = _conn.execute("""
-        SELECT atttypmod FROM pg_attribute
-        WHERE attrelid = to_regclass('card_tag_vecs') AND attname = 'vec'
-    """).fetchone()
-    TAG_VEC_WIDTH = _row["atttypmod"] if _row else 8192
+        boot_column(_conn, "visit_daily", _split,
+                    "ALTER TABLE visit_daily ADD COLUMN IF NOT EXISTS " + _split + " int")
     #/privacy says an ip address is never stored, so any row still holding one has
     #to go. LENGTH tells them apart with nothing left over: a token is a sha256
     #hex digest, exactly 64 characters, and no address of either family reaches
@@ -363,11 +373,6 @@ with pool.connection() as _conn:
     #here as well as in schema.sql, so it lands on the next deploy rather than
     #waiting for an ingest. after the first run it matches no rows
     boot_ddl(_conn, "UPDATE feedback SET ip = '' WHERE ip <> '' AND length(ip) <> 64")
-    #the sitemap's lastmod reads this column, and web deploys on push while the
-    #ingest waits for 9am: without it here every sitemap-cards part 500s in
-    #between. it only makes the column EXIST, update.py is what fills it.
-    #IF EXISTS on the table because cards belongs to the ingest, and a database it
-    #has never touched has no such table to alter
     #also in schema.sql, and also here because railway deploys web/ ON PUSH while
     #the ingest waits for 9am: without it every /custom 500s on the chip query in
     #between. tools/load_tag_probe.py is what fills it, so empty is the normal
@@ -379,7 +384,25 @@ with pool.connection() as _conn:
         banned boolean NOT NULL DEFAULT false,
         types  jsonb NOT NULL DEFAULT '{}'
     )""")
-    boot_ddl(_conn, "ALTER TABLE IF EXISTS cards ADD COLUMN IF NOT EXISTS text_changed_at timestamptz")
+    #the sitemap's lastmod reads this column, and web deploys on push while the
+    #ingest waits for 9am: without it here every sitemap-cards part 500s in
+    #between. it only makes the column EXIST, update.py is what fills it.
+    #IF EXISTS on the table because cards belongs to the ingest, and a database it
+    #has never touched has no such table to alter
+    boot_column(_conn, "cards", "text_changed_at",
+                "ALTER TABLE IF EXISTS cards ADD COLUMN IF NOT EXISTS text_changed_at timestamptz")
+    #LAST, being a read: it opens a transaction, see BOOT_LOCK_TIMEOUT.
+    #the width card_tag_vecs.vec declares. pgvector refuses to compare two
+    #sparsevecs of different widths, so every anchor this app builds has to say
+    #the same number the stored vectors do. read rather than repeated, because a
+    #copy here would be a second source of truth that nothing checks, and the
+    #failure it produces is a 500 on every search. the fallback matches
+    #schema.sql and only ever applies to the test stub, which answers nothing
+    _row = _conn.execute("""
+        SELECT atttypmod FROM pg_attribute
+        WHERE attrelid = to_regclass('card_tag_vecs') AND attname = 'vec'
+    """).fetchone()
+    TAG_VEC_WIDTH = _row["atttypmod"] if _row else 8192
 
 #the review page at /admin only exists when this is set in the environment
 ADMIN_KEY = os.environ.get("ADMIN_KEY", "")
