@@ -3479,10 +3479,10 @@ def partner_kind(card):
 PARTNER_HALVES = {"choose a background": "Background", "doctor's companion": "Doctor"}
 
 
-def pairs_with(a, b):
+def pairs_with(a, b, kind_of=partner_kind):
     #could a sit beside b? asked one way round, so callers ask twice: a Background
     #holds no keyword and it is the other half that names it
-    kind = partner_kind(a)
+    kind = kind_of(a)
     if not kind:
         return False
     if kind.startswith("with:"):
@@ -3490,7 +3490,7 @@ def pairs_with(a, b):
     if kind in PARTNER_HALVES:
         return PARTNER_HALVES[kind] in (b.get("type_line") or "")
     #the same ability on both, so friends forever never pairs with plain partner
-    return kind == partner_kind(b)
+    return kind == kind_of(b)
 
 
 def commander_pair(cards):
@@ -3536,11 +3536,21 @@ def header_pair(said, rows):
 
 def leader_picker(rows):
     #every candidate with the ones it may sit beside, worked out HERE so the rule
-    #lives in python only. the browser reads mates and never reasons about them
+    #lives in python only. the browser reads mates and never reasons about them.
+    #
+    #partner_kind once a card and not once a pair: every pair asks it up to four
+    #times, and a paste of 250 legends is 62,000 pairs of regexes
+    kinds = {}
+
+    def kind_of(c):
+        if c["name"] not in kinds:
+            kinds[c["name"]] = partner_kind(c)
+        return kinds[c["name"]]
+
     return [{"name": a["name"],
              "mates": [b["name"] for b in rows
                        if b["name"] != a["name"]
-                       and (pairs_with(a, b) or pairs_with(b, a))]}
+                       and (pairs_with(a, b, kind_of) or pairs_with(b, a, kind_of))]}
             for a in rows]
 
 

@@ -5,6 +5,7 @@
 #the pairing is used to NAME a pasted deck, so a wrong pair is a deck called
 #after a card in its 99. it returns nothing rather than guess.
 
+import app
 from app import commander_pair, header_pair, parse_commanders, partner_kind
 
 
@@ -166,3 +167,31 @@ class TestCommanderPair:
 
     def test_nothing_in_the_deck_can_lead_it(self):
         assert commander_pair([]) == []
+
+
+class TestTheLeaderPicker:
+
+    def test_each_card_offers_the_ones_it_can_sit_beside(self):
+        rows = [card("Tymna", PARTNER), card("Thrasios", PARTNER), card("Wyleth", FF),
+                card("Volo", BG), card("Candlekeep Sage", types="Legendary Enchantment — Background")]
+        mates = {r["name"]: r["mates"] for r in app.leader_picker(rows)}
+        assert mates["Tymna"] == ["Thrasios"]
+        assert mates["Wyleth"] == []
+        assert mates["Volo"] == ["Candlekeep Sage"]
+        assert mates["Candlekeep Sage"] == ["Volo"]
+
+    def test_the_keyword_is_read_once_a_card(self, monkeypatch):
+        #a pasted list of 250 legends is 62,000 pairs, and each asked this up to
+        #four times
+        read = []
+        real = app.partner_kind
+
+        def counted(c):
+            read.append(c["name"])
+            return real(c)
+
+        monkeypatch.setattr(app, "partner_kind", counted)
+        rows = [card("Legend %d" % i, PARTNER) for i in range(30)]
+        app.leader_picker(rows)
+        assert len(read) == 30
+
