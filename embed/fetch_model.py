@@ -97,11 +97,20 @@ def fetch(dest, force=False):
         print("model already at " + dest + " (" + sha256[:12] + "), nothing to do")
         return dest
 
-    os.makedirs(dest, exist_ok=True)
-    #the temp file sits beside dest rather than in /tmp, which on railway's
-    #builder is a small tmpfs that 1.25gb does not fit in
-    holding = tempfile.mkdtemp(prefix=".fetch-", dir=os.path.dirname(os.path.abspath(dest)) or ".")
+    #dest is replaced whole, so it has to be a folder this script filled or an
+    #empty one: --dest . from the repo root would take .git with it. asked before
+    #the 1.25gb download it would waste
+    if os.path.isdir(dest) and os.listdir(dest) and not os.path.exists(stamp_path(dest)):
+        raise SystemExit(dest + " holds files and no .sha256, so this script did not put "
+                         "them there. point --dest at an empty folder or one it filled before")
+
+    #beside dest rather than in /tmp, which on railway's builder is a small tmpfs
+    #that 1.25gb does not fit in, and on the same disk so the swap below is a rename
+    parent = os.path.dirname(os.path.abspath(dest))
+    os.makedirs(parent, exist_ok=True)
+    holding = tempfile.mkdtemp(prefix=".fetch-", dir=parent)
     tar_path = os.path.join(holding, "model.tar")
+    unpacked = os.path.join(holding, "model")
     try:
         print("downloading " + rel["file"] + " from " + rel["tag"] + "...")
         got = download(rel["url"], tar_path, rel["bytes"])
@@ -110,21 +119,22 @@ def fetch(dest, force=False):
                              ", the download is " + got + ". the right number of bytes and "
                              "the wrong ones, so the release asset was replaced")
         print("  sha256 ok, extracting...")
-        #anything already in dest is from an older release, and leaving it would
-        #mix two models in one folder
-        for name in os.listdir(dest):
-            path = os.path.join(dest, name)
-            shutil.rmtree(path) if os.path.isdir(path) else os.remove(path)
         with tarfile.open(tar_path, "r:") as tar:
             #filter="data" refuses absolute paths, "..", links out of the tree
             #and device files. the tar is ours, but an extract that trusts its
             #input is a foothold in an image that also holds nothing else
-            tar.extractall(dest, filter="data")
+            tar.extractall(unpacked, filter="data")
+        #stamped BEFORE the swap and swapped by rename, so dest is only ever a
+        #whole model with its stamp: a failed extract leaves the old one in place,
+        #and an older release is never mixed into the new folder
+        with open(stamp_path(unpacked), "w", encoding="utf-8") as f:
+            f.write(sha256 + "\n")
+        if os.path.exists(dest):
+            os.rename(dest, os.path.join(holding, "old"))
+        os.rename(unpacked, dest)
     finally:
         shutil.rmtree(holding, ignore_errors=True)
 
-    with open(stamp_path(dest), "w", encoding="utf-8") as f:
-        f.write(sha256 + "\n")
     print("model ready at " + dest)
     return dest
 
