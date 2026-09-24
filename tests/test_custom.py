@@ -263,6 +263,13 @@ class TestReadingTheForm:
         assert cleaned("Flying\nII\nTrample") == ["Flying", "Trample"]
         assert cleaned("{T}") == ["{T}"]
 
+    def test_a_symbol_typed_in_lower_case_reaches_the_model_as_printed(self):
+        #all 64 symbols on the 31,919 printed cards are upper case and clean_line
+        #keeps the case it is given, so a typed "{t}" is a token no stored line
+        #carries. the words outside the braces keep theirs
+        assert cleaned("{t}: add {g}.") == ["{T}: add {G}."]
+        assert cleaned("Pay {2/w}{r/g/p}.") == ["Pay {2/W}{R/G/P}."]
+
     def test_nothing_to_score_is_rejected(self):
         for text in ("", "   ", "\n\n"):
             with pytest.raises(Rejected):
@@ -394,6 +401,41 @@ class TestAnAnswerWithNoListKeepsTheControls:
         page = self.post(monkeypatch, text="x" * (MAX_CHARS + 1))
         assert str(MAX_CHARS) in page
         self.assert_controls(page)
+
+
+class TestTheDrawnCardShowsSymbols:
+    #"{T}" on the card is the tap symbol, and the box keeps exactly what was typed.
+    #the matcher down is enough to draw the card, with no database read
+
+    def post(self, monkeypatch, text):
+        from views.custom import custom_post
+        monkeypatch.setattr(embedder, "EMBED_URL", "")
+        with app.app.test_request_context("/custom", method="POST", data={"text": text}):
+            got = custom_post()
+        return got[0] if isinstance(got, tuple) else got
+
+    def test_the_card_draws_what_the_model_read_and_the_box_what_was_typed(self, monkeypatch):
+        page = self.post(monkeypatch, "{t}: add {g}.")
+        assert "{t}: add {g}.</textarea>" in page
+        assert 'alt="{T}"' in page
+        assert 'alt="{G}"' in page
+        #an attribute cannot hold an img
+        assert 'aria-label="rank on this line only: {T}: add {G}."' in page
+
+    def test_a_card_turned_away_draws_them_too(self, monkeypatch):
+        page = self.post(monkeypatch, "{t}: add {g}.\n" + "x" * (MAX_CHARS + 1))
+        assert str(MAX_CHARS) in page
+        assert 'alt="{T}"' in page
+
+    def test_a_run_of_open_braces_does_not_hold_the_worker(self, monkeypatch):
+        #a card turned away is drawn at whatever length was posted, up to the 1MB
+        #body. a symbol pattern that lets "{" inside a token is quadratic on this:
+        #40,000 took 7s
+        import time
+        start = time.perf_counter()
+        page = self.post(monkeypatch, "{" * 50000)
+        assert time.perf_counter() - start < 1.5
+        assert str(MAX_CHARS) in page
 
 
 class TestTheOriginalitySentence:

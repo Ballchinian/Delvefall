@@ -16,6 +16,9 @@
 #blueprint at the bottom of its own module, so a module-level import closes the
 #circle. views/meta.py does the same for the same reason.
 
+import re
+import string
+
 from flask import Blueprint, render_template, request
 
 import autotags
@@ -55,6 +58,18 @@ def typed_lines(text):
     return [line for line in text.split("\n") if line.strip()]
 
 
+#the tokens app.py's mana filter draws as symbols
+SYMBOL = re.compile(r"\{([^{}]+)\}")
+UPPER = str.maketrans(string.ascii_lowercase, string.ascii_uppercase)
+
+
+def fold_symbols(line):
+    #"{t}" to "{T}". every printed symbol is upper case and clean_line keeps the
+    #case it is given, so "{t}" is a token no stored line carries. ascii only,
+    #the way custom.js folds it, and a line stays the length the limits measured
+    return SYMBOL.sub(lambda m: m.group(0).translate(UPPER), line)
+
+
 def card_name(name):
     #the name as clean_line will read it, which swaps every occurrence of it for
     #"this card" by plain substring. 6,558 of the 60,729 stored lines say "this
@@ -76,7 +91,8 @@ def card_name(name):
 def read_custom(text, name=""):
     #typed text in, one (typed line, cleaned line) pair per non-blank line out.
     #the cleaned line is what the model reads, or None where the splitter drops
-    #it, and the line picker's indexes count THESE pairs.
+    #it, and the line picker's indexes count THESE pairs. the typed line comes
+    #back with its symbols folded, since the card draws it and the box does not.
     #
     #the limits are checked on the raw lines BEFORE anything is cleaned: clean_line's
     #\(.*?\) is quadratic on unclosed brackets, 20,000 of them take 2s holding the
@@ -96,7 +112,7 @@ def read_custom(text, name=""):
     #floor and the cleaning are the same code that built every stored row, and
     #each typed line gets its own answer. split_lines carries nothing between lines
     pairs = []
-    for line in raw:
+    for line in map(fold_symbols, raw):
         got = split_lines({"oracle_text": line, "name": name})
         pairs.append((line, got[0][0] if got else None))
     cleaned = [c for _, c in pairs if c]
@@ -440,7 +456,8 @@ def form_page(text, name, type_line="", pairs=(), **extra):
     return render_template("custom.html", text=text, name=name, types=CARD_TYPES,
                            #capped where read_custom turns the form away, or a
                            #pasted megabyte draws a megabyte of card
-                           preview=typed_lines(text)[:MAX_LINES], max_name=MAX_NAME,
+                           preview=[fold_symbols(line) for line in typed_lines(text)[:MAX_LINES]],
+                           max_name=MAX_NAME,
                            max_lines=MAX_LINES,
                            typed=typed, counted=counts is not None, type_line=type_line,
                            max_type=MAX_TYPE,

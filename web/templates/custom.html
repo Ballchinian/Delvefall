@@ -91,15 +91,15 @@
                              aria-label="rank on this line only: {{ line.text }}"
                              {%- if not counted %}
                              {%- elif line.count %} title="on {{ "{:,}".format(line.count) }} printed cards, so it pulls the list less"
-                             {%- else %} title="no printed card says this"{% endif %}>{{ line.text }}</div>
+                             {%- else %} title="no printed card says this"{% endif %}>{{ line.text | mana }}</div>
                         {%- else %}
                         {# nothing to rank on, so not a control: a click posted a pick of
                            a line the model never reads and came back with no list #}
-                        <div class="oracle-plain" title="nothing left once reminder text and the card's own name come out">{{ line.text }}</div>
+                        <div class="oracle-plain" title="nothing left once reminder text and the card's own name come out">{{ line.text | mana }}</div>
                         {%- endif %}
                         {%- endfor %}
                         {%- else %}
-                        {%- for line in preview %}<p>{{ line }}</p>{% endfor %}
+                        {%- for line in preview %}<p>{{ line | mana }}</p>{% endfor %}
                         {%- endif %}
                     </div>
                 </div>

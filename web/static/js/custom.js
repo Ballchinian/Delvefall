@@ -46,8 +46,8 @@ text.addEventListener("focus", function() {
     the blank card. the server draws it too, so whatever was posted comes back
     filled in, and this only keeps it current while somebody types.
 
-    textContent throughout: this is the visitor's own text going back onto their
-    own page, and it is never markup
+    text nodes throughout, manaFill's included: this is the visitor's own text
+    going back onto their own page, and it is never markup
 */
 var previewName = document.getElementById("preview-name");
 var previewType = document.getElementById("preview-type");
@@ -57,6 +57,17 @@ var typeBox = document.getElementById("custom-type");
 //without it a pasted megabyte draws a megabyte of card
 var MAX_LINES = Number(text.dataset.maxLines);
 
+//"{t}" as "{T}", the line the server hands the model. ascii letters only, the
+//way views/custom.py folds them. the box itself is never rewritten, or the caret
+//moves under the visitor's hands
+function foldSymbols(line) {
+    return line.replace(/\{[^{}]+\}/g, function(token) {
+        return token.replace(/[a-z]/g, function(c) {
+            return c.toUpperCase();
+        });
+    });
+}
+
 function paint() {
     setPicked([]);
     previewName.textContent = nameBox.value.trim();
@@ -65,7 +76,7 @@ function paint() {
     text.value.split("\n").filter(function(line) {
         return line.trim();
     }).slice(0, MAX_LINES).forEach(function(line) {
-        el("p", "", previewRules, line);
+        manaFill(el("p", "", previewRules), foldSymbols(line));
     });
 }
 

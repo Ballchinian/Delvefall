@@ -192,7 +192,9 @@ def serve_static(filename):
     return resp.make_conditional(request)
 
 
-_MANA_TOKEN = re.compile(r"\{([^}]+)\}")
+#no "{" inside a token: [^}]+ is quadratic on a run of open braces, 40,000 took
+#7s, and /custom draws whatever was posted. no printed card has one
+_MANA_TOKEN = re.compile(r"\{([^{}]+)\}")
 
 
 #the mana cost as scryfall's symbol svgs: {2}{W/U} becomes two imgs, named

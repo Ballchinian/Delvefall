@@ -85,10 +85,12 @@ function enhanceCardFrames(root) {
     the client twin of app.py's mana filter, for rules text arriving as json.
     built as DOM NODES, so a line full of quotes cannot break out of the markup.
     the token -> url map rides in as window.MANA_URLS, and a token with no entry
-    stays text, same as the server side
+    stays text, same as the server side. no "{" inside a token, also the same:
+    /custom paints every keystroke through this, and [^}]+ is quadratic on a
+    run of open braces
 */
 function manaFill(el, text) {
-    var re = /\{([^}]+)\}/g;
+    var re = /\{([^{}]+)\}/g;
     var last = 0;
     var m;
     while ((m = re.exec(text)) !== null) {
