@@ -3693,7 +3693,9 @@ body.home main {
    under the form rather than beside it */
 @media (max-width: 760px) {
     .custom-cols { grid-template-columns: minmax(0, 1fr); gap: 20px; }
-    .custom-preview { justify-self: center; }
+    /* max-width here and not only on the card: centred, this sizes to the
+       card's 300px, which the card's own percentage cannot shrink */
+    .custom-preview { justify-self: center; max-width: 100%; }
 }
 
 .custom-label {
@@ -3778,15 +3780,15 @@ body.home main {
 
 .custom-note { font-size: 12.5px; color: var(--muted); }
 
-.custom-note a { color: var(--teal); }
-
 .custom-message { margin: 0 0 12px; }
 
 /* 300px is the size every SINGULAR card on the site is drawn at, and 488x680 is
    scryfall's shape, so this sits at exactly the size a printed card would in its
-   place. box-sizing is border-box sitewide, so the ratio holds the padding in */
+   place. box-sizing is border-box sitewide, so the ratio holds the padding in.
+   narrower on a phone, where 300px and the 16px gutters overflow a 320px screen */
 .ink-card {
     width: 300px;
+    max-width: 100%;
     aspect-ratio: 488 / 680;
     display: flex;
     flex-direction: column;
@@ -3866,19 +3868,11 @@ body.home main {
     margin: 0;
 }
 
-/* the chips under the form: a LIST of what the text looks like it is about, and
-   the lede says out loud that it does not count toward the number below. they
-   are spans and not buttons, nothing here being switchable, so .tag-chip's
+/* the chips under the form: a LIST of what the text looks like it is about.
+   they are spans and not buttons, nothing here being switchable, so .tag-chip's
    pointer cursor is turned back off */
 .custom-chips {
     margin-top: 16px;
-}
-
-.custom-chips-lede {
-    margin: 0 0 6px;
-    font-size: 13px;
-    color: var(--muted);
-    max-width: 52ch;
 }
 
 .custom-chip-row {
