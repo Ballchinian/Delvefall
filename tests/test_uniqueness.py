@@ -177,3 +177,27 @@ class TestTheStandingIsCountedFromTheTable:
 
     def test_the_first_real_near_copy_clears_the_tie(self, conn):
         assert self.standing(conn, "Disorient") == (3, 4, 7)
+
+
+@needs_db
+class TestAHistoryArrowOnUnique:
+
+    def test_a_card_with_no_score_is_a_dead_entry_not_a_500(self, seeded):
+        #the deal only hands out scored cards, but an entry in the browser's trail
+        #can outlive its score. unique_standing cannot rank None
+        import db
+        import seed
+        with db.pool.connection() as conn:
+            conn.execute("UPDATE cards SET uniqueness = NULL WHERE oracle_id = %s", (seed.STRANGER,))
+            conn.commit()
+        try:
+            r = app.app.test_client().get("/unique/card?id=" + seed.STRANGER)
+        finally:
+            with db.pool.connection() as conn:
+                conn.execute("UPDATE cards SET uniqueness = 0.5 WHERE oracle_id = %s", (seed.STRANGER,))
+                conn.commit()
+        assert r.status_code == 200
+        assert r.get_json() == {"card": None}
+        #and a scored card still comes back
+        got = app.app.test_client().get("/unique/card?id=" + seed.STRANGER).get_json()
+        assert got["card"]["name"] == "Fixture Stranger"

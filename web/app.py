@@ -4698,14 +4698,15 @@ def unique_card():
     #back/forward history arrows on /unique. same shape as a fresh deal so
     #the frontend renders both identically. cards can vanish from the
     #database between visits (scryfall drops them, filters tighten), so
-    #null just means "this history entry died"
+    #null just means "this history entry died". a card with no score yet is
+    #one the deal would never hand out, and unique_standing cannot rank None
     try:
         oid = str(uuid.UUID(request.args.get("id", "")))
     except ValueError:
         return {"card": None}
     with pool.connection() as conn:
         c = conn.execute("SELECT " + CARD_FIELDS + ", unique_line, legal_commander, " + UNIQUE_BLEND_SQL +
-                         " AS blended_u FROM cards c WHERE oracle_id = %s",
+                         " AS blended_u FROM cards c WHERE oracle_id = %s AND c.uniqueness IS NOT NULL",
                          (oid,)).fetchone()
         if c is None:
             return {"card": None}
