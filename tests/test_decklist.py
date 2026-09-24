@@ -214,6 +214,11 @@ class TestCopies:
     def test_a_miss_is_not_counted(self):
         assert copies("9 Not A Real Card\n1 Sol Ring") == 1
 
+    def test_no_line_counts_past_a_whole_deck(self):
+        #98 Relentless Rats beside a commander is the most a real list says
+        assert copies("98 Lightning Bolt") == 98
+        assert copies("1000000 Lightning Bolt\n1 Sol Ring") == 100
+
 
 class TestCaps:
 

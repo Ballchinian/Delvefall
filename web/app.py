@@ -3029,6 +3029,9 @@ DECK_MAX_CARDS = 250
 #rejected without walking it
 DECK_MAX_CHARS = 60000
 
+#what one line of a pasted list adds to "N cards read in", see parse_decklist
+DECK_MAX_COPIES = 99
+
 #below this many nonland cards the precon comparison is not offered. not about
 #unequal counts, a fraction already handling that, but about NOISE: half of a
 #six card list is three cards, and a three card mean says nothing
@@ -3258,10 +3261,14 @@ def parse_decklist(text):
         #that are load bearing. nine Islands say nothing about a deck's IDEAS
         #that one Island does not, so the lens reads a set. but the page still
         #has to answer "did all of it arrive", and "64 cards read in" is what a
-        #whole hundred card deck looked like while this was not counted
+        #whole hundred card deck looked like while this was not counted.
+        #
+        #at most 99 a line, a commander deck being 100 cards: Relentless Rats is
+        #the most any real one holds, and "1000000 Island" printed back as a
+        #million cards read in
         if m and via is not whole:
             try:
-                copies += max(1, int(m.group(1)))
+                copies += min(DECK_MAX_COPIES, max(1, int(m.group(1))))
             except ValueError:
                 copies += 1
         else:
