@@ -22,6 +22,8 @@ import urllib.request
 
 import numpy as np
 
+from mirror import EMBED_COL
+
 #unset means no service, which is how this behaves in tests and on a laptop
 #that never started one. it is NOT a reason to fall back to something else:
 #there is no second way to embed text here
@@ -147,10 +149,14 @@ def parity_rows(conn, how_many=20):
     #the read, split off from parity so the caller can hand its pooled
     #connection back BEFORE the wake. parity waits up to BUDGET (90s) on a
     #sleeping container, and a transaction left open on lines for that long is
-    #the 09-22 outage: an ingest queues behind it, every search behind the ingest
+    #the 09-22 outage: an ingest queues behind it, every search behind the ingest.
+    #
+    #EMBED_COL and not embedding: a trial column is what /custom compares against,
+    #so it is the one the service has to agree with
     if not EMBED_URL:
         return []
-    return conn.execute("SELECT line_text, embedding FROM lines WHERE NOT whole "
+    return conn.execute("SELECT line_text, " + EMBED_COL + " AS embedding FROM lines "
+                        "WHERE NOT whole AND " + EMBED_COL + " IS NOT NULL "
                         "ORDER BY random() LIMIT %s", (how_many,)).fetchall()
 
 
@@ -180,6 +186,11 @@ def parity(rows):
         #after the rebuild. both answer to_numpy(), and np.asarray of either
         #raises rather than converting
         stored = row["embedding"].to_numpy().astype(np.float32)
-        cos = float(np.dot(stored / np.linalg.norm(stored), got / np.linalg.norm(got)))
+        with np.errstate(divide="ignore", invalid="ignore"):
+            cos = float(np.dot(stored / np.linalg.norm(stored), got / np.linalg.norm(got)))
+        #a zero or broken vector gives nan, and min(1.0, nan) is 1.0: the worst
+        #failure there is would read as perfect agreement
+        if not np.isfinite(cos):
+            return {"ok": False, "why": "no direction to compare for %r (cosine %s)" % (row["line_text"][:40], cos)}
         worst = min(worst, cos)
     return {"ok": True, "lines": len(rows), "worst": worst, "sha256": _last_sha256}

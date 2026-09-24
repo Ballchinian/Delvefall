@@ -304,6 +304,21 @@ class TestReadingTheForm:
         assert len(typed_lines(text)) == 2
 
 
+class TestAProbeIsForOneColumn:
+
+    def test_a_trial_column_shows_no_chips(self, monkeypatch):
+        #the probe and its stamps speak for lines.embedding. under a trial column
+        #every chip would be the old model's weights scoring the new one's vectors
+        import views.custom
+
+        class Unasked:
+            def execute(self, *args):
+                raise AssertionError("read meta for a column the stamps do not describe")
+
+        monkeypatch.setattr(views.custom, "EMBED_COL", "embedding_v2")
+        assert "embedding_v2" in views.custom.probe_stale(Unasked())
+
+
 class TestAnAnswerWithNoListKeepsTheControls:
     #the filter bar, the sort and the picks were drawn on a full answer alone, so
     #the retry a cold wake asks for started from the default filters. EMBED_URL

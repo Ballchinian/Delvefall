@@ -203,6 +203,10 @@ def probe_stale(conn):
     #names alone only while NEITHER sha is recorded: a database the ingest has
     #not run against since it began recording them. its next run records both
     #at once. returns the reason, or "" when the chips can be trusted
+    #a trial column is another model's vectors, and the stamps below all speak
+    #for lines.embedding
+    if EMBED_COL != "embedding":
+        return "tag_probe is fitted to lines.embedding and the site reads " + EMBED_COL
     said = {r["key"]: r["value"] for r in conn.execute(
         "SELECT key, value FROM meta WHERE key IN "
         "('embed_model', 'embed_sha256', 'tag_probe_model', 'tag_probe_sha256')")}

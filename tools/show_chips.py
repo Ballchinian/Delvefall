@@ -66,6 +66,7 @@ def main():
     #the check above has to happen first
     import autotags
     from db import pool
+    from mirror import EMBED_COL
     from views.custom import line_neighbours, probe_stale, tag_chips
 
     overlaps, counts, leaked = [], [], 0
@@ -89,8 +90,9 @@ def main():
             return
 
         for card in rows:
+            #the column line_neighbours searches
             lines = conn.execute("""
-                SELECT line_text, embedding FROM lines
+                SELECT line_text, """ + EMBED_COL + """ AS embedding FROM lines
                 WHERE oracle_id = %s AND NOT whole ORDER BY id
             """, (card["oracle_id"],)).fetchall()
             vectors = [r["embedding"].to_numpy() for r in lines]

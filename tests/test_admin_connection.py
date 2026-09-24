@@ -95,6 +95,16 @@ class TestParityWorksFromRowsAlone:
         got = embedder.parity([{"line_text": "Flying", "embedding": short}])
         assert got["worst"] == pytest.approx(1.0, abs=1e-6)
 
+    def test_a_vector_with_no_direction_is_a_failure_not_a_match(self, monkeypatch):
+        #its cosine is nan, and min(1.0, nan) is 1.0: a zero vector from either
+        #side read as perfect agreement
+        monkeypatch.setattr(embedder, "EMBED_URL", "http://embed.test")
+        monkeypatch.setattr(embedder, "embed",
+                            lambda texts: [np.array([0.0, 0.0], dtype=np.float32)])
+        got = embedder.parity([{"line_text": "Flying", "embedding": _Stored([0.6, 0.8])}])
+        assert not got["ok"]
+        assert "Flying" in got["why"]
+
     def test_no_rows_never_wakes_anything(self, monkeypatch):
         monkeypatch.setattr(embedder, "EMBED_URL", "http://embed.test")
 
@@ -141,3 +151,21 @@ class TestParityRowsAsksForNothingItCannotUse:
         assert seen["args"] == (7,)
         #whole-card rows are a different kind of text and would read as drift
         assert "NOT whole" in seen["sql"]
+
+    def test_it_reads_the_column_the_site_compares_against(self, monkeypatch):
+        #a trial column is what /custom scores against, so parity against
+        #lines.embedding would vouch for the wrong model
+        seen = {}
+
+        class Fake:
+            def execute(self, sql, args):
+                seen["sql"] = sql
+                return self
+
+            def fetchall(self):
+                return []
+
+        monkeypatch.setattr(embedder, "EMBED_URL", "http://embed.test")
+        monkeypatch.setattr(embedder, "EMBED_COL", "embedding_v2")
+        embedder.parity_rows(Fake())
+        assert "embedding_v2 AS embedding" in seen["sql"]

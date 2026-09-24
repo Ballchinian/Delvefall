@@ -54,10 +54,14 @@ def both_sides(conn, card, known):
 
     import autotags
     import exam_autotags as ea
+    from mirror import EMBED_COL
     from views.custom import line_neighbours
 
+    #the column line_neighbours searches, or a trial column's neighbours are
+    #found for the other model's vectors
     lines = conn.execute("""
-        SELECT id, embedding FROM lines WHERE oracle_id = %s AND NOT whole ORDER BY id
+        SELECT id, """ + EMBED_COL + """ AS embedding FROM lines
+        WHERE oracle_id = %s AND NOT whole ORDER BY id
     """, (card,)).fetchall()
     if not lines:
         return None, None
