@@ -3,6 +3,7 @@
 #checked without the model: the shared results grid, the reading of the form,
 #and the wording of the sentence.
 
+import http.client
 import io
 import json
 import urllib.error
@@ -72,6 +73,22 @@ class _Answer:
 
     def __exit__(self, *exc):
         return False
+
+
+class _Raw(_Answer):
+    #an answer whose body is these bytes as they are
+    def __init__(self, body):
+        self.status = 200
+        self._body = body
+
+
+class _Cut(_Answer):
+    #a connection dropped part way through the body
+    def __init__(self):
+        self.status = 200
+
+    def read(self):
+        raise http.client.IncompleteRead(b'{"vectors": [[0.1, ')
 
 
 def http_error(code, payload=None):
@@ -166,6 +183,30 @@ class TestTheClientForTheModelService:
         served([_Answer({"vectors": [[0.1] * 768], "sha256": "s"})])
         with pytest.raises(embedder.EmbedderRefused):
             embedder.embed(["Flying", "Trample"])
+
+    def test_a_body_cut_short_is_asked_again(self, served):
+        #the service finished and the connection dropped mid answer, which is the
+        #network and not the service, so it is retried like a wake
+        calls = served([_Cut(), _Answer({"vectors": [[0.1] * 768], "sha256": "s"})])
+        assert len(embedder.embed(["Flying"])) == 1
+        assert len(calls) == 2
+
+    def test_a_page_that_is_not_json_is_a_service_that_is_down(self, served):
+        #a proxy's html speaking for a container that is not there
+        served([_Raw(b"<html>Application failed to respond</html>")], budget=0.0)
+        with pytest.raises(embedder.EmbedderDown):
+            embedder.embed(["Flying"])
+
+    def test_an_answer_that_is_not_an_object_is_refused(self, served):
+        served([_Answer([[0.1] * 768])])
+        with pytest.raises(embedder.EmbedderRefused, match="list"):
+            embedder.embed(["Flying"])
+
+    def test_a_vector_of_another_length_is_refused(self, served):
+        #another model's width, which would reach the sql and 500 there
+        served([_Answer({"vectors": [[0.1] * 384], "sha256": "s"})])
+        with pytest.raises(embedder.EmbedderRefused, match="768"):
+            embedder.embed(["Flying"])
 
     def test_only_so_many_requests_wait_at_once(self, served, monkeypatch):
         #2 workers of 4 threads serve the whole site. a cold start must not be

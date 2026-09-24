@@ -17,6 +17,7 @@ import os
 import json
 import time
 import threading
+import http.client
 import urllib.error
 import urllib.request
 
@@ -75,6 +76,10 @@ def _post(path, body, timeout):
 #retrying it just spends the budget
 WAKING = (502, 503, 504)
 
+#lines.embedding is halfvec(768). a vector of any other length is a 500 in the
+#sql that compares it, so it is refused here where the message can say why
+DIMS = 768
+
 
 def embed(texts):
     #one list of cleaned lines in, one numpy float32 vector per line out, ready
@@ -115,6 +120,11 @@ def embed(texts):
                 raise EmbedderDown("the model service did not answer inside %.0fs (%s)" % (BUDGET, e))
             except (urllib.error.URLError, ConnectionError, OSError) as e:
                 last = e
+            except (http.client.HTTPException, ValueError) as e:
+                #a body cut short, or a page that is not json, which is a proxy
+                #speaking for a container that is not there. the service finished
+                #with the request either way, so asking again queues nothing
+                last = e
             #the sleep happens only when there is budget left to sleep into, so
             #a caller with none waits nothing and is told at once
             if time.monotonic() + RETRY_EVERY >= deadline:
@@ -124,12 +134,21 @@ def embed(texts):
         with _waiting_lock:
             _waiting -= 1
 
+    if not isinstance(body, dict):
+        raise EmbedderRefused("the model service answered a %s, not an object" % type(body).__name__)
     global _last_sha256
     _last_sha256 = body.get("sha256", "") or _last_sha256
     vectors = body.get("vectors")
     if not isinstance(vectors, list) or len(vectors) != len(texts):
         raise EmbedderRefused("asked for %d vectors, got %s" % (len(texts), type(vectors).__name__))
-    return [np.asarray(v, dtype=np.float32) for v in vectors]
+    try:
+        out = [np.asarray(v, dtype=np.float32) for v in vectors]
+    except (TypeError, ValueError) as e:
+        raise EmbedderRefused("the vectors are not numbers: %s" % e)
+    wrong = [v.shape for v in out if v.shape != (DIMS,)]
+    if wrong:
+        raise EmbedderRefused("vectors of shape %s, and lines.embedding is %d dims" % (wrong[0], DIMS))
+    return out
 
 
 def wake(timeout=1.0):
