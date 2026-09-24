@@ -611,11 +611,30 @@ class TestTheChipsUnderTheForm:
 
     def test_a_tag_both_halves_name_is_the_first_chip(self, typed, probe):
         #axis 1 is "Whenever this card attacks, draw a card.", stored on three
-        #cards and tagged draw-on-attack on all three
+        #cards and tagged draw-on-attack on all three. the probe reads 1 and so
+        #does the share, every near neighbour carrying it, so the blend is 1
+        import autotags
         import seed
         probe([("draw-on-attack", 1, False, {}), ("sac-outlet", 3, False, {})])
         chips = typed([seed.vec(1)])["chips"]
         assert [c["tag"] for c in chips][0] == "draw-on-attack"
+        assert chips[0]["score"] == pytest.approx(1.0, abs=1e-3)
+        assert chips[0]["score"] > autotags.CHIP_BAR
+        #probed but off axis and carried by no neighbour: the bias holds it near 0.
+        #without it the probe reads 0.5, 0.35 blended, and the top-up shows it
+        assert "sac-outlet" not in [c["tag"] for c in chips]
+
+    def test_a_tag_only_the_probe_can_name_still_arrives(self, typed, probe):
+        #nothing is stored on axis 5, so no neighbour carries anything and the
+        #probe is the whole of it: PROBE_SHARE times sigmoid(20). every other chip
+        #test has the neighbours naming the same tag, and they passed with the
+        #probe query's sign flipped
+        import autotags
+        import seed
+        probe([("probe-only", 5, False, {})])
+        chips = typed([seed.vec(5)])["chips"]
+        assert [c["tag"] for c in chips] == ["probe-only"]
+        assert chips[0]["score"] == pytest.approx(autotags.PROBE_SHARE, abs=1e-3)
 
     def test_a_chip_carries_what_the_tag_means(self, typed, probe):
         import seed

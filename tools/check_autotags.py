@@ -55,7 +55,7 @@ def both_sides(conn, card, known):
     import autotags
     import exam_autotags as ea
     from mirror import EMBED_COL
-    from views.custom import line_neighbours
+    from views.custom import line_neighbours, probe_rows
 
     #the column line_neighbours searches, or a trial column's neighbours are
     #found for the other model's vectors
@@ -75,13 +75,7 @@ def both_sides(conn, card, known):
     for r in conn.execute("SELECT line_id, tag FROM line_tags WHERE line_id = ANY(%s)", (ids,)):
         carried.setdefault(r["line_id"], []).append(r["tag"])
 
-    probe = []
-    for vec in vectors:
-        rows = conn.execute("""
-            SELECT tag, 1 / (1 + exp(-greatest(least((w <#> %s) * -1 + b, 30), -30))) AS p
-            FROM tag_probe WHERE w IS NOT NULL ORDER BY p DESC LIMIT %s
-        """, (vec, autotags.PROBE_KEEP)).fetchall()
-        probe.append({r["tag"]: r["p"] for r in rows})
+    probe = probe_rows(conn, vectors)
 
     banned = {t for t, is_banned in known if is_banned}
 

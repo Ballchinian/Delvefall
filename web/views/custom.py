@@ -232,6 +232,26 @@ def probe_stale(conn):
     return ""
 
 
+def probe_rows(conn, vectors):
+    #each typed line's {tag: probability} out of tag_probe. its own function
+    #because tools/check_autotags.py scores real cards through the same query,
+    #and a second copy of it is a second sign to get wrong
+    probe = []
+    for vec in vectors:
+        #(w <#> v) is the NEGATIVE inner product, hence the sign. clamped
+        #because exp() overflows past 709 and a numeric error here would be a
+        #500 on a page that was only asked a question
+        rows = conn.execute("""
+            SELECT tag, 1 / (1 + exp(-greatest(least((w <#> %s) * -1 + b, 30), -30))) AS p
+            FROM tag_probe
+            WHERE w IS NOT NULL
+            ORDER BY p DESC
+            LIMIT %s
+        """, (vec, autotags.PROBE_KEEP)).fetchall()
+        probe.append({r["tag"]: r["p"] for r in rows})
+    return probe
+
+
 def tag_chips(conn, vectors, around, type_line=""):
     #what the typed text is ABOUT, as chips under the form. the rule is
     #web/autotags.py's and the numbers behind it are tag_probe's; this is only
@@ -246,19 +266,7 @@ def tag_chips(conn, vectors, around, type_line=""):
     #a probe that cannot be proved to match the vectors takes the same route out
     if probe_stale(conn):
         return []
-    probe = []
-    for vec in vectors:
-        #(w <#> v) is the NEGATIVE inner product, hence the sign. clamped
-        #because exp() overflows past 709 and a numeric error here would be a
-        #500 on a page that was only asked a question
-        rows = conn.execute("""
-            SELECT tag, 1 / (1 + exp(-greatest(least((w <#> %s) * -1 + b, 30), -30))) AS p
-            FROM tag_probe
-            WHERE w IS NOT NULL
-            ORDER BY p DESC
-            LIMIT %s
-        """, (vec, autotags.PROBE_KEEP)).fetchall()
-        probe.append({r["tag"]: r["p"] for r in rows})
+    probe = probe_rows(conn, vectors)
     if not any(probe):
         return []
 
