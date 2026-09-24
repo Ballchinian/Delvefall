@@ -1888,7 +1888,12 @@ def similar_from_lines(qlines, anchor, exclude_id, filters, min_pct, sort, offse
 #the pool of much-played cards the home page scatters as ghost chips when
 #the visitor has no search history yet. lands sit out (searching one is a
 #dull first impression), one query an hour, and a database hiccup just
-#means an empty pool, the landing page never 500s over garnish
+#means an empty pool, the landing page never 500s over garnish.
+#
+#a failed read is asked again after SEED_RETRY rather than the hour: a blip at
+#boot otherwise left the chips empty until then. not every request either, each
+#of which would wait on the pool while the database is down
+SEED_RETRY = 60
 _seed_cache = {"at": 0.0, "names": []}
 
 
@@ -1902,9 +1907,9 @@ def chip_seeds():
                     ORDER BY edhrec_rank LIMIT 40
                 """).fetchall()
             _seed_cache["names"] = [r["name"] for r in rows]
+            _seed_cache["at"] = time.time()
         except Exception:
-            pass
-        _seed_cache["at"] = time.time()
+            _seed_cache["at"] = time.time() - 3600 + SEED_RETRY
     return _seed_cache["names"]
 
 

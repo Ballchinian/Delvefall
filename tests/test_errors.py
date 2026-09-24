@@ -109,3 +109,38 @@ class TestTheSuggestBoxIsBounded:
         monkeypatch.setattr(app, "pool", Pool())
         app.app.test_client().get("/suggest?q=" + "a" * 20000)
         assert asked and max(len(p) for p in asked) <= app.SUGGEST_MAX + 2
+
+
+class TestTheHomePageSeedsHealAfterABlip:
+
+    def test_a_failed_read_is_asked_again_within_minutes_not_the_hour(self, monkeypatch):
+        now = [10000.0]
+        monkeypatch.setattr(app.time, "time", lambda: now[0])
+        monkeypatch.setattr(app, "_seed_cache", {"at": 0.0, "names": []})
+
+        class Down:
+            def connection(self):
+                raise RuntimeError("the database is down")
+
+        class Up:
+            def connection(self):
+                return self
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                return False
+
+            def execute(self, sql):
+                return self
+
+            def fetchall(self):
+                return [{"name": "Sol Ring"}]
+
+        monkeypatch.setattr(app, "pool", Down())
+        assert app.chip_seeds() == []
+        monkeypatch.setattr(app, "pool", Up())
+        now[0] += app.SEED_RETRY + 1
+        assert app.chip_seeds() == ["Sol Ring"]
+
