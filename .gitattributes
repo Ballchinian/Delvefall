@@ -1,0 +1,4 @@
+# tools/build_model_release.py tars this byte for byte, and model_release.json's
+# sha256 is over that tar, so a checkout that turned its line endings into crlf
+# would build a different release from the same commit
+embed/NOTICE -text
