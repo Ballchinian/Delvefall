@@ -44,21 +44,45 @@ class Rejected(Exception):
     pass
 
 
-def read_custom(text, name=""):
-    #typed text in, the cleaned lines the model will see out.
+def typed_lines(text):
+    #the non-blank lines as typed. split on "\n" and nothing else, because that is
+    #all split_lines splits on: splitlines() also breaks at U+2028 and \x0b, and
+    #the card would draw lines the limits never counted.
     #
-    #the name matters more than it looks: clean_line swaps it for "this card",
-    #which is how the stored lines are written, and 6,558 of the 60,729 stored
-    #lines carry that phrase. without it a card that names itself matches
-    #nothing, because no printed card says "Shivan Dragon" either
+    #a textarea posted from windows sends \r\n, and the length check counts the
+    #RAW line, so without the replace a 600 character line measures 601
+    text = (text or "").replace("\r\n", "\n").replace("\r", "\n")
+    return [line for line in text.split("\n") if line.strip()]
+
+
+def card_name(name):
+    #the name as clean_line will read it, which swaps every occurrence of it for
+    #"this card" by plain substring. 6,558 of the 60,729 stored lines say "this
+    #card", so a card that names itself matches nothing without it.
+    #
+    #each half of a " // " name is stripped, or a stray space turns "Shivan Dragon
+    #enters" into "this cardenters". a half that is blank before its first
+    #comma is refused: clean_line replaces that prefix too, and replacing "" puts
+    #"this card" between every character of every line
     name = (name or "").strip()
     if len(name) > MAX_NAME:
         raise Rejected("A card name is at most %d characters." % MAX_NAME)
-    #a textarea posted from windows sends \r\n. clean_line's closing strip()
-    #takes the \r off the text itself, but the length check below counts the RAW
-    #line, so without this a 600 character line measures 601 and is turned away
-    text = (text or "").replace("\r\n", "\n").replace("\r", "\n")
-    raw = [line for line in text.split("\n") if line.strip()]
+    parts = [part.strip() for part in name.split(" // ") if part.strip()]
+    if any(not part.split(",")[0].strip() for part in parts):
+        raise Rejected("A card name cannot start with a comma.")
+    return " // ".join(parts)
+
+
+def read_custom(text, name=""):
+    #typed text in, one (typed line, cleaned line) pair per non-blank line out.
+    #the cleaned line is what the model reads, or None where the splitter drops
+    #it, and the line picker's indexes count THESE pairs.
+    #
+    #the limits are checked on the raw lines BEFORE anything is cleaned: clean_line's
+    #\(.*?\) is quadratic on unclosed brackets, 20,000 of them take 2s holding the
+    #GIL, and gunicorn kills a worker whose heartbeat stops for 30s
+    name = card_name(name)
+    raw = typed_lines(text)
     if not raw:
         raise Rejected("Type the rules text of your card, one ability per line.")
     longest = max(len(line) for line in raw)
@@ -68,14 +92,33 @@ def read_custom(text, name=""):
     if len(raw) > MAX_LINES:
         raise Rejected("That is %d lines. The wordiest card in Magic has 19, and this page "
                        "takes up to %d." % (len(raw), MAX_LINES))
-    #through the ingest's own splitter, on a card shaped like the ones it reads,
-    #so the three character floor and the cleaning are the same code that built
-    #every row this will be compared against
-    lines = [line for line, face in split_lines({"oracle_text": text, "name": name})]
-    if not lines:
+    #through the ingest's own splitter one line at a time, so the three character
+    #floor and the cleaning are the same code that built every stored row, and
+    #each typed line gets its own answer. split_lines carries nothing between lines
+    pairs = []
+    for line in raw:
+        got = split_lines({"oracle_text": line, "name": name})
+        pairs.append((line, got[0][0] if got else None))
+    cleaned = [c for _, c in pairs if c]
+    if not cleaned:
         raise Rejected("Nothing left to compare once reminder text and the card's own name "
                        "come out. Try a full sentence.")
-    return lines
+    #"this card" is 9 characters, so a short name can clean a line LONGER. the
+    #service refuses past its own 600, and a refusal is a 500
+    longest = max(len(c) for c in cleaned)
+    if longest > MAX_CHARS:
+        raise Rejected("With the card's name swapped for \"this card\", one line is %d "
+                       "characters, and this page takes up to %d." % (longest, MAX_CHARS))
+    return pairs
+
+
+def ranked_lines(pairs, kept):
+    #what custom_score takes: every readable cleaned line, since the model sees
+    #the whole card, and which of those the list ranks on. kept indexes into pairs
+    readable = [(i, cleaned) for i, (_, cleaned) in enumerate(pairs) if cleaned]
+    lines = [cleaned for _, cleaned in readable]
+    rank_on = {n for n, (i, _) in enumerate(readable) if i in kept}
+    return lines, rank_on
 
 
 def custom_words(below, total):
@@ -317,29 +360,6 @@ def controls_from_form():
     request.args = request.form
 
 
-def typed_lines(text):
-    #the RAW lines, for the blank card. it draws what was typed, where the model
-    #reads what clean_line makes of it. capped where read_custom turns the form
-    #away anyway, or a pasted megabyte draws a megabyte of card
-    return [line for line in (text or "").splitlines() if line.strip()][:MAX_LINES]
-
-
-def typed_pairs(text, name=""):
-    #each non-blank typed line beside the cleaned line the model reads for it, or
-    #None where the cleaning left under three characters and the splitter drops it.
-    #
-    #the tick boxes index into THIS, so it must not be a second copy of the rule.
-    #split_lines is per line and carries nothing between them, so handing it one
-    #line at a time gives that line's own contribution and nothing else. the test
-    #pins the two forms against each other, since a splitter that ever merged
-    #lines would silently shift every index here
-    out = []
-    for line in typed_lines(text):
-        got = split_lines({"oracle_text": line, "name": name})
-        out.append((line, got[0][0] if got else None))
-    return out
-
-
 def read_picked_lines(how_many):
     #which lines were CLICKED on the card, as indexes posted in hidden inputs.
     #empty is the resting state and means the whole card, the way /search's own
@@ -361,16 +381,16 @@ def read_kept(how_many):
     return read_picked_lines(how_many) or set(range(how_many))
 
 
-def form_page(text, name, type_line="", **extra):
+def form_page(text, name, type_line="", pairs=(), **extra):
     #every answer this page has renders through here, so a rejection, a service
     #that did not wake and a full set of results all come back with the same
-    #controls and the same text still in them
+    #controls and the same text still in them.
+    #
+    #pairs is read_custom's, and absent on a rejection: text that failed the
+    #limits is drawn as typed and never cleaned. counts arrive in extra when
+    #there was a database read to get them from
     from app import CARD_TYPES
 
-    #one row per typed line for the tick boxes, on every path this helper serves,
-    #so a rejection and a full set of results offer the same choices. counts arrive
-    #in extra when there was a database read to get them from
-    pairs = typed_pairs(text, name)
     picked = extra.pop("picked", None) or set()
     counts = extra.pop("counts", None) or {}
     typed = [{"idx": i, "text": line, "cleaned": cleaned,
@@ -381,7 +401,10 @@ def form_page(text, name, type_line="", **extra):
              for i, (line, cleaned) in enumerate(pairs)]
 
     return render_template("custom.html", text=text, name=name, types=CARD_TYPES,
-                           preview=typed_lines(text), max_name=MAX_NAME, max_lines=MAX_LINES,
+                           #capped where read_custom turns the form away, or a
+                           #pasted megabyte draws a megabyte of card
+                           preview=typed_lines(text)[:MAX_LINES], max_name=MAX_NAME,
+                           max_lines=MAX_LINES,
                            typed=typed, type_line=type_line, max_type=MAX_TYPE,
                            #a POST result has no url to index and must not grow
                            #one. the form itself is a page and stays open
@@ -411,26 +434,20 @@ def custom_post():
     try:
         #the limits are checked against EVERYTHING typed, so narrowing the ranking
         #to one line cannot talk a card that is too long or too wide through
-        read_custom(text, name)
+        pairs = read_custom(text, name)
     except Rejected as e:
         #the message names the limit and is written for whoever typed it, so it
         #goes on the page as it is. nothing has reached the model yet, which is
         #the whole point of checking here
         return form_page(text, name, type_line, message=str(e))
 
-    #the clicked lines decide what is SCORED. the limits above were checked against
-    #the whole card, so narrowing to one line cannot talk a too-long one through
-    pairs = typed_pairs(text, name)
-    picked = read_picked_lines(len(pairs))
-    kept = picked or set(range(len(pairs)))
     #the model sees the whole card either way. the picks only say which of those
     #lines the list is ranked on, so the sentence and the chips do not move
-    readable = [(i, cleaned) for i, (line, cleaned) in enumerate(pairs) if cleaned]
-    lines = [cleaned for _, cleaned in readable]
-    rank_on = {n for n, (i, _) in enumerate(readable) if i in kept}
+    picked = read_picked_lines(len(pairs))
+    lines, rank_on = ranked_lines(pairs, picked or set(range(len(pairs))))
     if not rank_on:
         #only reachable by a posted body: a line the splitter drops is not clickable
-        return form_page(text, name, type_line, picked=picked,
+        return form_page(text, name, type_line, pairs, picked=picked,
                          message="Pick a line the matcher can read.")
 
     filters = read_filters()
@@ -443,10 +460,10 @@ def custom_post():
         #EmbedderRefused is deliberately not caught: it means this page and the
         #service disagree about their own limits, and a bug worded as a nap
         #would never get looked at
-        return form_page(text, name, type_line, picked=picked,
+        return form_page(text, name, type_line, pairs, picked=picked,
                          message="The matcher didn't wake up in time. Try again in a minute."), 503
 
-    return form_page(text, name, type_line, answered=True, words=scored["words"],
+    return form_page(text, name, type_line, pairs, answered=True, words=scored["words"],
                      chips=scored["chips"], picked=picked, counts=scored["counts"],
                      results=scored["results"], has_more=scored["has_more"],
                      next_band=scored["next_band"], errors=filters["errors"],
@@ -466,16 +483,12 @@ def custom_more():
     text = request.form.get("text", "")
     name = request.form.get("name", "")
     try:
-        read_custom(text, name)
+        pairs = read_custom(text, name)
     except Rejected:
         return {"results": [], "has_more": False, "next_band": None}
-    #the tick boxes ride along in the posted form, so page two has to score the
-    #same lines page one did or the list it appends to changes underneath it
-    pairs = typed_pairs(text, name)
-    kept = read_kept(len(pairs))
-    readable = [(i, cleaned) for i, (line, cleaned) in enumerate(pairs) if cleaned]
-    lines = [cleaned for _, cleaned in readable]
-    rank_on = {n for n, (i, _) in enumerate(readable) if i in kept}
+    #the picks ride along in the posted form, so page two has to score the same
+    #lines page one did or the list it appends to changes underneath it
+    lines, rank_on = ranked_lines(pairs, read_kept(len(pairs)))
     if not rank_on:
         return {"results": [], "has_more": False, "next_band": None}
     #fail-soft like every other url reader, a doctored offset shouldn't 500

@@ -99,7 +99,7 @@ def main():
 
     for c in cards:
         try:
-            lines = read_custom(c["oracle_text"], c["name"])
+            lines = [cl for _, cl in read_custom(c["oracle_text"], c["name"]) if cl]
         except Rejected as e:
             #a printed card its own page would turn away means a limit is set
             #below what the game actually prints
@@ -154,7 +154,7 @@ def main():
     print("\nthe same cards without excluding themselves:")
     for c in cards[:min(10, len(cards))]:
         try:
-            lines = read_custom(c["oracle_text"], c["name"])
+            lines = [cl for _, cl in read_custom(c["oracle_text"], c["name"]) if cl]
         except Rejected:
             continue
         mine = custom_score(lines, filters, "match")

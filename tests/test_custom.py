@@ -14,7 +14,12 @@ import app
 import embedder
 from conftest import needs_db
 from views.custom import (MAX_CHARS, MAX_LINES, Rejected, custom_words, read_custom,
-                          rules_standing)
+                          rules_standing, typed_lines)
+
+
+def cleaned(text, name=""):
+    #what the model is sent: read_custom pairs every typed line with its cleaning
+    return [c for _, c in read_custom(text, name) if c]
 
 
 def render_results(results, **kwargs):
@@ -188,34 +193,34 @@ class TestTheClientForTheModelService:
 class TestReadingTheForm:
 
     def test_one_ability_a_line(self):
-        assert read_custom("Flying\nTrample") == ["Flying", "Trample"]
+        assert cleaned("Flying\nTrample") == ["Flying", "Trample"]
 
     def test_blank_lines_are_not_lines(self):
-        assert read_custom("Flying\n\n   \nTrample") == ["Flying", "Trample"]
+        assert cleaned("Flying\n\n   \nTrample") == ["Flying", "Trample"]
 
     def test_windows_newlines_are_newlines(self):
         #a textarea posted from windows sends \r\n. clean_line's strip() would
         #cover the text either way, so what this really guards is the length
         #check, which counts the raw line: a full length line arriving as \r\n
         #measures one over and gets turned away for being too long
-        assert read_custom("Flying\r\nTrample") == ["Flying", "Trample"]
-        assert read_custom("x" * MAX_CHARS + "\r\nFlying") == ["x" * MAX_CHARS, "Flying"]
+        assert cleaned("Flying\r\nTrample") == ["Flying", "Trample"]
+        assert cleaned("x" * MAX_CHARS + "\r\nFlying") == ["x" * MAX_CHARS, "Flying"]
 
     def test_the_name_becomes_this_card(self):
         #6,558 stored lines say "this card", and none say the card's own name,
         #so without this a card that refers to itself matches nothing
-        assert read_custom("Shivan Dragon deals 2 damage.", "Shivan Dragon") == \
+        assert cleaned("Shivan Dragon deals 2 damage.", "Shivan Dragon") == \
             ["this card deals 2 damage."]
 
     def test_no_name_leaves_the_text_alone(self):
-        assert read_custom("Shivan Dragon deals 2 damage.") == ["Shivan Dragon deals 2 damage."]
+        assert cleaned("Shivan Dragon deals 2 damage.") == ["Shivan Dragon deals 2 damage."]
 
     def test_a_line_under_three_characters_is_dropped(self):
         #the ingest's floor, applied by the ingest's own splitter. it is UNDER
         #three, so "{T}" at exactly three stays: a stored line that short is
         #rare but real, and the floor is there for stray punctuation
-        assert read_custom("Flying\nII\nTrample") == ["Flying", "Trample"]
-        assert read_custom("{T}") == ["{T}"]
+        assert cleaned("Flying\nII\nTrample") == ["Flying", "Trample"]
+        assert cleaned("{T}") == ["{T}"]
 
     def test_nothing_to_score_is_rejected(self):
         for text in ("", "   ", "\n\n"):
@@ -229,12 +234,12 @@ class TestReadingTheForm:
 
     def test_too_many_lines_names_the_limit(self):
         ok = "\n".join(["Flying"] * MAX_LINES)
-        assert len(read_custom(ok)) == MAX_LINES
+        assert len(cleaned(ok)) == MAX_LINES
         with pytest.raises(Rejected, match=str(MAX_LINES)):
             read_custom("\n".join(["Flying"] * (MAX_LINES + 1)))
 
     def test_too_long_a_line_names_the_limit(self):
-        assert read_custom("x" * MAX_CHARS) == ["x" * MAX_CHARS]
+        assert cleaned("x" * MAX_CHARS) == ["x" * MAX_CHARS]
         with pytest.raises(Rejected, match=str(MAX_CHARS)):
             read_custom("x" * (MAX_CHARS + 1))
 
@@ -247,6 +252,56 @@ class TestReadingTheForm:
     def test_an_overlong_name_is_rejected(self):
         with pytest.raises(Rejected):
             read_custom("Flying", "x" * 151)
+
+    def test_a_line_too_long_is_refused_before_anything_is_cleaned(self, monkeypatch):
+        #clean_line's \(.*?\) is quadratic on unclosed brackets: 20,000 of them took
+        #2s holding the GIL, and two such posts froze both workers. the rejection
+        #page drew the card through the cleaning too, so the route is what is asked
+        import views.custom
+
+        def refuse(card):
+            raise AssertionError("cleaned a line the limits turn away")
+
+        monkeypatch.setattr(views.custom, "split_lines", refuse)
+        with app.app.test_request_context("/custom", method="POST",
+                                          data={"text": "(" * 20000, "name": "Test"}):
+            page = views.custom.custom_post()
+        assert "20000 characters" in page
+
+    def test_a_stray_space_in_either_half_of_the_name_still_matches(self):
+        #clean_line swaps the name by plain substring, so "Fire " would miss
+        #"Fire deals" and a card naming itself would match nothing
+        assert cleaned("Fire deals 2 damage to any target.", "Fire  // Ice") == \
+            ["this card deals 2 damage to any target."]
+
+    def test_a_blank_half_of_the_name_replaces_nothing(self):
+        #"A //   // B" splits into a half that is one space, and replacing " "
+        #rewrites every space on the card
+        assert cleaned("Flying and first strike.", "A //   // B") == ["Flying and first strike."]
+
+    def test_a_name_starting_with_a_comma_is_refused(self):
+        #clean_line also replaces the part before a name's first comma, and when
+        #that part is "" it puts "this card" between every character. a posted
+        #name of "," turned every card into a 500
+        for name in (",", "A // ,B"):
+            with pytest.raises(Rejected):
+                read_custom("Flying", name)
+
+    def test_the_cleaned_line_has_to_fit_the_service_too(self):
+        #"this card" is nine characters, so a one letter name can clean a line
+        #LONGER, and embed/app.py refuses past 600 with a 400 the page does not
+        #catch. 66 nines are 594 and fit, 67 are 603
+        assert cleaned("x" * 66, "x") == ["this card" * 66]
+        with pytest.raises(Rejected, match=str(MAX_CHARS)):
+            read_custom("x" * 67, "x")
+
+    def test_only_a_newline_ends_a_line(self):
+        #split_lines splits on "\n" alone. counting U+2028 or \x0b as breaks too let
+        #the limits pass a card whose lines past 20 then dropped out of sight
+        from mirror import split_lines
+        text = "Flying\u2028Trample\x0bMenace\nHaste"
+        assert len(read_custom(text)) == len(split_lines({"oracle_text": text, "name": ""})) == 2
+        assert len(typed_lines(text)) == 2
 
 
 class TestTheOriginalitySentence:
@@ -588,20 +643,17 @@ class TestTypedLinesPairWithWhatTheModelReads:
     def test_a_line_the_splitter_drops_pairs_with_nothing(self):
         #under three characters once cleaned, so there is nothing to rank on and
         #nothing to switch off either
-        from views.custom import typed_pairs
-        pairs = typed_pairs("ab\nWhenever this creature attacks, draw a card.", "Test")
+        pairs = read_custom("ab\nWhenever this creature attacks, draw a card.", "Test")
         assert [cleaned is None for _, cleaned in pairs] == [True, False]
         assert pairs[0][0] == "ab"
 
     def test_the_rows_stay_in_the_order_typed(self):
-        from views.custom import typed_pairs
-        pairs = typed_pairs("Flying\nMenace\nTrample", "Test")
+        pairs = read_custom("Flying\nMenace\nTrample", "Test")
         assert [raw for raw, _ in pairs] == ["Flying", "Menace", "Trample"]
 
     def test_blank_lines_are_not_rows_at_all(self):
         #a blank row would take an index and shift every box below it
-        from views.custom import typed_pairs
-        pairs = typed_pairs("Flying\n\n   \nMenace", "Test")
+        pairs = read_custom("Flying\n\n   \nMenace", "Test")
         assert [raw for raw, _ in pairs] == ["Flying", "Menace"]
 
 
