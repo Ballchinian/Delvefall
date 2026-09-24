@@ -65,3 +65,18 @@ class TestTheLastmod:
                               ("https://delvefall.com/b", None)]))
         assert out.count("<lastmod>") == 1
         assert "<url><loc>https://delvefall.com/b</loc></url>" in out
+
+
+class TestLlmsTxtMakesNoClaimFromABlip:
+
+    def test_no_count_is_printed_when_there_is_none(self, monkeypatch):
+        #both counts come back empty when the database does, and "all 0 official
+        #precons" would be a statement about the site
+        import app
+        import views.meta
+        monkeypatch.setattr(views.meta, "precon_total", lambda: 0)
+        monkeypatch.setattr(views.meta, "card_total", lambda: 0)
+        body = app.app.test_client().get("/llms.txt").get_data(as_text=True)
+        assert "all 0" not in body
+        assert " 0 of them" not in body
+        assert "every official" in body

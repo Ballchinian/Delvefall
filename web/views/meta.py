@@ -160,6 +160,12 @@ def robots():
 @bp.route("/llms.txt")
 def llms():
     root = request.url_root
+    #counts only when there are some: both come back empty on a database blip,
+    #and "all 0 official precons" is a claim about the site, not the blip
+    precons, cards = precon_total(), card_total()
+    all_precons = "all %d official\n> precons" % precons if precons else "every official\n> precon"
+    ranked = "all %d of them" % precons if precons else "all of them"
+    per_card = "One\n  page per card, {:,} of them.".format(cards) if cards else "One\n  page per card."
     return Response("""# Delvefall
 
 > Finds Magic: the Gathering cards by what their rules text does, rather than by
@@ -167,8 +173,7 @@ def llms():
 > line against line, so "destroy target creature" finds the removal and not the
 > other cards that happen to say "target". It also scores how unusual a card's
 > text is against the rest of the game, and reads a Commander decklist for
-> originality, salt, price, card age and play rate against all %d official
-> precons.
+> originality, salt, price, card age and play rate against %s.
 
 No account, no syntax to learn, no ads. Type a card name.
 
@@ -186,8 +191,7 @@ No account, no syntax to learn, no ads. Type a card name.
 ## Pages
 
 - [Card search](%ssearch?q=Swords+to+Plowshares): every card that does the same
-  thing as the named one, ranked by how close, with prices and alternatives. One
-  page per card, %s of them. The query string is the card's exact name.
+  thing as the named one, ranked by how close, with prices and alternatives. %s The query string is the card's exact name.
 - [The most unique cards](%sunique): the cards whose abilities nothing else in
   the game comes close to.
 - [Custom card checker](%scustom): type the rules text of a card you designed
@@ -195,7 +199,7 @@ No account, no syntax to learn, no ads. Type a card name.
   close, with how original the text is.
 - [Deck lens](%sdeck): paste a Commander decklist, or import one from Moxfield or
   Archidekt, and read it against every precon.
-- [Commander precons ranked](%sprecons): all %d of them by originality, salt,
+- [Commander precons ranked](%sprecons): %s by originality, salt,
   price, play rate and age, each ranking its own page.
 - [How it works](%sguide): what the site does and what every number on a result
   means.
@@ -217,8 +221,7 @@ No account, no syntax to learn, no ads. Type a card name.
 - Precon decklists: [MTGJSON](https://mtgjson.com).
 
 Unofficial Fan Content. Not approved or endorsed by Wizards of the Coast.
-""" % (precon_total(), root, "{:,}".format(card_total()), root, root, root, root,
-       precon_total(), root, root, root, root),
+""" % (all_precons, root, per_card, root, root, root, root, ranked, root, root, root, root),
                     mimetype="text/plain")
 
 
