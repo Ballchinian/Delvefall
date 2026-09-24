@@ -451,18 +451,10 @@ UNIQUE_WINDOW = 80
 BLEND = 0.5
 
 #the uniqueness /unique ranks and deals by, reading a cards row aliased c.
-#unique_blend is the same sum in python, and tests/test_uniqueness.py fails the
-#moment the two say different things.
 #
 #a card with no tags has a NULL concept score, and the concepts axis sits out
 #rather than scoring it zero, the way find_similar treats a tagless anchor
 UNIQUE_BLEND_SQL = "coalesce((1 - %r) * c.uniqueness + %r * c.concept_uniqueness, c.uniqueness)" % (BLEND, BLEND)
-
-
-def unique_blend(uniqueness, concept_uniqueness):
-    if concept_uniqueness is None:
-        return uniqueness
-    return (1 - BLEND) * uniqueness + BLEND * concept_uniqueness
 
 
 #scores are stored as float4, so a card whose every line and tag is printed

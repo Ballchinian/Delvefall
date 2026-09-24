@@ -1,8 +1,7 @@
 #the uniqueness number /unique ranks and deals by.
 #
-#the blend is one sum spelled twice: as sql for every query that ranks the table,
-#and as python for scoring a card that is not in the table. the first two classes
-#hold those spellings to one definition
+#the blend is spelled once, as sql, and every query that ranks the table reads it
+#from there. the first class holds it to that
 
 import ast
 import os
@@ -37,6 +36,15 @@ class TestTheBlendIsWrittenOnce:
         assert owners_of("concept_uniqueness") == ["UNIQUE_BLEND_SQL"]
 
 
+def blended(uniqueness, concept_uniqueness):
+    #UNIQUE_BLEND_SQL over one row, the stored float4s as the columns hold them
+    import db
+    with db.pool.connection() as conn:
+        return conn.execute("SELECT " + app.UNIQUE_BLEND_SQL + " AS b FROM (SELECT %s::real AS uniqueness, "
+                            "%s::real AS concept_uniqueness) c", (uniqueness, concept_uniqueness)).fetchone()["b"]
+
+
+@needs_db
 class TestAnUntaggedCardSitsOutTheConceptAxis:
     #schema.sql stores concept_uniqueness NULL for a card with no tags: unknown,
     #not unique. read as zero it halved the card's score: Ogre Enforcer ranked
@@ -44,28 +52,21 @@ class TestAnUntaggedCardSitsOutTheConceptAxis:
 
     def test_its_score_is_its_rules_text_alone(self):
         #Ogre Enforcer: rules text 0.271, no tags
-        assert app.unique_blend(0.271, None) == pytest.approx(0.271)
+        assert blended(0.271, None) == pytest.approx(0.271, abs=1e-6)
 
     def test_a_concept_score_of_zero_is_not_a_missing_one(self):
         #a card whose exact tags another card shares has a real zero on that
         #axis, and it pulls the blend down
-        assert app.unique_blend(0.271, 0.0) < 0.271
+        assert blended(0.271, 0.0) == pytest.approx(0.1355, abs=1e-6)
 
 
 @needs_db
-class TestPythonAndSqlAgree:
+class TestTheBlendIsEven:
 
-    #real cards: The Watcher in the Water, Deathcult Rogue, Soul Warden's float4
-    #noise, and Ogre Enforcer, which carries no tags
-    CARDS = [(0.3076, 0.7235), (0.1668, 0.8303), (-1.1920929e-07, 1.1920929e-07), (0.271, None)]
-
-    def test_a_card_scores_the_same_either_way(self):
-        import db
-        with db.pool.connection() as conn:
-            for u, cu in self.CARDS:
-                row = conn.execute("SELECT " + app.UNIQUE_BLEND_SQL + " AS b FROM (SELECT %s::real AS uniqueness, "
-                                   "%s::real AS concept_uniqueness) c", (u, cu)).fetchone()
-                assert row["b"] == pytest.approx(app.unique_blend(u, cu), abs=1e-6), (u, cu)
+    def test_a_tagged_card_is_half_of_each(self):
+        #The Watcher in the Water: rules text 0.3076, concept 0.7235. BLEND is 0.5,
+        #an even split, so 0.51555
+        assert blended(0.3076, 0.7235) == pytest.approx(0.51555, abs=1e-6)
 
 
 def strength(words):
