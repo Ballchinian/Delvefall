@@ -34,7 +34,8 @@ jobs:
       #rather than the sha256 inside it, which is stricter in the only direction
       #that matters: a new release misses the cache instead of being handed the
       #model it replaced
-      - uses: actions/cache@v5
+      - uses: actions/cache/restore@v5
+        id: model
         with:
           path: /home/runner/model
           key: model-${{ hashFiles('embed/model_release.json') }}
@@ -42,6 +43,15 @@ jobs:
       #stdlib only, so it needs nothing installed. on a cache hit it reads the
       #.sha256 stamp the last run left and returns
       - run: python embed/fetch_model.py --dest /home/runner/model
+
+      #saved as soon as it is fetched rather than at the end: actions/cache saves
+      #only when every step passed, so a day the ingest failed downloaded 1.25gb
+      #and kept none of it
+      - uses: actions/cache/save@v5
+        if: steps.model.outputs.cache-hit != 'true'
+        with:
+          path: /home/runner/model
+          key: ${{ steps.model.outputs.cache-primary-key }}
 
       #plain "pip install torch" grabs a 2gb+ cuda build this runner cannot use.
       #the cpu wheel FIRST means the requirements step sees torch satisfied.
