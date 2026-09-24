@@ -54,7 +54,7 @@
                 <div class="custom-go">
                     <button type="submit">Find the closest cards</button>
                 </div>
-                {# T7c hangs the inferred tag chips here, under the form #}
+                {# the inferred tag chips: display only, they feed neither the list nor the sentence #}
                 {% if chips %}
                 <div class="custom-chips">
                     <div class="custom-chip-row">
@@ -73,7 +73,7 @@
                 <div class="ink-card">
                     <div class="ink-card-bar"><span class="ink-card-name" id="preview-name">{{ name }}</span></div>
                     <div class="ink-card-art" aria-hidden="true"></div>
-                    {# T7c puts the type line between the art and the rules,
+                    {# the type line sits between the art and the rules,
                        which is where a real card carries it #}
                     <div class="ink-card-type" id="preview-type">{{ type_line }}</div>
                     {# controls whenever the text passed the limits, so the page a

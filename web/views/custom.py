@@ -7,8 +7,8 @@
 #/unique ranks printed cards on rules text blended with the concept axis, so the
 #same card typed in here reads a different percent from its own /unique page.
 #that is why the wording differs ("Its rules text is more original than...") and
-#why the page says the chips do not count toward it. phase T measured inferring
-#the concept side from typed text and it does not survive: rank correlation 0.43
+#why the page says the chips do not count toward it. inferring the concept side
+#from typed text was measured and does not survive: rank correlation 0.43
 #against the stored value, because a card's tag-side originality comes from its
 #rare one-off tags and inference only ever finds tags nearby cards already carry.
 #
@@ -359,8 +359,10 @@ def custom_score(lines, filters, sort, offset=0, band=None, currency="usd", excl
     qlines = [{"line_text": text, "embedding": vec, "count": counts.get(text, 1)}
               for n, (text, vec) in enumerate(zip(lines, vectors))
               if rank_on is None or n in rank_on]
-    #anchor empty: phase C scores the list on rules text alone. the chips and
-    #the tag side of the list arrive in T7, and the sentence never moves
+    #anchor empty: the list is rules text alone and the chips never feed it.
+    #they are read off the same vectors the list ranks on, so blending them in
+    #repeats the model's guess, and on an unfamiliar card, where that guess is
+    #most likely wrong, leans further into it
     results, has_more, next_band = similar_from_lines(
         qlines, ((), (), None), exclude_id, filters, TIER_CUT, sort,
         offset=offset, band=band, currency=currency)

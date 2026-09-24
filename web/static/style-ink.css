@@ -3670,8 +3670,8 @@ body.home main {
 
    the blank card on the right is drawn HERE and nowhere else: no image asset and
    no second request, and static/js/custom.js fills it in from the form as you
-   type. T7c puts the type line box between the art and the rules, which is where
-   a real card carries it, and the tag chips under the form */
+   type. the type line box sits between the art and the rules, which is where a
+   real card carries it, and the tag chips under the form */
 
 .custom {
     max-width: 860px;
