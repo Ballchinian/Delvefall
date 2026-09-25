@@ -262,15 +262,19 @@ def recount_line_stats(conn):
     #search joins on, and lines with no braces are unaffected: Flying = 2517
     print("recounting how common every line is...")
     conn.execute("TRUNCATE line_stats")
-    conn.execute(r"""
-        INSERT INTO line_stats
+    conn.execute("INSERT INTO line_stats " + line_counts("lines"))
+
+
+def line_counts(table):
+    #line_stats' rows, as a query over table
+    return r"""
         SELECT line_text, sum(n) OVER (PARTITION BY shape)
         FROM (
             SELECT line_text, count(*) AS n,
                    regexp_replace(line_text, '(\{[^}]*\})+', '{C}', 'g') AS shape
-            FROM lines WHERE NOT whole GROUP BY line_text
+            FROM """ + table + """ WHERE NOT whole GROUP BY line_text
         ) t
-    """)
+    """
 
 
 def build_aside(conn):
@@ -302,14 +306,20 @@ def swap_in(conn):
     #a savepoint per try, so a search outlasting the lock timeout rolls back the
     #swap and not the encode before it. line_stats is inside it too: its
     #TRUNCATE comes after the swap holds lines, and a /custom request that read
-    #line_stats and is waiting on lines deadlocks with it
+    #line_stats and is waiting on lines deadlocks with it.
+    #
+    #the counting happens from lines_new BEFORE the locks, and only the copy in
+    #under them. over the 09-16 lines in the lab the locks were held 0.47 to
+    #0.50s with the count inside and 0.21 to 0.23s without it
     from ingest import rebuild_lines
+    conn.execute("CREATE TEMP TABLE line_stats_new ON COMMIT DROP AS " + line_counts("lines_new"))
     for attempt in range(SWAP_TRIES):
         try:
             with conn.transaction():
                 waited, _ = rebuild_lines.exchange(conn, "lines_new", "lines_old", check=False)
                 conn.execute("TRUNCATE line_tags")
-                recount_line_stats(conn)
+                conn.execute("TRUNCATE line_stats")
+                conn.execute("INSERT INTO line_stats SELECT * FROM line_stats_new")
             print("lines_new is live as lines, after waiting %.0fms for searches to finish" % (waited * 1000))
             return
         except (psycopg.errors.LockNotAvailable, psycopg.errors.DeadlockDetected):
