@@ -34,10 +34,6 @@ bp = Blueprint("custom", __name__)
 MAX_LINES = 20
 MAX_CHARS = 600
 MAX_NAME = 150
-#the longest type line a printed card carries is 71 characters, both faces
-#and the dash between them included. only the first card-type word is ever
-#read, so this is a cap on what gets stored in a form field, not a rule
-MAX_TYPE = 120
 
 
 class Rejected(Exception):
@@ -268,7 +264,7 @@ def probe_rows(conn, vectors):
     return probe
 
 
-def tag_chips(conn, vectors, around, type_line=""):
+def tag_chips(conn, vectors, around):
     #what the typed text is ABOUT, as chips under the form. the rule is
     #web/autotags.py's and the numbers behind it are tag_probe's; this is only
     #where the two halves are fetched.
@@ -298,21 +294,16 @@ def tag_chips(conn, vectors, around, type_line=""):
     #the description is what the chip says on hover, the way the picker on a
     #card page does it. LEFT JOIN because `tags` is rebuilt from scryfall every
     #morning and this table is not, so a tag can outlive its description
-    banned, types, said = set(), {}, {}
+    banned, said = set(), {}
     for r in conn.execute("""
-        SELECT p.tag, p.banned, p.types, COALESCE(t.description, '') AS description
+        SELECT p.tag, p.banned, COALESCE(t.description, '') AS description
         FROM tag_probe p LEFT JOIN tags t ON t.tag = p.tag
         WHERE p.tag = ANY(%s)
     """, (list(scores),)):
         if r["banned"]:
             banned.add(r["tag"])
-        types[r["tag"]] = r["types"]
         said[r["tag"]] = r["description"]
-    #"other" is what card_type says when it recognised nothing, which is not a
-    #type line to filter on. only a word it knows narrows anything
-    kind = autotags.card_type(type_line)
-    kept = autotags.chips(scores, banned=banned, type_shares=types,
-                          kind=kind if kind != "other" else None)
+    kept = autotags.chips(scores, banned=banned)
     #a list and not the dict, because the ORDER is the ranking and a template
     #iterating a dict is one refactor away from losing it. the score rides along
     #unshown: the page is a list and not a verdict, and a percent beside a chip
@@ -322,7 +313,7 @@ def tag_chips(conn, vectors, around, type_line=""):
 
 
 def custom_score(lines, filters, sort, offset=0, band=None, currency="usd", exclude_id=None,
-                 type_line="", want_card=True, rank_on=None):
+                 want_card=True, rank_on=None):
     #the whole of the results route below the form, so the tests and
     #tools/check_custom.py can call it without going through http.
     #
@@ -368,7 +359,7 @@ def custom_score(lines, filters, sort, offset=0, band=None, currency="usd", excl
             #also over every line, for the same reason and one more: the 98%
             #marked precision was measured on whole cards, so chips from one line
             #of one are a number nobody has measured
-            chips = tag_chips(conn, vectors, around, type_line)
+            chips = tag_chips(conn, vectors, around)
 
     #rank_on is the only thing the picked lines touch: which lines the LIST is
     #ranked on. indexes into lines, and None means all of them
@@ -433,7 +424,7 @@ def read_kept(how_many):
     return read_picked_lines(how_many) or set(range(how_many))
 
 
-def form_page(text, name, type_line="", pairs=(), **extra):
+def form_page(text, name, pairs=(), **extra):
     #every answer this page has renders through here, so a rejection, a service
     #that did not wake and a full set of results all come back with the same
     #controls and the same text still in them.
@@ -459,8 +450,7 @@ def form_page(text, name, type_line="", pairs=(), **extra):
                            preview=[fold_symbols(line) for line in typed_lines(text)[:MAX_LINES]],
                            max_name=MAX_NAME,
                            max_lines=MAX_LINES,
-                           typed=typed, counted=counts is not None, type_line=type_line,
-                           max_type=MAX_TYPE,
+                           typed=typed, counted=counts is not None,
                            #a POST result has no url to index and must not grow
                            #one. the form itself is a page and stays open
                            noindex=request.method == "POST", **extra)
@@ -482,10 +472,6 @@ def custom_post():
     controls_from_form()
     name = request.form.get("name", "")
     text = request.form.get("text", "")
-    #cut rather than refused: the box has a maxlength, so a longer one is a
-    #posted body rather than something anybody typed, and only the first card
-    #type word is read out of it anyway
-    type_line = request.form.get("type_line", "")[:MAX_TYPE]
     #the filters, sort and currency go back on EVERY page this answers, so a
     #retry after a cold wake or a fixed typo asks the same question again
     filters = read_filters()
@@ -500,7 +486,7 @@ def custom_post():
         #the message names the limit and is written for whoever typed it, so it
         #goes on the page as it is. nothing has reached the model yet, which is
         #the whole point of checking here
-        return form_page(text, name, type_line, message=str(e), **controls)
+        return form_page(text, name, message=str(e), **controls)
 
     #the model sees the whole card either way. the picks only say which of those
     #lines the list is ranked on, so the sentence and the chips do not move
@@ -508,22 +494,21 @@ def custom_post():
     lines, rank_on = ranked_lines(pairs, picked or set(range(len(pairs))))
     if not rank_on:
         #only reachable by a posted body: a line the splitter drops is not clickable
-        return form_page(text, name, type_line, pairs, picked=picked,
+        return form_page(text, name, pairs, picked=picked,
                          message="Pick a line the matcher can read.", **controls)
 
     try:
-        scored = custom_score(lines, filters, read_sort(), currency=filters["cur"],
-                              type_line=type_line, rank_on=rank_on)
+        scored = custom_score(lines, filters, read_sort(), currency=filters["cur"], rank_on=rank_on)
     except embedder.EmbedderDown:
         #ASLEEP or still starting, which is a minute of waiting and not a fault.
         #EmbedderRefused is deliberately not caught: it means this page and the
         #service disagree about their own limits, and a bug worded as a nap
         #would never get looked at
-        return form_page(text, name, type_line, pairs, picked=picked,
+        return form_page(text, name, pairs, picked=picked,
                          message="The matcher didn't wake up in time. Try again in a minute.",
                          **controls), 503
 
-    return form_page(text, name, type_line, pairs, answered=True, words=scored["words"],
+    return form_page(text, name, pairs, answered=True, words=scored["words"],
                      chips=scored["chips"], picked=picked, counts=scored["counts"],
                      results=scored["results"], has_more=scored["has_more"],
                      next_band=scored["next_band"], errors=filters["errors"], **controls)

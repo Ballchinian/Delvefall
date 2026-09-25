@@ -554,16 +554,18 @@ def typeline_report(d, rule):
     print("wrote " + path)
 
 
+#the floor a type line filter drops a tag under: less than half a percent of the
+#tag's cards are the card's type
+TYPE_FLOOR = 0.005
+
+
 def typefilter_report(d):
-    #web/autotags.py's type filter, which no other report here runs: a tag whose
-    #share of cards on the typed type is under TYPE_FLOOR is dropped before
-    #ranking. three arms from the same rule_both scores on the test half: no type,
-    #the eight types, and land / non-land, non-land reading 1 minus the Land share.
-    #shares count rolled tags the way tools/load_tag_probe.py does, over the cards
+    #a type line filter: a tag whose share of cards on the card's type is under
+    #TYPE_FLOOR is dropped before ranking. arms from the same rule_both scores on
+    #the test half: no type, the eight types (a card read as "other" unfiltered),
+    #land / non-land, and coarser cuts. shares count rolled tags over the cards
     #outside the test half, so no card votes on its own chips
-    sys.path.insert(0, os.path.join(HERE, "..", "web"))
-    from autotags import TYPE_FLOOR, card_type as web_type
-    kind = {c: web_type(d.type_line[c]) for c in range(len(d.card_ids))}
+    kind = {c: card_type(d, c) for c in range(len(d.card_ids))}
     counts = {}
     for c, ts in d.rolled.items():
         if d.half(c) == "test":
@@ -584,8 +586,8 @@ def typefilter_report(d):
                       "spell" if k in ("Instant", "Sorcery") else "other" for k in everything}}
 
     def share(t, c, arm):
-        #a tag with no count is kept, as on the site
-        if t not in shares:
+        #a tag with no count is kept: too new to have been counted
+        if t not in shares or (arm == "eight" and kind[c] == "other"):
             return 1.0
         mine = group[arm][kind[c]]
         return sum(v for k, v in shares[t].items() if group[arm][k] == mine)
@@ -604,7 +606,7 @@ def typefilter_report(d):
         if i % 2000 == 0:
             print("  %d/%d" % (i, len(cards)))
 
-    out = ["web's type filter, TYPE_FLOOR %g, rule_both on the test half: %d non-twin cards."
+    out = ["a type line filter, TYPE_FLOOR %g, rule_both on the test half: %d non-twin cards."
            % (TYPE_FLOOR, len(cards)),
            "right and wrong are against tagger, ancestors counted, as the exam counts precision.", ""]
     prec = {}
@@ -782,7 +784,7 @@ def main():
     ap.add_argument("--marks", action="store_true", help="score against the marked file instead")
     ap.add_argument("--typeline", action="store_true", help="write out/autotag_typeline.txt")
     ap.add_argument("--typefilter", action="store_true",
-                    help="web's type filter, eight types against land / non-land: out/autotag_typefilter.txt")
+                    help="a type line filter, eight types against land / non-land: out/autotag_typefilter.txt")
     args = ap.parse_args()
     d = Data()
     if args.write_marks:

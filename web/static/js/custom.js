@@ -50,9 +50,7 @@ text.addEventListener("focus", function() {
     going back onto their own page, and it is never markup
 */
 var previewName = document.getElementById("preview-name");
-var previewType = document.getElementById("preview-type");
 var previewRules = document.getElementById("preview-rules");
-var typeBox = document.getElementById("custom-type");
 //the cap the server draws to. past it the form is turned away anyway, and
 //without it a pasted megabyte draws a megabyte of card
 var MAX_LINES = Number(text.dataset.maxLines);
@@ -71,7 +69,6 @@ function foldSymbols(line) {
 function paint() {
     setPicked([]);
     previewName.textContent = nameBox.value.trim();
-    previewType.textContent = typeBox.value.trim();
     previewRules.textContent = "";
     text.value.split("\n").filter(function(line) {
         return line.trim();
@@ -169,7 +166,6 @@ window.addEventListener("pageshow", function(e) {
 });
 
 nameBox.addEventListener("input", paint);
-typeBox.addEventListener("input", paint);
 text.addEventListener("input", paint);
 
 /*

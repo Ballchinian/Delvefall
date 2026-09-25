@@ -14,8 +14,7 @@
 #WHAT IT CANNOT SAY: the probe was trained on these cards' lines, so the overlap
 #printed at the end is optimistic by construction and is NOT the gate. what it
 #is for is the faults a number would hide: chip lists that come back empty, the
-#same chips on every card, a banned tag leaking through, a type line that drops
-#everything.
+#same chips on every card, a banned tag leaking through.
 
 import os
 import sys
@@ -53,7 +52,6 @@ def main():
     ap.add_argument("--cards", type=int, default=20, help="how many cards to show")
     ap.add_argument("--name", default="", help="show cards matching this name instead of random ones")
     ap.add_argument("--seed", type=float, default=None, help="fix the random sample")
-    ap.add_argument("--no-type", action="store_true", help="score as if no type line was typed")
     ap.add_argument("--quiet", action="store_true",
                     help="the counts only, for a sample too big to read")
     args = ap.parse_args()
@@ -97,8 +95,7 @@ def main():
             """, (card["oracle_id"],)).fetchall()
             vectors = [r["embedding"].to_numpy() for r in lines]
             around = line_neighbours(conn, vectors, card["oracle_id"])
-            type_line = "" if args.no_type else card["type_line"]
-            chips = tag_chips(conn, vectors, around, type_line)
+            chips = tag_chips(conn, vectors, around)
             stored = {r["tag"] for r in conn.execute(
                 "SELECT tag FROM card_tags WHERE oracle_id = %s", (card["oracle_id"],))}
 

@@ -17,10 +17,6 @@
 #of the tables and scores each card with probe_crossfit.npz, the half-probe that
 #never saw it, which is what makes ITS published numbers honest. neither of
 #those belongs in a question about whether two pieces of code agree.
-#
-#the type-line filter is out of scope: the site added it and the exam has no
-#such rule, so both sides are asked as if no type line were typed. its own tests
-#cover it.
 
 import os
 import sys

@@ -9,10 +9,10 @@
 #    python tools/load_tag_probe.py --probe some/other/tagprobe.npz --dry-run
 #with DATABASE_URL set.
 #
-#three things go in, from three places: the weights from tagprobe.npz, which is
-#gitignored and lives only on the machine that trained it; the never-a-chip
-#verdicts from make_tagreview.md, which is in the repo; and the type shares,
-#counted here out of card_tags so they are never a second copy of anything.
+#two things go in, from two places: the weights from tagprobe.npz, which is
+#gitignored and lives only on the machine that trained it, and the never-a-chip
+#verdicts from make_tagreview.md, which is in the repo. the types column is left
+#at its default: /custom has no type filter.
 #
 #one transaction, and DELETE rather than TRUNCATE: truncating takes ACCESS
 #EXCLUSIVE and every /custom reading the table would queue behind it, where a
@@ -27,19 +27,14 @@ import argparse
 
 import numpy as np
 import psycopg
-from psycopg.types.json import Jsonb
 from pgvector.psycopg import register_vector
 
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
 sys.path.insert(0, ROOT)
-#the ONE definition of how a type line is read, rather than a second copy of it
-#in SQL: the site has to filter on the same word this counts by
-sys.path.insert(0, os.path.join(ROOT, "web"))
 sys.path.insert(0, os.path.join(ROOT, "finetune"))
 
 from common import locks
 from common.db import KEEPALIVE
-from autotags import TYPES, card_type
 
 PROBE = os.path.join(ROOT, "finetune", "tagdata", "tagprobe.npz")
 
@@ -81,23 +76,10 @@ def read_banned():
     return banned | set(UNSEEN)
 
 
-def type_shares(conn):
-    #what share of the cards carrying a tag are each type. inherited rows count:
-    #a card that gives evasion is a creature whether a human typed the tag or the
-    #tree implied it, and the question here is what the tag lands on
-    counts = {}
-    for tag, type_line in conn.execute("""
-        SELECT ct.tag, c.type_line
-        FROM card_tags ct JOIN cards c ON c.oracle_id = ct.oracle_id
-    """):
-        per = counts.setdefault(tag, {})
-        kind = card_type(type_line)
-        per[kind] = per.get(kind, 0) + 1
-    shares = {}
-    for tag, per in counts.items():
-        total = sum(per.values()) or 1
-        shares[tag] = {k: round(n / total, 6) for k, n in per.items()}
-    return shares
+def carried(conn):
+    #every tag a card carries, inherited rows included. each gets a row whether
+    #or not it has a probe, since tag_chips reads a chip's description through it
+    return {r[0] for r in conn.execute("SELECT DISTINCT tag FROM card_tags")}
 
 
 def main():
@@ -125,8 +107,8 @@ def main():
         print("something else holds the ingest lock, waiting for it...")
         locks.hold(conn)
 
-    shares = type_shares(conn)
-    print("type shares: %d tags counted over %s" % (len(shares), ", ".join(TYPES)))
+    on_cards = carried(conn)
+    print("tags on cards: %d" % len(on_cards))
 
     #the weights are fitted to ONE model's vector space, so they have to be stamped
     #with the model whose vectors they were trained against. a swap refills
@@ -143,8 +125,8 @@ def main():
         print(why)
 
     #every tag either half of the rule can name, so a tag with no probe still
-    #arrives with its ban verdict and its type shares
-    every = sorted(set(tags) | set(shares) | banned)
+    #arrives with its ban verdict
+    every = sorted(set(tags) | on_cards | banned)
     probe_of = {t: i for i, t in enumerate(tags)}
     rows = []
     for tag in every:
@@ -152,8 +134,7 @@ def main():
         rows.append((tag,
                      None if i is None else weight[i],
                      None if i is None else float(bias[i]),
-                     tag in banned,
-                     Jsonb(shares.get(tag, {}))))
+                     tag in banned))
     print("%d rows: %d with a probe, %d without" %
           (len(rows), sum(1 for r in rows if r[1] is not None),
            sum(1 for r in rows if r[1] is None)))
@@ -191,8 +172,8 @@ def main():
     #block here would be a SAVEPOINT inside that same transaction and commit nothing
     conn.execute("DELETE FROM tag_probe")
     with conn.cursor() as cur:
-        cur.executemany("INSERT INTO tag_probe (tag, w, b, banned, types) "
-                        "VALUES (%s, %s, %s, %s, %s)", rows)
+        cur.executemany("INSERT INTO tag_probe (tag, w, b, banned) "
+                        "VALUES (%s, %s, %s, %s)", rows)
     #in the SAME transaction as the rows, so the stamp can never name a model the
     #weights beside it were not trained against
     for key, value in (("tag_probe_model", trained_on), ("tag_probe_sha256", trained)):

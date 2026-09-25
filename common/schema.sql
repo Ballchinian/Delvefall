@@ -355,10 +355,9 @@ CREATE TABLE IF NOT EXISTS tag_dims (
 --banned carries make_tagreview.md's card and junk verdicts, which are never
 --chips: out-of-color-token was right 26% of the time, doom-blade 7%.
 --
---types is what share of the cards carrying this tag are each card type, and it
---is read only when the visitor types a type line. a tag that lands on this type
---under half a percent of the time it is used at all is one the text alone cannot
---decide: Shadrix Silverquill's modes read like a spell's
+--types is unread, and tools/load_tag_probe.py leaves it at its default: /custom
+--has no type filter. the column stays: dropping it locks a table /custom reads,
+--and a web rollback to a version that still selects it would 500
 CREATE TABLE IF NOT EXISTS tag_probe (
     tag    text PRIMARY KEY,
     w      vector(768),

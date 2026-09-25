@@ -4,20 +4,16 @@
 #
 #this is a port of rule_both in finetune/exam_autotags.py, which is what the
 #numbers were measured on: 98% marked precision at 5 chips, list overlap 0.71
-#against the stored tags. every constant below is that file's except TYPE_FLOOR,
-#and the two have to move together: a constant changed on one side is a rule
-#nothing measured. only scoring real cards both ways says whether they still
-#agree, and nothing here can do that.
+#against the stored tags. every constant below is that file's, and the two have
+#to move together: a constant changed on one side is a rule nothing measured.
+#only scoring real cards both ways says whether they still agree, and nothing
+#here can do that.
 #
-#the type filter (card_type, TYPE_FLOOR, the kind argument to chips) is measured
-#by exam_autotags.py --typefilter, which imports both. on the test half it lifts
-#precision against tagger 0.32 points, 88.91% to 89.23%, removing 396 wrong chips
-#and 662 right ones. the 98% above is without it.
+#no type filter: exam_autotags.py --typefilter measures one at 0.32 points of
+#precision, and it drops more chips tagger counts right (662) than wrong (396).
 #
 #PURE: scores in, chips out. the database work is views/custom.py's, because web
 #deploys on its own and this file is what the tests can reach without one.
-
-import re
 
 #a tag's score is the probe reading the typed line directly, blended with the
 #vote of the lines nearest it. 0.7/0.3 was tuned on the dev half
@@ -40,31 +36,6 @@ PROBE_KEEP = 60
 CHIP_BAR = 0.40
 CHIP_FLOOR = 0.15
 CHIPS_LOW, CHIPS_HIGH = 2, 10
-
-#with a type line typed in, a tag that lands on this type less than half a
-#percent of the time it is used at all is dropped. it is the tags text alone
-#cannot decide: Shadrix Silverquill's modes read like a spell's and draw
-#single-target-instant-sorcery, and the type line is what says they are not
-TYPE_FLOOR = 0.005
-
-#a card's type as one word, in the order a type line has to be read: an Artifact
-#Creature is a creature, and every land is a land
-TYPES = ("Land", "Creature", "Instant", "Sorcery", "Artifact", "Enchantment", "Planeswalker",
-         "Battle")
-
-
-def card_type(type_line):
-    #the FRONT face only, the way the exam reads it: a back face is a different
-    #card and the visitor typed one card's worth of text.
-    #
-    #whole words in any case, since /custom's box is free text: "legendary
-    #creature" is a creature and "Creature — Human Landfall" is not a land. the
-    #exam's substring match reads all 31,919 printed type lines the same way
-    words = set(re.findall(r"[a-z]+", (type_line or "").split("//")[0].lower()))
-    for kind in TYPES:
-        if kind.lower() in words:
-            return kind
-    return "other"
 
 
 def share_scores(per_line):
@@ -107,25 +78,14 @@ def blend(probe, share):
             for tag in set(probe) | set(share)}
 
 
-def chips(scores, banned=(), type_shares=None, kind=None):
+def chips(scores, banned=()):
     #scores: {tag: score}. banned: the review's card and junk verdicts, which are
-    #never chips. type_shares: {tag: {type: share of that tag's cards}}, read only
-    #when the visitor typed a type line.
+    #never chips.
     #
     #dropped BEFORE ranking, so a tag nobody would show cannot take a slot from
     #one they would
     banned = set(banned)
-    ranked = []
-    for tag, score in scores.items():
-        if tag in banned:
-            continue
-        if kind and type_shares is not None:
-            #a tag with no row at all is kept: that is a tag too new to have been
-            #counted, not one measured as wrong here
-            per_type = type_shares.get(tag)
-            if per_type is not None and per_type.get(kind, 0.0) < TYPE_FLOOR:
-                continue
-        ranked.append((score, tag))
+    ranked = [(score, tag) for tag, score in scores.items() if tag not in banned]
     #by score, then by name, so two tags on exactly the same neighbours always
     #come out in the same order. the exam breaks that tie on its own tag ids, so
     #a tie sitting across the cut is the one place the two can disagree

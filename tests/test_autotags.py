@@ -6,8 +6,7 @@
 
 import pytest
 
-from autotags import (CHIP_BAR, CHIP_FLOOR, TYPE_FLOOR, blend, card_type, chips,
-                      probe_scores, share_scores)
+from autotags import CHIP_BAR, CHIP_FLOOR, blend, chips, probe_scores, share_scores
 
 
 class TestWhatTheNeighboursSay:
@@ -120,59 +119,3 @@ class TestTagsThatAreNeverChips:
         got = chips(scores, banned={"tag00"})
         assert len(got) == 10
         assert "tag10" in got
-
-
-class TestTheTypeLine:
-
-    def test_a_tag_that_hardly_ever_lands_on_this_type_is_dropped(self):
-        shares = {"burn": {"Instant": 0.9, "Creature": TYPE_FLOOR / 2}}
-        assert set(chips({"burn": 0.9}, type_shares=shares, kind="Creature")) == set()
-        assert set(chips({"burn": 0.9}, type_shares=shares, kind="Instant")) == {"burn"}
-
-    def test_nothing_is_dropped_without_a_type_line(self):
-        shares = {"burn": {"Instant": 0.9, "Creature": TYPE_FLOOR / 2}}
-        assert set(chips({"burn": 0.9}, type_shares=shares, kind=None)) == {"burn"}
-
-    def test_a_tag_nobody_has_counted_survives(self):
-        #a tag too new to have a row is not a tag measured as wrong here
-        assert set(chips({"new": 0.9}, type_shares={}, kind="Creature")) == {"new"}
-
-    def test_a_tag_exactly_at_the_floor_stays(self):
-        shares = {"edge": {"Creature": TYPE_FLOOR}}
-        assert set(chips({"edge": 0.9}, type_shares=shares, kind="Creature")) == {"edge"}
-
-
-class TestReadingATypeLine:
-
-    @pytest.mark.parametrize("line,kind", [
-        ("Creature — Human Wizard", "Creature"),
-        ("Artifact Creature — Golem", "Creature"),
-        ("Legendary Artifact — Vehicle", "Artifact"),
-        ("Land Creature — Forest Dryad", "Land"),
-        ("Instant", "Instant"),
-        ("Legendary Enchantment Creature — God", "Creature"),
-    ])
-    def test_the_type_that_decides_wins(self, line, kind):
-        assert card_type(line) == kind
-
-    def test_only_the_front_face_is_read(self):
-        assert card_type("Instant // Creature — Spirit") == "Instant"
-
-    @pytest.mark.parametrize("line,kind", [
-        ("legendary creature", "Creature"),
-        ("instant", "Instant"),
-        ("ARTIFACT", "Artifact"),
-        ("Artifact—Creature", "Creature"),
-    ])
-    def test_a_type_typed_in_any_case_is_read(self, line, kind):
-        #the box is free text. read as other, the type filter switched off
-        assert card_type(line) == kind
-
-    def test_a_type_inside_a_longer_word_is_not_one(self):
-        #"Land" is read before "Creature", so the substring made this a land
-        assert card_type("Creature — Human Landfall") == "Creature"
-
-    def test_something_unrecognised_is_other(self):
-        assert card_type("Kindred Hippo") == "other"
-        assert card_type("") == "other"
-        assert card_type(None) == "other"

@@ -555,7 +555,6 @@ class TestTheChipsUnderTheForm:
         #with 1,933 real tags
         import db
         import seed
-        from psycopg.types.json import Jsonb
 
         def clean(conn):
             conn.execute("DELETE FROM tag_probe")
@@ -570,10 +569,10 @@ class TestTheChipsUnderTheForm:
             #a probe loaded before a stamp existed, or a database with no ingest.
             #no shas at all is a database no ingest has recorded weights for
             with db.pool.connection() as conn:
-                for tag, axis, banned, types in rows:
+                for tag, axis, banned in rows:
                     w = np.asarray(seed.vec(axis), dtype=np.float32) * 40
-                    conn.execute("INSERT INTO tag_probe (tag, w, b, banned, types) "
-                                 "VALUES (%s, %s, %s, %s, %s)", (tag, w, -20.0, banned, Jsonb(types)))
+                    conn.execute("INSERT INTO tag_probe (tag, w, b, banned) "
+                                 "VALUES (%s, %s, %s, %s)", (tag, w, -20.0, banned))
                 for key, value in (("embed_model", vectors_by), ("tag_probe_model", stamp),
                                    ("embed_sha256", weights), ("tag_probe_sha256", trained)):
                     if value is not None:
@@ -597,7 +596,7 @@ class TestTheChipsUnderTheForm:
         #a database loaded before the stamp existed. the match cannot be proved, and
         #the failure being guarded has no symptom, so it is refused rather than shown
         import seed
-        probe([("draw-on-attack", 1, False, {})], stamp=None)
+        probe([("draw-on-attack", 1, False)], stamp=None)
         assert typed([seed.vec(1)])["chips"] == []
 
     def test_a_probe_stamped_with_another_model_shows_nothing(self, typed, probe):
@@ -605,13 +604,13 @@ class TestTheChipsUnderTheForm:
         #scoring the new vectors, every number still in [0,1] and none of them meaning
         #anything
         import seed
-        probe([("draw-on-attack", 1, False, {})], stamp="test/model-b")
+        probe([("draw-on-attack", 1, False)], stamp="test/model-b")
         assert typed([seed.vec(1)])["chips"] == []
 
     def test_a_stamp_with_no_vectors_to_match_shows_nothing(self, typed, probe):
         #no embed_model in meta is a database the ingest has never run against
         import seed
-        probe([("draw-on-attack", 1, False, {})], vectors_by=None)
+        probe([("draw-on-attack", 1, False)], vectors_by=None)
         assert typed([seed.vec(1)])["chips"] == []
 
     def test_the_reason_names_both_models(self, probe):
@@ -619,7 +618,7 @@ class TestTheChipsUnderTheForm:
         #which way round the mismatch is
         import db
         from views.custom import probe_stale
-        probe([("draw-on-attack", 1, False, {})], stamp="test/model-b")
+        probe([("draw-on-attack", 1, False)], stamp="test/model-b")
         with db.pool.connection() as conn:
             why = probe_stale(conn)
         assert "test/model-b" in why
@@ -627,26 +626,26 @@ class TestTheChipsUnderTheForm:
 
     def test_matching_weights_show_chips(self, typed, probe):
         import seed
-        probe([("draw-on-attack", 1, False, {})], trained=WEIGHTS, weights=WEIGHTS)
+        probe([("draw-on-attack", 1, False)], trained=WEIGHTS, weights=WEIGHTS)
         assert [c["tag"] for c in typed([seed.vec(1)])["chips"]] == ["draw-on-attack"]
 
     def test_a_retrain_under_the_same_name_shows_nothing(self, typed, probe):
         #the names match and the weights do not: a new release of the same repo
         #reseeds the vectors and leaves the probe fitted to the old ones
         import seed
-        probe([("draw-on-attack", 1, False, {})], trained=WEIGHTS, weights=RETRAIN)
+        probe([("draw-on-attack", 1, False)], trained=WEIGHTS, weights=RETRAIN)
         assert typed([seed.vec(1)])["chips"] == []
 
     def test_a_probe_with_no_weights_stamp_shows_nothing_once_the_vectors_have_one(self, typed, probe):
         #the names match here too, and would pass on their own
         import seed
-        probe([("draw-on-attack", 1, False, {})], weights=WEIGHTS)
+        probe([("draw-on-attack", 1, False)], weights=WEIGHTS)
         assert typed([seed.vec(1)])["chips"] == []
 
     def test_the_reason_names_both_weights(self, probe):
         import db
         from views.custom import probe_stale
-        probe([("draw-on-attack", 1, False, {})], trained=WEIGHTS, weights=RETRAIN)
+        probe([("draw-on-attack", 1, False)], trained=WEIGHTS, weights=RETRAIN)
         with db.pool.connection() as conn:
             why = probe_stale(conn)
         assert WEIGHTS[:12] in why and RETRAIN[:12] in why
@@ -657,7 +656,7 @@ class TestTheChipsUnderTheForm:
         #does the share, every near neighbour carrying it, so the blend is 1
         import autotags
         import seed
-        probe([("draw-on-attack", 1, False, {}), ("sac-outlet", 3, False, {})])
+        probe([("draw-on-attack", 1, False), ("sac-outlet", 3, False)])
         chips = typed([seed.vec(1)])["chips"]
         assert [c["tag"] for c in chips][0] == "draw-on-attack"
         assert chips[0]["score"] == pytest.approx(1.0, abs=1e-3)
@@ -673,43 +672,28 @@ class TestTheChipsUnderTheForm:
         #probe query's sign flipped
         import autotags
         import seed
-        probe([("probe-only", 5, False, {})])
+        probe([("probe-only", 5, False)])
         chips = typed([seed.vec(5)])["chips"]
         assert [c["tag"] for c in chips] == ["probe-only"]
         assert chips[0]["score"] == pytest.approx(autotags.PROBE_SHARE, abs=1e-3)
 
     def test_a_chip_carries_what_the_tag_means(self, typed, probe):
         import seed
-        probe([("draw-on-attack", 1, False, {})])
+        probe([("draw-on-attack", 1, False)])
         chips = typed([seed.vec(1)])["chips"]
         assert chips[0]["description"] == "draws when it attacks"
 
     def test_a_banned_tag_is_never_a_chip(self, typed, probe):
         #make_tagreview.md's card and junk verdicts arrive as this column
         import seed
-        probe([("draw-on-attack", 1, True, {})])
+        probe([("draw-on-attack", 1, True)])
         assert [c["tag"] for c in typed([seed.vec(1)])["chips"]] == []
-
-    def test_a_typed_type_line_drops_a_tag_that_never_lands_on_it(self, typed, probe):
-        import seed
-        probe([("draw-on-attack", 1, False, {"Instant": 0.999, "Creature": 0.0001})])
-        wide = typed([seed.vec(1)])
-        narrow = typed([seed.vec(1)], type_line="Creature — Test")
-        assert "draw-on-attack" in [c["tag"] for c in wide["chips"]]
-        assert "draw-on-attack" not in [c["tag"] for c in narrow["chips"]]
-
-    def test_a_type_line_nothing_can_be_read_out_of_narrows_nothing(self, typed, probe):
-        #only the first card type word is read, and "Delvefall" is not one
-        import seed
-        probe([("draw-on-attack", 1, False, {"Instant": 0.999, "Creature": 0.0001})])
-        got = typed([seed.vec(1)], type_line="Delvefall")
-        assert "draw-on-attack" in [c["tag"] for c in got["chips"]]
 
     def test_every_typed_line_gets_a_say(self, typed, probe):
         #a card is the best of its lines, so an ability on the second line is as
         #chippable as one on the first
         import seed
-        probe([("draw-on-attack", 1, False, {}), ("sac-outlet", 3, False, {})])
+        probe([("draw-on-attack", 1, False), ("sac-outlet", 3, False)])
         chips = [c["tag"] for c in typed([seed.vec(1), seed.vec(3)])["chips"]]
         assert "draw-on-attack" in chips
         assert "sac-outlet" in chips
@@ -717,7 +701,7 @@ class TestTheChipsUnderTheForm:
     def test_the_next_page_of_results_does_not_pay_for_them(self, typed, probe):
         #/custom/more redraws the grid and no chips, so it asks for none
         import seed
-        probe([("draw-on-attack", 1, False, {})])
+        probe([("draw-on-attack", 1, False)])
         assert typed([seed.vec(1)], want_card=False)["chips"] is None
 
     def test_the_sentence_and_the_chips_ignore_which_line_is_picked(self, typed, probe):
@@ -725,7 +709,7 @@ class TestTheChipsUnderTheForm:
         #the whole card, and the chips' 98% marked precision was measured on whole
         #cards, so neither may move when a line is picked. both did, once
         import seed
-        probe([("draw-on-attack", 1, False, {}), ("sac-outlet", 3, False, {})])
+        probe([("draw-on-attack", 1, False), ("sac-outlet", 3, False)])
         whole = typed([seed.vec(1), seed.vec(3)])
         one = typed([seed.vec(1), seed.vec(3)], rank_on={0})
         assert one["uniqueness"] == whole["uniqueness"]
@@ -737,7 +721,7 @@ class TestTheChipsUnderTheForm:
         #the neighbour query went from one row to ten to feed them, and the
         #originality is still the nearest of those rows
         import seed
-        probe([("draw-on-attack", 1, False, {})])
+        probe([("draw-on-attack", 1, False)])
         assert typed([seed.vec(1)])["uniqueness"] == pytest.approx(0.0, abs=1e-6)
         assert typed([seed.vec(5)])["uniqueness"] == pytest.approx(1.0, abs=1e-6)
 

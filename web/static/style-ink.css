@@ -3669,9 +3669,8 @@ body.home main {
 /* ---- /custom: a card somebody invented, against the cards already printed ----
 
    the blank card on the right is drawn HERE and nowhere else: no image asset and
-   no second request, and static/js/custom.js fills it in from the form as you
-   type. the type line box sits between the art and the rules, which is where a
-   real card carries it, and the tag chips under the form */
+   no second request. static/js/custom.js fills it in from the form as you type,
+   and the tag chips sit under the form */
 
 .custom {
     max-width: 860px;
@@ -3707,14 +3706,6 @@ body.home main {
 
 /* the optional fields say so IN the label: a required-field glyph has to be
    explained somewhere, and there is exactly one required field here */
-/* beside the optional marker on the type line: what filling it in buys, which is
-   otherwise only in a title nobody hovers */
-.custom-hint {
-    font-weight: 400;
-    font-size: 11px;
-    color: var(--muted);
-}
-
 .custom-optional {
     font-style: italic;
     cursor: help;
@@ -3911,16 +3902,6 @@ body.home main {
 .custom-preview .line-hint {
     font-size: 12px;
     margin-top: 8px;
-}
-
-/* where a real card carries it, between the art and the rules. empty until
-   something is typed, and it holds its line so the card does not jump */
-.ink-card-type {
-    min-height: 1.2em;
-    padding: 4px 8px 0;
-    font-size: 11px;
-    font-weight: 600;
-    color: var(--text);
 }
 
 /* ---- the keyboard's focus ring ----

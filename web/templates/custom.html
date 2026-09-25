@@ -33,14 +33,6 @@
                        spellcheck="false" autocomplete="off" placeholder="Name it, or don't"
                        value="{{ name }}">
 
-                <label class="custom-label" for="custom-type">Type line
-                    <span class="custom-optional" title="only the card type is read out of it: Creature, Instant, Land and so on. it drops the tags that never land on that type, which rules text alone cannot tell">optional</span>
-                    <span class="custom-hint">sharpens the tags</span>
-                </label>
-                <input id="custom-type" name="type_line" type="text" maxlength="{{ max_type }}"
-                       spellcheck="false" autocomplete="off"
-                       placeholder="Creature — Human Wizard" value="{{ type_line }}">
-
                 <label class="custom-label" for="custom-text">Rules text
                     <span class="custom-optional">one ability per line, up to {{ max_lines }}</span>
                 </label>
@@ -72,9 +64,6 @@
                 <div class="ink-card">
                     <div class="ink-card-bar"><span class="ink-card-name" id="preview-name">{{ name }}</span></div>
                     <div class="ink-card-art" aria-hidden="true"></div>
-                    {# the type line sits between the art and the rules,
-                       which is where a real card carries it #}
-                    <div class="ink-card-type" id="preview-type">{{ type_line }}</div>
                     {# controls whenever the text passed the limits, so the page a
                        sleeping matcher answers keeps its picks #}
                     <div class="ink-card-rules" id="preview-rules">
