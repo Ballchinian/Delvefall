@@ -478,10 +478,14 @@ def rule_probe(d, c):
     return chips(d, probe_scores(d, c))
 
 
-def rule_both(d, c):
+def both_scores(d, c):
     ps, ss = probe_scores(d, c), share_scores(d, c)
-    return chips(d, {t: PROBE_SHARE * ps.get(t, 0.0) + (1 - PROBE_SHARE) * ss.get(t, 0.0)
-                     for t in set(ps) | set(ss)})
+    return {t: PROBE_SHARE * ps.get(t, 0.0) + (1 - PROBE_SHARE) * ss.get(t, 0.0)
+            for t in set(ps) | set(ss)}
+
+
+def rule_both(d, c):
+    return chips(d, both_scores(d, c))
 
 
 RULES = {"plan": rule_plan, "share": rule_share, "probe": rule_probe, "both": rule_both}
@@ -550,6 +554,125 @@ def typeline_report(d, rule):
     print("wrote " + path)
 
 
+def typefilter_report(d):
+    #web/autotags.py's type filter, which no other report here runs: a tag whose
+    #share of cards on the typed type is under TYPE_FLOOR is dropped before
+    #ranking. three arms from the same rule_both scores on the test half: no type,
+    #the eight types, and land / non-land, non-land reading 1 minus the Land share.
+    #shares count rolled tags the way tools/load_tag_probe.py does, over the cards
+    #outside the test half, so no card votes on its own chips
+    sys.path.insert(0, os.path.join(HERE, "..", "web"))
+    from autotags import TYPE_FLOOR, card_type as web_type
+    kind = {c: web_type(d.type_line[c]) for c in range(len(d.card_ids))}
+    counts = {}
+    for c, ts in d.rolled.items():
+        if d.half(c) == "test":
+            continue
+        for t in ts:
+            counts.setdefault(t, {}).setdefault(kind[c], 0)
+            counts[t][kind[c]] += 1
+    shares = {t: {k: n / sum(per.values()) for k, n in per.items()} for t, per in counts.items()}
+
+    #each arm reads a card's type as a group and a tag's share as the sum over it.
+    #eight and land are the two the verdict compares, the rest are coarser cuts
+    everything = TYPES + ("other",)
+    group = {"eight": {k: k for k in everything},
+             "land": {k: k == "Land" for k in everything},
+             "creature": {k: k == "Creature" for k in everything},
+             "spell": {k: k in ("Instant", "Sorcery") for k in everything},
+             "lcso": {k: k if k in ("Land", "Creature") else
+                      "spell" if k in ("Instant", "Sorcery") else "other" for k in everything}}
+
+    def share(t, c, arm):
+        #a tag with no count is kept, as on the site
+        if t not in shares:
+            return 1.0
+        mine = group[arm][kind[c]]
+        return sum(v for k, v in shares[t].items() if group[arm][k] == mine)
+
+    arms = ("none",) + tuple(group)
+
+    def dealt(c, scores):
+        return {arm: set(chips(d, scores if arm == "none" else
+                               {t: s for t, s in scores.items() if share(t, c, arm) >= TYPE_FLOOR}))
+                for arm in arms}
+
+    cards = [c for c in d.population if d.half(c) == "test" and not d.twin[c]]
+    got = {}
+    for i, c in enumerate(cards):
+        got[c] = dealt(c, both_scores(d, c))
+        if i % 2000 == 0:
+            print("  %d/%d" % (i, len(cards)))
+
+    out = ["web's type filter, TYPE_FLOOR %g, rule_both on the test half: %d non-twin cards."
+           % (TYPE_FLOOR, len(cards)),
+           "right and wrong are against tagger, ancestors counted, as the exam counts precision.", ""]
+    prec = {}
+    out.append("%-8s %7s %6s %7s %7s" % ("arm", "chips", "mean", "prec", "micro"))
+    for arm in arms:
+        n = [len(got[c][arm]) for c in cards]
+        hit = [len(got[c][arm] & d.rolled[c]) for c in cards]
+        prec[arm] = st.mean([h / k for h, k in zip(hit, n) if k])
+        out.append("%-8s %7d %6.2f %6.2f%% %6.2f%%" % (arm, sum(n), st.mean(n), 100 * prec[arm],
+                                                      100 * sum(hit) / max(sum(n), 1)))
+    out.append("")
+
+    removed = {}
+    for arm in arms[1:]:
+        removed[arm] = [(c, t) for c in cards for t in got[c]["none"] - got[c][arm] - d.rolled[c]]
+    for arm in arms[1:]:
+        right_out = sum(len((got[c]["none"] - got[c][arm]) & d.rolled[c]) for c in cards)
+        back_right = sum(len((got[c][arm] - got[c]["none"]) & d.rolled[c]) for c in cards)
+        back_wrong = sum(len(got[c][arm] - got[c]["none"] - d.rolled[c]) for c in cards)
+        by = {}
+        for c, _ in removed[arm]:
+            by[kind[c]] = by.get(kind[c], 0) + 1
+        out.append("%s against none: removed %d wrong, %d right. put back %d right, %d wrong. precision %+.2f points"
+                   % (arm, len(removed[arm]), right_out, back_right, back_wrong, 100 * (prec[arm] - prec["none"])))
+        out.append("    wrong removed by card type: " + "  ".join(
+            "%s %d" % (k, by[k]) for k in everything if by.get(k)))
+        out.append("    catches %.0f%% of the wrong chips eight types removes"
+                   % (100 * len(set(removed[arm]) & set(removed["eight"])) / max(len(removed["eight"]), 1)))
+    out.append("")
+
+    eight, land = set(removed["eight"]), set(removed["land"])
+    caught = len(eight & land) / max(len(eight), 1)
+    gap = 100 * (prec["land"] - prec["eight"])
+    out.append("land / non-land removes %d of the %d wrong chips eight types removes (%.0f%%), and %d eight types does not"
+               % (len(eight & land), len(eight), 100 * caught, len(land - eight)))
+    out.append("precision land %+.2f points against eight types" % gap)
+    missed = {}
+    for c, t in eight - land:
+        missed[kind[c]] = missed.get(kind[c], 0) + 1
+    out.append("    eight types' removals land / non-land misses, by card type: " + "  ".join(
+        "%s %d" % (k, missed[k]) for k in TYPES + ("other",) if missed.get(k)))
+    gain = 100 * (prec["eight"] - prec["none"])
+    out.append("PASS: land / non-land replaces the eight types" if caught >= 0.8 and gap >= -0.5 else
+               "FAIL: land / non-land falls short of the eight types")
+    if gain < 0.5:
+        out.append("the eight types gain %.2f points over no type, under 0.5: any type input earns little" % gain)
+    out.append("")
+
+    marks, _, _ = read_marks(d)
+    out.append("the %d hand-marked cards: marked-wrong chips, and marked-right chips, each arm removes" % len(marks))
+    for arm in arms[1:]:
+        wrong_gone, right_gone = [], []
+        for c, wrong in marks:
+            dealt_c = dealt(c, both_scores(d, c))
+            gone = dealt_c["none"] - dealt_c[arm]
+            wrong_gone += [d.names[c] + " " + d.tags[t] for t in gone & wrong]
+            right_gone += [d.names[c] + " " + d.tags[t] for t in gone - wrong]
+        out.append("  %s: wrong %d (%s)" % (arm, len(wrong_gone), ", ".join(wrong_gone) or "none"))
+        out.append("  %s: right %d (%s)" % (arm, len(right_gone), ", ".join(right_gone) or "none"))
+
+    path = os.path.join(HERE, "out", "autotag_typefilter.txt")
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        f.write("\n".join(out) + "\n")
+    print("\n".join(out))
+    print("wrote " + path)
+
+
 #---- the hand-marked half: precision as a person reads it ----
 
 MARKS = "exam_autotags"
@@ -593,19 +716,17 @@ def write_marks(d, rule, how_many):
     print("wrote " + examfile.path(MARKS) + ", %d cards" % how_many)
 
 
-def score_marks(d, rule):
+def read_marks(d):
+    #([(card, wrong tags)] for the judged cards, how many are unjudged, names that
+    #are not tags)
     import examfile
-    judged = tp = fp = unjudged = 0
-    tagger_tp = tagger_fp = 0
-    gaps, unknown, called = [], [], []
+    marks, unknown, unjudged = [], [], 0
     for e in examfile.read(MARKS).get("Chips", []):
         card = e["fields"].get("Card", "")
         mark = e["fields"].get("Wrong", "?").strip()
         if mark == "?" or card not in d.names:
             unjudged += 1
             continue
-        c = d.names.index(card)
-        chips = set(rule(d, c))
         wrong = set()
         #a note in brackets is for people. a name that is not a tag is a typo, and
         #silently reading it as nothing would score a wrong chip as right
@@ -617,6 +738,19 @@ def score_marks(d, rule):
                 wrong.add(d.tag_of[part])
             else:
                 unknown.append(card + ": " + part)
+        marks.append((d.names.index(card), wrong))
+    return marks, unjudged, unknown
+
+
+def score_marks(d, rule):
+    import examfile
+    judged = tp = fp = 0
+    tagger_tp = tagger_fp = 0
+    gaps, called = [], []
+    marks, unjudged, unknown = read_marks(d)
+    for c, wrong in marks:
+        card = d.names[c]
+        chips = set(rule(d, c))
         judged += 1
         tp += len(chips - wrong)
         fp += len(chips & wrong)
@@ -647,6 +781,8 @@ def main():
     ap.add_argument("--write-marks", type=int, default=0, help="write that many test cards to mark by hand")
     ap.add_argument("--marks", action="store_true", help="score against the marked file instead")
     ap.add_argument("--typeline", action="store_true", help="write out/autotag_typeline.txt")
+    ap.add_argument("--typefilter", action="store_true",
+                    help="web's type filter, eight types against land / non-land: out/autotag_typefilter.txt")
     args = ap.parse_args()
     d = Data()
     if args.write_marks:
@@ -655,6 +791,8 @@ def main():
         score_marks(d, RULES[args.rule])
     elif args.typeline:
         typeline_report(d, RULES[args.rule])
+    elif args.typefilter:
+        typefilter_report(d)
     else:
         evaluate(d, RULES[args.rule], args.half, args.limit, args.show)
 

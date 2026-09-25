@@ -9,8 +9,10 @@
 #nothing measured. only scoring real cards both ways says whether they still
 #agree, and nothing here can do that.
 #
-#the type filter (card_type, TYPE_FLOOR, the kind argument to chips) is web's
-#alone. no exam reads a type line, so none of those numbers include it.
+#the type filter (card_type, TYPE_FLOOR, the kind argument to chips) is measured
+#by exam_autotags.py --typefilter, which imports both. on the test half it lifts
+#precision against tagger 0.32 points, 88.91% to 89.23%, removing 396 wrong chips
+#and 662 right ones. the 98% above is without it.
 #
 #PURE: scores in, chips out. the database work is views/custom.py's, because web
 #deploys on its own and this file is what the tests can reach without one.
