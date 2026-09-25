@@ -113,14 +113,16 @@ def deck_id(i):
 
 def build(conn):
     wipe(conn)
+    #these five carry tags, so they have a concept score. the filler below has
+    #none, and NULL is what tags.py stores for a card with no tags
     for oid, name, salt, rank, cmc, price, released, type_line, text in CARDS:
         conn.execute("""
             INSERT INTO cards (oracle_id, name, mana_cost, type_line, oracle_text, image,
                                scryfall_uri, text_hash, color_identity, price_usd, price_eur,
                                cmc, game_changer, legal_commander, layout, image_back,
-                               edhrec_rank, released_at, salt, uniqueness)
+                               edhrec_rank, released_at, salt, uniqueness, concept_uniqueness)
             VALUES (%s, %s, '{1}{U}', %s, %s, '', '', %s, 'U', %s, %s, %s, false, true,
-                    'normal', '', %s, %s, %s, 0.5)
+                    'normal', '', %s, %s, %s, 0.5, 0.5)
         """, (oid, name, type_line, text, name, price, price, cmc, rank, released, salt))
 
     for oid, text, axis in LINES:

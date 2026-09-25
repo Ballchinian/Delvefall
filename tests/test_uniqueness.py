@@ -31,9 +31,9 @@ def owners_of(needle):
 class TestTheBlendIsWrittenOnce:
 
     def test_no_query_spells_the_formula_out_for_itself(self):
-        #the concept column is only ever read through the blend, so any other
-        #string naming it is a second copy of the formula
-        assert owners_of("concept_uniqueness") == ["UNIQUE_BLEND_SQL"]
+        #the concept column is only ever read through the blend and the pool, so
+        #any other string naming it is a second copy of one of them
+        assert owners_of("concept_uniqueness") == ["UNIQUE_BLEND_SQL", "UNIQUE_POOL_SQL"]
 
 
 def blended(uniqueness, concept_uniqueness):
@@ -48,7 +48,10 @@ def blended(uniqueness, concept_uniqueness):
 class TestAnUntaggedCardSitsOutTheConceptAxis:
     #schema.sql stores concept_uniqueness NULL for a card with no tags: unknown,
     #not unique. read as zero it halved the card's score: Ogre Enforcer ranked
-    #17,164th where its rules text alone puts it 4,822nd
+    #17,164th where its rules text alone puts it 4,822nd.
+    #
+    #UNIQUE_POOL_SQL keeps such a card off /unique, so this is the guard for a
+    #query that forgets the pool: a NULL blend sorts FIRST in a descending order
 
     def test_its_score_is_its_rules_text_alone(self):
         #Ogre Enforcer: rules text 0.271, no tags
@@ -136,7 +139,10 @@ class TestTheStandingInWords:
 @needs_db
 class TestTheStandingIsCountedFromTheTable:
     #a temp table named cards shadows the real one inside this transaction, so
-    #the population is exactly these rows. real values, measured
+    #the population is exactly these rows. real values, measured.
+    #
+    #Ogre Enforcer has no tags, so it is in no pool: its rules text alone would
+    #put it second among legal cards and in every total
     CARDS = [
         ("Oddric, Lunar Marquis", 0.3474, 0.7277, False),
         ("The Watcher in the Water", 0.3076, 0.7235, True),
@@ -167,26 +173,23 @@ class TestTheStandingIsCountedFromTheTable:
         return app.unique_standing(conn, row["b"], illegal, row["legal_commander"])
 
     def test_the_top_legal_card_is_first_among_legal_cards(self, conn):
-        assert self.standing(conn, "The Watcher in the Water") == (1, 6, 7)
+        assert self.standing(conn, "The Watcher in the Water") == (1, 5, 6)
 
     def test_including_illegal_cards_counts_the_one_above_it(self, conn):
-        assert self.standing(conn, "The Watcher in the Water", illegal=True) == (2, 6, 8)
+        assert self.standing(conn, "The Watcher in the Water", illegal=True) == (2, 5, 7)
 
     def test_an_illegal_card_is_counted_among_everything(self, conn):
         #left in a trail after the illegal box is unticked. counted against legal
         #cards alone it read "the most unique card in Magic" beside Watcher
-        assert self.standing(conn, "Oddric, Lunar Marquis") == (1, 7, 8)
-
-    def test_a_card_is_never_counted_against_itself(self, conn):
-        #Watcher above, Disorient and the four noise cards below
-        assert self.standing(conn, "Ogre Enforcer") == (2, 5, 7)
+        assert self.standing(conn, "Oddric, Lunar Marquis") == (1, 6, 7)
 
     def test_float_noise_around_zero_is_one_tie(self, conn):
         for name in self.NOISE:
-            assert self.standing(conn, name) == (4, 0, 7), name
+            assert self.standing(conn, name) == (3, 0, 6), name
 
     def test_the_first_real_near_copy_clears_the_tie(self, conn):
-        assert self.standing(conn, "Disorient") == (3, 4, 7)
+        #Watcher above, the four noise cards below, and never itself
+        assert self.standing(conn, "Disorient") == (2, 4, 6)
 
 
 @needs_db
@@ -211,3 +214,46 @@ class TestAHistoryArrowOnUnique:
         #and a scored card still comes back
         got = app.app.test_client().get("/unique/card?id=" + seed.STRANGER).get_json()
         assert got["card"]["name"] == "Fixture Stranger"
+
+
+@needs_db
+class TestAnUntaggedCardIsLeftOutOfUnique:
+    #no tags leaves half its blend unknown rather than low, so /unique neither
+    #deals, lists nor counts it, and it rejoins once it is tagged. the seed's
+    #filler has no tags, and here one of them gets a rules score no tagged card
+    #comes near: read as its rules text alone, it is the first card dealt and
+    #the first listed
+
+    @pytest.fixture
+    def untagged(self, seeded, monkeypatch):
+        import db
+        import seed
+        oid = seed.deck_id(0)
+        with db.pool.connection() as conn:
+            conn.execute("UPDATE cards SET uniqueness = 1.0 WHERE oracle_id = %s", (oid,))
+            conn.execute("UPDATE cards SET unique_line = oracle_text WHERE oracle_id = ANY(%s)",
+                         ([oid, seed.STRANGER],))
+            conn.commit()
+        #the list under the dealer is held an hour
+        monkeypatch.setitem(app._unique_top, "rows", [])
+        monkeypatch.setitem(app._unique_top, "at", 0.0)
+        yield oid
+        with db.pool.connection() as conn:
+            conn.execute("UPDATE cards SET uniqueness = 0.4 WHERE oracle_id = %s", (oid,))
+            conn.execute("UPDATE cards SET unique_line = NULL WHERE oracle_id = ANY(%s)",
+                         ([oid, seed.STRANGER],))
+            conn.commit()
+
+    def test_it_is_never_dealt(self, untagged):
+        got = app.app.test_client().post("/unique/cards", json={}).get_json()
+        assert got["cards"]
+        assert got["cards"][0]["oracle_id"] != untagged
+
+    def test_it_is_not_listed(self, untagged):
+        names = [row["name"] for row in app.unique_top()]
+        assert "Fixture Stranger" in names
+        assert "Fixture Filler 000" not in names
+
+    def test_its_history_entry_is_dead(self, untagged):
+        got = app.app.test_client().get("/unique/card?id=" + untagged).get_json()
+        assert got == {"card": None}

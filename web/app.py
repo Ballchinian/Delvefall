@@ -454,9 +454,17 @@ BLEND = 0.5
 
 #the uniqueness /unique ranks and deals by, reading a cards row aliased c.
 #
-#a card with no tags has a NULL concept score, and the concepts axis sits out
-#rather than scoring it zero, the way find_similar treats a tagless anchor
+#a card with no tags has a NULL concept score and UNIQUE_POOL_SQL keeps it off
+#/unique, so the coalesce is a guard: a query that forgot the pool would
+#otherwise sort every untagged card first, NULL leading a descending order
 UNIQUE_BLEND_SQL = "coalesce((1 - %r) * c.uniqueness + %r * c.concept_uniqueness, c.uniqueness)" % (BLEND, BLEND)
+
+#the cards /unique deals, lists and counts among, reading a cards row aliased c.
+#an untagged card has half its blend unknown rather than low, so it sits out
+#until it is tagged. 344 of 31,295 legal scored cards in the 09-17 freeze: none
+#reach the top 1,000 on the blend (best #4,624), and a percentile fill put Ogre
+#Enforcer at #534, above every tagged card with its rules score
+UNIQUE_POOL_SQL = "c.uniqueness IS NOT NULL AND c.concept_uniqueness IS NOT NULL"
 
 
 #scores are stored as float4, so a card whose every line and tag is printed
@@ -481,7 +489,7 @@ def unique_standing(conn, blended, illegal=False, legal=True):
                count(*) AS total
         FROM (SELECT CASE WHEN u < %(noise)s THEN 0 ELSE u END AS b
               FROM (SELECT """ + UNIQUE_BLEND_SQL + """ AS u FROM cards c
-                    WHERE c.uniqueness IS NOT NULL""" + ("" if everything else " AND c.legal_commander") + """) s) t
+                    WHERE """ + UNIQUE_POOL_SQL + ("" if everything else " AND c.legal_commander") + """) s) t
     """, {"x": x, "noise": UNIQUE_NOISE}).fetchone()
     return row["above"] + 1, row["below"], row["total"]
 
@@ -2086,7 +2094,7 @@ def unique_top():
             rows = [dict(r) for r in conn.execute("""
                 SELECT name, unique_line, image, """ + UNIQUE_BLEND_SQL + """ AS blended
                 FROM cards c
-                WHERE uniqueness IS NOT NULL AND coalesce(unique_line, '') <> ''
+                WHERE """ + UNIQUE_POOL_SQL + """ AND coalesce(unique_line, '') <> ''
                   AND legal_commander
                 ORDER BY blended DESC, name
                 LIMIT %s
@@ -4712,11 +4720,10 @@ def unique_cards():
 
     where, fparams = filter_sql(filters)
     #no uniqueness bar: the dealer works from whatever is left rather than from
-    #a number anyone has to learn. cards with no searchable lines stay excluded,
-    #untagged cards rank on their rules text alone
+    #a number anyone has to learn
     cond = """
         FROM cards c
-        WHERE c.uniqueness IS NOT NULL
+        WHERE """ + UNIQUE_POOL_SQL + """
           AND NOT (c.oracle_id = ANY(%s::uuid[]))""" + where
     params = [seen] + fparams
     with pool.connection() as conn:
@@ -4759,15 +4766,16 @@ def unique_card():
     #back/forward history arrows on /unique. same shape as a fresh deal so
     #the frontend renders both identically. cards can vanish from the
     #database between visits (scryfall drops them, filters tighten), so
-    #null just means "this history entry died". a card with no score yet is
-    #one the deal would never hand out, and unique_standing cannot rank None
+    #null just means "this history entry died". a card with no score or no
+    #tags is one the deal would never hand out, and unique_standing cannot
+    #rank None
     try:
         oid = str(uuid.UUID(request.args.get("id", "")))
     except ValueError:
         return {"card": None}
     with pool.connection() as conn:
         c = conn.execute("SELECT " + CARD_FIELDS + ", unique_line, legal_commander, " + UNIQUE_BLEND_SQL +
-                         " AS blended_u FROM cards c WHERE oracle_id = %s AND c.uniqueness IS NOT NULL",
+                         " AS blended_u FROM cards c WHERE oracle_id = %s AND " + UNIQUE_POOL_SQL,
                          (oid,)).fetchone()
         if c is None:
             return {"card": None}
