@@ -472,6 +472,63 @@ class TestAModelSwapGoesThroughLinesNew:
                             ).fetchone()[0] == 1
         assert texts(conn) == sorted((r[0], r[1], r[4]) for r in new_model_rows())
 
+    def test_a_request_that_read_line_stats_is_not_the_one_postgres_kills(self, conn, monkeypatch):
+        #/custom reads line_stats and then walks lines, in one transaction. when
+        #the swap held lines through the renames before asking for line_stats, a
+        #request asking for lines in that gap waited first and postgres killed IT,
+        #a 500 for a visitor, where the swap is the side that retries. the pause
+        #after exchange widens that gap to 0.3s; the request asks well inside the
+        #1s deadlock_timeout, as a real one does
+        import threading
+        import time
+
+        import psycopg
+
+        from ingest import rebuild_lines, update
+        assert build_aside(conn)
+        conn.commit()
+        conn.execute("SELECT 1")
+        nap = time.sleep
+        real = rebuild_lines.exchange
+        holding, done = threading.Event(), threading.Event()
+
+        def exchange(*args, **kwargs):
+            got = real(*args, **kwargs)
+            holding.set()
+            nap(0.3)
+            return got
+
+        monkeypatch.setattr(rebuild_lines, "exchange", exchange)
+        monkeypatch.setattr(update.time, "sleep", lambda s: done.wait(10))
+        failed = []
+
+        def swap():
+            try:
+                update.swap_in(conn)
+            except Exception as e:
+                failed.append(e)
+
+        request = psycopg.connect(TEST_DB)
+        killed = False
+        try:
+            request.execute("SET search_path TO rebuild_check, public")
+            request.execute("SELECT count(*) FROM line_stats")
+            swapping = threading.Thread(target=swap)
+            swapping.start()
+            holding.wait(0.3)
+            try:
+                request.execute("SELECT count(*) FROM lines")
+            except psycopg.errors.DeadlockDetected:
+                killed = True
+            request.rollback()
+            done.set()
+            swapping.join(30)
+        finally:
+            request.close()
+        assert not killed
+        assert not failed
+        assert texts(conn) == sorted((r[0], r[1], r[4]) for r in new_model_rows())
+
     def test_skipping_the_fingerprint_does_not_skip_the_recall_check(self, conn):
         #a swap's lines_new differs from lines by design, so update.py turns the
         #fingerprint off. the verdict still has to hold it back

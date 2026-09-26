@@ -260,12 +260,15 @@ def show(conn, report):
         print("\ndo not swap, --swap will refuse: " + report["reason"])
 
 
-def exchange(conn, incoming, outgoing, check=True):
+def exchange(conn, incoming, outgoing, check=True, also=()):
     #incoming takes the name lines, lines takes the name outgoing, and every index,
     #constraint and the id sequence follows. the caller commits.
     #
     #SHARE first lets searches carry on while the fingerprints are read, and holds
-    #off any write. ACCESS EXCLUSIVE is only wanted for the renames
+    #off any write. ACCESS EXCLUSIVE is only wanted for the renames, and for the
+    #tables in also, which the caller writes after them: taken in the same
+    #statement, there is no gap holding lines but not them for a search that read
+    #one of them to wait inside first and be the one postgres kills
     alone(conn)
     conn.execute("SET LOCAL lock_timeout = '" + LOCK_TIMEOUT + "'")
     conn.execute("LOCK TABLE lines IN SHARE MODE")
@@ -280,7 +283,8 @@ def exchange(conn, incoming, outgoing, check=True):
                       "). python -m ingest.rebuild_lines --check runs it again")
     seq = conn.execute("SELECT pg_get_serial_sequence('lines', 'id')").fetchone()[0]
     asked = conn.execute("SELECT clock_timestamp()").fetchone()[0]
-    conn.execute("LOCK TABLE lines, " + incoming + ", line_tags IN ACCESS EXCLUSIVE MODE")
+    conn.execute("LOCK TABLE " + ", ".join(("lines", incoming, "line_tags") + tuple(also)) +
+                 " IN ACCESS EXCLUSIVE MODE")
     held = conn.execute("SELECT clock_timestamp()").fetchone()[0]
     conn.execute("ALTER TABLE line_tags DROP CONSTRAINT line_tags_line_id_fkey")
     for old, new in (("lines", outgoing), (incoming, "lines")):

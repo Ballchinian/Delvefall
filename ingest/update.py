@@ -304,9 +304,10 @@ def swap_in(conn):
     #the workflow's last step, fills it again.
     #
     #a savepoint per try, so a search outlasting the lock timeout rolls back the
-    #swap and not the encode before it. line_stats is inside it too: its
-    #TRUNCATE comes after the swap holds lines, and a /custom request that read
-    #line_stats and is waiting on lines deadlocks with it.
+    #swap and not the encode before it. line_stats is locked in exchange's own
+    #statement: /custom reads it and then walks lines, and with it locked after
+    #the renames a request asking for lines in between waited first, so postgres
+    #killed the request rather than this, the side that retries.
     #
     #the counting happens from lines_new BEFORE the locks, and only the copy in
     #under them. over the 09-16 lines in the lab the locks were held 0.47 to
@@ -316,7 +317,8 @@ def swap_in(conn):
     for attempt in range(SWAP_TRIES):
         try:
             with conn.transaction():
-                waited, _ = rebuild_lines.exchange(conn, "lines_new", "lines_old", check=False)
+                waited, _ = rebuild_lines.exchange(conn, "lines_new", "lines_old", check=False,
+                                                   also=("line_stats",))
                 conn.execute("TRUNCATE line_tags")
                 conn.execute("TRUNCATE line_stats")
                 conn.execute("INSERT INTO line_stats SELECT * FROM line_stats_new")
