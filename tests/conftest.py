@@ -64,7 +64,7 @@ class _Connection:
 
 
 class _NullPool:
-    def connection(self):
+    def connection(self, timeout=None):
         return _Connection()
 
 
@@ -125,6 +125,8 @@ def _real_pool(url):
 
 if "db" not in sys.modules:
     stub = types.ModuleType("db")
+    #web/db.py's. importing it would open a pool against DATABASE_URL
+    stub.HOOK_WAIT = 0.4
     if TEST_DB:
         _load_schema(TEST_DB)
         stub.pool = _real_pool(TEST_DB)

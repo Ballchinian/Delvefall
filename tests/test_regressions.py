@@ -189,3 +189,30 @@ class TestSwapToolAlwaysAnswers:
         #the tooltip must not claim a blend that never happened
         assert cards[0]["blended"] is False
         assert cards[0]["match"] == cards[0]["mech_pct"]
+
+
+class TestAFullPoolDoesNotHoldStaticFiles:
+    #the visit counter and the calibration reload run before every request, and
+    #each queued for a connection at the pool's own 30s. with the pool full every
+    #.woff2 and robots.txt waited 30s, a stylesheet too once the reload fell due,
+    #and the three lined up past 60s
+
+    def test_a_font_robots_and_a_stylesheet_answer_with_every_connection_taken(self, monkeypatch):
+        import time
+
+        import db
+        import mirror
+        import visitors
+        #the worst request of a day: the reload due and today's salt not read yet
+        monkeypatch.setattr(mirror, "RELOAD_EVERY", 0.0)
+        monkeypatch.setitem(visitors._visit, "salt", None)
+        held = [db.pool.getconn() for _ in range(db.pool.max_size)]
+        try:
+            client = app.app.test_client()
+            for path in ("/static/fonts/Fraunces.woff2", "/robots.txt", "/static/style-ink.css"):
+                started = time.perf_counter()
+                assert client.get(path).status_code == 200, path
+                assert time.perf_counter() - started < 1.5, path
+        finally:
+            for c in held:
+                db.pool.putconn(c)

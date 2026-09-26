@@ -21,7 +21,7 @@ import math
 import json
 import time
 
-from db import pool
+from db import HOOK_WAIT, pool
 from prefix_words import PREFIX_WORDS
 
 #these three have to stay IDENTICAL to what the ingest used, or the line picker
@@ -188,7 +188,7 @@ RELOAD_EVERY = 300.0
 _LOADED_AT = 0.0
 
 
-def load_calibration():
+def load_calibration(wait=None):
     #meta's maps replace the seeds, so the percents always belong to the model
     #that made the vectors. a database the ingest never ran against has no meta
     #rows and the seeds hold.
@@ -202,7 +202,7 @@ def load_calibration():
     suffix = "" if EMBED_COL == "embedding" else "_" + EMBED_COL
     try:
         got = {}
-        with pool.connection() as conn:
+        with pool.connection(timeout=wait) as conn:
             for key in ("concept_calibration", "mech_calibration"):
                 row = None
                 if suffix:
@@ -232,7 +232,7 @@ def refresh_calibration():
     #timestamp is set before the read rather than after, so the worst a race costs
     #is one extra read of two rows
     if not CALIBRATED or time.monotonic() - _LOADED_AT >= RELOAD_EVERY:
-        load_calibration()
+        load_calibration(HOOK_WAIT)
 
 
 load_calibration()

@@ -44,6 +44,13 @@ def setup(conn):
 #
 #one empty round trip per CHECKOUT, not per request. the card page and precon
 #caches mean most hits never borrow a connection at all
+#what a before_request hook waits for a connection before it skips its write or
+#its reload. at the pool's own 30s a full pool holds every .woff2 and robots.txt
+#for 30s, and with the calibration reload due a stylesheet too (the other two
+#then run past 60s). three waits can line up on one request, the day's salt, the
+#reload and the count, so 3 x 0.4s stays inside 1.5s
+HOOK_WAIT = 0.4
+
 pool = ConnectionPool(
     os.environ["DATABASE_URL"],
     min_size=4,

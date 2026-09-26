@@ -198,7 +198,7 @@ class TestTheMapsAreReadAgainOnATimer:
         monkeypatch.setattr(mirror, "time", clock)
         monkeypatch.setattr(mirror, "CALIBRATED", calibrated)
         monkeypatch.setattr(mirror, "_LOADED_AT", now)
-        monkeypatch.setattr(mirror, "load_calibration", lambda: reads.append(clock.now))
+        monkeypatch.setattr(mirror, "load_calibration", lambda wait=None: reads.append(clock.now))
         return clock, reads
 
     def test_nothing_is_read_before_the_interval_is_up(self, monkeypatch):
@@ -246,7 +246,7 @@ class TestASecondReadReplacesTheFirst:
                 return False
 
         class Pool:
-            def connection(self):
+            def connection(self, timeout=None):
                 return Conn()
 
         monkeypatch.setattr(mirror, "pool", Pool())
@@ -291,7 +291,7 @@ class TestASecondReadReplacesTheFirst:
                 return False
 
         class Pool:
-            def connection(self):
+            def connection(self, timeout=None):
                 return Conn()
 
         monkeypatch.setattr(mirror, "pool", Pool())
@@ -310,7 +310,7 @@ class TestASecondReadReplacesTheFirst:
         monkeypatch.setattr(mirror, "CALIBRATION", [(0.0, 0.0), (1.0, 100.0)])
 
         class Dead:
-            def connection(self):
+            def connection(self, timeout=None):
                 raise RuntimeError("the database is down")
 
         monkeypatch.setattr(mirror, "pool", Dead())

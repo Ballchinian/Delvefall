@@ -28,7 +28,7 @@ import datetime
 
 from flask import request
 
-from db import pool
+from db import HOOK_WAIT, pool
 
 _visit = {"day": None, "salt": None}
 
@@ -64,15 +64,17 @@ SPLIT_COUNTS = """count(*) FILTER (WHERE NOT bot) AS uniques,
                                    AND font) AS rendered_n"""
 
 
-def todays_salt():
+def todays_salt(wait=None):
     #generated once and shared by every worker through the db. the first request
     #of a new day does the housekeeping: each finished day collapses to one row
     #of counts in visit_daily and its tokens and salt are DELETED, which is what
-    #makes yesterday unrecoverable. only the counts survive the day
+    #makes yesterday unrecoverable. only the counts survive the day.
+    #
+    #wait is how long to queue for a connection, None the pool's own timeout
     day = _utc_day()
     if _visit["day"] == day and _visit["salt"]:
         return _visit["salt"]
-    with pool.connection() as conn:
+    with pool.connection(timeout=wait) as conn:
         conn.execute("INSERT INTO visit_salt (day, salt) VALUES (%s, %s) ON CONFLICT (day) DO NOTHING",
                      (day, secrets.token_hex(16)))
         salt = conn.execute("SELECT salt FROM visit_salt WHERE day = %s", (day,)).fetchone()["salt"]
@@ -93,11 +95,11 @@ def todays_salt():
     return salt
 
 
-def visitor_token(ip):
+def visitor_token(ip, wait=None):
     #an empty ip stays EMPTY rather than becoming a hash of the salt alone
     if not ip:
         return ""
-    return hashlib.sha256((todays_salt() + "|" + ip).encode("utf-8")).hexdigest()
+    return hashlib.sha256((todays_salt(wait) + "|" + ip).encode("utf-8")).hexdigest()
 
 
 #these are flask ENDPOINT names, and a route moved into a blueprint is renamed to
@@ -217,7 +219,7 @@ def count_visit():
     #a blanket catch, because analytics must NEVER break a page: a missing column
     #on a fresh deploy or a db hiccup means an uncounted visit, never a 500
     try:
-        token = visitor_token(client_ip())
+        token = visitor_token(client_ip(), HOOK_WAIT)
         if not token:
             return
         day = _utc_day()
@@ -227,7 +229,7 @@ def count_visit():
         seen = _visit_memo["kinds"]
         if kind in seen.get(token, ()):
             return
-        with pool.connection() as conn:
+        with pool.connection(timeout=HOOK_WAIT) as conn:
             #read on the page request alone, where the headers are the ones a
             #browser sends navigating rather than fetching
             conn.execute(_UPSERT, (day, token, is_bot(), kind == "html", kind == "font",
